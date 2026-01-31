@@ -3,30 +3,35 @@
 
 # Source core libraries
 COMMAND_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-PROJECT_ROOT="$(dirname "$COMMAND_DIR")"
-# shellcheck source=../lib/core.sh
-source "$PROJECT_ROOT/lib/core.sh"
+
+# shellcheck source=../lib/core.sh disable=SC1091
+# The sourced file exists at runtime but ShellCheck can't resolve it due to relative path/context.
+source "$(dirname "$COMMAND_DIR")/lib/core.sh"
 
 # Source local modules if they exist
 if [[ -d "$COMMAND_DIR/list/modules" ]]; then
     for module in "$COMMAND_DIR/list/modules"/*.sh; do
         # shellcheck source=/dev/null
+        # Module files may not exist; we check existence before sourcing.
         source "$module"
     done
 fi
 
 # Default format function (legacy compatibility)
 _format_legacy() {
+    local filter="${1:-active}"
+    local pane_filter="${2:-}"
+    local level_filter="${3:-}"
     local items
-    items=$(get_tray_items)
+    items=$(get_tray_items "$filter")
     
     if [[ -z "$items" ]]; then
         info "Tray is empty"
         return
     fi
     
-    # Convert colon-separated items to lines
-    echo "$items" | tr ':' '\n'
+    # Items are already newline-separated
+    echo "$items"
 }
 
 # Simple table format
@@ -42,8 +47,8 @@ _format_table() {
         local filtered_lines=""
         while IFS= read -r line; do
             if [[ -n "$line" ]]; then
-                local id timestamp state session window pane message pane_created level
-                _parse_notification_line "$line" id timestamp state session window pane message pane_created level
+                local pane
+                _parse_notification_line "$line" _ _ _ _ _ pane _ _ _
                 if [[ "$pane" == "$pane_filter" ]]; then
                     filtered_lines="${filtered_lines}${line}\n"
                 fi
@@ -62,8 +67,8 @@ _format_table() {
     
     while IFS= read -r line; do
         if [[ -n "$line" ]]; then
-            local id timestamp state session window pane message pane_created level
-            _parse_notification_line "$line" id timestamp state session window pane message pane_created level
+            local id timestamp pane level message
+            _parse_notification_line "$line" id timestamp _ _ _ pane message _ level
             message=$(_unescape_message "$message")
             # Truncate message for display
             local display_msg
@@ -90,8 +95,8 @@ _format_compact() {
         local filtered_lines=""
         while IFS= read -r line; do
             if [[ -n "$line" ]]; then
-                local id timestamp state session window pane message pane_created level
-                _parse_notification_line "$line" id timestamp state session window pane message pane_created level
+                local pane
+                _parse_notification_line "$line" _ _ _ _ _ pane _ _ _
                 if [[ "$pane" == "$pane_filter" ]]; then
                     filtered_lines="${filtered_lines}${line}\n"
                 fi
@@ -102,8 +107,8 @@ _format_compact() {
     
     while IFS= read -r line; do
         if [[ -n "$line" ]]; then
-            local id timestamp state session window pane message pane_created level
-            _parse_notification_line "$line" id timestamp state session window pane message pane_created level
+            local message
+            _parse_notification_line "$line" _ _ _ _ _ _ message _ _
             message=$(_unescape_message "$message")
             echo "$message"
         fi
@@ -186,7 +191,7 @@ EOF
     case "$format" in
         legacy)
             # For backward compatibility with scripts using old show command
-            _format_legacy
+            _format_legacy "$filter" "$pane_filter" "$level_filter"
             ;;
         table)
             _format_table "$filter" "$pane_filter" "$level_filter"

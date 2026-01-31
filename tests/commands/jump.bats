@@ -3,8 +3,10 @@
 
 setup() {
     export TMUX_SOCKET_NAME="tmux-intray-test-jump"
-    export XDG_STATE_HOME="$(mktemp -d)"
-    export XDG_CONFIG_HOME="$(mktemp -d)"
+    XDG_STATE_HOME="$(mktemp -d)"
+    export XDG_STATE_HOME
+    XDG_CONFIG_HOME="$(mktemp -d)"
+    export XDG_CONFIG_HOME
     
     tmux -L "$TMUX_SOCKET_NAME" kill-server 2>/dev/null || true
     sleep 0.1
@@ -13,6 +15,11 @@ setup() {
     # Create a second pane to jump to
     tmux -L "$TMUX_SOCKET_NAME" split-window -h -t test:0
     sleep 0.1
+    # Get socket path and set TMUX environment variable so plain tmux commands use our test server
+    socket_path=$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{socket_path}' 2>/dev/null)
+    # TMUX format: socket_path,client_fd,client_pid
+    # We'll fake client_fd and client_pid (not critical for our use)
+    export TMUX="$socket_path,12345,0"
 }
 
 teardown() {

@@ -10,7 +10,7 @@ filter_by_date() {
         return
     fi
     
-    echo "$items" | tr ':' '\n' | grep "$date_filter" | tr '\n' ':'
+    echo "$items" | grep "$date_filter"
 }
 
 filter_by_source() {
@@ -22,7 +22,7 @@ filter_by_source() {
         return
     fi
     
-    echo "$items" | tr ':' '\n' | grep "\[${source_filter}\]" | tr '\n' ':'
+    echo "$items" | grep "\[${source_filter}\]"
 }
 
 filter_by_priority() {
@@ -41,7 +41,7 @@ filter_by_priority() {
         low)    priority_symbol="🟢" ;;
     esac
     
-    echo "$items" | tr ':' '\n' | grep "$priority_symbol" | tr '\n' ':'
+    echo "$items" | grep "$priority_symbol"
 }
 
 count_items() {
@@ -52,5 +52,5 @@ count_items() {
         return
     fi
     
-    echo "$items" | tr ':' '\n' | grep -c -v '^$'
+    echo "$items" | grep -c -v '^$'
 }

@@ -2,10 +2,9 @@
 # Jump command - Navigate to the pane of a notification
 
 # Source core libraries
-COMMAND_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-PROJECT_ROOT="$(dirname "$COMMAND_DIR")"
-# shellcheck source=../lib/core.sh
-source "$PROJECT_ROOT/lib/core.sh"
+# shellcheck source=../lib/core.sh disable=SC1091
+# The sourced file exists at runtime but ShellCheck can't resolve it due to relative path/context.
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/core.sh"
 
 jump_command() {
     if [[ $# -ne 1 ]]; then
@@ -27,8 +26,8 @@ jump_command() {
     fi
     
     # Parse line
-    local timestamp state session window pane message pane_created level
-    _parse_notification_line "$line" dummy timestamp state session window pane message pane_created level
+    local state session window pane
+    _parse_notification_line "$line" _ _ state session window pane _ _ _
     
     if [[ "$state" == "dismissed" ]]; then
         info "Notification $id is dismissed, but jumping anyway"

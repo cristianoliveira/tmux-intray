@@ -110,11 +110,17 @@ This project uses [Bats](https://github.com/bats-core/bats-core) for testing.
 
 To run the tests:
 
+With nix (preferable):
+```bash
+$ nix develop -c make tests
+```
+
+Without nix:
 ```bash
 $ bats tests
 ```
-Or:
 
+Or:
 ```bash
 make tests
 ```
@@ -126,6 +132,13 @@ Tests are located in the `tests` directory.
 This project uses [ShellCheck](https://www.shellcheck.net/) for linting.
 
 To run the linter:
+
+With nix (preferable):
+```bash
+$ nix develop -c make lint
+```
+
+Without nix:
 
 ```bash
 $ scripts/lint.sh # go over all files in the project and lint them

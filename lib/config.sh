@@ -2,7 +2,8 @@
 # Configuration management for tmux-intray
 
 # Load core utilities
-# shellcheck source=./colors.sh
+# shellcheck source=./colors.sh disable=SC1091
+# The sourced file exists at runtime but ShellCheck can't resolve it due to relative path/context.
 source "$(dirname "${BASH_SOURCE[0]}")/colors.sh"
 
 # Default configuration values
@@ -20,10 +21,16 @@ TMUX_INTRAY_LEVEL_COLORS="${TMUX_INTRAY_LEVEL_COLORS:-info:green,warning:yellow,
 
 # Load user configuration if exists
 config_load() {
+    # Guard against duplicate loading
+    if [[ "${TMUX_INTRAY_CONFIG_LOADED:-0}" -eq 1 ]]; then
+        return 0
+    fi
+    
     local config_file="$TMUX_INTRAY_CONFIG_DIR/config.sh"
     
     if [[ -f "$config_file" ]]; then
         # shellcheck source=/dev/null
+        # Config file may not exist; we check existence before sourcing.
         source "$config_file"
         info "Loaded configuration from $config_file"
     else
@@ -31,6 +38,8 @@ config_load() {
         mkdir -p "$TMUX_INTRAY_CONFIG_DIR"
         _create_sample_config "$config_file"
     fi
+    
+    TMUX_INTRAY_CONFIG_LOADED=1
 }
 
 # Create sample configuration file

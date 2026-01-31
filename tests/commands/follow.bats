@@ -36,7 +36,7 @@ teardown() {
     kill $follow_pid 2>/dev/null || true
     # We can't easily capture output; just ensure no crash
     # This test is minimal
-    [ true ]
+    true
 }
 
 @test "follow level filter" {

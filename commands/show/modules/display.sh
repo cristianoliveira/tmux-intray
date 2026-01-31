@@ -7,7 +7,7 @@ format_items() {
     count=$(count_items "$items")
     
     echo "=== Intray Items (${count}) ==="
-    echo "$items" | tr ':' '\n' | nl -w2 -s'. ' | sed 's/^[[:space:]]*//'
+    echo "$items" | nl -w2 -s'. ' | sed 's/^[[:space:]]*//'
 }
 
 format_table() {
@@ -17,7 +17,7 @@ format_table() {
     printf "%-4s %-20s %s\n" "#" "Time" "Message"
     printf "%-4s %-20s %s\n" "----" "--------------------" "--------------------"
     
-    echo "$items" | tr ':' '\n' | while IFS=']' read -r timestamp message; do
+    echo "$items" | while IFS=']' read -r timestamp message; do
         # Extract just the time from timestamp
         local time
         time=$(echo "$timestamp" | grep -oE '[0-9]{2}:[0-9]{2}:[0-9]{2}' || echo "??")
@@ -47,7 +47,7 @@ format_json() {
     echo '  "items": ['
     
     local first=true
-    echo "$items" | tr ':' '\n' | while IFS= read -r item; do
+    echo "$items" | while IFS= read -r item; do
         if [[ -n "$item" && -n "$first" ]]; then
             first=false
         elif [[ -n "$item" ]]; then

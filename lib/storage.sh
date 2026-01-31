@@ -3,7 +3,8 @@
 # Provides file-based TSV storage with flock locking
 
 # Load core utilities
-# shellcheck source=./colors.sh
+# shellcheck source=./colors.sh disable=SC1091
+# The sourced file exists at runtime but ShellCheck can't resolve it due to relative path/context.
 source "$(dirname "${BASH_SOURCE[0]}")/colors.sh"
 
 # Default directories
@@ -94,7 +95,7 @@ _get_latest_notifications() {
     # Use awk to keep only the last occurrence of each ID
     # Since file is append-only, we can reverse, keep first occurrence, reverse back
     if [[ -f "$file" && -s "$file" ]]; then
-        tac "$file" | awk -F '\t' '!seen[$1]++' | tac
+        tac "$file" | awk -F'\t' '!seen[$1]++' | tac
     fi
 }
 
@@ -111,7 +112,8 @@ _get_latest_active_lines() {
 
 # Internal helper: append a notification line to file
 _append_notification_line() {
-    local id="$1" timestamp="$2" state="$3" session="$4" window="$5" pane="$6" message="$7" pane_created="${8:-}" level="${9:-info}"
+    local id="$1" timestamp="$2" state="$3" session="$4" window="$5" pane="$6" message="$7"
+    local pane_created="${8:-}" level="${9:-info}"
     printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$id" "$timestamp" "$state" "$session" "$window" "$pane" "$message" "$pane_created" "$level" >> "$NOTIFICATIONS_FILE"
 }
 
@@ -203,9 +205,13 @@ storage_list_notifications() {
     local filter_expr=""
     case "$state_filter" in
         active)
+            # shellcheck disable=SC2016
+            # Awk expression uses single quotes to prevent variable expansion; intentional.
             filter_expr='$3 == "active"'
             ;;
         dismissed)
+            # shellcheck disable=SC2016
+            # Awk expression uses single quotes to prevent variable expansion; intentional.
             filter_expr='$3 == "dismissed"'
             ;;
         all)
@@ -250,7 +256,7 @@ storage_dismiss_notification() {
     # Check current state
     local timestamp state session window pane message pane_created level
     _parse_notification_line "$line" dummy timestamp state session window pane message pane_created level
-
+    
     if [[ "$state" == "dismissed" ]]; then
         error "Notification $id is already dismissed"
         return 1
@@ -281,56 +287,4 @@ storage_dismiss_all() {
 # Get count of active notifications
 storage_get_active_count() {
     storage_list_notifications "active" | wc -l
-}
-
-# Migrate from environment variables to file storage
-storage_migrate_from_env() {
-    # Check if TMUX_INTRAY_ITEMS exists and has content
-    local env_items
-    env_items=$(tmux show-environment -g TMUX_INTRAY_ITEMS 2>/dev/null || echo "")
-    # Format: TMUX_INTRAY_ITEMS=item1:item2:item3
-    env_items="${env_items#TMUX_INTRAY_ITEMS=}"
-    
-    if [[ -z "$env_items" ]]; then
-        return 0  # Nothing to migrate
-    fi
-    
-    # Split by colon
-    local migrated=0
-    IFS=':' read -ra items <<< "$env_items"
-    
-    for item in "${items[@]}"; do
-        if [[ -n "$item" ]]; then
-            # Parse existing formatted message: [timestamp] message
-            # Extract timestamp between brackets at start
-            local timestamp message
-            if [[ "$item" =~ ^\[([^]]+)\]\ (.*)$ ]]; then
-                timestamp="${BASH_REMATCH[1]}"
-                message="${BASH_REMATCH[2]}"
-                # Convert timestamp to ISO 8601 UTC if possible
-                # For now keep as is, but convert to ISO format
-                # We'll parse with date command
-                local iso_timestamp
-                if iso_timestamp=$(date -u -d "$timestamp" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null); then
-                    timestamp="$iso_timestamp"
-                else
-                    # Fallback: use current time
-                    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-                fi
-            else
-                # No timestamp, use current time
-                timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-                message="$item"
-            fi
-            
-            # Add to storage with original timestamp (default level: info)
-            storage_add_notification "$message" "$timestamp" "" "" "" "" "info"
-            ((migrated++))
-        fi
-    done
-    
-    # Clear environment variable after migration
-    tmux set-environment -g TMUX_INTRAY_ITEMS ""
-    
-    info "Migrated $migrated items from environment variables to file storage"
 }

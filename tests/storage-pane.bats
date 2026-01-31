@@ -3,8 +3,10 @@
 
 setup() {
     export TMUX_SOCKET_NAME="tmux-intray-test-pane"
-    export XDG_STATE_HOME="$(mktemp -d)"
-    export XDG_CONFIG_HOME="$(mktemp -d)"
+    XDG_STATE_HOME="$(mktemp -d)"
+    export XDG_STATE_HOME
+    XDG_CONFIG_HOME="$(mktemp -d)"
+    export XDG_CONFIG_HOME
     
     # Clean up any existing server
     tmux -L "$TMUX_SOCKET_NAME" kill-server 2>/dev/null || true
@@ -13,6 +15,11 @@ setup() {
     # Start a tmux server for migration tests
     tmux -L "$TMUX_SOCKET_NAME" new-session -d -s test
     sleep 0.1
+    # Get socket path and set TMUX environment variable so plain tmux commands use our test server
+    socket_path=$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{socket_path}' 2>/dev/null)
+    # TMUX format: socket_path,client_fd,client_pid
+    # We'll fake client_fd and client_pid (not critical for our use)
+    export TMUX="$socket_path,12345,0"
 }
 
 teardown() {
@@ -50,7 +57,16 @@ teardown() {
     
     local line
     line=$(tail -n 1 "$NOTIFICATIONS_FILE")
-    IFS=$'\t' read -r id_field timestamp state session window pane message pane_created level <<< "$line"
+    # Use awk to parse fields (bash read collapses consecutive tabs)
+    id_field=$(awk -F'\t' '{print $1}' <<< "$line")
+    timestamp=$(awk -F'\t' '{print $2}' <<< "$line")
+    state=$(awk -F'\t' '{print $3}' <<< "$line")
+    session=$(awk -F'\t' '{print $4}' <<< "$line")
+    window=$(awk -F'\t' '{print $5}' <<< "$line")
+    pane=$(awk -F'\t' '{print $6}' <<< "$line")
+    message=$(awk -F'\t' '{print $7}' <<< "$line")
+    pane_created=$(awk -F'\t' '{print $8}' <<< "$line")
+    level=$(awk -F'\t' '{print $9}' <<< "$line")
     
     [ -z "$session" ]
     [ -z "$window" ]

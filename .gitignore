@@ -9,4 +9,11 @@
 /tmp/
 /tmp*/
 
-A quiet inbox for things that happen while you're not looking.
+# Local development
+.local/
+
+# Ignore temp directories created during development
+/tmp/
+
+# bv (beads viewer) local config and caches
+.bv/

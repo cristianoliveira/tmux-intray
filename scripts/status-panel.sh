@@ -5,9 +5,11 @@
 # Source core libraries
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-# shellcheck source=../lib/colors.sh
+# shellcheck source=../lib/colors.sh disable=SC1091
+# The sourced file exists at runtime but ShellCheck can't resolve it due to relative path/context.
 source "$PROJECT_ROOT/lib/colors.sh"
-# shellcheck source=../lib/core.sh
+# shellcheck source=../lib/core.sh disable=SC1091
+# The sourced file exists at runtime but ShellCheck can't resolve it due to relative path/context.
 source "$PROJECT_ROOT/lib/core.sh"
 
 # Default configuration
@@ -83,6 +85,8 @@ get_counts_by_level() {
     local info=0 warning=0 error=0 critical=0
     while IFS= read -r line; do
         if [[ -n "$line" ]]; then
+            # shellcheck disable=SC2034
+            # Variables are used indirectly via printf -v assignment in _parse_notification_line.
             local id timestamp state session window pane message pane_created level
             _parse_notification_line "$line" id timestamp state session window pane message pane_created level
             case "$level" in

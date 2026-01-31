@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Follow command - Monitor notifications in real-time
 
+set -euo pipefail
+
 # Source core libraries
-COMMAND_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-PROJECT_ROOT="$(dirname "$COMMAND_DIR")"
-# shellcheck source=../lib/core.sh
-source "$PROJECT_ROOT/lib/core.sh"
+# shellcheck source=../lib/core.sh disable=SC1091
+# The sourced file exists at runtime but ShellCheck can't resolve it due to relative path/context.
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/core.sh"
 
 follow_command() {
     local poll_interval=1  # seconds
@@ -16,40 +17,36 @@ follow_command() {
     # Parse arguments
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --interval=*)
-                poll_interval="${1#*=}"
-                shift
-                ;;
-            --interval)
-                poll_interval="$2"
-                shift 2
-                ;;
-            --active)
-                filter="active"
+            --all)
+                filter="all"
                 shift
                 ;;
             --dismissed)
                 filter="dismissed"
                 shift
                 ;;
-            --all)
-                filter="all"
-                shift
-                ;;
-            --level=*)
-                level_filter="${1#*=}"
-                shift
-                ;;
             --level)
+                if [[ -z "${2:-}" ]]; then
+                    error "--level requires an argument (error, warning, info)"
+                    return 1
+                fi
                 level_filter="$2"
                 shift 2
                 ;;
-            --pane=*)
-                pane_filter="${1#*=}"
-                shift
-                ;;
             --pane)
+                if [[ -z "${2:-}" ]]; then
+                    error "--pane requires a pane ID"
+                    return 1
+                fi
                 pane_filter="$2"
+                shift 2
+                ;;
+            --interval)
+                if [[ -z "${2:-}" ]]; then
+                    error "--interval requires a number (seconds)"
+                    return 1
+                fi
+                poll_interval="$2"
                 shift 2
                 ;;
             --help|-h)
@@ -60,23 +57,18 @@ USAGE:
     tmux-intray follow [OPTIONS]
 
 OPTIONS:
-    --interval <sec>     Polling interval in seconds (default: 1)
-    --active             Show active notifications (default)
-    --dismissed          Show dismissed notifications
-    --all                Show all notifications
-    --level <level>      Filter notifications by level
-    --pane <id>          Filter notifications by pane ID
-    -h, --help           Show this help
+    --all              Show all notifications (not just active)
+    --dismissed        Show only dismissed notifications
+    --level <level>   Filter by level (error, warning, info)
+    --pane <id>       Filter by pane ID
+    --interval <secs>  Poll interval (default: 1)
+    -h, --help         Show this help
 
-EXAMPLES:
-    tmux-intray follow                 # Follow active notifications
-    tmux-intray follow --level=error   # Follow only error notifications
-    tmux-intray follow --interval=5    # Poll every 5 seconds
 EOF
                 return 0
                 ;;
             *)
-                error "Unknown argument: $1"
+                error "Unknown option: $1"
                 return 1
                 ;;
         esac
@@ -84,46 +76,74 @@ EOF
     
     ensure_tmux_running
     
-    # Get initial set of notification IDs
-    declare -A last_seen_ids
-    local lines
-    lines=$(storage_list_notifications "$filter" "$level_filter")
-    while IFS= read -r line; do
-        if [[ -n "$line" ]]; then
-            local id timestamp state session window pane message pane_created level
-            _parse_notification_line "$line" id timestamp state session window pane message pane_created level
-            # Filter by pane if specified
-            if [[ -n "$pane_filter" ]] && [[ "$pane" != "$pane_filter" ]]; then
-                continue
-            fi
-            last_seen_ids["$id"]=1
-        fi
-    done <<< "$lines"
+    local current_line_count=0
     
-    info "Following notifications (press Ctrl+C to stop)..."
+    # Clear screen
+    clear
     
+    info "Monitoring notifications (Ctrl+C to stop)..."
+    echo ""
+    
+    # Main monitoring loop
     while true; do
+        # Get notifications
         local lines
         lines=$(storage_list_notifications "$filter" "$level_filter")
-        while IFS= read -r line; do
-            if [[ -n "$line" ]]; then
-                local id timestamp state session window pane message pane_created level
-                _parse_notification_line "$line" id timestamp state session window pane message pane_created level
-                # Filter by pane if specified
-                if [[ -n "$pane_filter" ]] && [[ "$pane" != "$pane_filter" ]]; then
-                    continue
-                fi
-                # If ID not seen before, it's new
-                if [[ -z "${last_seen_ids["$id"]:-}" ]]; then
-                    last_seen_ids["$id"]=1
-                    # Output notification
-                    message=$(_unescape_message "$message")
+        
+        # Apply pane filter if specified
+        if [[ -n "$pane_filter" ]]; then
+            lines=$(echo "$lines" | awk -F'\t' -v pane="$pane_filter" '$6 == pane || $6 == ""')
+        fi
+        
+        # Check if new notifications appeared
+        local new_line_count
+        new_line_count=$(echo "$lines" | wc -l | tr -d ' ')
+        
+        if [[ "$new_line_count" -gt "$current_line_count" ]]; then
+            # New notification(s)
+            local new_lines
+            new_lines=$(echo "$lines" | tail -n $((new_line_count - current_line_count)))
+            
+            while IFS= read -r line; do
+                if [[ -n "$line" ]]; then
+                    # shellcheck disable=SC2034
+                    # Variables are used later in the loop; ShellCheck can't see usage across lines.
+                    local timestamp message pane level
+                    timestamp=$(echo "$line" | cut -f2)
+                    message=$(echo "$line" | cut -f7)
+                    pane=$(echo "$line" | cut -f6)
+                    level=$(echo "$line" | cut -f9)
+                    
+                    # Format timestamp
                     local display_time
                     display_time=$(echo "$timestamp" | sed 's/T/ /; s/Z$//')
-                    echo "[$display_time] [$level] $message"
+                    
+                    # Format message
+                    local formatted_message
+                    formatted_message=$(printf "[%s] [%s] %s" "$display_time" "$level" "$message")
+                    
+                    # Color based on level
+                    case "$level" in
+                        error)
+                            echo -e "\033[0;31m$formatted_message\033[0m"
+                            ;;
+                        warning)
+                            echo -e "\033[1;33m$formatted_message\033[0m"
+                            ;;
+                        info)
+                            echo "$formatted_message"
+                            ;;
+                    esac
+                    
+                    # Show pane info if available
+                    if [[ -n "$pane" ]]; then
+                        echo "  └─ From pane: $pane"
+                    fi
                 fi
-            fi
-        done <<< "$lines"
+            done <<< "$new_lines"
+        fi
+        
+        current_line_count="$new_line_count"
         sleep "$poll_interval"
     done
 }

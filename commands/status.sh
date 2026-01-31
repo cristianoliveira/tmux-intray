@@ -2,10 +2,11 @@
 # Status command - Show notification status summary
 
 # Source core libraries
-COMMAND_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-PROJECT_ROOT="$(dirname "$COMMAND_DIR")"
-# shellcheck source=../lib/core.sh
-source "$PROJECT_ROOT/lib/core.sh"
+
+
+# shellcheck source=../lib/core.sh disable=SC1091
+# The sourced file exists at runtime but ShellCheck can't resolve it due to relative path/context.
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/core.sh"
 
 # Default configuration
 TMUX_INTRAY_STATUS_FORMAT="${TMUX_INTRAY_STATUS_FORMAT:-summary}"
@@ -23,8 +24,10 @@ _status_get_counts_by_level() {
     local info=0 warning=0 error=0 critical=0
     while IFS= read -r line; do
         if [[ -n "$line" ]]; then
-            local id timestamp state session window pane message pane_created level
-            _parse_notification_line "$line" id timestamp state session window pane message pane_created level
+            # shellcheck disable=SC2034
+            # Variables are used indirectly via printf -v assignment in _parse_notification_line.
+            local level
+            _parse_notification_line "$line" _ _ _ _ _ _ _ _ level
             case "$level" in
                 info)
                     ((info++))
@@ -56,8 +59,10 @@ _status_get_counts_by_pane() {
     declare -A pane_counts
     while IFS= read -r line; do
         if [[ -n "$line" ]]; then
-            local id timestamp state session window pane message pane_created level
-            _parse_notification_line "$line" id timestamp state session window pane message pane_created level
+            # shellcheck disable=SC2034
+            # Variables are used indirectly via printf -v assignment in _parse_notification_line.
+            local session window pane level
+            _parse_notification_line "$line" _ _ _ session window pane _ _ level
             local pane_key="${session}:${window}:${pane}"
             pane_counts["$pane_key"]=$(( ${pane_counts["$pane_key"]:-0} + 1 ))
         fi
@@ -164,6 +169,7 @@ EOF
             _format_json
             ;;
         *)
+            info "Debug: format is $format"
             error "Unknown format: $format"
             return 1
             ;;
