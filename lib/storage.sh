@@ -20,7 +20,7 @@ LOCK_DIR="$TMUX_INTRAY_STATE_DIR/lock"
 storage_init() {
     mkdir -p "$TMUX_INTRAY_STATE_DIR"
     mkdir -p "$TMUX_INTRAY_CONFIG_DIR"
-    
+
     # Create files if they don't exist
     touch "$NOTIFICATIONS_FILE"
     touch "$DISMISSED_FILE"
@@ -54,7 +54,7 @@ _update_tmux_status() {
     if ! tmux has-session 2>/dev/null; then
         return 0
     fi
-    
+
     local count
     count=$(storage_get_active_count)
     tmux set -g @tmux_intray_active_count "$count" 2>/dev/null || true
@@ -64,21 +64,21 @@ _update_tmux_status() {
 _with_lock() {
     local lock_dir="$1"
     shift
-    local timeout=10  # seconds
+    local timeout=10 # seconds
     local start_time
     start_time=$(date +%s)
-    
+
     # Try to create lock directory (atomic operation)
     while ! mkdir "$lock_dir" 2>/dev/null; do
         local current_time
         current_time=$(date +%s)
-        if (( current_time - start_time > timeout )); then
+        if ((current_time - start_time > timeout)); then
             error "Timeout acquiring lock on $lock_dir"
             return 1
         fi
         sleep 0.1
     done
-    
+
     # Execute command with lock held
     (
         # Ensure lock is removed on exit
@@ -126,7 +126,7 @@ _get_latest_active_lines() {
 _append_notification_line() {
     local id="$1" timestamp="$2" state="$3" session="$4" window="$5" pane="$6" message="$7"
     local pane_created="${8:-}" level="${9:-info}"
-    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$id" "$timestamp" "$state" "$session" "$window" "$pane" "$message" "$pane_created" "$level" >> "$NOTIFICATIONS_FILE"
+    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$id" "$timestamp" "$state" "$session" "$window" "$pane" "$message" "$pane_created" "$level" >>"$NOTIFICATIONS_FILE"
 }
 
 # Internal helper: parse notification line into variables
@@ -137,19 +137,19 @@ _parse_notification_line() {
     local id_var="$1" timestamp_var="$2" state_var="$3" session_var="$4" window_var="$5" pane_var="$6" message_var="$7"
     local pane_created_var="${8:-}"
     local level_var="${9:-}"
-    
+
     # Use awk to split by tab and assign to named variables via eval
     # Read into temporary array - up to 9 fields
     local -a fields
     mapfile -t fields < <(echo "$line" | awk -F'\t' '{
         for(i=1;i<=9;i++) print $i
     }')
-    
+
     # Ensure we have at least 9 fields (pad with empty)
     while [[ ${#fields[@]} -lt 9 ]]; do
         fields+=("")
     done
-    
+
     printf -v "$id_var" "%s" "${fields[0]}"
     printf -v "$timestamp_var" "%s" "${fields[1]}"
     printf -v "$state_var" "%s" "${fields[2]}"
@@ -177,29 +177,29 @@ storage_add_notification() {
     local pane="${5:-}"
     local pane_created="${6:-}"
     local level="${7:-info}"
-    
+
     # Ensure storage initialized
     storage_init
-    
+
     # Generate ID
     local id
     id=$(_get_next_id)
-    
+
     # Use provided timestamp or generate current UTC
     if [[ -z "$timestamp" ]]; then
         timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     fi
-    
+
     # Escape message
     local escaped_message
     escaped_message=$(_escape_message "$message")
-    
+
     # Append to TSV file with lock
     _with_lock "$LOCK_DIR" _append_notification_line "$id" "$timestamp" "active" "$session" "$window" "$pane" "$escaped_message" "$pane_created" "$level"
-    
+
     # Update tmux status option
     _update_tmux_status
-    
+
     echo "$id"
 }
 
@@ -209,35 +209,35 @@ storage_add_notification() {
 storage_list_notifications() {
     local state_filter="${1:-active}"
     local level_filter="${2:-}"
-    
+
     storage_init
-    
+
     # Get latest version of each notification
     local latest_lines
     latest_lines=$(_with_lock "$LOCK_DIR" _get_latest_notifications "$NOTIFICATIONS_FILE")
-    
+
     # Build awk filter expression
     local filter_expr=""
     case "$state_filter" in
-        active)
-            # shellcheck disable=SC2016
-            # Awk expression uses single quotes to prevent variable expansion; intentional.
-            filter_expr='$3 == "active"'
-            ;;
-        dismissed)
-            # shellcheck disable=SC2016
-            # Awk expression uses single quotes to prevent variable expansion; intentional.
-            filter_expr='$3 == "dismissed"'
-            ;;
-        all)
-            # No state filter
-            ;;
-        *)
-            error "Invalid state filter: $state_filter"
-            return 1
-            ;;
+    active)
+        # shellcheck disable=SC2016
+        # Awk expression uses single quotes to prevent variable expansion; intentional.
+        filter_expr='$3 == "active"'
+        ;;
+    dismissed)
+        # shellcheck disable=SC2016
+        # Awk expression uses single quotes to prevent variable expansion; intentional.
+        filter_expr='$3 == "dismissed"'
+        ;;
+    all)
+        # No state filter
+        ;;
+    *)
+        error "Invalid state filter: $state_filter"
+        return 1
+        ;;
     esac
-    
+
     if [[ -n "$level_filter" ]]; then
         if [[ -n "$filter_expr" ]]; then
             filter_expr="${filter_expr} && \$9 == \"$level_filter\""
@@ -245,9 +245,9 @@ storage_list_notifications() {
             filter_expr="\$9 == \"$level_filter\""
         fi
     fi
-    
+
     if [[ -n "$filter_expr" ]]; then
-        awk -F'\t' "$filter_expr" <<< "$latest_lines" || true
+        awk -F'\t' "$filter_expr" <<<"$latest_lines" || true
     else
         echo "$latest_lines"
     fi
@@ -256,30 +256,30 @@ storage_list_notifications() {
 # Dismiss a notification by ID
 storage_dismiss_notification() {
     local id="$1"
-    
+
     storage_init
-    
+
     # Get latest line for this ID
     local line
     line=$(_with_lock "$LOCK_DIR" _get_latest_line_for_id "$id")
-    
+
     if [[ -z "$line" ]]; then
         error "Notification with ID $id not found"
         return 1
     fi
-    
+
     # Check current state
     local timestamp state session window pane message pane_created level
     _parse_notification_line "$line" dummy timestamp state session window pane message pane_created level
-    
+
     if [[ "$state" == "dismissed" ]]; then
         error "Notification $id is already dismissed"
         return 1
     fi
-    
+
     # Add dismissed version (preserve level)
     _with_lock "$LOCK_DIR" _append_notification_line "$id" "$timestamp" "dismissed" "$session" "$window" "$pane" "$message" "$pane_created" "$level"
-    
+
     # Update tmux status option
     _update_tmux_status
 }
@@ -287,11 +287,11 @@ storage_dismiss_notification() {
 # Dismiss all active notifications
 storage_dismiss_all() {
     storage_init
-    
+
     # Get latest active notifications
     local active_lines
     active_lines=$(_with_lock "$LOCK_DIR" _get_latest_active_lines)
-    
+
     # Add dismissed version for each
     while IFS= read -r line; do
         if [[ -n "$line" ]]; then
@@ -299,8 +299,8 @@ storage_dismiss_all() {
             _parse_notification_line "$line" id timestamp state session window pane message pane_created level
             _with_lock "$LOCK_DIR" _append_notification_line "$id" "$timestamp" "dismissed" "$session" "$window" "$pane" "$message" "$pane_created" "$level"
         fi
-    done <<< "$active_lines"
-    
+    done <<<"$active_lines"
+
     # Update tmux status option
     _update_tmux_status
 }

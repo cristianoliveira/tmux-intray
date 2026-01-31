@@ -2,7 +2,7 @@
 # Help command - Show help message
 
 help_command() {
-    cat << EOF
+    cat <<EOF
 tmux-intray v${VERSION}
 
 A quiet inbox for things that happen while you're not looking.

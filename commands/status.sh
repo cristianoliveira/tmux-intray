@@ -3,7 +3,6 @@
 
 # Source core libraries
 
-
 # shellcheck source=../lib/core.sh disable=SC1091
 # The sourced file exists at runtime but ShellCheck can't resolve it due to relative path/context.
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/core.sh"
@@ -20,7 +19,7 @@ _status_get_active_count() {
 _status_get_counts_by_level() {
     local lines
     lines=$(storage_list_notifications "active")
-    
+
     local info=0 warning=0 error=0 critical=0
     while IFS= read -r line; do
         if [[ -n "$line" ]]; then
@@ -29,25 +28,25 @@ _status_get_counts_by_level() {
             local level
             _parse_notification_line "$line" _ _ _ _ _ _ _ _ level
             case "$level" in
-                info)
-                    ((info++))
-                    ;;
-                warning)
-                    ((warning++))
-                    ;;
-                error)
-                    ((error++))
-                    ;;
-                critical)
-                    ((critical++))
-                    ;;
-                *)
-                    ((info++))
-                    ;;
+            info)
+                ((info++))
+                ;;
+            warning)
+                ((warning++))
+                ;;
+            error)
+                ((error++))
+                ;;
+            critical)
+                ((critical++))
+                ;;
+            *)
+                ((info++))
+                ;;
             esac
         fi
-    done <<< "$lines"
-    
+    done <<<"$lines"
+
     echo "info:$info warning:$warning error:$error critical:$critical"
 }
 
@@ -55,7 +54,7 @@ _status_get_counts_by_level() {
 _status_get_counts_by_pane() {
     local lines
     lines=$(storage_list_notifications "active")
-    
+
     declare -A pane_counts
     while IFS= read -r line; do
         if [[ -n "$line" ]]; then
@@ -64,10 +63,10 @@ _status_get_counts_by_pane() {
             local session window pane level
             _parse_notification_line "$line" _ _ _ session window pane _ _ level
             local pane_key="${session}:${window}:${pane}"
-            pane_counts["$pane_key"]=$(( ${pane_counts["$pane_key"]:-0} + 1 ))
+            pane_counts["$pane_key"]=$((${pane_counts["$pane_key"]:-0} + 1))
         fi
-    done <<< "$lines"
-    
+    done <<<"$lines"
+
     for pane_key in "${!pane_counts[@]}"; do
         echo "$pane_key:${pane_counts[$pane_key]}"
     done
@@ -81,7 +80,7 @@ _format_summary() {
         echo "No active notifications"
         return
     fi
-    
+
     local level_counts
     level_counts=$(_status_get_counts_by_level)
     local info warning error critical
@@ -89,7 +88,7 @@ _format_summary() {
     warning=$(echo "$level_counts" | grep -o 'warning:[0-9]*' | cut -d: -f2)
     error=$(echo "$level_counts" | grep -o 'error:[0-9]*' | cut -d: -f2)
     critical=$(echo "$level_counts" | grep -o 'critical:[0-9]*' | cut -d: -f2)
-    
+
     echo "Active notifications: $total"
     echo "  info: $info, warning: $warning, error: $error, critical: $critical"
 }
@@ -116,20 +115,20 @@ _format_json() {
 
 status_command() {
     local format="summary"
-    
+
     # Parse arguments
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --format=*)
-                format="${1#*=}"
-                shift
-                ;;
-            --format)
-                format="$2"
-                shift 2
-                ;;
-            --help|-h)
-                cat << EOF
+        --format=*)
+            format="${1#*=}"
+            shift
+            ;;
+        --format)
+            format="$2"
+            shift 2
+            ;;
+        --help | -h)
+            cat <<EOF
 tmux-intray status - Show notification status summary
 
 USAGE:
@@ -144,34 +143,34 @@ EXAMPLES:
     tmux-intray status --format=levels # Show counts by level
     tmux-intray status --format=panes  # Show counts by pane
 EOF
-                return 0
-                ;;
-            *)
-                error "Unknown argument: $1"
-                return 1
-                ;;
-        esac
-    done
-    
-    ensure_tmux_running
-    
-    case "$format" in
-        summary)
-            _format_summary
-            ;;
-        levels)
-            _format_levels
-            ;;
-        panes)
-            _format_panes
-            ;;
-        json)
-            _format_json
+            return 0
             ;;
         *)
-            info "Debug: format is $format"
-            error "Unknown format: $format"
+            error "Unknown argument: $1"
             return 1
             ;;
+        esac
+    done
+
+    ensure_tmux_running
+
+    case "$format" in
+    summary)
+        _format_summary
+        ;;
+    levels)
+        _format_levels
+        ;;
+    panes)
+        _format_panes
+        ;;
+    json)
+        _format_json
+        ;;
+    *)
+        info "Debug: format is $format"
+        error "Unknown format: $format"
+        return 1
+        ;;
     esac
 }

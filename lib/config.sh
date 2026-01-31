@@ -25,9 +25,9 @@ config_load() {
     if [[ "${TMUX_INTRAY_CONFIG_LOADED:-0}" -eq 1 ]]; then
         return 0
     fi
-    
+
     local config_file="$TMUX_INTRAY_CONFIG_DIR/config.sh"
-    
+
     if [[ -f "$config_file" ]]; then
         # shellcheck source=/dev/null
         # Config file may not exist; we check existence before sourcing.
@@ -38,15 +38,15 @@ config_load() {
         mkdir -p "$TMUX_INTRAY_CONFIG_DIR"
         _create_sample_config "$config_file"
     fi
-    
+
     TMUX_INTRAY_CONFIG_LOADED=1
 }
 
 # Create sample configuration file
 _create_sample_config() {
     local config_file="$1"
-    
-    cat > "$config_file" << 'EOF'
+
+    cat >"$config_file" <<'EOF'
 # tmux-intray configuration
 # This file is sourced by tmux-intray on startup.
 
@@ -79,7 +79,7 @@ _create_sample_config() {
 # Available colors: black, red, green, yellow, blue, magenta, cyan, white
 # TMUX_INTRAY_LEVEL_COLORS="info:green,warning:yellow,error:red,critical:magenta"
 EOF
-    
+
     info "Created sample configuration at $config_file"
     info "Edit this file to customize tmux-intray behavior."
 }
@@ -89,10 +89,10 @@ EOF
 config_get() {
     local key="$1"
     local default="$2"
-    
+
     # Use indirect variable reference
     local value="${!key:-}"
-    
+
     if [[ -z "$value" ]]; then
         echo "$default"
     else

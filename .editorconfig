@@ -1,0 +1,21 @@
+# EditorConfig for tmux-intray project
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+[*.sh]
+# shfmt-specific settings
+indent_size = 4
+binary_ops_next_line = false
+space_redirects = false
+keep_padding = false
+function_next_line = false
+
+[*.bats]
+indent_size = 4

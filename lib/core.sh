@@ -33,7 +33,7 @@ get_current_tmux_context() {
         return 1
     fi
     # Split by space
-    IFS=' ' read -r current_session current_window current_pane current_pane_created <<< "$result"
+    IFS=' ' read -r current_session current_window current_pane current_pane_created <<<"$result"
 }
 
 # Validate that a pane exists given session, window, pane IDs
@@ -44,7 +44,7 @@ validate_pane_exists() {
     # List panes in target window and check if pane ID matches
     local pane_list
     if ! pane_list=$(tmux list-panes -t "${session}:${window}" -F "#{pane_id}" 2>/dev/null); then
-        return 1  # session or window doesn't exist
+        return 1 # session or window doesn't exist
     fi
     # Check if pane ID is in the list
     if [[ "$pane_list" == *"$pane"* ]]; then
@@ -76,7 +76,7 @@ get_tray_items() {
     local items=""
     local lines
     lines=$(storage_list_notifications "$state_filter")
-    
+
     while IFS= read -r line; do
         if [[ -n "$line" ]]; then
             # shellcheck disable=SC2034
@@ -87,8 +87,8 @@ get_tray_items() {
             message=$(_unescape_message "$message")
             items="${items:+$items$'\n'}$message"
         fi
-    done <<< "$lines"
-    
+    done <<<"$lines"
+
     echo "$items"
 }
 
@@ -100,7 +100,7 @@ add_tray_item() {
     local pane_created="${5:-}"
     local no_auto="${6:-false}"
     local level="${7:-info}"
-    
+
     # If pane is empty but session/window/pane not provided, attempt to get current context
     if [[ "$no_auto" != "true" ]] && [[ -z "$session" ]] && [[ -z "$window" ]] && [[ -z "$pane" ]]; then
         if get_current_tmux_context 2>/dev/null; then
@@ -110,7 +110,7 @@ add_tray_item() {
             pane_created="$current_pane_created"
         fi
     fi
-    
+
     # Add to storage
     storage_add_notification "$item" "" "$session" "$window" "$pane" "$pane_created" "$level"
 }

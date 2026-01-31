@@ -2,7 +2,7 @@
 # List command - Display notifications with various filters and formats
 
 # Source core libraries
-COMMAND_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+COMMAND_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck source=../lib/core.sh disable=SC1091
 # The sourced file exists at runtime but ShellCheck can't resolve it due to relative path/context.
@@ -24,12 +24,12 @@ _format_legacy() {
     local level_filter="${3:-}"
     local items
     items=$(get_tray_items "$filter")
-    
+
     if [[ -z "$items" ]]; then
         info "Tray is empty"
         return
     fi
-    
+
     # Items are already newline-separated
     echo "$items"
 }
@@ -41,7 +41,7 @@ _format_table() {
     local level_filter="${3:-}"
     local lines
     lines=$(storage_list_notifications "$filter" "$level_filter")
-    
+
     # Filter by pane if specified
     if [[ -n "$pane_filter" ]]; then
         local filtered_lines=""
@@ -53,18 +53,18 @@ _format_table() {
                     filtered_lines="${filtered_lines}${line}\n"
                 fi
             fi
-        done <<< "$lines"
+        done <<<"$lines"
         lines=$(echo -e "$filtered_lines" | sed '/^$/d')
     fi
-    
+
     if [[ -z "$lines" ]]; then
         info "No notifications found"
         return
     fi
-    
+
     echo "ID    Timestamp                 Pane    Level   Message"
     echo "----  ------------------------  ------  ------  -------"
-    
+
     while IFS= read -r line; do
         if [[ -n "$line" ]]; then
             local id timestamp pane level message
@@ -79,7 +79,7 @@ _format_table() {
             fi
             printf "%-4s  %-25s  %-6s  %-6s  %s\n" "$id" "$timestamp" "$pane" "$level" "$display_msg"
         fi
-    done <<< "$lines"
+    done <<<"$lines"
 }
 
 # Compact format (just messages)
@@ -89,7 +89,7 @@ _format_compact() {
     local level_filter="${3:-}"
     local lines
     lines=$(storage_list_notifications "$filter" "$level_filter")
-    
+
     # Filter by pane if specified
     if [[ -n "$pane_filter" ]]; then
         local filtered_lines=""
@@ -101,10 +101,10 @@ _format_compact() {
                     filtered_lines="${filtered_lines}${line}\n"
                 fi
             fi
-        done <<< "$lines"
+        done <<<"$lines"
         lines=$(echo -e "$filtered_lines" | sed '/^$/d')
     fi
-    
+
     while IFS= read -r line; do
         if [[ -n "$line" ]]; then
             local message
@@ -112,7 +112,7 @@ _format_compact() {
             message=$(_unescape_message "$message")
             echo "$message"
         fi
-    done <<< "$lines"
+    done <<<"$lines"
 }
 
 list_command() {
@@ -120,48 +120,48 @@ list_command() {
     local format="legacy"
     local pane_filter=""
     local level_filter=""
-    
+
     # Parse arguments
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --active)
-                filter="active"
-                shift
-                ;;
-            --dismissed)
-                filter="dismissed"
-                shift
-                ;;
-            --all)
-                filter="all"
-                shift
-                ;;
-            --pane=*)
-                pane_filter="${1#*=}"
-                shift
-                ;;
-            --pane)
-                pane_filter="$2"
-                shift 2
-                ;;
-            --level=*)
-                level_filter="${1#*=}"
-                shift
-                ;;
-            --level)
-                level_filter="$2"
-                shift 2
-                ;;
-            --format=*)
-                format="${1#*=}"
-                shift
-                ;;
-            --format)
-                format="$2"
-                shift 2
-                ;;
-            --help|-h)
-                cat << EOF
+        --active)
+            filter="active"
+            shift
+            ;;
+        --dismissed)
+            filter="dismissed"
+            shift
+            ;;
+        --all)
+            filter="all"
+            shift
+            ;;
+        --pane=*)
+            pane_filter="${1#*=}"
+            shift
+            ;;
+        --pane)
+            pane_filter="$2"
+            shift 2
+            ;;
+        --level=*)
+            level_filter="${1#*=}"
+            shift
+            ;;
+        --level)
+            level_filter="$2"
+            shift 2
+            ;;
+        --format=*)
+            format="${1#*=}"
+            shift
+            ;;
+        --format)
+            format="$2"
+            shift 2
+            ;;
+        --help | -h)
+            cat <<EOF
 tmux-intray list - List notifications
 
 USAGE:
@@ -177,35 +177,35 @@ OPTIONS:
     -h, --help           Show this help
 
 EOF
-                return 0
-                ;;
-            *)
-                error "Unknown argument: $1"
-                return 1
-                ;;
-        esac
-    done
-    
-    ensure_tmux_running
-    
-    case "$format" in
-        legacy)
-            # For backward compatibility with scripts using old show command
-            _format_legacy "$filter" "$pane_filter" "$level_filter"
-            ;;
-        table)
-            _format_table "$filter" "$pane_filter" "$level_filter"
-            ;;
-        compact)
-            _format_compact "$filter" "$pane_filter" "$level_filter"
-            ;;
-        json)
-            error "JSON format not yet implemented"
-            return 1
+            return 0
             ;;
         *)
-            error "Unknown format: $format"
+            error "Unknown argument: $1"
             return 1
             ;;
+        esac
+    done
+
+    ensure_tmux_running
+
+    case "$format" in
+    legacy)
+        # For backward compatibility with scripts using old show command
+        _format_legacy "$filter" "$pane_filter" "$level_filter"
+        ;;
+    table)
+        _format_table "$filter" "$pane_filter" "$level_filter"
+        ;;
+    compact)
+        _format_compact "$filter" "$pane_filter" "$level_filter"
+        ;;
+    json)
+        error "JSON format not yet implemented"
+        return 1
+        ;;
+    *)
+        error "Unknown format: $format"
+        return 1
+        ;;
     esac
 }

@@ -7,7 +7,7 @@ setup() {
     export XDG_STATE_HOME
     XDG_CONFIG_HOME="$(mktemp -d)"
     export XDG_CONFIG_HOME
-    
+
     tmux -L "$TMUX_SOCKET_NAME" kill-server 2>/dev/null || true
     sleep 0.1
     tmux -L "$TMUX_SOCKET_NAME" new-session -d -s test
@@ -35,7 +35,7 @@ teardown() {
 @test "list shows active notifications" {
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'Test message 1'"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'Test message 2'"
-    
+
     run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray list"
     [ "$status" -eq 0 ]
     [[ "$output" == *"Test message 1"* ]]
@@ -44,7 +44,7 @@ teardown() {
 
 @test "list --format=table" {
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'Test message'"
-    
+
     run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray list --format=table"
     [ "$status" -eq 0 ]
     [[ "$output" == *"ID"* ]]
@@ -54,7 +54,7 @@ teardown() {
 
 @test "list --format=compact" {
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'Test message'"
-    
+
     run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray list --format=compact"
     [ "$status" -eq 0 ]
     [[ "$output" == *"Test message"* ]]
@@ -64,7 +64,7 @@ teardown() {
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'Active'"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'To dismiss'"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray dismiss 2"
-    
+
     run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray list --dismissed"
     [ "$status" -eq 0 ]
     [[ "$output" == *"To dismiss"* ]]
@@ -75,7 +75,7 @@ teardown() {
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'Active'"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'To dismiss'"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray dismiss 2"
-    
+
     run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray list --all"
     [ "$status" -eq 0 ]
     [[ "$output" == *"Active"* ]]

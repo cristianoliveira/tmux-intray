@@ -3,7 +3,7 @@
 # This is an example of a command with its own sub-modules
 
 # Source local modules
-COMMAND_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+COMMAND_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./commands/show/modules/filters.sh
 source "$COMMAND_DIR/show/modules/filters.sh"
 # shellcheck source=./commands/show/modules/display.sh

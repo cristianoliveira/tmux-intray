@@ -12,11 +12,11 @@ jump_command() {
         echo "Usage: tmux-intray jump <id>" >&2
         exit 1
     fi
-    
+
     local id="$1"
-    
+
     ensure_tmux_running
-    
+
     # Get latest line for this ID
     local line
     line=$(_with_lock "$LOCK_DIR" _get_latest_line_for_id "$id")
@@ -24,20 +24,20 @@ jump_command() {
         error "Notification with ID $id not found"
         exit 1
     fi
-    
+
     # Parse line
     local state session window pane
     _parse_notification_line "$line" _ _ state session window pane _ _ _
-    
+
     if [[ "$state" == "dismissed" ]]; then
         info "Notification $id is dismissed, but jumping anyway"
     fi
-    
+
     if [[ -z "$session" ]] || [[ -z "$window" ]] || [[ -z "$pane" ]]; then
         error "Notification $id has no pane association"
         exit 1
     fi
-    
+
     # Jump to pane
     if jump_to_pane "$session" "$window" "$pane"; then
         success "Jumped to pane ${session}:${window}.${pane}"

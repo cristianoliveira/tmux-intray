@@ -9,16 +9,16 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib/core.sh"
 dismiss_command() {
     local dismiss_all=false
     local id=""
-    
+
     # Parse arguments
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --all)
-                dismiss_all=true
-                shift
-                ;;
-            --help|-h)
-                cat << EOF
+        --all)
+            dismiss_all=true
+            shift
+            ;;
+        --help | -h)
+            cat <<EOF
 tmux-intray dismiss - Dismiss notifications
 
 USAGE:
@@ -29,26 +29,26 @@ OPTIONS:
     -h, --help           Show this help
 
 EOF
-                return 0
-                ;;
-            *)
-                # Assume it's an ID
-                if [[ -n "$id" ]]; then
-                    error "Multiple IDs specified: $id and $1"
-                    return 1
-                fi
-                if ! [[ "$1" =~ ^[0-9]+$ ]]; then
-                    error "Invalid notification ID: $1 (must be a number)"
-                    return 1
-                fi
-                id="$1"
-                shift
-                ;;
+            return 0
+            ;;
+        *)
+            # Assume it's an ID
+            if [[ -n "$id" ]]; then
+                error "Multiple IDs specified: $id and $1"
+                return 1
+            fi
+            if ! [[ "$1" =~ ^[0-9]+$ ]]; then
+                error "Invalid notification ID: $1 (must be a number)"
+                return 1
+            fi
+            id="$1"
+            shift
+            ;;
         esac
     done
-    
+
     ensure_tmux_running
-    
+
     if [[ "$dismiss_all" == true ]]; then
         if [[ -n "$id" ]]; then
             error "Cannot specify both --all and ID"

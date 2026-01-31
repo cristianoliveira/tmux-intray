@@ -7,10 +7,10 @@ format_message() {
     local message="$1"
     local timestamp
     timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    
+
     # Validate timestamp
     validate_timestamp "$timestamp"
-    
+
     # Format: [timestamp] message
     echo "[${timestamp}] ${message}"
 }
@@ -20,7 +20,7 @@ format_with_source() {
     local source="${2:-unknown}"
     local timestamp
     timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    
+
     echo "[${timestamp}] [${source}] ${message}"
 }
 
@@ -29,13 +29,13 @@ format_with_priority() {
     local priority="${2:-normal}" # normal, high, low
     local timestamp
     timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    
+
     local priority_symbol
     case "$priority" in
-        high)   priority_symbol="🔴" ;;
-        normal) priority_symbol="⚪" ;;
-        low)    priority_symbol="🟢" ;;
+    high) priority_symbol="🔴" ;;
+    normal) priority_symbol="⚪" ;;
+    low) priority_symbol="🟢" ;;
     esac
-    
+
     echo "[${timestamp}] ${priority_symbol} ${message}"
 }

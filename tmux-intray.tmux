@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tmux-intray - Main tmux plugin entry point
 
-CURRENT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Get the project root directory
 PROJECT_ROOT="$(dirname "$CURRENT_DIR")"

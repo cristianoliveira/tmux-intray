@@ -2,14 +2,14 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 echo "Running ShellCheck on all shell scripts..."
 
 find "$PROJECT_ROOT" -type f \( -name "*.sh" -o -name "*.bats" -o -name "*.tmux" \) -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" | sort | while read -r file; do
     echo "Checking $file..."
-    
+
     # Collect all library files for shellcheck to use
     extra_files=()
     if [[ "$file" == *.sh ]]; then
@@ -17,7 +17,7 @@ find "$PROJECT_ROOT" -type f \( -name "*.sh" -o -name "*.bats" -o -name "*.tmux"
         while IFS= read -r -d '' lib_file; do
             extra_files+=("$lib_file")
         done < <(find "$PROJECT_ROOT/lib" -name "*.sh" -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -print0)
-        
+
         # For command files, also check their modules
         if echo "$file" | grep -q "commands/[^/]*\.sh$"; then
             # Main command files (not in modules/)
@@ -38,7 +38,7 @@ find "$PROJECT_ROOT" -type f \( -name "*.sh" -o -name "*.bats" -o -name "*.tmux"
             done < <(find "$module_dir" -name "*.sh" -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -print0)
         fi
     fi
-    
+
     if [[ ${#extra_files[@]} -eq 0 ]]; then
         if shellcheck -x "$file"; then
             echo "✓ $file passed"

@@ -7,7 +7,7 @@ setup() {
     export XDG_STATE_HOME
     XDG_CONFIG_HOME="$(mktemp -d)"
     export XDG_CONFIG_HOME
-    
+
     tmux -L "$TMUX_SOCKET_NAME" kill-server 2>/dev/null || true
     sleep 0.1
     tmux -L "$TMUX_SOCKET_NAME" new-session -d -s test
@@ -44,14 +44,14 @@ teardown() {
     # Add notification with current pane association
     # We need to run inside tmux to get pane context
     local session window pane pane_created
-    read -r session window pane pane_created <<< "$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{session_id} #{window_id} #{pane_id} #{pane_created}')"
-    
+    read -r session window pane pane_created <<<"$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{session_id} #{window_id} #{pane_id} #{pane_created}')"
+
     # Use tmux run-shell to add notification within the tmux server context
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'test message'"
     # Get the ID (output includes ID and success message)
     local id
     id=$(tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'another message' 2>&1 | head -n1")
-    
+
     # Jump to pane (should succeed)
     run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray jump $id"
     [ "$status" -eq 0 ]
@@ -60,14 +60,14 @@ teardown() {
 
 @test "jump to dismissed notification still works" {
     local session window pane pane_created
-    read -r session window pane pane_created <<< "$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{session_id} #{window_id} #{pane_id} #{pane_created}')"
-    
+    read -r session window pane pane_created <<<"$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{session_id} #{window_id} #{pane_id} #{pane_created}')"
+
     local id
     id=$(tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'test message' 2>&1 | head -n1")
-    
+
     # Dismiss notification
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray dismiss $id"
-    
+
     # Jump should still work (with warning)
     run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray jump $id"
     [ "$status" -eq 0 ]
@@ -81,7 +81,7 @@ teardown() {
     source ./lib/storage.sh
     local id
     id=$(storage_add_notification "Test" "" "\$none" "@none" "%none" "123")
-    
+
     # Try to jump
     run ./bin/tmux-intray jump "$id"
     [ "$status" -eq 1 ]

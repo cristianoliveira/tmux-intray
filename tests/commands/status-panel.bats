@@ -7,7 +7,7 @@ setup() {
     export XDG_STATE_HOME
     XDG_CONFIG_HOME="$(mktemp -d)"
     export XDG_CONFIG_HOME
-    
+
     tmux -L "$TMUX_SOCKET_NAME" kill-server 2>/dev/null || true
     sleep 0.1
     tmux -L "$TMUX_SOCKET_NAME" new-session -d -s test

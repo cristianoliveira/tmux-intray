@@ -7,11 +7,11 @@ setup() {
     export XDG_STATE_HOME
     XDG_CONFIG_HOME="$(mktemp -d)"
     export XDG_CONFIG_HOME
-    
+
     # Clean up any existing server
     tmux -L "$TMUX_SOCKET_NAME" kill-server 2>/dev/null || true
     sleep 0.1
-    
+
     # Start a tmux server for migration tests
     tmux -L "$TMUX_SOCKET_NAME" new-session -d -s test
     sleep 0.1
@@ -30,17 +30,17 @@ teardown() {
 
 @test "storage_add_notification with pane association" {
     source ./lib/storage.sh
-    
+
     local id
     id=$(storage_add_notification "Test message" "" "\$1" "@2" "%3" "1234567890")
-    
+
     [ -n "$id" ]
-    
+
     # Verify fields
     local line
     line=$(tail -n 1 "$NOTIFICATIONS_FILE")
-    IFS=$'\t' read -r id_field timestamp state session window pane message pane_created level <<< "$line"
-    
+    IFS=$'\t' read -r id_field timestamp state session window pane message pane_created level <<<"$line"
+
     [ "$id_field" -eq 1 ]
     [ "$state" = "active" ]
     [ "$session" = "\$1" ]
@@ -52,22 +52,22 @@ teardown() {
 
 @test "storage_add_notification with empty pane association" {
     source ./lib/storage.sh
-    
+
     storage_add_notification "Test message"
-    
+
     local line
     line=$(tail -n 1 "$NOTIFICATIONS_FILE")
     # Use awk to parse fields (bash read collapses consecutive tabs)
-    id_field=$(awk -F'\t' '{print $1}' <<< "$line")
-    timestamp=$(awk -F'\t' '{print $2}' <<< "$line")
-    state=$(awk -F'\t' '{print $3}' <<< "$line")
-    session=$(awk -F'\t' '{print $4}' <<< "$line")
-    window=$(awk -F'\t' '{print $5}' <<< "$line")
-    pane=$(awk -F'\t' '{print $6}' <<< "$line")
-    message=$(awk -F'\t' '{print $7}' <<< "$line")
-    pane_created=$(awk -F'\t' '{print $8}' <<< "$line")
-    level=$(awk -F'\t' '{print $9}' <<< "$line")
-    
+    id_field=$(awk -F'\t' '{print $1}' <<<"$line")
+    timestamp=$(awk -F'\t' '{print $2}' <<<"$line")
+    state=$(awk -F'\t' '{print $3}' <<<"$line")
+    session=$(awk -F'\t' '{print $4}' <<<"$line")
+    window=$(awk -F'\t' '{print $5}' <<<"$line")
+    pane=$(awk -F'\t' '{print $6}' <<<"$line")
+    message=$(awk -F'\t' '{print $7}' <<<"$line")
+    pane_created=$(awk -F'\t' '{print $8}' <<<"$line")
+    level=$(awk -F'\t' '{print $9}' <<<"$line")
+
     [ -z "$session" ]
     [ -z "$window" ]
     [ -z "$pane" ]
@@ -76,17 +76,17 @@ teardown() {
 
 @test "storage_dismiss_notification preserves pane association" {
     source ./lib/storage.sh
-    
+
     local id
     id=$(storage_add_notification "Test message" "" "\$1" "@2" "%3" "1234567890")
-    
+
     storage_dismiss_notification "$id"
-    
+
     # Get dismissed line
     local line
     line=$(storage_list_notifications "dismissed")
-    IFS=$'\t' read -r id_field timestamp state session window pane message pane_created level <<< "$line"
-    
+    IFS=$'\t' read -r id_field timestamp state session window pane message pane_created level <<<"$line"
+
     [ "$state" = "dismissed" ]
     [ "$session" = "\$1" ]
     [ "$window" = "@2" ]
@@ -96,18 +96,18 @@ teardown() {
 
 @test "storage_dismiss_all preserves pane association" {
     source ./lib/storage.sh
-    
+
     storage_add_notification "Test 1" "" "\$1" "@2" "%3" "123"
     storage_add_notification "Test 2" "" "\$4" "@5" "%6" "456"
-    
+
     storage_dismiss_all
-    
+
     local dismissed_lines
     dismissed_lines=$(storage_list_notifications "dismissed")
     local line_count
     line_count=$(echo "$dismissed_lines" | wc -l)
     [ "$line_count" -eq 2 ]
-    
+
     # Verify pane associations are present
     while IFS=$'\t' read -r id_field timestamp state session window pane message pane_created level; do
         if [ "$id_field" -eq 1 ]; then
@@ -117,5 +117,5 @@ teardown() {
             [ "$session" = "\$4" ]
             [ "$pane_created" = "456" ]
         fi
-    done <<< "$dismissed_lines"
+    done <<<"$dismissed_lines"
 }

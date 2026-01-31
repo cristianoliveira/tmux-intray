@@ -21,12 +21,12 @@ teardown() {
     run timeout 1 tmux -L "$TMUX_SOCKET_NAME" run-shell "echo 'no output expected'; $PWD/bin/tmux-intray follow --interval=0.1" 2>&1
     # timeout will kill after 1 second, exit status 124
     # We just want to ensure no errors
-    [ "$status" -ne 127 ]  # not command not found
+    [ "$status" -ne 127 ] # not command not found
 }
 
 @test "follow detects new notification" {
     # Start follow in background with short interval
-    ( tmux -L "$TMUX_SOCKET_NAME" run-shell "cd $PWD && timeout 2 ./bin/tmux-intray follow --interval=0.1" ) &
+    (tmux -L "$TMUX_SOCKET_NAME" run-shell "cd $PWD && timeout 2 ./bin/tmux-intray follow --interval=0.1") &
     follow_pid=$!
     sleep 0.5
     # Add a notification
