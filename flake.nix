@@ -14,6 +14,9 @@
             bash
             bats
             shellcheck
+            shfmt
+
+            pre-commit
           ];
         };
 
@@ -37,3 +40,4 @@
         };
     });
 }
+# force rebuild
