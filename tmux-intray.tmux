@@ -21,5 +21,14 @@ initialize_intray() {
     tmux set-environment -g TMUX_INTRAY_DIR "$PROJECT_ROOT"
 }
 
+# Update tmux status option with current notification count
+update_tmux_status_option() {
+    # Source storage library to get update function
+    # shellcheck source=../lib/storage.sh disable=SC1091
+    source "$PROJECT_ROOT/lib/storage.sh"
+    _update_tmux_status
+}
+
 initialize_intray
+update_tmux_status_option
 set_tmux_bindings

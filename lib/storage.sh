@@ -48,6 +48,18 @@ _unescape_message() {
     echo "$msg"
 }
 
+# Internal helper: update tmux status option with active count
+_update_tmux_status() {
+    # Only update if tmux is running
+    if ! tmux has-session 2>/dev/null; then
+        return 0
+    fi
+    
+    local count
+    count=$(storage_get_active_count)
+    tmux set -g @tmux_intray_active_count "$count" 2>/dev/null || true
+}
+
 # Internal helper: simple file locking using mkdir (atomic)
 _with_lock() {
     local lock_dir="$1"
@@ -185,6 +197,9 @@ storage_add_notification() {
     # Append to TSV file with lock
     _with_lock "$LOCK_DIR" _append_notification_line "$id" "$timestamp" "active" "$session" "$window" "$pane" "$escaped_message" "$pane_created" "$level"
     
+    # Update tmux status option
+    _update_tmux_status
+    
     echo "$id"
 }
 
@@ -264,6 +279,9 @@ storage_dismiss_notification() {
     
     # Add dismissed version (preserve level)
     _with_lock "$LOCK_DIR" _append_notification_line "$id" "$timestamp" "dismissed" "$session" "$window" "$pane" "$message" "$pane_created" "$level"
+    
+    # Update tmux status option
+    _update_tmux_status
 }
 
 # Dismiss all active notifications
@@ -282,6 +300,9 @@ storage_dismiss_all() {
             _with_lock "$LOCK_DIR" _append_notification_line "$id" "$timestamp" "dismissed" "$session" "$window" "$pane" "$message" "$pane_created" "$level"
         fi
     done <<< "$active_lines"
+    
+    # Update tmux status option
+    _update_tmux_status
 }
 
 # Get count of active notifications

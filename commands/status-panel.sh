@@ -252,6 +252,11 @@ main() {
     esac
 }
 
+# Command function for CLI
+status_panel_command() {
+    main "$@"
+}
+
 # Run main only if script is executed directly
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"

@@ -55,7 +55,8 @@ main() {
         show|add|clear|toggle|help|version|list|dismiss|jump|status|follow|status-panel)
             # Load and execute the command
             source "$COMMANDS_DIR/${command}.sh"
-            "${command}_command" "$@"
+            local cmd_func="${command//-/_}_command"
+            "$cmd_func" "$@"
             ;;
         --help|-h)
             usage
