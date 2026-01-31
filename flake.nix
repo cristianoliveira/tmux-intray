@@ -22,6 +22,12 @@
             pname = "tmux-intray";
             version = "0.1.0";
             src = ./.;
+            nativeBuildInputs = with pkgs; [ bats tmux ];
+            preBuild = ''
+              export XDG_STATE_HOME=$(mktemp -d)
+              export XDG_CONFIG_HOME=$(mktemp -d)
+              export HOME=$(mktemp -d)
+            '';
             installPhase = ''
               mkdir -p $out/bin
               cp bin/tmux-intray $out/bin/tmux-intray

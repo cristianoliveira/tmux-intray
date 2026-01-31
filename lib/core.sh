@@ -59,8 +59,12 @@ validate_pane_exists() {
 jump_to_pane() {
     local session="$1" window="$2" pane="$3"
     if ! validate_pane_exists "$session" "$window" "$pane"; then
-        error "Pane ${session}:${window}:${pane} does not exist"
-        return 1
+        warning "Pane ${session}:${window}.${pane} does not exist, jumping to window instead"
+        if ! tmux select-window -t "${session}:${window}"; then
+            error "Window ${session}:${window} does not exist"
+            return 1
+        fi
+        return 0
     fi
     tmux select-pane -t "${session}:${window}.${pane}"
 }

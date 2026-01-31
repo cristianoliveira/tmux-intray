@@ -40,7 +40,7 @@ jump_command() {
     
     # Jump to pane
     if jump_to_pane "$session" "$window" "$pane"; then
-        success "Jumped to pane ${session}:${window}:${pane}"
+        success "Jumped to pane ${session}:${window}.${pane}"
     else
         error "Failed to jump to pane (maybe pane no longer exists)"
         exit 1
