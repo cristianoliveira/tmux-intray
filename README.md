@@ -46,14 +46,55 @@ $ tmux-intray --help
 ### Commands
 
 - `tmux-intray show` - Show all items in the tray (deprecated, use `list`)
-- `tmux-intray add <message>` - Add a new item to the tray
-- `tmux-intray list` - List notifications with filters and formats (e.g., `--active`, `--dismissed`, `--all`, `--format=table`)
+- `tmux-intray add <message>` - Add a new item to the tray (options: `--level`, `--session`, `--window`, `--pane`, `--no-associate`)
+- `tmux-intray list` - List notifications with filters and formats (e.g., `--active`, `--dismissed`, `--all`, `--level`, `--pane`, `--format=table`)
 - `tmux-intray dismiss <id>` - Dismiss a specific notification
 - `tmux-intray dismiss --all` - Dismiss all active notifications
 - `tmux-intray clear` - Clear all items from the tray (alias for `dismiss --all`)
 - `tmux-intray toggle` - Toggle the tray visibility
+- `tmux-intray jump <id>` - Jump to the pane of a notification
+- `tmux-intray status` - Show notification status summary
+- `tmux-intray follow` - Monitor notifications in real-time
 - `tmux-intray help` - Show help message
 - `tmux-intray version` - Show version information
+
+### Notification Levels
+
+Notifications can have severity levels: `info` (default), `warning`, `error`, `critical`. Levels are used for filtering and color-coded display.
+
+- Add a notification with a level:
+  ```bash
+  tmux-intray add --level=error "Something went wrong"
+  ```
+- Filter notifications by level:
+  ```bash
+  tmux-intray list --level=error
+  ```
+- The `status` command shows counts per level.
+
+### Status Bar Integration
+
+tmux-intray can display notification counts in the tmux status bar using the `status-panel` script.
+
+1. Add the following to your `.tmux.conf`:
+   ```
+   set -g status-right "#(tmux-intray status-panel) %H:%M"
+   ```
+   This will show a compact indicator with the total notification count. Clicking on the indicator can be bound to open the notification list.
+
+2. Customize the status format by setting environment variables in `config.sh`:
+   ```bash
+   TMUX_INTRAY_STATUS_FORMAT="detailed"   # compact, detailed, count-only
+   TMUX_INTRAY_LEVEL_COLORS="info:green,warning:yellow,error:red,critical:magenta"
+   TMUX_INTRAY_SHOW_LEVELS=0              # 0=only total, 1=show level counts
+   ```
+
+3. Enable/disable status indicator:
+   ```bash
+   TMUX_INTRAY_STATUS_ENABLED=1
+   ```
+
+The status indicator updates automatically when notifications change.
 
 ### Storage
 

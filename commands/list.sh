@@ -31,43 +31,79 @@ _format_legacy() {
 
 # Simple table format
 _format_table() {
+    local filter="${1:-active}"
+    local pane_filter="${2:-}"
+    local level_filter="${3:-}"
     local lines
-    lines=$(storage_list_notifications "${1:-active}")
+    lines=$(storage_list_notifications "$filter" "$level_filter")
+    
+    # Filter by pane if specified
+    if [[ -n "$pane_filter" ]]; then
+        local filtered_lines=""
+        while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+                local id timestamp state session window pane message pane_created level
+                _parse_notification_line "$line" id timestamp state session window pane message pane_created level
+                if [[ "$pane" == "$pane_filter" ]]; then
+                    filtered_lines="${filtered_lines}${line}\n"
+                fi
+            fi
+        done <<< "$lines"
+        lines=$(echo -e "$filtered_lines" | sed '/^$/d')
+    fi
     
     if [[ -z "$lines" ]]; then
         info "No notifications found"
         return
     fi
     
-    echo "ID    Timestamp                 Message"
-    echo "----  ------------------------  -------"
+    echo "ID    Timestamp                 Pane    Level   Message"
+    echo "----  ------------------------  ------  ------  -------"
     
     while IFS= read -r line; do
         if [[ -n "$line" ]]; then
-            local id timestamp state session window pane message
-            _parse_notification_line "$line" id timestamp state session window pane message
+            local id timestamp state session window pane message pane_created level
+            _parse_notification_line "$line" id timestamp state session window pane message pane_created level
             message=$(_unescape_message "$message")
             # Truncate message for display
             local display_msg
-            if [[ ${#message} -gt 50 ]]; then
-                display_msg="${message:0:47}..."
+            if [[ ${#message} -gt 35 ]]; then
+                display_msg="${message:0:32}..."
             else
                 display_msg="$message"
             fi
-            printf "%-4s  %-25s  %s\n" "$id" "$timestamp" "$display_msg"
+            printf "%-4s  %-25s  %-6s  %-6s  %s\n" "$id" "$timestamp" "$pane" "$level" "$display_msg"
         fi
     done <<< "$lines"
 }
 
 # Compact format (just messages)
 _format_compact() {
+    local filter="${1:-active}"
+    local pane_filter="${2:-}"
+    local level_filter="${3:-}"
     local lines
-    lines=$(storage_list_notifications "${1:-active}")
+    lines=$(storage_list_notifications "$filter" "$level_filter")
+    
+    # Filter by pane if specified
+    if [[ -n "$pane_filter" ]]; then
+        local filtered_lines=""
+        while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+                local id timestamp state session window pane message pane_created level
+                _parse_notification_line "$line" id timestamp state session window pane message pane_created level
+                if [[ "$pane" == "$pane_filter" ]]; then
+                    filtered_lines="${filtered_lines}${line}\n"
+                fi
+            fi
+        done <<< "$lines"
+        lines=$(echo -e "$filtered_lines" | sed '/^$/d')
+    fi
     
     while IFS= read -r line; do
         if [[ -n "$line" ]]; then
-            local id timestamp state session window pane message
-            _parse_notification_line "$line" id timestamp state session window pane message
+            local id timestamp state session window pane message pane_created level
+            _parse_notification_line "$line" id timestamp state session window pane message pane_created level
             message=$(_unescape_message "$message")
             echo "$message"
         fi
@@ -77,6 +113,8 @@ _format_compact() {
 list_command() {
     local filter="active"
     local format="legacy"
+    local pane_filter=""
+    local level_filter=""
     
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -92,6 +130,22 @@ list_command() {
             --all)
                 filter="all"
                 shift
+                ;;
+            --pane=*)
+                pane_filter="${1#*=}"
+                shift
+                ;;
+            --pane)
+                pane_filter="$2"
+                shift 2
+                ;;
+            --level=*)
+                level_filter="${1#*=}"
+                shift
+                ;;
+            --level)
+                level_filter="$2"
+                shift 2
                 ;;
             --format=*)
                 format="${1#*=}"
@@ -112,6 +166,8 @@ OPTIONS:
     --active             Show active notifications (default)
     --dismissed          Show dismissed notifications
     --all                Show all notifications
+    --pane <id>          Filter notifications by pane ID (e.g., %0)
+    --level <level>      Filter notifications by level: info, warning, error, critical
     --format=<format>    Output format: legacy, table, compact, json
     -h, --help           Show this help
 
@@ -133,10 +189,10 @@ EOF
             _format_legacy
             ;;
         table)
-            _format_table "$filter"
+            _format_table "$filter" "$pane_filter" "$level_filter"
             ;;
         compact)
-            _format_compact "$filter"
+            _format_compact "$filter" "$pane_filter" "$level_filter"
             ;;
         json)
             error "JSON format not yet implemented"

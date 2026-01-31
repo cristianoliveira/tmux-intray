@@ -49,7 +49,8 @@ teardown() {
     # Verify fields
     local line
     line=$(head -n 1 "$NOTIFICATIONS_FILE")
-    IFS=$'\t' read -r id_field timestamp state session window pane message <<< "$line"
+    local id_field timestamp state session window pane message pane_created level
+    _parse_notification_line "$line" id_field timestamp state session window pane message pane_created level
     
     [ "$id_field" -eq 1 ]
     [[ "$timestamp" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]
@@ -77,7 +78,7 @@ teardown() {
     
     [ "$active_count" -eq 1 ]
     [ "$dismissed_count" -eq 1 ]
-    [ "$all_count" -eq 3 ]  # Includes both active+dismissed (original active line still present? Actually append-only, so both lines exist)
+    [ "$all_count" -eq 2 ]  # Latest version per notification (id1 dismissed, id2 active)
 }
 
 @test "storage_dismiss_notification updates state" {
@@ -91,7 +92,7 @@ teardown() {
     line=$(storage_list_notifications "dismissed")
     [ -n "$line" ]
     
-    IFS=$'\t' read -r id timestamp state _ _ _ _ <<< "$line"
+    IFS=$'\t' read -r id timestamp state _ _ _ _ _ _ <<< "$line"
     [ "$state" = "dismissed" ]
 }
 

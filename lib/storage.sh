@@ -111,39 +111,49 @@ _get_latest_active_lines() {
 
 # Internal helper: append a notification line to file
 _append_notification_line() {
-    local id="$1" timestamp="$2" state="$3" session="$4" window="$5" pane="$6" message="$7"
-    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$id" "$timestamp" "$state" "$session" "$window" "$pane" "$message" >> "$NOTIFICATIONS_FILE"
+    local id="$1" timestamp="$2" state="$3" session="$4" window="$5" pane="$6" message="$7" pane_created="${8:-}" level="${9:-info}"
+    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$id" "$timestamp" "$state" "$session" "$window" "$pane" "$message" "$pane_created" "$level" >> "$NOTIFICATIONS_FILE"
 }
 
 # Internal helper: parse notification line into variables
-# Usage: _parse_notification_line line id_var timestamp_var state_var session_var window_var pane_var message_var
+# Usage: _parse_notification_line line id_var timestamp_var state_var session_var window_var pane_var message_var [pane_created_var] [level_var]
 _parse_notification_line() {
     local line="$1"
-    local id_var="$2" timestamp_var="$3" state_var="$4" session_var="$5" window_var="$6" pane_var="$7" message_var="$8"
+    shift
+    local id_var="$1" timestamp_var="$2" state_var="$3" session_var="$4" window_var="$5" pane_var="$6" message_var="$7"
+    local pane_created_var="${8:-}"
+    local level_var="${9:-}"
     
     # Use awk to split by tab and assign to named variables via eval
-    # Read into temporary array
+    # Read into temporary array - up to 9 fields
     local -a fields
     mapfile -t fields < <(echo "$line" | awk -F'\t' '{
-        for(i=1;i<=7;i++) print $i
+        for(i=1;i<=9;i++) print $i
     }')
     
-    # Ensure we have at least 7 fields (pad with empty)
-    while [[ ${#fields[@]} -lt 7 ]]; do
+    # Ensure we have at least 9 fields (pad with empty)
+    while [[ ${#fields[@]} -lt 9 ]]; do
         fields+=("")
     done
     
-    eval "$id_var=\"${fields[0]}\""
-    eval "$timestamp_var=\"${fields[1]}\""
-    eval "$state_var=\"${fields[2]}\""
-    eval "$session_var=\"${fields[3]}\""
-    eval "$window_var=\"${fields[4]}\""
-    eval "$pane_var=\"${fields[5]}\""
-    eval "$message_var=\"${fields[6]}\""
+    printf -v "$id_var" "%s" "${fields[0]}"
+    printf -v "$timestamp_var" "%s" "${fields[1]}"
+    printf -v "$state_var" "%s" "${fields[2]}"
+    printf -v "$session_var" "%s" "${fields[3]}"
+    printf -v "$window_var" "%s" "${fields[4]}"
+    printf -v "$pane_var" "%s" "${fields[5]}"
+    printf -v "$message_var" "%s" "${fields[6]}"
+    if [[ -n "$pane_created_var" ]]; then
+        printf -v "$pane_created_var" "%s" "${fields[7]}"
+    fi
+    if [[ -n "$level_var" ]]; then
+        # If field 8 is empty, default to "info"
+        printf -v "$level_var" "%s" "${fields[8]:-info}"
+    fi
 }
 
 # Add a notification to storage
-# Arguments: message [timestamp] [session] [window] [pane]
+# Arguments: message [timestamp] [session] [window] [pane] [pane_created] [level]
 # Returns: notification ID
 storage_add_notification() {
     local message="$1"
@@ -151,6 +161,8 @@ storage_add_notification() {
     local session="${3:-}"
     local window="${4:-}"
     local pane="${5:-}"
+    local pane_created="${6:-}"
+    local level="${7:-info}"
     
     # Ensure storage initialized
     storage_init
@@ -169,16 +181,17 @@ storage_add_notification() {
     escaped_message=$(_escape_message "$message")
     
     # Append to TSV file with lock
-    _with_lock "$LOCK_DIR" _append_notification_line "$id" "$timestamp" "active" "$session" "$window" "$pane" "$escaped_message"
+    _with_lock "$LOCK_DIR" _append_notification_line "$id" "$timestamp" "active" "$session" "$window" "$pane" "$escaped_message" "$pane_created" "$level"
     
     echo "$id"
 }
 
-# List notifications with optional state filter
-# Arguments: state_filter (active|dismissed|all)
+# List notifications with optional state and level filters
+# Arguments: state_filter (active|dismissed|all) [level_filter]
 # Returns: TSV lines (latest version per notification)
 storage_list_notifications() {
     local state_filter="${1:-active}"
+    local level_filter="${2:-}"
     
     storage_init
     
@@ -186,23 +199,37 @@ storage_list_notifications() {
     local latest_lines
     latest_lines=$(_with_lock "$LOCK_DIR" _get_latest_notifications "$NOTIFICATIONS_FILE")
     
+    # Build awk filter expression
+    local filter_expr=""
     case "$state_filter" in
         active)
-            # Filter by state=active
-            awk -F'\t' '$3 == "active"' <<< "$latest_lines" || true
+            filter_expr='$3 == "active"'
             ;;
         dismissed)
-            # Filter by state=dismissed
-            awk -F'\t' '$3 == "dismissed"' <<< "$latest_lines" || true
+            filter_expr='$3 == "dismissed"'
             ;;
         all)
-            echo "$latest_lines"
+            # No state filter
             ;;
         *)
             error "Invalid state filter: $state_filter"
             return 1
             ;;
     esac
+    
+    if [[ -n "$level_filter" ]]; then
+        if [[ -n "$filter_expr" ]]; then
+            filter_expr="${filter_expr} && \$9 == \"$level_filter\""
+        else
+            filter_expr="\$9 == \"$level_filter\""
+        fi
+    fi
+    
+    if [[ -n "$filter_expr" ]]; then
+        awk -F'\t' "$filter_expr" <<< "$latest_lines" || true
+    else
+        echo "$latest_lines"
+    fi
 }
 
 # Dismiss a notification by ID
@@ -221,16 +248,16 @@ storage_dismiss_notification() {
     fi
     
     # Check current state
-    local timestamp state session window pane message
-    _parse_notification_line "$line" dummy timestamp state session window pane message
-    
+    local timestamp state session window pane message pane_created level
+    _parse_notification_line "$line" dummy timestamp state session window pane message pane_created level
+
     if [[ "$state" == "dismissed" ]]; then
         error "Notification $id is already dismissed"
         return 1
     fi
     
-    # Add dismissed version
-    _with_lock "$LOCK_DIR" _append_notification_line "$id" "$timestamp" "dismissed" "$session" "$window" "$pane" "$message"
+    # Add dismissed version (preserve level)
+    _with_lock "$LOCK_DIR" _append_notification_line "$id" "$timestamp" "dismissed" "$session" "$window" "$pane" "$message" "$pane_created" "$level"
 }
 
 # Dismiss all active notifications
@@ -244,9 +271,9 @@ storage_dismiss_all() {
     # Add dismissed version for each
     while IFS= read -r line; do
         if [[ -n "$line" ]]; then
-            local id timestamp session window pane message
-            _parse_notification_line "$line" id timestamp state session window pane message
-            _with_lock "$LOCK_DIR" _append_notification_line "$id" "$timestamp" "dismissed" "$session" "$window" "$pane" "$message"
+            local id timestamp state session window pane message pane_created level
+            _parse_notification_line "$line" id timestamp state session window pane message pane_created level
+            _with_lock "$LOCK_DIR" _append_notification_line "$id" "$timestamp" "dismissed" "$session" "$window" "$pane" "$message" "$pane_created" "$level"
         fi
     done <<< "$active_lines"
 }
@@ -296,8 +323,8 @@ storage_migrate_from_env() {
                 message="$item"
             fi
             
-            # Add to storage with original timestamp
-            storage_add_notification "$message" "$timestamp" "" "" ""
+            # Add to storage with original timestamp (default level: info)
+            storage_add_notification "$message" "$timestamp" "" "" "" "" "info"
             ((migrated++))
         fi
     done

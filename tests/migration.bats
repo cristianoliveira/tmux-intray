@@ -51,7 +51,7 @@ teardown() {
     # Verify notification content
     local line
     line=$(storage_list_notifications "active")
-    IFS=$'\t' read -r _ _ _ _ _ _ message <<< "$line"
+    IFS=$'\t' read -r _ _ _ _ _ _ message _ _ <<< "$line"
     
     # Message should be unescaped
     [[ "$message" == *"Test message"* ]]
@@ -77,7 +77,7 @@ teardown() {
     
     local line
     line=$(storage_list_notifications "active")
-    IFS=$'\t' read -r _ timestamp _ _ _ _ _ <<< "$line"
+    IFS=$'\t' read -r _ timestamp _ _ _ _ _ _ _ <<< "$line"
     
     # Timestamp should be converted to ISO format
     [[ "$timestamp" == *"2025-01-31T12:34:56Z"* ]]

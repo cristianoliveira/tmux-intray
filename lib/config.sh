@@ -12,6 +12,11 @@ TMUX_INTRAY_MAX_NOTIFICATIONS="${TMUX_INTRAY_MAX_NOTIFICATIONS:-1000}"
 TMUX_INTRAY_AUTO_CLEANUP_DAYS="${TMUX_INTRAY_AUTO_CLEANUP_DAYS:-30}"
 TMUX_INTRAY_DATE_FORMAT="${TMUX_INTRAY_DATE_FORMAT:-%Y-%m-%d %H:%M:%S}"
 TMUX_INTRAY_TABLE_FORMAT="${TMUX_INTRAY_TABLE_FORMAT:-default}"
+# Status bar integration
+TMUX_INTRAY_STATUS_ENABLED="${TMUX_INTRAY_STATUS_ENABLED:-1}"
+TMUX_INTRAY_STATUS_FORMAT="${TMUX_INTRAY_STATUS_FORMAT:-compact}"
+TMUX_INTRAY_SHOW_LEVELS="${TMUX_INTRAY_SHOW_LEVELS:-0}"
+TMUX_INTRAY_LEVEL_COLORS="${TMUX_INTRAY_LEVEL_COLORS:-info:green,warning:yellow,error:red,critical:magenta}"
 
 # Load user configuration if exists
 config_load() {
@@ -53,6 +58,17 @@ _create_sample_config() {
 
 # Table format style: default, minimal, fancy
 # TMUX_INTRAY_TABLE_FORMAT="default"
+
+# Status bar integration
+# Enable/disable status indicator (0=disabled, 1=enabled)
+# TMUX_INTRAY_STATUS_ENABLED=1
+# Status format: compact, detailed, count-only
+# TMUX_INTRAY_STATUS_FORMAT="compact"
+# Show level counts in status (0=only total, 1=show levels)
+# TMUX_INTRAY_SHOW_LEVELS=0
+# Level colors for status bar (format: level:color,level:color)
+# Available colors: black, red, green, yellow, blue, magenta, cyan, white
+# TMUX_INTRAY_LEVEL_COLORS="info:green,warning:yellow,error:red,critical:magenta"
 EOF
     
     info "Created sample configuration at $config_file"
