@@ -43,6 +43,26 @@ To start using tmux-intray, simply run the command `tmux-intray` in your termina
 $ tmux-intray --help
 ```
 
+### Commands
+
+- `tmux-intray show` - Show all items in the tray (deprecated, use `list`)
+- `tmux-intray add <message>` - Add a new item to the tray
+- `tmux-intray list` - List notifications with filters and formats (e.g., `--active`, `--dismissed`, `--all`, `--format=table`)
+- `tmux-intray dismiss <id>` - Dismiss a specific notification
+- `tmux-intray dismiss --all` - Dismiss all active notifications
+- `tmux-intray clear` - Clear all items from the tray (alias for `dismiss --all`)
+- `tmux-intray toggle` - Toggle the tray visibility
+- `tmux-intray help` - Show help message
+- `tmux-intray version` - Show version information
+
+### Storage
+
+tmux-intray now stores notifications in a file-based TSV storage located at `~/.local/state/tmux-intray/` (following XDG Base Directory Specification). Notifications persist across tmux server restarts.
+
+### Configuration
+
+A sample configuration file is created at `~/.config/tmux-intray/config.sh` on first run. You can customize storage limits, display formats, and more.
+
 ## Testing
 
 This project uses [Bats](https://github.com/bats-core/bats-core) for testing.
