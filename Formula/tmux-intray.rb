@@ -3,7 +3,7 @@ class TmuxIntray < Formula
   homepage "https://github.com/cristianoliveira/tmux-intray"
   url "https://github.com/cristianoliveira/tmux-intray/archive/refs/heads/main.tar.gz"
   version "0.1.0"
-  sha256 "54afc2329913aed280fb6a3ca4a7da25b95a2822af7fc7113b48d3b5587c2066"
+  sha256 "e9f1e7817cdff92a1e17eaf024a2cca17359e4b23f45115137c27643b78cbcbc"
   license "MIT"
 
   head "https://github.com/cristianoliveira/tmux-intray.git", branch: "main"
