@@ -2,9 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - develop
   pull_request:
-    branches: [ '*' ]
+    branches:
+      - main
+      - develop
 
 jobs:
   test:
@@ -20,10 +24,12 @@ jobs:
         run: |
           if [[ "$RUNNER_OS" == "macOS" ]]; then
             brew update
-            brew install bash bats coreutils shellcheck shfmt
+            brew install bash bats coreutils shellcheck shfmt go
+            brew install go
+            npm install -g npm
           elif [[ "$RUNNER_OS" == "Linux" ]]; then
             sudo apt-get update
-            sudo apt-get install -y bash bats coreutils shellcheck shfmt
+            sudo apt-get install -y bash bats coreutils shellcheck shfmt golang nodejs npm
           else
             echo "Unsupported OS: $RUNNER_OS"
             exit 1
@@ -45,10 +51,12 @@ jobs:
         run: |
           if [[ "$RUNNER_OS" == "macOS" ]]; then
             brew update
-            brew install bash bats coreutils shellcheck shfmt
+            brew install bash bats coreutils shellcheck shfmt go
+            brew install go
+            npm install -g npm
           elif [[ "$RUNNER_OS" == "Linux" ]]; then
             sudo apt-get update
-            sudo apt-get install -y bash bats coreutils shellcheck shfmt
+            sudo apt-get install -y bash bats coreutils shellcheck shfmt golang nodejs npm
           else
             echo "Unsupported OS: $RUNNER_OS"
             exit 1
@@ -70,10 +78,12 @@ jobs:
         run: |
           if [[ "$RUNNER_OS" == "macOS" ]]; then
             brew update
-            brew install bash bats coreutils shellcheck shfmt
+            brew install bash bats coreutils shellcheck shfmt go
+            brew install go
+            npm install -g npm
           elif [[ "$RUNNER_OS" == "Linux" ]]; then
             sudo apt-get update
-            sudo apt-get install -y bash bats coreutils shellcheck shfmt
+            sudo apt-get install -y bash bats coreutils shellcheck shfmt golang nodejs npm
           else
             echo "Unsupported OS: $RUNNER_OS"
             exit 1
@@ -91,7 +101,7 @@ jobs:
       - name: Install dependencies
         run: |
           brew update
-          brew install bash bats coreutils shellcheck shfmt
+          brew install bash bats coreutils shellcheck shfmt go
           brew install go
           npm install -g npm
 
