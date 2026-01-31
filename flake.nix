@@ -3,51 +3,21 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs";
     utils.url = "github:numtide/flake-utils";
-    git-hooks.url = "github:cachix/git-hooks.nix";
   };
-  outputs = { nixpkgs, utils, git-hooks, ... }:
+  outputs = { nixpkgs, utils, ... }:
     utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
-        pre-commit-check = git-hooks.lib.${system}.run {
-          src = ./.;
-          hooks = {
-            shellcheck = {
-              enable = true;
-              files = "\\.(sh|bats)$";
-              exclude = "^tests/";
-              args = [ "-e" "SC2034" "-e" "SC1091" ];
-            };
-            shfmt = {
-              enable = true;
-              files = "\\.(sh|bats|tmux)$";
-              # auto-fix enabled
-              entry = "${pkgs.shfmt}/bin/shfmt -w -i 4";
-            };
-            bats = {
-              enable = true;
-              files = "^tests/.*\\.bats$";
-              # run bats on modified test files
-              entry = "${pkgs.bats}/bin/bats";
-            };
-          };
-        };
       in {
-        checks = {
-          pre-commit-check = pre-commit-check;
-        };
-
         devShells.default = pkgs.mkShell {
-          inherit (pre-commit-check) shellHook;
           packages = with pkgs; [
             bash
             bats
             shellcheck
             shfmt
 
-            pre-commit
+            prek
           ];
-          buildInputs = pre-commit-check.enabledPackages;
         };
 
         packages = {
