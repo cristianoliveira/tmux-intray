@@ -66,6 +66,10 @@ jump_to_pane() {
         fi
         return 0
     fi
+    if ! tmux select-window -t "${session}:${window}"; then
+        error "Window ${session}:${window} does not exist"
+        return 1
+    fi
     tmux select-pane -t "${session}:${window}.${pane}"
 }
 
