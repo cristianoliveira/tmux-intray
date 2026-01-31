@@ -1,0 +1,18 @@
+repos:
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: v0.10.0
+    hooks:
+      - id: shellcheck
+        name: ShellCheck
+        entry: shellcheck
+        language: system
+        files: \.(sh|bats)$
+        exclude: ^tests/
+        args: ["-e", "SC2034", "-e", "SC1091"]
+  - repo: local
+    hooks:
+      - id: bats
+        name: Bats
+        entry: bats
+        language: system
+        files: ^tests/.*\.bats$
