@@ -60,7 +60,7 @@ DESCRIPTION:
     The script outputs a formatted string showing notification counts.
     When clicked, it can trigger the list command (via tmux bindings).
 EOF
-                exit 0
+                return 1
                 ;;
             *)
                 error "Unknown argument: $1"
@@ -217,7 +217,13 @@ format_count_only() {
 
 main() {
     # Parse arguments
-    read -r format enabled < <(parse_args "$@")
+    local output
+    if ! output=$(parse_args "$@"); then
+        # parse_args returned non-zero, which indicates help printed
+        echo -n "$output"
+        exit 0
+    fi
+    read -r format enabled <<< "$output"
     
     # Check if status is enabled
     if [[ "$enabled" != "1" ]]; then
