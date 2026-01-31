@@ -25,7 +25,7 @@
             pname = "tmux-intray";
             version = "0.1.0";
             src = ./.;
-            nativeBuildInputs = with pkgs; [ bats tmux shfmt ];
+            nativeBuildInputs = with pkgs; [ bats tmux shfmt shellcheck ];
             preBuild = ''
               export XDG_STATE_HOME=$(mktemp -d)
               export XDG_CONFIG_HOME=$(mktemp -d)
