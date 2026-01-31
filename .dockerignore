@@ -1,0 +1,28 @@
+# Ignore version control
+.git
+.gitignore
+
+# Ignore temporary and local directories
+.tmp
+.local
+.bv
+.direnv
+.gwt
+.beads
+tmp
+tmp*
+
+# Ignore build artifacts
+*.tmp
+.DS_Store
+
+# Ignore Docker files (optional)
+# Dockerfile
+# .dockerignore
+
+# Ignore test artifacts
+/tmp/
+/tmp*/
+
+# Ignore nix store
+result

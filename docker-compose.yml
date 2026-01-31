@@ -1,0 +1,12 @@
+version: '3.8'
+services:
+  tests:
+    build: .
+    volumes:
+      - .:/home/tester/tmux-intray
+    working_dir: /home/tester/tmux-intray
+    environment:
+      TERM: screen
+    stdin_open: true
+    tty: true
+    command: make tests

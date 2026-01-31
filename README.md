@@ -125,6 +125,18 @@ Or:
 make tests
 ```
 
+With Docker (isolated environment):
+```bash
+$ ./scripts/docker-test.sh
+```
+
+This builds a Docker image with all dependencies and runs the test suite. You can also run specific commands:
+
+```bash
+$ ./scripts/docker-test.sh make lint   # Run linter
+$ ./scripts/docker-test.sh bash        # Start interactive shell
+```
+
 Tests are located in the `tests` directory.
 
 ## Linting
