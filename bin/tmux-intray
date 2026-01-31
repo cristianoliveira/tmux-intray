@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# tmux-intray - CLI tool for tmux-intray
+# Main entry point for tmux-intray CLI
 
 set -euo pipefail
 
 VERSION="0.1.0"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+COMMANDS_DIR="$PROJECT_ROOT/commands"
+LIB_DIR="$PROJECT_ROOT/lib"
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# Source core libraries
+source "$LIB_DIR/colors.sh"
+source "$LIB_DIR/core.sh"
 
 usage() {
     cat << EOF
@@ -36,117 +36,29 @@ OPTIONS:
 EOF
 }
 
-show_help() {
-    usage
-}
-
-show_version() {
-    echo "tmux-intray v${VERSION}"
-}
-
-show_tray() {
-    if ! tmux has-session 2>/dev/null; then
-        echo -e "${RED}Error: No tmux session running${NC}" >&2
-        exit 1
-    fi
-
-    local items
-    items=$(tmux show-environment -g TMUX_INTRAY_ITEMS 2>/dev/null || echo "")
-
-    if [[ -z "$items" ]]; then
-        echo "Tray is empty"
-        return
-    fi
-
-    echo "=== Intray Items ==="
-    echo "$items" | tr ':' '\n' | nl -w2 -s'. '
-}
-
-add_item() {
-    if ! tmux has-session 2>/dev/null; then
-        echo -e "${RED}Error: No tmux session running${NC}" >&2
-        exit 1
-    fi
-
-    local message="$1"
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    local item="[${timestamp}] ${message}"
-
-    local existing_items
-    existing_items=$(tmux show-environment -g TMUX_INTRAY_ITEMS 2>/dev/null || echo "")
-
-    if [[ -z "$existing_items" ]]; then
-        tmux set-environment -g TMUX_INTRAY_ITEMS "$item"
-    else
-        tmux set-environment -g TMUX_INTRAY_ITEMS "${existing_items}:${item}"
-    fi
-
-    echo -e "${GREEN}✓${NC} Item added to tray"
-}
-
-clear_tray() {
-    if ! tmux has-session 2>/dev/null; then
-        echo -e "${RED}Error: No tmux session running${NC}" >&2
-        exit 1
-    fi
-
-    tmux set-environment -g TMUX_INTRAY_ITEMS ""
-    echo -e "${GREEN}✓${NC} Tray cleared"
-}
-
-toggle_tray() {
-    if ! tmux has-session 2>/dev/null; then
-        echo -e "${RED}Error: No tmux session running${NC}" >&2
-        exit 1
-    fi
-
-    local visible
-    visible=$(tmux show-environment -g TMUX_INTRAY_VISIBLE 2>/dev/null || echo "")
-
-    if [[ "$visible" == "1" ]]; then
-        tmux set-environment -g TMUX_INTRAY_VISIBLE "0"
-        echo "Tray hidden"
-    else
-        tmux set-environment -g TMUX_INTRAY_VISIBLE "1"
-        echo "Tray visible"
-    fi
-}
-
-# Main
 main() {
     if [[ $# -eq 0 ]]; then
-        show_help
+        usage
         exit 0
     fi
 
-    case "$1" in
-        show)
-            show_tray
+    local command="$1"
+    shift || true
+
+    case "$command" in
+        show|add|clear|toggle|help|version)
+            # Load and execute the command
+            source "$COMMANDS_DIR/${command}.sh"
+            "${command}_command" "$@"
             ;;
-        add)
-            if [[ $# -lt 2 ]]; then
-                echo -e "${RED}Error: 'add' requires a message${NC}" >&2
-                echo "Usage: tmux-intray add <message>" >&2
-                exit 1
-            fi
-            shift
-            add_item "$*"
-            ;;
-        clear)
-            clear_tray
-            ;;
-        toggle)
-            toggle_tray
-            ;;
-        help|--help|-h)
-            show_help
-            ;;
-        version|--version|-v)
-            show_version
+        --help|-h)
+            usage
+            exit 0
             ;;
         *)
-            echo -e "${RED}Error: Unknown command '$1'${NC}" >&2
-            show_help
+            error "Unknown command '$command'"
+            echo ""
+            usage
             exit 1
             ;;
     esac
