@@ -1,0 +1,12 @@
+# tmux-intray
+
+# Temporary files
+*.tmp
+.tmp/
+.DS_Store
+
+# Test artifacts
+/tmp/
+/tmp*/
+
+A quiet inbox for things that happen while you're not looking.
