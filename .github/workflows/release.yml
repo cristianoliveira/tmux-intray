@@ -1,0 +1,101 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'  # Matches semver tags like v1.2.3
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Needed for creating releases
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for changelog generation
+
+      - name: Get version from tag
+        id: tag
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify version consistency
+        run: |
+          SCRIPT_VERSION=$(grep -E '^VERSION="[0-9]+\.[0-9]+\.[0-9]+"' bin/tmux-intray | cut -d'"' -f2)
+          TAG_VERSION="${{ steps.tag.outputs.VERSION }}"
+          # Remove leading 'v' from tag for comparison
+          TAG_VERSION="${TAG_VERSION#v}"
+          if [ "$SCRIPT_VERSION" != "$TAG_VERSION" ]; then
+            echo "Error: Version mismatch"
+            echo "  bin/tmux-intray version: $SCRIPT_VERSION"
+            echo "  Git tag version: $TAG_VERSION"
+            exit 1
+          fi
+
+      - name: Generate release notes
+        id: release-notes
+        run: |
+          # Get all semver tags sorted by version (newest first)
+          mapfile -t ALL_TAGS < <(git tag --list 'v*' --sort=-v:refname 2>/dev/null || true)
+          CURRENT_TAG="${{ steps.tag.outputs.VERSION }}"
+          PREVIOUS_TAG=""
+          # Find the tag immediately before current tag
+          for t in "${ALL_TAGS[@]}"; do
+            if [ "$t" != "$CURRENT_TAG" ]; then
+              PREVIOUS_TAG="$t"
+              break
+            fi
+          done
+          
+          echo "Current tag: $CURRENT_TAG"
+          echo "Previous tag: ${PREVIOUS_TAG:-none}"
+          
+          # Generate changelog
+          if [ -z "$PREVIOUS_TAG" ]; then
+            # No previous tag, include all commits
+            CHANGELOG=$(git log --oneline --no-merges --format="- %s (%h)" HEAD)
+          else
+            # Get commits between previous tag and current tag
+            CHANGELOG=$(git log --oneline --no-merges --format="- %s (%h)" "$PREVIOUS_TAG"..HEAD)
+          fi
+          
+          # Format for GitHub release notes
+          RELEASE_NOTES="# $CURRENT_TAG"
+          RELEASE_NOTES+=$'\n\n'
+          RELEASE_NOTES+="## Changelog"
+          RELEASE_NOTES+=$'\n\n'
+          RELEASE_NOTES+="$CHANGELOG"
+          
+          # Output for next step (using environment file)
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_ENV"
+          echo "$RELEASE_NOTES" >> "$GITHUB_ENV"
+          echo "EOF" >> "$GITHUB_ENV"
+
+      - name: Create source tarball
+        id: package
+        run: |
+          mkdir -p dist
+          TAG="${{ steps.tag.outputs.VERSION }}"
+          # Create a tarball of the repository (excluding .git and temporary directories)
+          tar -czf "dist/tmux-intray-${TAG}.tar.gz" \
+            --exclude='.git' \
+            --exclude='dist' \
+            --exclude='.tmp' \
+            --exclude='.bv' \
+            --exclude='.local' \
+            --exclude='tmp' \
+            --exclude='*.swp' \
+            .
+          echo "TARBALL_PATH=dist/tmux-intray-${TAG}.tar.gz" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ steps.tag.outputs.VERSION }}
+          body: ${{ env.RELEASE_NOTES }}
+          draft: false
+          prerelease: false
+          generate_release_notes: false  # We generate our own
+          files: |
+            ${{ steps.package.outputs.TARBALL_PATH }}
