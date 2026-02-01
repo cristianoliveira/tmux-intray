@@ -27,3 +27,4 @@ dist/
 # Docker build cache
 .dockerignore
 result
+tmux-intray
