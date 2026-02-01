@@ -5,7 +5,7 @@
 A quiet inbox for things that happen while you're not looking.
 
 <div>
-    
+
 tmux-intray provides a persistent in-tmux in-tray where panes, windows, and scripts can drop messages and events without interrupting your flow. Instead of loud notifications or forced context switches, events accumulate calmly until you're ready to review them. Each item keeps its origin, survives pane and window changes, and can be inspected, jumped to, or cleared at your own pace. It's designed for deferred attention: notice now if you want, act later when it makes sense.
 </div>
 
@@ -13,8 +13,8 @@ tmux-intray provides a persistent in-tmux in-tray where panes, windows, and scri
 ## Working in Progress
 
 🚧🚧 This plugin is in active development at the moment. It started as a opencode plugin but grew to it's own project.
-I use it in my daily basis, I'm a heavy tmux user and so far it works great! At this stage of development I can't promise there won't be 
-breaking changes. 
+I use it in my daily basis, I'm a heavy tmux user and so far it works great! At this stage of development I can't promise there won't be
+breaking changes.
 
 ## Summary
 
@@ -90,13 +90,6 @@ npm install -g tmux-intray
 
 ```bash
 go install github.com/cristianoliveira/tmux-intray/cmd/tmux-intray@latest
-```
-
-#### Docker
-
-```bash
-docker build -t tmux-intray .
-docker run --rm -it tmux-intray --help
 ```
 
 #### From Source

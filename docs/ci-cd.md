@@ -32,12 +32,10 @@ Runs on every push to `main` and `develop` branches, and on pull requests target
 4. **install-linux** - Tests installation methods on Linux:
    - npm installation
    - Go binary build
-   - Docker image build
+ 
    - Source installation
 
-5. **docker-test** - Tests Docker container functionality:
-   - Builds Docker image
-   - Verifies CLI commands work inside container
+
 
 ### Release (`release.yml`)
 
@@ -113,9 +111,7 @@ pre-commit install
 - npm installation: ensure package.json is valid
 - Go build: check Go version compatibility
 
-#### Docker Build Failures
-- Ensure Dockerfile builds locally: `docker build -t tmux-intray .`
-- Test container: `docker run --rm tmux-intray --help`
+
 
 ### Release Failures
 
@@ -144,13 +140,7 @@ Error: "Version mismatch between bin/tmux-intray and git tag"
 2. Add build steps in `create-release` job
 3. Add artifacts to the `files` list in the "Create GitHub Release" step
 
-### Docker Image Publishing
 
-To publish Docker images to GitHub Container Registry:
-
-1. Add a new job `docker-publish` in `release.yml`
-2. Use `docker/login-action` with `ghcr.io`
-3. Build and push with version tags
 
 ## Monitoring
 

@@ -93,24 +93,9 @@ jobs:
       - name: Test Go binary build
         run: make install-go
 
-      - name: Test Docker installation
-        run: make install-docker
+
 
       - name: Test source installation
         run: make install
 
-  docker-test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
 
-      - name: Build Docker image
-        run: docker build -t tmux-intray .
-
-      - name: Test container functionality
-        run: |
-          docker run --rm tmux-intray --help
-          docker run --rm tmux-intray version
-          docker run --rm tmux-intray list
-          docker run --rm tmux-intray add --help
