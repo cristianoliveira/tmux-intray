@@ -253,13 +253,22 @@ storage_add_notification() {
 }
 
 # List notifications with optional state and level filters
-# Arguments: state_filter (active|dismissed|all) [level_filter]
+# Arguments: state_filter (active|dismissed|all) [level_filter] [session_filter] [window_filter] [pane_filter] [older_than_cutoff] [newer_than_cutoff]
 # Returns: TSV lines (latest version per notification)
 storage_list_notifications() {
     local state_filter="${1:-active}"
     local level_filter="${2:-}"
+    local session_filter="${3:-}"
+    local window_filter="${4:-}"
+    local pane_filter="${5:-}"
+    local older_than_cutoff="${6:-}"
+    local newer_than_cutoff="${7:-}"
 
-    debug "Listing notifications (state_filter: $state_filter, level_filter: ${level_filter:-none})"
+    debug "Listing notifications (state_filter: $state_filter, level_filter: ${level_filter:-none}, session_filter: ${session_filter:-none}, window_filter: ${window_filter:-none}, pane_filter: ${pane_filter:-none}, older_than_cutoff: ${older_than_cutoff:-none}, newer_than_cutoff: ${newer_than_cutoff:-none})"
+    if [[ -n "${TMUX_INTRAY_DEBUG:-}" ]]; then
+        echo "DEBUG: session_filter=$session_filter" >&2
+        echo "DEBUG: window_filter=$window_filter" >&2
+    fi
     storage_init
 
     # Get latest version of each notification
@@ -267,7 +276,8 @@ storage_list_notifications() {
     latest_lines=$(_with_lock "$LOCK_DIR" _get_latest_notifications "$NOTIFICATIONS_FILE")
     debug "Retrieved latest notifications (lines: $(echo "$latest_lines" | wc -l))"
 
-    # Build awk filter expression
+    # Build awk filter expression with variable passing
+    local awk_args=(-F '\t')
     local filter_expr=""
     case "$state_filter" in
     active)
@@ -284,23 +294,86 @@ storage_list_notifications() {
         # No state filter
         ;;
     *)
-        error "Invalid state filter: $state_filter"
+        error "Invalid state_filter: $state_filter"
         return 1
         ;;
     esac
     debug "Filter expression after state: ${filter_expr:-none}"
 
     if [[ -n "$level_filter" ]]; then
+        awk_args+=(-v "filter_level=$level_filter")
         if [[ -n "$filter_expr" ]]; then
-            filter_expr="${filter_expr} && \$9 == \"$level_filter\""
+            filter_expr="${filter_expr} && \$9 == filter_level"
         else
-            filter_expr="\$9 == \"$level_filter\""
+            filter_expr="\$9 == filter_level"
         fi
     fi
+
+    if [[ -n "$session_filter" ]]; then
+        awk_args+=(-v "filter_session=$session_filter")
+        if [[ -n "$filter_expr" ]]; then
+            filter_expr="${filter_expr} && \$4 == filter_session"
+        else
+            filter_expr="\$4 == filter_session"
+        fi
+    fi
+
+    if [[ -n "$window_filter" ]]; then
+        awk_args+=(-v "filter_window=$window_filter")
+        if [[ -n "$filter_expr" ]]; then
+            filter_expr="${filter_expr} && \$5 == filter_window"
+        else
+            filter_expr="\$5 == filter_window"
+        fi
+    fi
+
+    if [[ -n "$pane_filter" ]]; then
+        awk_args+=(-v "filter_pane=$pane_filter")
+        if [[ -n "$filter_expr" ]]; then
+            filter_expr="${filter_expr} && \$6 == filter_pane"
+        else
+            filter_expr="\$6 == filter_pane"
+        fi
+    fi
+
+    if [[ -n "$older_than_cutoff" ]]; then
+        awk_args+=(-v "filter_older=$older_than_cutoff")
+        if [[ -n "$filter_expr" ]]; then
+            filter_expr="${filter_expr} && \$2 < filter_older"
+        else
+            filter_expr="\$2 < filter_older"
+        fi
+    fi
+
+    if [[ -n "$newer_than_cutoff" ]]; then
+        awk_args+=(-v "filter_newer=$newer_than_cutoff")
+        if [[ -n "$filter_expr" ]]; then
+            filter_expr="${filter_expr} && \$2 > filter_newer"
+        else
+            filter_expr="\$2 > filter_newer"
+        fi
+    fi
+
     debug "Final filter expression: ${filter_expr:-none}"
+    if [[ -n "${TMUX_INTRAY_DEBUG:-}" ]]; then
+        echo "DEBUG: filter_expr: '${filter_expr:-none}'" >&2
+        echo "DEBUG: awk_args: '${awk_args[*]}'" >&2
+        echo "DEBUG: session_filter: '$session_filter'" >&2
+        # DEBUG: print first line fields
+        if [[ -n "$latest_lines" ]]; then
+            local first_line
+            first_line=$(head -n1 <<<"$latest_lines")
+            echo "DEBUG: First line: $first_line" >&2
+            # parse fields
+            local -a fields
+            IFS=$'\t' read -r -a fields <<<"$first_line"
+            echo "DEBUG: Field 4 (session): ${fields[3]:-empty}, field 5 (window): ${fields[4]:-empty}, field 6 (pane): ${fields[5]:-empty}" >&2
+        fi
+    fi
 
     if [[ -n "$filter_expr" ]]; then
-        awk -F'\t' "$filter_expr" <<<"$latest_lines" || true
+        awk_args+=("$filter_expr")
+        awk "${awk_args[@]}" <<<"$latest_lines" || true
     else
         echo "$latest_lines"
     fi

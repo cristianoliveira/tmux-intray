@@ -188,7 +188,7 @@ $ tmux-intray --help
 
 #### Core Commands
 - `tmux-intray add <message>` - Add a new item to the tray (options: `--level`, `--session`, `--window`, `--pane`, `--no-associate`)
-- `tmux-intray list` - List notifications with filters and formats (e.g., `--active`, `--dismissed`, `--all`, `--level`, `--pane`, `--format=table`)
+- `tmux-intray list` - List notifications with filters and formats (e.g., `--active`, `--dismissed`, `--all`, `--level`, `--pane`, `--session`, `--window`, `--older-than`, `--newer-than`, `--search`, `--regex`, `--group-by`, `--group-count`, `--format=table`)
 - `tmux-intray dismiss <id>` - Dismiss a specific notification
 - `tmux-intray dismiss --all` - Dismiss all active notifications
 - `tmux-intray clear` - Clear all items from the tray (alias for `dismiss --all`)
