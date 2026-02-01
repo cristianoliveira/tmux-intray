@@ -23,6 +23,10 @@ lint: check-fmt
 	@echo "Running linter..."
 	./scripts/lint.sh
 
+security-check:
+	@echo "Running security checks..."
+	./scripts/security-check.sh
+
 clean:
 	@echo "Cleaning..."
 	rm -rf .tmp
@@ -31,4 +35,5 @@ install:
 	@echo "Installing tmux-intray..."
 	chmod +x bin/tmux-intray
 	chmod +x scripts/lint.sh
+	chmod +x scripts/security-check.sh
 	chmod +x tmux-intray.tmux

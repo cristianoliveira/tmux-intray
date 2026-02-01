@@ -34,7 +34,8 @@ tmux-intray/
 │       ├── show.bats
 │       └── management.bats
 ├── scripts/
-│   └── lint.sh              # ShellCheck linter
+│   ├── lint.sh              # ShellCheck linter
+│   └── security-check.sh    # Security-focused ShellCheck
 ├── tmux-intray.tmux         # Tmux plugin entry point
 ├── Makefile                 # Build automation
 └── flake.nix                # Nix flake for dev environment
@@ -163,7 +164,10 @@ make tests
 # Run linter
 make lint
 
-# Run both
+# Run security check
+make security-check
+
+# Run both tests and lint
 make all
 
 # Run specific test file
