@@ -130,6 +130,27 @@ Notifications can have severity levels: `info` (default), `warning`, `error`, `c
   ```
 - The `status` command shows counts per level.
 
+### Hooks System
+
+tmux-intray supports a powerful hooks system that allows you to execute custom scripts before and after notification events. This makes tmux-intray extensible and integratable with other systems.
+
+**Key features:**
+- **Hook points**: `pre-add`, `post-add`, `pre-dismiss`, `post-dismiss`, `cleanup`
+- **Custom scripts**: Place executable scripts in `~/.config/tmux-intray/hooks/` directories
+- **Environment variables**: Receive notification context in your scripts
+- **Configurable**: Enable/disable hooks, control error handling, sync/async execution
+
+**Example hook** (log all notifications):
+```bash
+#!/usr/bin/env bash
+# ~/.config/tmux-intray/hooks/pre-add/99-log.sh
+LOG_FILE="$HOME/.local/state/tmux-intray/hooks.log"
+mkdir -p "$(dirname "$LOG_FILE")"
+echo "$(date) [pre-add] ${NOTIFICATION_LEVEL}: ${NOTIFICATION_MESSAGE}" >> "$LOG_FILE"
+```
+
+**Learn more**: See the complete [hooks documentation](docs/hooks.md) for detailed examples and configuration.
+
 ### Status Bar Integration
 
 tmux-intray can display notification counts in the tmux status bar using the `status-panel` script.
