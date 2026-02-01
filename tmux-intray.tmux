@@ -12,7 +12,7 @@ source "$PROJECT_ROOT/lib/tmux-intray.sh"
 # Set up tmux key bindings
 set_tmux_bindings() {
     tmux bind-key -T prefix i run-shell "$PROJECT_ROOT/bin/tmux-intray toggle"
-    tmux bind-key -T prefix I run-shell "$PROJECT_ROOT/bin/tmux-intray show"
+    tmux bind-key -T prefix I run-shell "$PROJECT_ROOT/bin/tmux-intray list"
 }
 
 # Initialize the plugin

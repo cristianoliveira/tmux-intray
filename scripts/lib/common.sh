@@ -14,7 +14,8 @@ find_shell_scripts() {
         -not -path "*/.local/*" \
         -not -path "*/tmp/*" \
         -not -path "*/tmp*/*" \
-        -not -path "*/.gwt/*" \
+        -not -path "*/.gwt" \
+        -not -path "*/.gwt-main" \
         -not -path "*/.direnv/*" \
         -not -path "*/.beads/*" |
         sort
@@ -31,7 +32,7 @@ get_extra_files() {
         # Add all lib files
         while IFS= read -r -d '' lib_file; do
             extra_files+=("$lib_file")
-        done < <(find "$root_dir/lib" -name "*.sh" -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -not -path "*/.gwt/*" -not -path "*/.direnv/*" -not -path "*/.beads/*" -print0)
+        done < <(find "$root_dir/lib" -name "*.sh" -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -not -path "*/.gwt" -not -path "*/.direnv/*" -not -path "*/.beads/*" -print0)
 
         # For command files, also check their modules
         if echo "$file" | grep -q "commands/[^/]*\.sh$"; then
@@ -42,7 +43,7 @@ get_extra_files() {
             if [[ -d "$modules_dir" ]]; then
                 while IFS= read -r -d '' module_file; do
                     extra_files+=("$module_file")
-                done < <(find "$modules_dir" -name "*.sh" -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -not -path "*/.gwt/*" -not -path "*/.direnv/*" -not -path "*/.beads/*" -print0)
+                done < <(find "$modules_dir" -name "*.sh" -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -not -path "*/.gwt" -not -path "*/.direnv/*" -not -path "*/.beads/*" -print0)
             fi
         elif echo "$file" | grep -q "commands/.*/modules/.*\.sh$"; then
             # Module files (in modules/ subdirectory)
@@ -52,7 +53,7 @@ get_extra_files() {
                 if [[ "$module_file" != "$file" ]]; then
                     extra_files+=("$module_file")
                 fi
-            done < <(find "$module_dir" -name "*.sh" -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -not -path "*/.gwt/*" -not -path "*/.direnv/*" -not -path "*/.beads/*" -print0)
+            done < <(find "$module_dir" -name "*.sh" -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -not -path "*/.gwt" -not -path "*/.direnv/*" -not -path "*/.beads/*" -print0)
         fi
     fi
 
