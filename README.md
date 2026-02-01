@@ -213,6 +213,15 @@ Comprehensive documentation is available:
 
 Documentation is automatically generated from the command-line help texts.
 
+## Documentation
+
+Comprehensive documentation is available:
+
+- [CLI Reference](docs/cli/CLI_REFERENCE.md) - Complete command reference
+- [Man page](man/man1/tmux-intray.1) - Traditional manual page (view with `man -l man/man1/tmux-intray.1`)
+
+Documentation is automatically generated from the command-line help texts.
+
 ### Notification Levels
 
 Notifications can have severity levels: `info` (default), `warning`, `error`, `critical`. Levels are used for filtering and color-coded display.
