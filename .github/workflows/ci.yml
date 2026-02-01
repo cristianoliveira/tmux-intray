@@ -101,7 +101,9 @@ jobs:
           npm install -g npm
 
       - name: Audit Homebrew formula
-        run: HOMEBREW_NO_INSTALL_FROM_API=1 HOMEBREW_NO_AUTO_UPDATE=1 brew audit --strict --formula ./Formula/tmux-intray.rb
+        run: |
+          brew tap cristianoliveira/tmux-intray "$GITHUB_WORKSPACE"
+          HOMEBREW_NO_INSTALL_FROM_API=1 HOMEBREW_NO_AUTO_UPDATE=1 brew audit --strict --formula tmux-intray
 
       - name: Test npm installation
         run: |

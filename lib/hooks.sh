@@ -48,10 +48,17 @@ hooks_run() {
 
     local scripts=()
     if [[ -d "$hook_dir" ]]; then
-        # Find executable scripts, sorted by name
-        while IFS= read -r -d '' script; do
-            scripts+=("$script")
-        done < <(find "$hook_dir" -type f -name "*.sh" -executable -print0 | sort -z)
+        # Find executable scripts, sorted by name (portable)
+        local nullglob_state
+        nullglob_state=$(shopt -p nullglob)
+        shopt -s nullglob
+        local script
+        for script in "$hook_dir"/*.sh; do
+            if [[ -f "$script" && -x "$script" ]]; then
+                scripts+=("$script")
+            fi
+        done
+        eval "$nullglob_state"
     fi
 
     if [[ ${#scripts[@]} -eq 0 ]]; then
