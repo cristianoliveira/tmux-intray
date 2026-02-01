@@ -76,10 +76,10 @@ jobs:
               break
             fi
           done
-          
+
           echo "Current tag: $CURRENT_TAG"
           echo "Previous tag: ${PREVIOUS_TAG:-none}"
-          
+
           # Generate changelog
           if [ -z "$PREVIOUS_TAG" ]; then
             # No previous tag, include all commits
@@ -88,14 +88,14 @@ jobs:
             # Get commits between previous tag and current tag
             CHANGELOG=$(git log --oneline --no-merges --format="- %s (%h)" "$PREVIOUS_TAG"..HEAD)
           fi
-          
+
           # Format for GitHub release notes
           RELEASE_NOTES="# $CURRENT_TAG"
           RELEASE_NOTES+=$'\n\n'
           RELEASE_NOTES+="## Changelog"
           RELEASE_NOTES+=$'\n\n'
           RELEASE_NOTES+="$CHANGELOG"
-          
+
           # Output for next step (using environment file)
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_ENV"
           echo "$RELEASE_NOTES" >> "$GITHUB_ENV"
@@ -117,6 +117,39 @@ jobs:
             --exclude='*.swp' \
             .
           echo "TARBALL_PATH=dist/tmux-intray-${TAG}.tar.gz" >> "$GITHUB_OUTPUT"
+
+      - name: Update Homebrew formula
+        run: |
+          # Switch to main branch
+          git checkout main
+          git pull origin main
+          # Compute SHA256 of the source tarball
+          TARBALL="${{ steps.package.outputs.TARBALL_PATH }}"
+          NEW_SHA256=$(shasum -a 256 "$TARBALL" | awk '{print $1}')
+          # Extract version from tag (remove leading v)
+          VERSION="${{ steps.tag.outputs.VERSION }}"
+          VERSION="${VERSION#v}"
+          # Update formula file using Ruby
+          ruby -i -pe "
+            if /^\s*version\s+\"/ && !\$updated_version
+              gsub(/\"[^\"]+\"/, '\"#{VERSION}\"')
+              \$updated_version = true
+            end
+            if /^\s*sha256\s+\"/ && !\$updated_sha
+              gsub(/\"[^\"]+\"/, '\"#{NEW_SHA256}\"')
+              \$updated_sha = true
+            end
+          " Formula/tmux-intray.rb
+          # Commit changes if any
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add Formula/tmux-intray.rb
+          if ! git diff --cached --quiet; then
+          git commit -m "chore(ci): update homebrew formula to v${VERSION}"
+            git push origin main
+          else
+            echo "No changes to formula."
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
