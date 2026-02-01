@@ -16,7 +16,7 @@ success() {
 }
 
 warning() {
-    echo -e "${YELLOW}Warning: $*${NC}"
+    echo -e "${YELLOW}Warning: $*${NC}" >&2
 }
 
 info() {

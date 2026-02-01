@@ -108,7 +108,7 @@ For complex commands that need their own modules:
    ```bash
    # commands/mycommand/modules/helper.sh
    #!/usr/bin/env bash
-   
+
    helper_function() {
        echo "Helper result"
    }
@@ -118,12 +118,12 @@ For complex commands that need their own modules:
    ```bash
    #!/usr/bin/env bash
    # My command - Complex command with sub-modules
-   
+
    # Source local modules
    # shellcheck disable=SC1091
    COMMAND_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
    source "$COMMAND_DIR/mycommand/modules/helper.sh"
-   
+
    mycommand_command() {
        # Use local module functions
        helper_function

@@ -19,6 +19,12 @@ TMUX_INTRAY_STATUS_FORMAT="${TMUX_INTRAY_STATUS_FORMAT:-compact}"
 TMUX_INTRAY_SHOW_LEVELS="${TMUX_INTRAY_SHOW_LEVELS:-0}"
 TMUX_INTRAY_LEVEL_COLORS="${TMUX_INTRAY_LEVEL_COLORS:-info:green,warning:yellow,error:red,critical:magenta}"
 
+# Hook system defaults
+TMUX_INTRAY_HOOKS_ENABLED="${TMUX_INTRAY_HOOKS_ENABLED:-1}"
+TMUX_INTRAY_HOOKS_FAILURE_MODE="${TMUX_INTRAY_HOOKS_FAILURE_MODE:-warn}"
+TMUX_INTRAY_HOOKS_ASYNC="${TMUX_INTRAY_HOOKS_ASYNC:-0}"
+TMUX_INTRAY_HOOKS_DIR="${TMUX_INTRAY_HOOKS_DIR:-${TMUX_INTRAY_CONFIG_DIR}/hooks}"
+
 # Load user configuration if exists
 config_load() {
     # Guard against duplicate loading
@@ -78,6 +84,23 @@ _create_sample_config() {
 # Level colors for status bar (format: level:color,level:color)
 # Available colors: black, red, green, yellow, blue, magenta, cyan, white
 # TMUX_INTRAY_LEVEL_COLORS="info:green,warning:yellow,error:red,critical:magenta"
+
+# Hook system
+# Enable/disable hooks globally (0=disabled, 1=enabled)
+# TMUX_INTRAY_HOOKS_ENABLED=1
+# Hook failure mode: ignore, warn, abort
+# TMUX_INTRAY_HOOKS_FAILURE_MODE="warn"
+# Run hooks asynchronously (0=synchronous, 1=asynchronous) - NOT IMPLEMENTED YET
+# TMUX_INTRAY_HOOKS_ASYNC=0
+# Hook directory (default: $TMUX_INTRAY_CONFIG_DIR/hooks)
+# TMUX_INTRAY_HOOKS_DIR="$HOME/.config/tmux-intray/hooks"
+# Per-hook enable/disable (0=disabled, 1=enabled)
+# TMUX_INTRAY_HOOKS_ENABLED_pre_add=1
+# TMUX_INTRAY_HOOKS_ENABLED_post_add=1
+# TMUX_INTRAY_HOOKS_ENABLED_pre_dismiss=1
+# TMUX_INTRAY_HOOKS_ENABLED_post_dismiss=1
+# TMUX_INTRAY_HOOKS_ENABLED_cleanup=1
+# TMUX_INTRAY_HOOKS_ENABLED_post_cleanup=1
 EOF
 
     info "Created sample configuration at $config_file"

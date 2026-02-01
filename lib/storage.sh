@@ -6,6 +6,8 @@
 # shellcheck source=./colors.sh disable=SC1091
 # The sourced file exists at runtime but ShellCheck can't resolve it due to relative path/context.
 source "$(dirname "${BASH_SOURCE[0]}")/colors.sh"
+# shellcheck source=./hooks.sh disable=SC1091
+source "$(dirname "${BASH_SOURCE[0]}")/hooks.sh"
 
 # Default directories
 TMUX_INTRAY_STATE_DIR="${TMUX_INTRAY_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/tmux-intray}"
@@ -25,6 +27,9 @@ storage_init() {
     touch "$NOTIFICATIONS_FILE"
     touch "$DISMISSED_FILE"
     # Lock directory will be created by _with_lock when needed
+
+    # Initialize hooks subsystem
+    hooks_init
 }
 
 # Internal helper: escape tabs and newlines in message field
@@ -194,11 +199,42 @@ storage_add_notification() {
     local escaped_message
     escaped_message=$(_escape_message "$message")
 
+    # Run pre-add hooks
+    hooks_run "pre-add" \
+        "NOTIFICATION_ID=$id" \
+        "LEVEL=$level" \
+        "MESSAGE=$message" \
+        "ESCAPED_MESSAGE=$escaped_message" \
+        "TIMESTAMP=$timestamp" \
+        "SESSION=$session" \
+        "WINDOW=$window" \
+        "PANE=$pane" \
+        "PANE_CREATED=$pane_created"
+
+    # Check if pre-add hooks aborted
+    local hooks_rc=$?
+    if [[ $hooks_rc -ne 0 ]]; then
+        error "Pre-add hook aborted"
+        return 1
+    fi
+
     # Append to TSV file with lock
     _with_lock "$LOCK_DIR" _append_notification_line "$id" "$timestamp" "active" "$session" "$window" "$pane" "$escaped_message" "$pane_created" "$level"
 
     # Update tmux status option
     _update_tmux_status
+
+    # Run post-add hooks
+    hooks_run "post-add" \
+        "NOTIFICATION_ID=$id" \
+        "LEVEL=$level" \
+        "MESSAGE=$message" \
+        "ESCAPED_MESSAGE=$escaped_message" \
+        "TIMESTAMP=$timestamp" \
+        "SESSION=$session" \
+        "WINDOW=$window" \
+        "PANE=$pane" \
+        "PANE_CREATED=$pane_created"
 
     echo "$id"
 }
@@ -277,11 +313,44 @@ storage_dismiss_notification() {
         return 1
     fi
 
+    # Unescape message for hooks
+    local unescaped_message
+    unescaped_message=$(_unescape_message "$message")
+
+    # Run pre-dismiss hooks
+    hooks_run "pre-dismiss" \
+        "NOTIFICATION_ID=$id" \
+        "LEVEL=$level" \
+        "MESSAGE=$unescaped_message" \
+        "TIMESTAMP=$timestamp" \
+        "SESSION=$session" \
+        "WINDOW=$window" \
+        "PANE=$pane" \
+        "PANE_CREATED=$pane_created"
+
+    # Check if pre-dismiss hooks aborted
+    local hooks_rc=$?
+    if [[ $hooks_rc -ne 0 ]]; then
+        error "Pre-dismiss hook aborted"
+        return 1
+    fi
+
     # Add dismissed version (preserve level)
     _with_lock "$LOCK_DIR" _append_notification_line "$id" "$timestamp" "dismissed" "$session" "$window" "$pane" "$message" "$pane_created" "$level"
 
     # Update tmux status option
     _update_tmux_status
+
+    # Run post-dismiss hooks
+    hooks_run "post-dismiss" \
+        "NOTIFICATION_ID=$id" \
+        "LEVEL=$level" \
+        "MESSAGE=$unescaped_message" \
+        "TIMESTAMP=$timestamp" \
+        "SESSION=$session" \
+        "WINDOW=$window" \
+        "PANE=$pane" \
+        "PANE_CREATED=$pane_created"
 }
 
 # Dismiss all active notifications
@@ -292,17 +361,149 @@ storage_dismiss_all() {
     local active_lines
     active_lines=$(_with_lock "$LOCK_DIR" _get_latest_active_lines)
 
-    # Add dismissed version for each
+    # Process each active notification
     while IFS= read -r line; do
         if [[ -n "$line" ]]; then
             local id timestamp state session window pane message pane_created level
             _parse_notification_line "$line" id timestamp state session window pane message pane_created level
+
+            # Unescape message for hooks
+            local unescaped_message
+            unescaped_message=$(_unescape_message "$message")
+
+            # Run pre-dismiss hooks
+            hooks_run "pre-dismiss" \
+                "NOTIFICATION_ID=$id" \
+                "LEVEL=$level" \
+                "MESSAGE=$unescaped_message" \
+                "TIMESTAMP=$timestamp" \
+                "SESSION=$session" \
+                "WINDOW=$window" \
+                "PANE=$pane" \
+                "PANE_CREATED=$pane_created"
+
+            # Check if pre-dismiss hooks aborted
+            local hooks_rc=$?
+            if [[ $hooks_rc -ne 0 ]]; then
+                error "Pre-dismiss hook aborted for notification $id"
+                return 1
+            fi
+
+            # Add dismissed version (preserve level)
             _with_lock "$LOCK_DIR" _append_notification_line "$id" "$timestamp" "dismissed" "$session" "$window" "$pane" "$message" "$pane_created" "$level"
+
+            # Run post-dismiss hooks
+            hooks_run "post-dismiss" \
+                "NOTIFICATION_ID=$id" \
+                "LEVEL=$level" \
+                "MESSAGE=$unescaped_message" \
+                "TIMESTAMP=$timestamp" \
+                "SESSION=$session" \
+                "WINDOW=$window" \
+                "PANE=$pane" \
+                "PANE_CREATED=$pane_created"
         fi
     done <<<"$active_lines"
 
     # Update tmux status option
     _update_tmux_status
+}
+
+# Clean up old dismissed notifications
+# Arguments: days_threshold [dry_run]
+storage_cleanup_old_notifications() {
+    local days_threshold="$1"
+    local dry_run="${2:-false}"
+
+    storage_init
+
+    # Calculate cutoff timestamp (UTC)
+    local cutoff_timestamp
+    cutoff_timestamp=$(date -u -d "$days_threshold days ago" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u -v-"${days_threshold}"d +"%Y-%m-%dT%H:%M:%SZ")
+
+    info "Cleaning up notifications dismissed before $cutoff_timestamp"
+
+    # Run pre-cleanup hooks
+    hooks_run "cleanup" \
+        "CLEANUP_DAYS=$days_threshold" \
+        "CUTOFF_TIMESTAMP=$cutoff_timestamp" \
+        "DRY_RUN=$dry_run"
+
+    # Get latest version of each notification
+    local latest_lines
+    latest_lines=$(_with_lock "$LOCK_DIR" _get_latest_notifications "$NOTIFICATIONS_FILE")
+
+    # Collect IDs of dismissed notifications older than cutoff
+    local ids_to_delete=()
+    while IFS= read -r line; do
+        if [[ -n "$line" ]]; then
+            local id timestamp state session window pane message pane_created level
+            _parse_notification_line "$line" id timestamp state session window pane message pane_created level
+            if [[ "$state" == "dismissed" ]] && [[ "$timestamp" < "$cutoff_timestamp" ]]; then
+                ids_to_delete+=("$id")
+            fi
+        fi
+    done <<<"$latest_lines"
+
+    local deleted_count=${#ids_to_delete[@]}
+
+    if [[ $deleted_count -eq 0 ]]; then
+        info "No old dismissed notifications to clean up"
+        # Run post-cleanup hooks with zero count
+        hooks_run "post-cleanup" \
+            "CLEANUP_DAYS=$days_threshold" \
+            "CUTOFF_TIMESTAMP=$cutoff_timestamp" \
+            "DELETED_COUNT=0"
+        return 0
+    fi
+
+    info "Found $deleted_count notification(s) to clean up"
+
+    if [[ "$dry_run" == true ]]; then
+        info "Dry run: would delete notifications with IDs: ${ids_to_delete[*]}"
+        # Run post-cleanup hooks with dry run
+        hooks_run "post-cleanup" \
+            "CLEANUP_DAYS=$days_threshold" \
+            "CUTOFF_TIMESTAMP=$cutoff_timestamp" \
+            "DRY_RUN=true" \
+            "DELETED_COUNT=$deleted_count"
+        return 0
+    fi
+
+    # Filter out all lines whose ID is in ids_to_delete
+    _with_lock "$LOCK_DIR" _filter_out_ids "$NOTIFICATIONS_FILE" "${ids_to_delete[@]}"
+
+    # Run post-cleanup hooks
+    hooks_run "post-cleanup" \
+        "CLEANUP_DAYS=$days_threshold" \
+        "CUTOFF_TIMESTAMP=$cutoff_timestamp" \
+        "DELETED_COUNT=$deleted_count"
+
+    info "Successfully cleaned up $deleted_count notification(s)"
+}
+
+# Internal helper: filter out lines with given IDs from notifications file
+# Arguments: file id1 [id2 ...]
+_filter_out_ids() {
+    local file="$1"
+    shift
+    local ids=("$@")
+
+    # Build awk pattern to exclude lines where first field matches any ID
+    local pattern=""
+    for id in "${ids[@]}"; do
+        pattern="${pattern:+$pattern && }\$1 != \"$id\""
+    done
+
+    # Create temporary file
+    local temp_file
+    temp_file=$(mktemp)
+
+    # Filter using awk
+    awk -F'\t' "$pattern" "$file" >"$temp_file"
+
+    # Replace original file
+    mv "$temp_file" "$file"
 }
 
 # Get count of active notifications

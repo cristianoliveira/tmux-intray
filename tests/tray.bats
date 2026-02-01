@@ -7,6 +7,9 @@ setup() {
     export XDG_STATE_HOME
     XDG_CONFIG_HOME="$(mktemp -d)"
     export XDG_CONFIG_HOME
+    # Create empty config to avoid sample config messages
+    mkdir -p "$XDG_CONFIG_HOME/tmux-intray"
+    touch "$XDG_CONFIG_HOME/tmux-intray/config.sh"
 
     # Clean up any existing server first
     tmux -L "$TMUX_SOCKET_NAME" kill-server 2>/dev/null || true
@@ -34,22 +37,22 @@ teardown() {
 }
 
 @test "show tray when empty" {
-    run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray show"
+    run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray show 2>&1"
     [ "$status" -eq 0 ]
     [[ "$output" == *"empty"* ]]
 }
 
 @test "clear tray" {
-    run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'test'"
+    run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'test' 2>&1"
     [ "$status" -eq 0 ]
     [[ "$output" == *"added"* ]]
 
-    run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray clear"
+    run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray clear 2>&1"
     [ "$status" -eq 0 ]
     [[ "$output" == *"cleared"* ]]
 }
 
 @test "toggle tray visibility" {
-    run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray toggle"
+    run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray toggle 2>&1"
     [ "$status" -eq 0 ]
 }

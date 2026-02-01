@@ -168,7 +168,7 @@ EOF
         _format_json
         ;;
     *)
-        info "Debug: format is $format"
+        echo "Debug: format is $format" >&2
         error "Unknown format: $format"
         return 1
         ;;
