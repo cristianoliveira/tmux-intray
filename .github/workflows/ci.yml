@@ -42,28 +42,15 @@ jobs:
         run: make tests
 
   lint:
-    strategy:
-      matrix:
-        os: [macos-latest, ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
       - name: Install dependencies
         run: |
-          if [[ "$RUNNER_OS" == "macOS" ]]; then
-            brew update
-            brew install bash bats coreutils shellcheck shfmt tmux go
-            brew install go
-            npm install -g npm
-          elif [[ "$RUNNER_OS" == "Linux" ]]; then
-            sudo apt-get update
-            sudo apt-get install -y bash bats coreutils shellcheck shfmt golang nodejs npm tmux
-          else
-            echo "Unsupported OS: $RUNNER_OS"
-            exit 1
-          fi
+          sudo apt-get update
+          sudo apt-get install -y bash bats coreutils shellcheck shfmt golang nodejs npm tmux
 
       - name: Run lint
         run: make lint
@@ -85,7 +72,7 @@ jobs:
   format:
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: [macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
@@ -93,18 +80,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          if [[ "$RUNNER_OS" == "macOS" ]]; then
             brew update
             brew install bash bats coreutils shellcheck shfmt tmux go
-            brew install go
             npm install -g npm
-          elif [[ "$RUNNER_OS" == "Linux" ]]; then
-            sudo apt-get update
-            sudo apt-get install -y bash bats coreutils shellcheck shfmt golang nodejs npm tmux
-          else
-            echo "Unsupported OS: $RUNNER_OS"
-            exit 1
-          fi
 
       - name: Check formatting
         run: make check-fmt
