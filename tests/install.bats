@@ -6,7 +6,7 @@ setup() {
     TEST_DIR="$(mktemp -d)"
     export TEST_DIR
     # Create a fake tarball of the project
-    cd "$BATS_TEST_DIRNAME/.."
+    cd "$BATS_TEST_DIRNAME/.." || exit
     tar -czf "$TEST_DIR/tmux-intray-main.tar.gz" \
         --exclude='.git' \
         --exclude='dist' \
@@ -68,6 +68,7 @@ teardown() {
 
 @test "install.sh dry-run works" {
     # Add mock curl to PATH
+    # shellcheck disable=SC2030,SC2031
     PATH="$TEST_DIR:$PATH"
     # Run install.sh with dry-run
     run ./install.sh --dry-run --prefix "$TEST_DIR/install-prefix"
@@ -76,6 +77,7 @@ teardown() {
 }
 
 @test "install.sh actually installs" {
+    # shellcheck disable=SC2030,SC2031
     PATH="$TEST_DIR:$PATH"
     run ./install.sh --prefix "$TEST_DIR/install-prefix"
     [ "$status" -eq 0 ]
