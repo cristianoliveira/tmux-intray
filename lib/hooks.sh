@@ -121,11 +121,6 @@ _hook_execute_script() {
     debug "  Hook script path: $script"
 
     # Build environment for script
-    local key
-    for key in "${!env[@]}"; do
-        export "$key"="${env[$key]}"
-    done
-    debug "  Exported ${#env[@]} environment variables"
 
     # Run script
     if [[ "$TMUX_INTRAY_HOOKS_ASYNC" == "1" ]]; then

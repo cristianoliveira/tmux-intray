@@ -137,6 +137,30 @@ echo "run '~/.local/share/tmux-plugins/tmux-intray/tmux-intray.tmux'" >> ~/.tmux
 tmux source-file ~/.tmux.conf
 ```
 
+### Option 4: OpenCode Plugin
+
+If you use [OpenCode](https://github.com/opencode/opencode), you can install the OpenCode plugin to receive notifications when OpenCode sessions complete, error, or require permissions.
+
+#### Using the installation script
+
+```bash
+# Navigate to the plugin directory after cloning the repository
+cd tmux-intray/opencode/plugins/opencode-tmux-intray
+
+# Install globally (recommended)
+./install.sh --global
+
+# Or install locally
+./install.sh --local
+```
+
+The installation script will:
+- Copy plugin files to OpenCode plugin directories
+- Install npm dependencies
+- Add npm scripts for easy management
+
+For detailed installation instructions and configuration, see the [plugin README](opencode/plugins/opencode-tmux-intray/README.md).
+
 ## CLI Installation
 
 ### What the CLI Provides
@@ -362,6 +386,11 @@ Run the test suite:
 make test
 # or directly
 bats tests/
+```
+
+Plugin tests (OpenCode integration) are located in `opencode/plugins/opencode-tmux-intray/` and can be run with:
+```bash
+cd opencode/plugins/opencode-tmux-intray && npm test
 ```
 
 ## Linting

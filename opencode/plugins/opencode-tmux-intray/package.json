@@ -1,0 +1,22 @@
+{
+  "name": "opencode-tmux-intray",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "OpenCode plugin for tmux-intray notifications",
+  "private": true,
+  "scripts": {
+    "test": "npm run test:plugin",
+    "test:plugin": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "install-plugin": "./install.sh",
+    "uninstall-plugin": "./uninstall.sh"
+  },
+  "devDependencies": {
+    "vitest": "^1.6.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
