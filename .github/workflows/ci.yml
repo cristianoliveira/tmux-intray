@@ -18,7 +18,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       TMUX_INTRAY_CONFIG_LOADED: 1
-      TMUX_INTRAY_DEBUG: 0
+      TMUX_INTRAY_DEBUG: 1
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -37,7 +37,16 @@ jobs:
           fi
 
       - name: Run tests
-        run: make tests
+        run: |
+          echo "=== Starting tests ==="
+          echo "Current directory: $(pwd)"
+          echo "Environment variables:"
+          env | grep -E 'TMUX_INTRAY_|RUNNER_OS|GITHUB_|PATH' || true
+          echo "=== Running make tests ==="
+          make tests
+          echo "=== Tests completed ==="
+          echo "Test results:"
+          echo "Exit code: $?"
 
   lint:
     runs-on: ubuntu-latest

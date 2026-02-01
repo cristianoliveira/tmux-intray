@@ -88,8 +88,10 @@ hooks_run() {
     done
     debug "Prepared environment with keys: ${!hook_env[*]}"
 
-    # Log hook execution
-    info "Running $hook_point hooks (${#scripts[@]} script(s))"
+    # Log hook execution only if there are scripts to run
+    if [[ ${#scripts[@]} -gt 0 ]]; then
+        info "Running $hook_point hooks (${#scripts[@]} script(s))"
+    fi
 
     # Execute each script
     local script
