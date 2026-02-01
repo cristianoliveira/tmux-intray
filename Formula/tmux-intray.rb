@@ -8,6 +8,11 @@ class TmuxIntray < Formula
 
   head "https://github.com/cristianoliveira/tmux-intray.git", branch: "main"
 
+  livecheck do
+    url :stable
+    strategy :github_latest
+  end
+
   depends_on "go" => :build
 
   def install
@@ -21,10 +26,5 @@ class TmuxIntray < Formula
 
   test do
     system bin/"tmux-intray", "version"
-  end
-
-  livecheck do
-    url :stable
-    strategy :github_latest
   end
 end
