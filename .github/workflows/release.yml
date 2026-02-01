@@ -1,4 +1,9 @@
 name: Release
+# Release automation for tmux-intray
+# Optionally integrate with semantic-release by adding a job that:
+# 1. Runs on push to main/develop
+# 2. Uses semantic-release action to determine next version
+# 3. Creates a tag and triggers this release workflow
 
 on:
   push:
@@ -32,6 +37,30 @@ jobs:
             echo "  Git tag version: $TAG_VERSION"
             exit 1
           fi
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Go mod download
+        run: go mod download
+
+      - name: Build Go binaries
+        env:
+          VERSION: ${{ steps.tag.outputs.VERSION }}
+        run: |
+          mkdir -p dist
+          # Remove leading 'v' from version for ldflags
+          VERSION="${VERSION#v}"
+          PLATFORMS="linux/amd64 linux/arm64 darwin/amd64 darwin/arm64"
+          for PLATFORM in $PLATFORMS; do
+            GOOS=${PLATFORM%/*}
+            GOARCH=${PLATFORM#*/}
+            output="dist/tmux-intray_${GOOS}_${GOARCH}"
+            if [ "$GOOS" = "windows" ]; then output="${output}.exe"; fi
+            GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-X main.Version=$VERSION" -o "$output" ./cmd/tmux-intray
+          done
 
       - name: Generate release notes
         id: release-notes
@@ -99,3 +128,4 @@ jobs:
           generate_release_notes: false  # We generate our own
           files: |
             ${{ steps.package.outputs.TARBALL_PATH }}
+            dist/tmux-intray_*

@@ -11,6 +11,9 @@ import (
 	assets "github.com/cristianoliveira/tmux-intray"
 )
 
+// Version is set via ldflags during build
+var Version = "dev"
+
 func main() {
 	// Create a temporary directory to extract the project
 	tmpDir, err := os.MkdirTemp("", "tmux-intray-*")

@@ -28,3 +28,4 @@ dist/
 .dockerignore
 result
 tmux-intray
+test-binary
