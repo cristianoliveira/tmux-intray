@@ -236,3 +236,13 @@ add_command() {
     add_tray_item "$..."           # From lib/core.sh
 }
 ```
+
+## CI/CD Pipeline
+
+tmux-intray uses GitHub Actions for continuous integration and deployment. For detailed documentation on the CI/CD pipeline, see [CI/CD Documentation](docs/ci-cd.md).
+
+Key workflows:
+- **CI**: Runs tests, linting, security checks, and installation tests on every push and pull request.
+- **Release**: Automates release creation, binary building, and Homebrew formula updates when tags are pushed.
+
+The pipeline ensures code quality and provides reliable releases across multiple platforms.

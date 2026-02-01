@@ -1,0 +1,57 @@
+name: 'Setup environment for tmux-intray'
+description: 'Install dependencies for macOS or Linux runners'
+
+inputs:
+  os:
+    description: 'Operating system (macOS or Linux)'
+    required: false
+    default: ${{ runner.os }}
+  install-go:
+    description: 'Install Go language'
+    required: false
+    default: 'false'
+  install-node:
+    description: 'Install Node.js and npm'
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: Install base dependencies (macOS)
+      if: inputs.os == 'macOS'
+      shell: bash
+      run: |
+        brew update
+        brew install bash bats coreutils shellcheck shfmt tmux
+
+    - name: Install base dependencies (Linux)
+      if: inputs.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y bash bats coreutils shellcheck shfmt tmux
+
+    - name: Install Go (macOS)
+      if: inputs.os == 'macOS' && inputs.install-go == 'true'
+      shell: bash
+      run: |
+        brew install go
+
+    - name: Install Go (Linux)
+      if: inputs.os == 'Linux' && inputs.install-go == 'true'
+      shell: bash
+      run: |
+        sudo apt-get install -y golang
+
+    - name: Install Node.js/npm (macOS)
+      if: inputs.os == 'macOS' && inputs.install-node == 'true'
+      shell: bash
+      run: |
+        brew install node
+
+    - name: Install Node.js/npm (Linux)
+      if: inputs.os == 'Linux' && inputs.install-node == 'true'
+      shell: bash
+      run: |
+        sudo apt-get install -y nodejs npm
