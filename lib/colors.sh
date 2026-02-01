@@ -30,9 +30,11 @@ log_info() {
     echo -e "${BLUE}$*${NC}" >&2
 }
 
-# Debug logging (stderr) when TMUX_INTRAY_DEBUG is set
+# Debug logging (stderr) when TMUX_INTRAY_DEBUG is enabled
 debug() {
-    if [[ -n "${TMUX_INTRAY_DEBUG:-}" ]]; then
+    case "${TMUX_INTRAY_DEBUG:-}" in
+    1 | true | TRUE | yes | YES | on | ON)
         echo -e "${CYAN}Debug: $*${NC}" >&2
-    fi
+        ;;
+    esac
 }
