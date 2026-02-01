@@ -35,6 +35,73 @@ Reload TMUX environment:
 $ tmux source-file ~/.tmux.conf
 ```
 
+### One-click installation (curl/bash)
+
+For the easiest installation without package managers, you can use our one-click installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/cristianoliveira/tmux-intray/main/install.sh | bash
+```
+
+This will:
+- Download the latest release from GitHub
+- Install tmux-intray to `~/.local/bin/` (or `/usr/local/bin/` if needed)
+- Add the installation directory to your PATH if necessary
+- Provide clear success/error messages
+
+**Troubleshooting tips:**
+- If you get a "permission denied" error, ensure `~/.local/bin/` is in your PATH and executable
+- For system-wide installation, you can run with sudo: `curl ... | sudo bash`
+- If curl fails, ensure you have curl installed (install via package manager)
+
+**Alternative:** If you prefer to inspect the installer before running, you can download and run it separately:
+
+```bash
+curl -fsSL -o install.sh https://raw.githubusercontent.com/cristianoliveira/tmux-intray/main/install.sh
+chmod +x install.sh
+./install.sh
+```
+
+## CLI Installation
+
+The tmux-intray CLI tool can be installed via several package managers:
+
+### Homebrew (macOS/Linux)
+
+```bash
+brew install https://raw.githubusercontent.com/cristianoliveira/tmux-intray/main/Formula/tmux-intray.rb
+```
+
+### Docker
+
+```bash
+# Run directly via Docker (build locally)
+git clone https://github.com/cristianoliveira/tmux-intray
+cd tmux-intray
+docker build -t tmux-intray .
+docker run --rm tmux-intray version
+```
+
+### npm
+
+```bash
+npm install -g tmux-intray
+```
+
+### Go
+
+```bash
+go install github.com/cristianoliveira/tmux-intray/cmd/tmux-intray@latest
+```
+
+### From Source
+
+```bash
+git clone https://github.com/cristianoliveira/tmux-intray
+cd tmux-intray
+make install
+```
+
 ## Usage
 
 To start using tmux-intray, simply run the command `tmux-intray` in your terminal.

@@ -1,4 +1,4 @@
-.PHONY: all tests fmt check-fmt lint clean install
+.PHONY: all tests fmt check-fmt lint clean install install-homebrew install-docker install-npm install-go install-all verify-install
 
 all: tests lint
 
@@ -23,6 +23,10 @@ lint: check-fmt
 	@echo "Running linter..."
 	./scripts/lint.sh
 
+verify-install:
+	@echo "Verifying install.sh..."
+	shellcheck install.sh
+
 clean:
 	@echo "Cleaning..."
 	rm -rf .tmp
@@ -32,3 +36,22 @@ install:
 	chmod +x bin/tmux-intray
 	chmod +x scripts/lint.sh
 	chmod +x tmux-intray.tmux
+	chmod +x install.sh
+
+install-homebrew:
+	@echo "Installing via Homebrew..."
+	brew install ./Formula/tmux-intray.rb
+
+install-docker:
+	@echo "Building Docker image..."
+	docker build -t tmux-intray .
+
+install-npm:
+	@echo "Installing via npm..."
+	npm install -g .
+
+install-go:
+	@echo "Building Go binary..."
+	go build -o tmux-intray-go ./cmd/tmux-intray
+
+install-all: install-homebrew install-docker install-npm install-go
