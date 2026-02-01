@@ -20,6 +20,7 @@ LOCK_DIR="$TMUX_INTRAY_STATE_DIR/lock"
 
 # Ensure storage directories exist
 storage_init() {
+    debug "Initializing storage directories..."
     mkdir -p "$TMUX_INTRAY_STATE_DIR"
     mkdir -p "$TMUX_INTRAY_CONFIG_DIR"
 
@@ -29,6 +30,7 @@ storage_init() {
     # Lock directory will be created by _with_lock when needed
 
     # Initialize hooks subsystem
+    debug "Initializing hooks subsystem..."
     hooks_init
 }
 
@@ -184,22 +186,27 @@ storage_add_notification() {
     local level="${7:-info}"
 
     # Ensure storage initialized
+    debug "Adding notification (level: $level)"
     storage_init
 
     # Generate ID
     local id
     id=$(_get_next_id)
+    debug "Generated notification ID: $id"
 
     # Use provided timestamp or generate current UTC
     if [[ -z "$timestamp" ]]; then
         timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     fi
+    debug "Using timestamp: $timestamp"
 
     # Escape message
     local escaped_message
     escaped_message=$(_escape_message "$message")
+    debug "Message escaped (original length: ${#message}, escaped length: ${#escaped_message})"
 
     # Run pre-add hooks
+    debug "Running pre-add hooks..."
     hooks_run "pre-add" \
         "NOTIFICATION_ID=$id" \
         "LEVEL=$level" \
@@ -217,14 +224,19 @@ storage_add_notification() {
         error "Pre-add hook aborted"
         return 1
     fi
+    debug "Pre-add hooks completed successfully"
 
     # Append to TSV file with lock
+    debug "Acquiring lock to append notification line"
     _with_lock "$LOCK_DIR" _append_notification_line "$id" "$timestamp" "active" "$session" "$window" "$pane" "$escaped_message" "$pane_created" "$level"
+    debug "Notification appended to storage"
 
     # Update tmux status option
     _update_tmux_status
+    debug "Updated tmux status option"
 
     # Run post-add hooks
+    debug "Running post-add hooks..."
     hooks_run "post-add" \
         "NOTIFICATION_ID=$id" \
         "LEVEL=$level" \
@@ -235,6 +247,7 @@ storage_add_notification() {
         "WINDOW=$window" \
         "PANE=$pane" \
         "PANE_CREATED=$pane_created"
+    debug "Post-add hooks completed"
 
     echo "$id"
 }
@@ -246,11 +259,13 @@ storage_list_notifications() {
     local state_filter="${1:-active}"
     local level_filter="${2:-}"
 
+    debug "Listing notifications (state_filter: $state_filter, level_filter: ${level_filter:-none})"
     storage_init
 
     # Get latest version of each notification
     local latest_lines
     latest_lines=$(_with_lock "$LOCK_DIR" _get_latest_notifications "$NOTIFICATIONS_FILE")
+    debug "Retrieved latest notifications (lines: $(echo "$latest_lines" | wc -l))"
 
     # Build awk filter expression
     local filter_expr=""
@@ -273,6 +288,7 @@ storage_list_notifications() {
         return 1
         ;;
     esac
+    debug "Filter expression after state: ${filter_expr:-none}"
 
     if [[ -n "$level_filter" ]]; then
         if [[ -n "$filter_expr" ]]; then
@@ -281,6 +297,7 @@ storage_list_notifications() {
             filter_expr="\$9 == \"$level_filter\""
         fi
     fi
+    debug "Final filter expression: ${filter_expr:-none}"
 
     if [[ -n "$filter_expr" ]]; then
         awk -F'\t' "$filter_expr" <<<"$latest_lines" || true
@@ -293,11 +310,13 @@ storage_list_notifications() {
 storage_dismiss_notification() {
     local id="$1"
 
+    debug "Dismissing notification ID: $id"
     storage_init
 
     # Get latest line for this ID
     local line
     line=$(_with_lock "$LOCK_DIR" _get_latest_line_for_id "$id")
+    debug "Retrieved latest line for ID $id"
 
     if [[ -z "$line" ]]; then
         error "Notification with ID $id not found"
@@ -307,6 +326,7 @@ storage_dismiss_notification() {
     # Check current state
     local timestamp state session window pane message pane_created level
     _parse_notification_line "$line" dummy timestamp state session window pane message pane_created level
+    debug "Current state: $state, level: $level"
 
     if [[ "$state" == "dismissed" ]]; then
         error "Notification $id is already dismissed"
@@ -318,6 +338,7 @@ storage_dismiss_notification() {
     unescaped_message=$(_unescape_message "$message")
 
     # Run pre-dismiss hooks
+    debug "Running pre-dismiss hooks..."
     hooks_run "pre-dismiss" \
         "NOTIFICATION_ID=$id" \
         "LEVEL=$level" \
@@ -334,14 +355,19 @@ storage_dismiss_notification() {
         error "Pre-dismiss hook aborted"
         return 1
     fi
+    debug "Pre-dismiss hooks completed successfully"
 
     # Add dismissed version (preserve level)
+    debug "Acquiring lock to append dismissed version"
     _with_lock "$LOCK_DIR" _append_notification_line "$id" "$timestamp" "dismissed" "$session" "$window" "$pane" "$message" "$pane_created" "$level"
+    debug "Dismissed version appended"
 
     # Update tmux status option
     _update_tmux_status
+    debug "Updated tmux status option"
 
     # Run post-dismiss hooks
+    debug "Running post-dismiss hooks..."
     hooks_run "post-dismiss" \
         "NOTIFICATION_ID=$id" \
         "LEVEL=$level" \
@@ -351,27 +377,32 @@ storage_dismiss_notification() {
         "WINDOW=$window" \
         "PANE=$pane" \
         "PANE_CREATED=$pane_created"
+    debug "Post-dismiss hooks completed"
 }
 
 # Dismiss all active notifications
 storage_dismiss_all() {
+    debug "Dismissing all active notifications"
     storage_init
 
     # Get latest active notifications
     local active_lines
     active_lines=$(_with_lock "$LOCK_DIR" _get_latest_active_lines)
+    debug "Retrieved active notifications (count: $(echo "$active_lines" | wc -l))"
 
     # Process each active notification
     while IFS= read -r line; do
         if [[ -n "$line" ]]; then
             local id timestamp state session window pane message pane_created level
             _parse_notification_line "$line" id timestamp state session window pane message pane_created level
+            debug "Processing notification ID: $id"
 
             # Unescape message for hooks
             local unescaped_message
             unescaped_message=$(_unescape_message "$message")
 
             # Run pre-dismiss hooks
+            debug "Running pre-dismiss hooks for ID $id"
             hooks_run "pre-dismiss" \
                 "NOTIFICATION_ID=$id" \
                 "LEVEL=$level" \
@@ -388,11 +419,14 @@ storage_dismiss_all() {
                 error "Pre-dismiss hook aborted for notification $id"
                 return 1
             fi
+            debug "Pre-dismiss hooks completed for ID $id"
 
             # Add dismissed version (preserve level)
+            debug "Appending dismissed version for ID $id"
             _with_lock "$LOCK_DIR" _append_notification_line "$id" "$timestamp" "dismissed" "$session" "$window" "$pane" "$message" "$pane_created" "$level"
 
             # Run post-dismiss hooks
+            debug "Running post-dismiss hooks for ID $id"
             hooks_run "post-dismiss" \
                 "NOTIFICATION_ID=$id" \
                 "LEVEL=$level" \
@@ -404,9 +438,11 @@ storage_dismiss_all() {
                 "PANE_CREATED=$pane_created"
         fi
     done <<<"$active_lines"
+    debug "All active notifications dismissed"
 
     # Update tmux status option
     _update_tmux_status
+    debug "Updated tmux status option"
 }
 
 # Clean up old dismissed notifications
@@ -415,11 +451,13 @@ storage_cleanup_old_notifications() {
     local days_threshold="$1"
     local dry_run="${2:-false}"
 
+    debug "Cleaning up notifications older than $days_threshold days (dry_run: $dry_run)"
     storage_init
 
     # Calculate cutoff timestamp (UTC)
     local cutoff_timestamp
     cutoff_timestamp=$(date -u -d "$days_threshold days ago" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u -v-"${days_threshold}"d +"%Y-%m-%dT%H:%M:%SZ")
+    debug "Cutoff timestamp: $cutoff_timestamp"
 
     info "Cleaning up notifications dismissed before $cutoff_timestamp"
 
@@ -432,6 +470,7 @@ storage_cleanup_old_notifications() {
     # Get latest version of each notification
     local latest_lines
     latest_lines=$(_with_lock "$LOCK_DIR" _get_latest_notifications "$NOTIFICATIONS_FILE")
+    debug "Retrieved latest notifications (lines: $(echo "$latest_lines" | wc -l))"
 
     # Collect IDs of dismissed notifications older than cutoff
     local ids_to_delete=()
@@ -446,6 +485,7 @@ storage_cleanup_old_notifications() {
     done <<<"$latest_lines"
 
     local deleted_count=${#ids_to_delete[@]}
+    debug "Found $deleted_count notification(s) to delete"
 
     if [[ $deleted_count -eq 0 ]]; then
         info "No old dismissed notifications to clean up"
@@ -471,7 +511,9 @@ storage_cleanup_old_notifications() {
     fi
 
     # Filter out all lines whose ID is in ids_to_delete
+    debug "Deleting notifications with IDs: ${ids_to_delete[*]}"
     _with_lock "$LOCK_DIR" _filter_out_ids "$NOTIFICATIONS_FILE" "${ids_to_delete[@]}"
+    debug "Successfully deleted $deleted_count notification(s)"
 
     # Run post-cleanup hooks
     hooks_run "post-cleanup" \
@@ -508,5 +550,6 @@ _filter_out_ids() {
 
 # Get count of active notifications
 storage_get_active_count() {
+    debug "Getting active notification count"
     storage_list_notifications "active" | wc -l
 }

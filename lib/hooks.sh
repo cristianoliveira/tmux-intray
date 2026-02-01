@@ -15,11 +15,13 @@ TMUX_INTRAY_HOOKS_DIR="${TMUX_INTRAY_HOOKS_DIR:-${TMUX_INTRAY_CONFIG_DIR}/hooks}
 
 # Initialize hooks subsystem
 hooks_init() {
+    debug "Initializing hooks subsystem"
     # Ensure configuration loaded
     config_load
 
     # Create hooks directory if it doesn't exist
     mkdir -p "$TMUX_INTRAY_HOOKS_DIR"
+    debug "Hooks directory: $TMUX_INTRAY_HOOKS_DIR"
 }
 
 # Run hooks for a specific hook point
@@ -33,18 +35,22 @@ hooks_run() {
     local hook_point_var="TMUX_INTRAY_HOOKS_ENABLED_${hook_point//-/_}"
     local hook_point_enabled="${!hook_point_var:-$TMUX_INTRAY_HOOKS_ENABLED}"
     if [[ "$hook_point_enabled" != "1" ]]; then
+        debug "Hooks disabled for $hook_point (hook_point_enabled=$hook_point_enabled)"
         return 0
     fi
+    debug "Hooks enabled for $hook_point (hook_point_enabled=$hook_point_enabled)"
 
     # Ensure hooks directory exists
     mkdir -p "$TMUX_INTRAY_HOOKS_DIR"
+    debug "Hooks directory: $TMUX_INTRAY_HOOKS_DIR"
 
     # Get hook scripts for this point
     local hook_dir="$TMUX_INTRAY_HOOKS_DIR/$hook_point"
     if [[ ! -d "$hook_dir" ]]; then
-        # No hooks for this point
+        debug "No hooks directory for $hook_point ($hook_dir)"
         return 0
     fi
+    debug "Hook directory exists: $hook_dir"
 
     local scripts=()
     if [[ -d "$hook_dir" ]]; then
@@ -60,8 +66,10 @@ hooks_run() {
         done
         eval "$nullglob_state"
     fi
+    debug "Found ${#scripts[@]} hook script(s) for $hook_point"
 
     if [[ ${#scripts[@]} -eq 0 ]]; then
+        debug "No hook scripts to execute"
         return 0
     fi
 
@@ -78,6 +86,7 @@ hooks_run() {
             hook_env["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
         fi
     done
+    debug "Prepared environment with keys: ${!hook_env[*]}"
 
     # Log hook execution
     info "Running $hook_point hooks (${#scripts[@]} script(s))"
@@ -107,12 +116,14 @@ _hook_execute_script() {
 
     # Log script execution
     info "  Executing hook: $(basename "$script")"
+    debug "  Hook script path: $script"
 
     # Build environment for script
     local key
     for key in "${!env[@]}"; do
         export "$key"="${env[$key]}"
     done
+    debug "  Exported ${#env[@]} environment variables"
 
     # Run script
     if [[ "$TMUX_INTRAY_HOOKS_ASYNC" == "1" ]]; then
@@ -127,12 +138,14 @@ _hook_execute_script() {
             exec "$script"
         ) &
         # Clean up exported variables in parent (they were exported in subshell only)
+        debug "  Hook script started asynchronously"
         return 0
     fi
 
     # Synchronous execution
     local start_time
     start_time=$(date +%s.%N)
+    debug "  Running hook script synchronously"
 
     local output
     local exit_code=0
@@ -153,6 +166,7 @@ _hook_execute_script() {
             unset "$key"
         fi
     done
+    debug "  Cleaned up environment variables"
 
     # Handle script result based on failure mode
     case "$TMUX_INTRAY_HOOKS_FAILURE_MODE" in
@@ -184,4 +198,5 @@ _hook_execute_script() {
         fi
         ;;
     esac
+    debug "  Hook script execution finished"
 }

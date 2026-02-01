@@ -17,6 +17,7 @@ Quick links to key sections:
 - [Installation](#installation)
 - [CLI Installation](#cli-installation)
 - [Usage](#usage)
+- [Debugging](#debugging)
 - [Testing](#testing)
 - [Linting](#linting)
 - [License](#license)
@@ -182,6 +183,23 @@ tmux-intray now stores notifications in a file-based TSV storage located at `~/.
 ### Configuration
 
 A sample configuration file is created at `~/.config/tmux-intray/config.sh` on first run. You can customize storage limits, display formats, and more.
+
+### Debugging
+
+You can enable debug logging by setting the `TMUX_INTRAY_DEBUG` environment variable to any non-empty value. When enabled, debug messages will be printed to stderr in cyan color.
+
+Example:
+```bash
+# Enable debug logging for a single command
+TMUX_INTRAY_DEBUG=1 tmux-intray list
+
+# Enable debug logging for the current shell session
+export TMUX_INTRAY_DEBUG=1
+tmux-intray add "Test notification"
+tmux-intray status
+```
+
+Debug logs are useful for troubleshooting issues with notification storage, tmux integration, or configuration problems. Note that debug output is sent to stderr, so you can redirect it separately if needed.
 
 ## Testing
 
