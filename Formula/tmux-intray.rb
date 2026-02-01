@@ -1,5 +1,5 @@
 class TmuxIntray < Formula
-  desc "A quiet inbox for things that happen while you're not looking"
+  desc "Quiet inbox for things that happen while you're not looking"
   homepage "https://github.com/cristianoliveira/tmux-intray"
   url "https://github.com/cristianoliveira/tmux-intray/archive/refs/heads/main.tar.gz"
   version "0.1.0"
@@ -18,6 +18,6 @@ class TmuxIntray < Formula
   end
 
   test do
-    system "#{bin}/tmux-intray", "version"
+    system bin/"tmux-intray", "version"
   end
 end
