@@ -4,6 +4,29 @@ A quiet inbox for things that happen while you’re not looking.
 
 tmux-intray provides a persistent in-tmux in-tray where panes, windows, and scripts can drop messages and events without interrupting your flow. Instead of loud notifications or forced context switches, events accumulate calmly until you’re ready to review them. Each item keeps its origin, survives pane and window changes, and can be inspected, jumped to, or cleared at your own pace. It’s designed for deferred attention: notice now if you want, act later when it makes sense.
 
+## Summary
+
+Quick links to key sections:
+
+### Main Sections
+- [Installation](#installation)
+- [CLI Installation](#cli-installation)
+- [Usage](#usage)
+- [Testing](#testing)
+- [Linting](#linting)
+- [License](#license)
+
+### Installation Methods
+- [Using Tmux Plugin Manager (recommended)](#using-tmux-plugin-manager-recommended)
+- [Manual Installation](#manual-installation)
+- [One-click installation (curl/bash)](#one-click-installation-curlbash)
+- [Homebrew (macOS/Linux)](#homebrew-macoslinux)
+- [Docker](#docker)
+- [npm](#npm)
+- [Go](#go)
+- [From Source](#from-source)
+
+
 ## Installation
 
 ### Manual Installation
