@@ -22,4 +22,4 @@ done
 
 echo ""
 echo "Tray contents:"
-"$TMUX_INTRAY_BIN" show
+"$TMUX_INTRAY_BIN" list

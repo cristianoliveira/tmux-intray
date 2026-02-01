@@ -36,18 +36,6 @@ teardown() {
     rm -rf "$XDG_STATE_HOME" "$XDG_CONFIG_HOME"
 }
 
-@test "show tray when empty" {
-    if [[ -n "${CI:-}" ]]; then
-        # In CI, call directly because tmux run-shell may have issues
-        run "$PWD/bin/tmux-intray" show 2>&1
-    else
-        # Locally, use tmux run-shell as intended
-        run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray show 2>&1"
-    fi
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"empty"* ]]
-}
-
 @test "clear tray" {
     if [[ -n "${CI:-}" ]]; then
         run "$PWD/bin/tmux-intray" add 'test' 2>&1

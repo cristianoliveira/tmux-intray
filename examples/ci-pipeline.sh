@@ -38,4 +38,4 @@ fi
 
 echo ""
 echo "Pipeline complete! Check your tmux-intray:"
-"$TMUX_INTRAY_BIN" show
+"$TMUX_INTRAY_BIN" list

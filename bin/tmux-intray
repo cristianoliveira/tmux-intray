@@ -42,7 +42,6 @@ USAGE:
     tmux-intray [COMMAND] [OPTIONS]
 
 COMMANDS:
-    show            Show all items in the tray (deprecated, use list)
     add <message>   Add a new item to the tray
     list            List notifications with filters and formats
     dismiss <id>    Dismiss a notification
@@ -72,7 +71,7 @@ main() {
     shift || true
 
     case "$command" in
-        show|add|clear|cleanup|toggle|help|version|list|dismiss|jump|status|follow|status-panel)
+        add|clear|cleanup|toggle|help|version|list|dismiss|jump|status|follow|status-panel)
             # Load and execute the command
             source "$COMMANDS_DIR/${command}.sh"
             local cmd_func="${command//-/_}_command"

@@ -11,12 +11,16 @@ USAGE:
     tmux-intray [COMMAND] [OPTIONS]
 
 COMMANDS:
-    show            Show all items in the tray (deprecated, use list)
     add <message>   Add a new item to the tray
     list            List notifications with filters and formats
     dismiss <id>    Dismiss a notification
     clear           Clear all items from the tray
+    cleanup         Clean up old dismissed notifications
     toggle          Toggle the tray visibility
+    jump <id>       Jump to the pane of a notification
+    status          Show notification status summary
+    status-panel    Status bar indicator script (for tmux status-right)
+    follow          Monitor notifications in real-time
     help            Show this help message
     version         Show version information
 

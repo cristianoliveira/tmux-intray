@@ -11,13 +11,8 @@ tmux-intray/
 │   ├── add/                 # Add command's private modules
 │   │   └── modules/
 │   │       ├── validators.sh
-│   │       └── formatters.sh
-│   ├── show.sh              # show command (with sub-modules)
-│   ├── show/                # Show command's private modules
-│   │   └── modules/
-│   │       ├── filters.sh
-│   │       └── display.sh
-│   ├── clear.sh             # clear command
+ │   │       └── formatters.sh
+ │   ├── clear.sh             # clear command
 │   ├── toggle.sh            # toggle command
 │   ├── help.sh              # help command
 │   └── version.sh           # version command
@@ -31,7 +26,6 @@ tmux-intray/
 │   ├── tray.bats            # Tray management tests
 │   └── commands/            # Command-specific tests
 │       ├── add.bats
-│       ├── show.bats
 │       └── management.bats
 ├── scripts/
 │   ├── lint.sh              # ShellCheck linter
@@ -67,7 +61,7 @@ tmux-intray/
 3. Add the command to the main CLI in `bin/tmux-intray`:
    ```bash
    case "$command" in
-       show|add|clear|toggle|help|version|mycommand)
+        add|clear|toggle|help|version|mycommand)
            source "$COMMANDS_DIR/${command}.sh"
            "${command}_command" "$@"
            ;;
