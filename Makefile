@@ -1,4 +1,4 @@
-.PHONY: all tests fmt check-fmt lint clean install install-homebrew install-docker install-npm install-go install-all verify-install security-check
+.PHONY: all tests fmt check-fmt lint clean install install-homebrew install-docker install-npm install-go install-all verify-install security-check docs
 
 all: tests lint
 
@@ -22,6 +22,10 @@ check-fmt:
 lint: check-fmt
 	@echo "Running linter..."
 	./scripts/lint.sh
+
+docs:
+	@echo "Generating documentation..."
+	./scripts/generate-docs.sh
 
 security-check:
 	@echo "Running security checks..."

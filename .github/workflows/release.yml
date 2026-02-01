@@ -38,6 +38,10 @@ jobs:
             exit 1
           fi
 
+      - name: Generate documentation
+        run: |
+          ./scripts/generate-docs.sh
+
       - name: Set up Go
         uses: actions/setup-go@v4
         with:

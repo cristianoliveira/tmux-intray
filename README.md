@@ -178,6 +178,15 @@ $ tmux-intray --help
 - `tmux-intray version` - Show version information
 - `tmux-intray status-panel` - Generate status bar output for tmux integration
 
+## Documentation
+
+Comprehensive documentation is available:
+
+- [CLI Reference](docs/cli/CLI_REFERENCE.md) - Complete command reference
+- [Man page](man/man1/tmux-intray.1) - Traditional manual page (view with `man -l man/man1/tmux-intray.1`)
+
+Documentation is automatically generated from the command-line help texts.
+
 ### Notification Levels
 
 Notifications can have severity levels: `info` (default), `warning`, `error`, `critical`. Levels are used for filtering and color-coded display.
