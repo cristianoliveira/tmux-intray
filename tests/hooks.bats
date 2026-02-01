@@ -173,5 +173,5 @@ EOF
     [[ "$output" == *"asynchronously"* ]]
     # Script runs in background, we can't capture output easily
     # Give it a moment to finish
-    sleep 0.2
+    sleep 0.5
 }
