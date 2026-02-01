@@ -6,101 +6,64 @@ tmux-intray provides a persistent in-tmux in-tray where panes, windows, and scri
 
 ## Installation
 
-### Using [Tmux Plugin Manager](https://github.com/tmux-plugins/tpm) (recommended)
-
-Add plugin to the list of TPM plugins in `.tmux.conf`:
-
-```
-set -g @plugin 'tmux-plugins/tmux-intray'
-```
-
 ### Manual Installation
 
-Clone the repo:
+1. Clone the repository:
 
 ```bash
-$ git clone https://github.com/tmux-plugins/tmux-intray ~/clone/path
+git clone https://github.com/tmux-intray/tmux-intray.git ~/.local/share/tmux-plugins/tmux-intray
 ```
 
-Add this line to the bottom of `.tmux.conf`:
-
-```
-run-shell ~/clone/path/tmux-intray.tmux
-```
-
-Reload TMUX environment:
+2. Add the plugin to your `.tmux.conf`:
 
 ```bash
-# type this in terminal
-$ tmux source-file ~/.tmux.conf
+# Add to the bottom of your .tmux.conf
+run '~/.local/share/tmux-plugins/tmux-intray/tmux-intray.tmux'
 ```
 
-### One-click installation (curl/bash)
-
-For the easiest installation without package managers, you can use our one-click installer:
+3. Reload TMUX to apply changes:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/cristianoliveira/tmux-intray/main/install.sh | bash
+tmux source-file ~/.tmux.conf
 ```
 
-This will:
-- Download the latest release from GitHub
-- Install tmux-intray to `~/.local/bin/` (or `/usr/local/bin/` if needed)
-- Add the installation directory to your PATH if necessary
-- Provide clear success/error messages
+### Alternative Installation Methods
 
-**Troubleshooting tips:**
-- If you get a "permission denied" error, ensure `~/.local/bin/` is in your PATH and executable
-- For system-wide installation, you can run with sudo: `curl ... | sudo bash`
-- If curl fails, ensure you have curl installed (install via package manager)
-
-**Alternative:** If you prefer to inspect the installer before running, you can download and run it separately:
+#### Direct Download
 
 ```bash
-curl -fsSL -o install.sh https://raw.githubusercontent.com/cristianoliveira/tmux-intray/main/install.sh
-chmod +x install.sh
-./install.sh
+# Download the plugin files
+curl -L https://github.com/tmux-intray/tmux-intray/archive/refs/heads/main.zip -o tmux-intray.zip
+unzip tmux-intray.zip
+mv tmux-intray-main ~/.local/share/tmux-plugins/tmux-intray
 ```
 
-## CLI Installation
+Then follow steps 2-3 from the manual installation section above.
 
-The tmux-intray CLI tool can be installed via several package managers:
-
-### Homebrew (macOS/Linux)
+#### Using a symbolic link
 
 ```bash
-brew install https://raw.githubusercontent.com/cristianoliveira/tmux-intray/main/Formula/tmux-intray.rb
+# Clone the repository to your preferred location
+git clone https://github.com/tmux-intray/tmux-intray.git ~/projects/tmux-intray
+
+# Create a symbolic link to the tmux plugins directory
+ln -s ~/projects/tmux-intray ~/.local/share/tmux-plugins/tmux-intray
 ```
 
-### Docker
+Then follow steps 2-3 from the manual installation section above.
+
+#### Using git-archive
 
 ```bash
-# Run directly via Docker (build locally)
-git clone https://github.com/cristianoliveira/tmux-intray
-cd tmux-intray
-docker build -t tmux-intray .
-docker run --rm tmux-intray version
+# Clone the repository
+git clone https://github.com/tmux-intray/tmux-intray.git ~/.local/share/tmux-plugins/tmux-intray
+
+# Use the plugin
+# Add the plugin loader to the bottom of .tmux.conf:
+# run '~/.local/share/tmux-plugins/tmux-intray/tmux-intray.tmux'
 ```
 
-### npm
-
-```bash
-npm install -g tmux-intray
-```
-
-### Go
-
-```bash
-go install github.com/cristianoliveira/tmux-intray/cmd/tmux-intray@latest
-```
-
-### From Source
-
-```bash
-git clone https://github.com/cristianoliveira/tmux-intray
-cd tmux-intray
-make install
-```
+Then reload your tmux configuration.
 
 ## Usage
 
