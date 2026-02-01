@@ -8,6 +8,10 @@ setup() {
     XDG_CONFIG_HOME="$(mktemp -d)"
     export XDG_CONFIG_HOME
 
+    # Create config file to avoid info messages during tests
+    mkdir -p "$XDG_CONFIG_HOME/tmux-intray"
+    touch "$XDG_CONFIG_HOME/tmux-intray/config.sh"
+
     # Clean up any existing server
     tmux -L "$TMUX_SOCKET_NAME" kill-server 2>/dev/null || true
     sleep 0.1

@@ -16,6 +16,9 @@ jobs:
       matrix:
         os: [macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      TMUX_INTRAY_CONFIG_LOADED: 1
+      TMUX_INTRAY_DEBUG: 0
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -120,7 +123,7 @@ jobs:
           npm install -g npm
 
       - name: Audit Homebrew formula
-        run: brew audit --strict --formula ./Formula/tmux-intray.rb
+        run: HOMEBREW_NO_INSTALL_FROM_API=1 HOMEBREW_NO_AUTO_UPDATE=1 brew audit --strict tmux-intray
 
       - name: Test npm installation
         run: |
