@@ -38,7 +38,7 @@ config_load() {
         # shellcheck source=/dev/null
         # Config file may not exist; we check existence before sourcing.
         source "$config_file"
-        info "Loaded configuration from $config_file"
+        debug "Loaded configuration from $config_file"
     else
         # Create directory and sample config file
         mkdir -p "$TMUX_INTRAY_CONFIG_DIR"

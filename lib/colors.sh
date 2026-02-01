@@ -5,6 +5,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 error() {
@@ -19,6 +20,19 @@ warning() {
     echo -e "${YELLOW}Warning: $*${NC}" >&2
 }
 
+# User-facing info message (stdout)
 info() {
     echo -e "${BLUE}$*${NC}"
+}
+
+# Logging info message (stderr)
+log_info() {
+    echo -e "${BLUE}$*${NC}" >&2
+}
+
+# Debug logging (stderr) when TMUX_INTRAY_DEBUG is set
+debug() {
+    if [[ -n "${TMUX_INTRAY_DEBUG:-}" ]]; then
+        echo -e "${CYAN}Debug: $*${NC}" >&2
+    fi
 }

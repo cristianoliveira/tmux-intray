@@ -147,10 +147,12 @@ Core tmux interaction functions:
 
 ### lib/colors.sh
 Color output utilities:
-- `error()` - Print error message (red)
-- `success()` - Print success message (green)
-- `warning()` - Print warning message (yellow)
-- `info()` - Print info message (blue)
+- `error()` - Print error message (red) to stderr
+- `success()` - Print success message (green) to stdout
+- `warning()` - Print warning message (yellow) to stdout
+- `info()` - Print info message (blue) to stdout (user-facing messages)
+- `log_info()` - Log info message (blue) to stderr (debug/logging)
+- `debug()` - Log debug message (cyan) to stderr when TMUX_INTRAY_DEBUG is set
 
 ## Development
 
