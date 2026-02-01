@@ -4,7 +4,26 @@
 set -euo pipefail
 
 VERSION="0.1.0"
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# Resolve symlinks to get the real script path
+realpath() {
+    local path="$1"
+    local dir
+    if dir="$(cd "$(dirname "$path")" && pwd)" && [ -f "$dir/$(basename "$path")" ]; then
+        echo "$dir/$(basename "$path")"
+    else
+        echo "$path"
+    fi
+}
+SCRIPT_SOURCE="${BASH_SOURCE[0]}"
+# If script source is a symlink, resolve it
+if [ -L "$SCRIPT_SOURCE" ]; then
+    SCRIPT_SOURCE="$(readlink "$SCRIPT_SOURCE")"
+    # If readlink returns relative path, make absolute relative to original dir
+    if [[ "$SCRIPT_SOURCE" != /* ]]; then
+        SCRIPT_SOURCE="$(dirname "${BASH_SOURCE[0]}")/$SCRIPT_SOURCE"
+    fi
+fi
+SCRIPT_DIR="$( cd "$( dirname "$SCRIPT_SOURCE" )" && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 COMMANDS_DIR="$PROJECT_ROOT/commands"
 LIB_DIR="$PROJECT_ROOT/lib"

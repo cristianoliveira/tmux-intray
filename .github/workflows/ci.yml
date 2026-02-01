@@ -8,34 +8,81 @@ on:
 
 jobs:
   test:
-    runs-on: macos-latest
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
-          brew update
-          brew install bash bats coreutils shellcheck shfmt
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            brew update
+            brew install bash bats coreutils shellcheck shfmt
+          elif [[ "$RUNNER_OS" == "Linux" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y bash bats coreutils shellcheck shfmt
+          else
+            echo "Unsupported OS: $RUNNER_OS"
+            exit 1
+          fi
 
       - name: Run tests
         run: make tests
 
   lint:
-    runs-on: macos-latest
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
-          brew update
-          brew install bash bats coreutils shellcheck shfmt
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            brew update
+            brew install bash bats coreutils shellcheck shfmt
+          elif [[ "$RUNNER_OS" == "Linux" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y bash bats coreutils shellcheck shfmt
+          else
+            echo "Unsupported OS: $RUNNER_OS"
+            exit 1
+          fi
 
       - name: Run lint
         run: make lint
 
   format:
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            brew update
+            brew install bash bats coreutils shellcheck shfmt
+          elif [[ "$RUNNER_OS" == "Linux" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y bash bats coreutils shellcheck shfmt
+          else
+            echo "Unsupported OS: $RUNNER_OS"
+            exit 1
+          fi
+
+      - name: Check formatting
+        run: make check-fmt
+
+  install:
     runs-on: macos-latest
     steps:
       - name: Checkout code
@@ -45,6 +92,40 @@ jobs:
         run: |
           brew update
           brew install bash bats coreutils shellcheck shfmt
+          brew install go
+          npm install -g npm
 
-      - name: Check formatting
-        run: make check-fmt
+      - name: Audit Homebrew formula
+        run: brew audit --strict ./Formula/tmux-intray.rb
+
+      - name: Test npm installation
+        run: make install-npm
+
+      - name: Test Go binary build
+        run: make install-go
+
+      - name: Test source installation
+        run: make install
+
+  install-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bash bats coreutils shellcheck shfmt golang nodejs npm
+
+      - name: Test npm installation
+        run: make install-npm
+
+      - name: Test Go binary build
+        run: make install-go
+
+      - name: Test Docker installation
+        run: make install-docker
+
+      - name: Test source installation
+        run: make install

@@ -17,4 +17,13 @@
 
 # bv (beads viewer) local config and caches
 .bv/
+
+# Build artifacts
+tmux-intray-go
+*.tgz
+dist/
+*.tar.gz
+
+# Docker build cache
+.dockerignore
 result
