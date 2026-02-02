@@ -25,6 +25,7 @@ Quick links to key sections:
 - [CLI Installation](#cli-installation)
 - [Tmux Plugin Installation](#tmux-plugin-installation)
 - [Usage](#usage)
+- [Fzf Integration](#fzf-integration)
 - [Architecture Overview](#architecture-overview)
 - [Debugging](#debugging)
 - [Testing](#testing)
@@ -313,6 +314,93 @@ tmux-intray add "Test notification"
 ```
 
 Debug logs are written to `~/.local/state/tmux-intray/debug.log`.
+
+## Fzf Integration
+
+tmux-intray works well with [fzf](https://github.com/junegunn/fzf) for interactive notification management. The `--format=table` output is structured and easy to parse.
+
+### Basic fzf Examples
+
+#### Interactive Notification Dismissal
+Select a notification with fzf and dismiss it:
+```bash
+tmux-intray list --format=table | tail -n +4 | fzf --header-lines=0 --with-nth=2.. | awk '{print $1}' | xargs -I {} tmux-intray dismiss {}
+```
+
+#### Multi-Select Batch Dismissal
+Select multiple notifications and dismiss them all:
+```bash
+tmux-intray list --format=table | tail -n +3 | fzf --multi --header-lines=0 --with-nth=2.. | awk '{print $1}' | xargs tmux-intray dismiss
+```
+
+#### Jump to Notification Pane
+Select a notification and jump to its source pane:
+```bash
+tmux-intray list --format=table | tail -n +3 | fzf --header-lines=0 --with-nth=2.. | awk '{print $1}' | xargs -I {} tmux-intray jump {}
+```
+
+#### Fzf Preview with tmux Pane Context
+Preview the pane metadata and recent pane output (inside tmux):
+```bash
+tmux-intray list --format=table | tail -n +3 | fzf --header-lines=0 \
+  --with-nth=2.. \
+  --preview='tmux display-message -p -t {3} "#{session_name}:#{window_index}.#{pane_index} #{pane_current_command} #{pane_current_path}"; echo; tmux capture-pane -pt {3} -S -20' \
+  --preview-window=right:60%:wrap \
+  | awk '{print $1}' | xargs -I {} tmux-intray jump {}
+```
+
+### Reusable Shell Functions
+
+Add these to your `.bashrc` or `.zshrc`:
+
+```bash
+# Fuzzy dismiss notifications
+tray-dismiss() {
+  local selected=$(tmux-intray list --format=table | tail -n +3 | fzf --header-lines=0 --with-nth=2.. | awk '{print $1}')
+  if [[ -n "$selected" ]]; then
+    echo "Dismissing: $selected"
+    tmux-intray dismiss $selected
+  fi
+}
+
+# Fuzzy jump to notification pane
+tray-jump() {
+  local selected=$(tmux-intray list --format=table | tail -n +3 | fzf --header-lines=0 --with-nth=2.. | awk '{print $1}')
+  if [[ -n "$selected" ]]; then
+    echo "Jumping to: $selected"
+    tmux-intray jump $selected
+  fi
+}
+
+# Multi-select dismissal
+tray-dismiss-multi() {
+  local selected=$(tmux-intray list --format=table | tail -n +3 | fzf --multi --header-lines=0 --with-nth=2.. | awk '{print $1}' | tr '\n' ' ')
+  if [[ -n "$selected" ]]; then
+    echo "Dismissing: $selected"
+    tmux-intray dismiss $selected
+  fi
+}
+```
+
+### Tmux Key Bindings with fzf
+
+Add to your `.tmux.conf` for quick access:
+
+```bash
+# Bind prefix + F to fuzzy dismiss
+bind-key -T prefix F run-shell "tmux-intray list --format=table | tail -n +3 | fzf --header-lines=0 --with-nth=2.. | awk '{print \\\$1}' | xargs tmux-intray dismiss"
+
+# Bind prefix + J to fuzzy jump
+bind-key -T prefix J run-shell "tmux-intray list --format=table | tail -n +3 | fzf --header-lines=0 --with-nth=2.. | awk '{print \\\$1}' | xargs tmux-intray jump"
+```
+
+### How It Works
+
+1. `tail -n +3` skips the table header (first 3 lines)
+2. `fzf --header-lines=0` treats the input as headerless
+3. `--with-nth=2..` hides the ID column from display
+4. `awk '{print $1}'` extracts the notification ID
+5. `xargs tmux-intray dismiss` or `tmux-intray jump` runs the action
 
 ## Architecture Overview
 
