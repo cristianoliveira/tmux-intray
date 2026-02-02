@@ -28,6 +28,50 @@ jobs:
         with:
           os: ${{ runner.os }}
 
+      - name: Run tests
+        run: make tests
+
+  plugin-tests:
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-
+
+      - name: Install dependencies
+        working-directory: opencode/plugins/opencode-tmux-intray
+        run: npm ci
+
+      - name: Run plugin tests
+        working-directory: opencode/plugins/opencode-tmux-intray
+        run: npm test
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install dependencies
+        uses: ./.github/actions/setup-environment
+        with:
+          os: ${{ runner.os }}
+
       - name: Run lint
         run: make lint
 
@@ -97,5 +141,4 @@ jobs:
 
       - name: Test source installation
         run: make install
-
 
