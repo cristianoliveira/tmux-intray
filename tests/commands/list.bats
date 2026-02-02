@@ -13,9 +13,12 @@ setup() {
     tmux -L "$TMUX_SOCKET_NAME" new-session -d -s test
     sleep 0.1
     # Capture session, window, pane IDs for use in tests
-    export TMUX_TEST_SESSION_ID=$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{session_id}')
-    export TMUX_TEST_WINDOW_ID=$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{window_id}')
-    export TMUX_TEST_PANE_ID=$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{pane_id}')
+    TMUX_TEST_SESSION_ID=$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{session_id}')
+    export TMUX_TEST_SESSION_ID
+    TMUX_TEST_WINDOW_ID=$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{window_id}')
+    export TMUX_TEST_WINDOW_ID
+    TMUX_TEST_PANE_ID=$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{pane_id}')
+    export TMUX_TEST_PANE_ID
     # Enable debug output for tests
     export TMUX_INTRAY_DEBUG=1
 }
