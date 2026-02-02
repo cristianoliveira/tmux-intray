@@ -82,6 +82,14 @@ OPTIONS:
     --all                Show all notifications
     --pane <id>          Filter notifications by pane ID (e.g., %0)
     --level <level>      Filter notifications by level: info, warning, error, critical
+    --session <id>       Filter notifications by session ID
+    --window <id>        Filter notifications by window ID
+    --older-than <days>  Show notifications older than N days
+    --newer-than <days>  Show notifications newer than N days
+    --search <pattern>   Search messages (substring match)
+    --regex              Use regex search with --search
+    --group-by <field>   Group notifications by field (session, window, pane, level)
+    --group-count        Show only group counts (requires --group-by)
     --format=<format>    Output format: legacy, table, compact, json
     -h, --help           Show this help
 ```
@@ -105,7 +113,19 @@ OPTIONS:
 
 Clear all items from the tray
 
-*No detailed help available.*
+```
+tmux-intray clear - Clear all notifications
+
+USAGE:
+    tmux-intray clear
+
+ALIAS:
+    This command is an alias for `tmux-intray dismiss --all`.
+
+EXAMPLES:
+    # Clear all active notifications
+    tmux-intray clear
+```
 
 ### cleanup
 
@@ -131,13 +151,43 @@ than the configured auto-cleanup days. This helps prevent storage bloat.
 
 Toggle the tray visibility
 
-*No detailed help available.*
+```
+tmux-intray toggle - Toggle tray visibility
+
+USAGE:
+    tmux-intray toggle
+
+DESCRIPTION:
+    Toggles the global visibility flag for the tray. When hidden, notifications
+    are still stored but may not appear in status bar indicators. This command
+    is primarily used by the tmux plugin (bound to `prefix+i`).
+
+EXAMPLES:
+    # Toggle tray visibility
+    tmux-intray toggle
+```
 
 ### jump <id>
 
 Jump to the pane of a notification
 
-*No detailed help available.*
+```
+tmux-intray jump - Jump to notification source pane
+
+USAGE:
+    tmux-intray jump <id>
+
+DESCRIPTION:
+    Navigates to the tmux pane where the notification originated. The pane
+    must still exist; if it doesn't, the command falls back to the window.
+
+ARGUMENTS:
+    <id>    Notification ID (as shown in `tmux-intray list --format=table`)
+
+EXAMPLES:
+    # Jump to pane of notification with ID 42
+    tmux-intray jump 42
+```
 
 ### status
 

@@ -10,10 +10,10 @@ tmux-intray provides a persistent in-tmux in-tray where panes, windows, and scri
 </div>
 
 
-## Working in Progress
+## Work in Progress
 
-🚧🚧 This plugin is in active development at the moment. It started as a opencode plugin but grew to it's own project.
-I use it in my daily basis, I'm a heavy tmux user and so far it works great! At this stage of development I can't promise there won't be
+🚧🚧 This plugin is in active development at the moment. It started as an opencode plugin but grew into its own project.
+I use it on a daily basis, I'm a heavy tmux user and so far it works great! At this stage of development I can't promise there won't be
 breaking changes.
 
 ## Summary
@@ -192,6 +192,7 @@ $ tmux-intray --help
 - `tmux-intray dismiss <id>` - Dismiss a specific notification
 - `tmux-intray dismiss --all` - Dismiss all active notifications
 - `tmux-intray clear` - Clear all items from the tray (alias for `dismiss --all`)
+- `tmux-intray cleanup` - Clean up old dismissed notifications (configurable retention)
 
 #### Navigation Commands
 - `tmux-intray toggle` - Toggle the tray visibility
@@ -209,15 +210,9 @@ $ tmux-intray --help
 Comprehensive documentation is available:
 
 - [CLI Reference](docs/cli/CLI_REFERENCE.md) - Complete command reference
-- [Man page](man/man1/tmux-intray.1) - Traditional manual page (view with `man -l man/man1/tmux-intray.1`)
-
-Documentation is automatically generated from the command-line help texts.
-
-## Documentation
-
-Comprehensive documentation is available:
-
-- [CLI Reference](docs/cli/CLI_REFERENCE.md) - Complete command reference
+- [Configuration Guide](docs/configuration.md) - All environment variables and settings
+- [Troubleshooting Guide](docs/troubleshooting.md) - Common issues and solutions
+- [Advanced Filtering Example](examples/advanced-filtering.sh) - Complex filter combinations
 - [Man page](man/man1/tmux-intray.1) - Traditional manual page (view with `man -l man/man1/tmux-intray.1`)
 
 Documentation is automatically generated from the command-line help texts.
@@ -236,6 +231,41 @@ tmux-intray list --level=error
 # The `status` command shows counts per level
 tmux-intray status
 ```
+
+### Advanced Filtering
+
+tmux-intray's `list` command supports powerful filtering options to help you find notifications based on various criteria.
+
+**Common Filters:**
+- `--session <id>` / `--window <id>` / `--pane <id>` – filter by tmux context
+- `--older-than <days>` / `--newer-than <days>` – time‑based filtering
+- `--search <pattern>` – substring search in messages (use `--regex` for regular expressions)
+- `--group-by <field>` – group notifications by session, window, pane, or level
+- `--group-count` – show only group counts (requires `--group-by`)
+
+**Examples:**
+
+```bash
+# Notifications from a specific session with error level
+tmux-intray list --session=work --level=error
+
+# Notifications older than 7 days but newer than 1 day
+tmux-intray list --older-than=7 --newer-than=1
+
+# Search for notifications containing "error" (substring match)
+tmux-intray list --search=error
+
+# Regex search for patterns
+tmux-intray list --search='ERR[0-9]+' --regex
+
+# Group notifications by session
+tmux-intray list --group-by=session
+
+# Show only group counts
+tmux-intray list --group-by=session --group-count
+```
+
+For a comprehensive list of filters and detailed examples, see the [CLI Reference](docs/cli/CLI_REFERENCE.md) and the [advanced filtering example](examples/advanced-filtering.sh).
 
 ## Tmux Plugin Installation
 
@@ -313,6 +343,32 @@ tmux-intray supports a powerful hooks system that allows you to execute custom s
 curl -X POST https://api.example.com/notifications \
   -d "message=$TMUX_INTRAY_MESSAGE&level=$TMUX_INTRAY_LEVEL"
 ```
+
+### Cleanup
+
+tmux-intray automatically cleans up old dismissed notifications to prevent storage bloat. The `tmux-intray cleanup` command removes notifications that have been dismissed for more than a configured number of days (default: 30 days).
+
+**Retention Configuration:**
+- Set `TMUX_INTRAY_AUTO_CLEANUP_DAYS` environment variable (e.g., `export TMUX_INTRAY_AUTO_CLEANUP_DAYS=7`)
+- The default is 30 days; set to `0` to disable auto‑cleanup.
+
+**Manual Cleanup:**
+```bash
+# Dry-run to see what would be removed
+tmux-intray cleanup --dry-run
+
+# Remove notifications dismissed more than 7 days ago
+tmux-intray cleanup --days=7
+
+# Remove all dismissed notifications (use with caution)
+tmux-intray cleanup --days=0
+```
+
+**Automation:**
+- Cleanup can be run periodically via cron or systemd timer.
+- Hooks are available for `cleanup` and `post-cleanup` to integrate with external systems.
+
+For detailed configuration options, see the [configuration guide](docs/configuration.md).
 
 ### Debugging
 
