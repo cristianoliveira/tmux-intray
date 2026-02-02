@@ -7,7 +7,7 @@
 
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
-import { promises as fs } from 'node:fs';
+import { promises as fs, constants } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
@@ -18,6 +18,20 @@ const __dirname = dirname(__filename);
 const pluginPath = join(__dirname, '../../opencode-tmux-intray.js');
 
 const execAsync = promisify(exec);
+
+function getLocalTmuxIntrayPath() {
+  const localBinary = join(__dirname, '../../../../bin/tmux-intray');
+  return localBinary;
+}
+
+async function isLocalTmuxIntrayExecutable() {
+  try {
+    await fs.access(getLocalTmuxIntrayPath(), constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 async function cleanupLogs() {
   const logFile = '/tmp/opencode-tmux-intray.log';
@@ -39,12 +53,7 @@ async function readLogs() {
 }
 
 const hasTmuxIntray = async () => {
-  try {
-    await execAsync('tmux-intray --help');
-    return true;
-  } catch {
-    return false;
-  }
+  return await isLocalTmuxIntrayExecutable();
 };
 
 describe('Real-world tmux-intray integration', () => {
@@ -109,6 +118,6 @@ describe('Real-world tmux-intray integration', () => {
   });
 
   test('tmux-intray command is available', async () => {
-    await expect(execAsync('tmux-intray --help')).resolves.not.toThrow();
+    await expect(execAsync(`${getLocalTmuxIntrayPath()} --help`)).resolves.not.toThrow();
   }, 10000); // longer timeout for external command
 });

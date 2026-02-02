@@ -157,6 +157,7 @@ describe('Session detection functionality', () => {
     const notifyLog = join(binDir, 'notify.log');
     await createMockBin(binDir, 'tmux', tmuxLog, '');
     await createMockBin(binDir, 'tmux-intray', notifyLog);
+    process.env.TMUX_INTRAY_PATH = join(binDir, 'tmux-intray');
     process.env.PATH = `${binDir}:${originalPath}`;
     
     await fs.promises.writeFile(tmuxLog, '');
@@ -195,6 +196,7 @@ describe('Session detection functionality', () => {
     const notifyLog = join(binDir, 'notify.log');
     await createMockBin(binDir, 'tmux', tmuxLog, 'mocked-session');
     await createMockBin(binDir, 'tmux-intray', notifyLog);
+    process.env.TMUX_INTRAY_PATH = join(binDir, 'tmux-intray');
     await fs.promises.writeFile(tmuxLog, '');
     await fs.promises.writeFile(notifyLog, '');
 
@@ -261,6 +263,7 @@ describe('Session detection edge cases', () => {
     const notifyLog = join(binDir, 'notify.log');
     await createMockBin(binDir, 'tmux', tmuxLog, '', true); // error=true
     await createMockBin(binDir, 'tmux-intray', notifyLog);
+    process.env.TMUX_INTRAY_PATH = join(binDir, 'tmux-intray');
     process.env.PATH = `${binDir}:${originalPath}`;
 
     await fs.promises.writeFile(tmuxLog, '');
@@ -298,6 +301,7 @@ describe('Session detection edge cases', () => {
     const notifyLog = join(binDir, 'notify.log');
     await createMockBin(binDir, 'tmux', tmuxLog, 'fallback-session');
     await createMockBin(binDir, 'tmux-intray', notifyLog);
+    process.env.TMUX_INTRAY_PATH = join(binDir, 'tmux-intray');
     await fs.promises.writeFile(tmuxLog, '');
     await fs.promises.writeFile(notifyLog, '');
 
@@ -333,6 +337,7 @@ describe('Session detection edge cases', () => {
     const notifyLog = join(binDir, 'notify.log');
     await createMockBin(binDir, 'tmux', tmuxLog, 'cached-session');
     await createMockBin(binDir, 'tmux-intray', notifyLog);
+    process.env.TMUX_INTRAY_PATH = join(binDir, 'tmux-intray');
     await fs.promises.writeFile(tmuxLog, '');
     await fs.promises.writeFile(notifyLog, '');
 

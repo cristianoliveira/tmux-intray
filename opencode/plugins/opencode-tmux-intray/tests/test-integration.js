@@ -203,10 +203,11 @@ test('Integration: Default config behavior - Plugin works without config file', 
   
   const originalPath = process.env.PATH;
   const originalTmux = process.env.TMUX;
-  
+
   process.env.PATH = `${env.binDir}:${originalPath}`;
+  process.env.TMUX_INTRAY_PATH = join(env.binDir, 'tmux-intray');
   process.env.TMUX = '/tmp/tmux-test/default,123,0';
-  
+
   try {
     // Import plugin without any config file
     const pluginModule = await import(pluginPath + '?t=' + Date.now() + Math.random());
@@ -276,6 +277,7 @@ test('Integration: Event enabling/disabling - Disabled events do not trigger not
   const originalTmux = process.env.TMUX;
   
   process.env.PATH = `${env.binDir}:${originalPath}`;
+  process.env.TMUX_INTRAY_PATH = join(env.binDir, "tmux-intray");
   process.env.TMUX = '/tmp/tmux-test/default,123,0';
   
   try {
@@ -342,6 +344,7 @@ test('Integration: Global disable - When enabled: false, no notifications sent',
   const originalTmux = process.env.TMUX;
   
   process.env.PATH = `${env.binDir}:${originalPath}`;
+  process.env.TMUX_INTRAY_PATH = join(env.binDir, 'tmux-intray');
   process.env.TMUX = '/tmp/tmux-test/default,123,0';
   
   try {
@@ -394,13 +397,14 @@ test('Integration: Custom messages - Template substitution works in full flow', 
   await setupConfig(config);
   
   const env = await createTestEnv({
-    sessionName: 'my-tmux-session'
+    sessionName: 'test-session'
   });
   
   const originalPath = process.env.PATH;
   const originalTmux = process.env.TMUX;
   
   process.env.PATH = `${env.binDir}:${originalPath}`;
+  process.env.TMUX_INTRAY_PATH = join(env.binDir, 'tmux-intray');
   process.env.TMUX = '/tmp/tmux-test/default,123,0';
   
   try {
@@ -469,6 +473,8 @@ test('Integration: Session detection - Session is passed to notifications correc
   const originalTmux = process.env.TMUX;
   
   process.env.PATH = `${env.binDir}:${originalPath}`;
+  process.env.TMUX_INTRAY_PATH = join(env.binDir, 'tmux-intray');
+  process.env.TMUX = '/tmp/tmux-test/default,123,0';
   
   try {
     // Test with TMUX set - should detect session
@@ -536,6 +542,7 @@ test('Integration: session.status event - Only notifies on pending status', asyn
   const originalTmux = process.env.TMUX;
   
   process.env.PATH = `${env.binDir}:${originalPath}`;
+  process.env.TMUX_INTRAY_PATH = join(env.binDir, 'tmux-intray');
   process.env.TMUX = '/tmp/tmux-test/default,123,0';
   
   try {
@@ -608,6 +615,7 @@ test('Integration: Custom agent name in config - verifies config is loaded', asy
   const originalTmux = process.env.TMUX;
   
   process.env.PATH = `${env.binDir}:${originalPath}`;
+  process.env.TMUX_INTRAY_PATH = join(env.binDir, 'tmux-intray');
   process.env.TMUX = '/tmp/tmux-test/default,123,0';
   
   try {
@@ -675,6 +683,7 @@ test('Integration: Multiple event types with mixed enabled/disabled', async () =
   const originalTmux = process.env.TMUX;
   
   process.env.PATH = `${env.binDir}:${originalPath}`;
+  process.env.TMUX_INTRAY_PATH = join(env.binDir, "tmux-intray");
   process.env.TMUX = '/tmp/tmux-test/default,123,0';
   
   try {
