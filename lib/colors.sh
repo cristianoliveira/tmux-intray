@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Color utilities for tmux-intray
+# Provides user-facing output functions (info, success, warning, error) and logging functions (log_info, debug).
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'

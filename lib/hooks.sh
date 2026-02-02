@@ -92,7 +92,7 @@ hooks_run() {
 
     # Log hook execution only if there are scripts to run
     if [[ ${#scripts[@]} -gt 0 ]]; then
-        info "Running $hook_point hooks (${#scripts[@]} script(s))"
+        log_info "Running $hook_point hooks (${#scripts[@]} script(s))"
     fi
 
     # Execute each script
@@ -119,7 +119,7 @@ _hook_execute_script() {
     local -n env="$env_array_name" # nameref to associative array
 
     # Log script execution
-    info "  Executing hook: $(basename "$script")"
+    log_info "  Executing hook: $(basename "$script")"
     debug "  Hook script path: $script"
 
     # Build environment for script
@@ -176,7 +176,7 @@ _hook_execute_script() {
             warning "Hook script $(basename "$script") failed with exit code $exit_code (ignored)"
             warning "Output: $output"
         else
-            info "  Hook completed in ${duration}s"
+            log_info "  Hook completed in ${duration}s"
         fi
         ;;
     abort)
@@ -185,7 +185,7 @@ _hook_execute_script() {
             error "Output: $output"
             return $exit_code
         else
-            info "  Hook completed in ${duration}s"
+            log_info "  Hook completed in ${duration}s"
         fi
         ;;
     *)
