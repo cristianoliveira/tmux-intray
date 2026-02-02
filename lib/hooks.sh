@@ -2,10 +2,12 @@
 # Hook system for tmux-intray
 
 # Load core utilities
+# Determine absolute directory of this script
+_TMUX_INTRAY_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./colors.sh disable=SC1091
-source "$(dirname "${BASH_SOURCE[0]}")/colors.sh"
+source "$_TMUX_INTRAY_LIB_DIR/colors.sh"
 # shellcheck source=./config.sh disable=SC1091
-source "$(dirname "${BASH_SOURCE[0]}")/config.sh"
+source "$_TMUX_INTRAY_LIB_DIR/config.sh"
 
 # Default configuration values
 TMUX_INTRAY_HOOKS_ENABLED="${TMUX_INTRAY_HOOKS_ENABLED:-1}"
@@ -146,12 +148,12 @@ _hook_execute_script() {
 
     local output
     local exit_code=0
-    local env_args=()
-    local key
-    for key in "${!env[@]}"; do
-        env_args+=("$key=${env[$key]}")
-    done
-    output=$(env "${env_args[@]}" "$script" 2>&1)
+    output=$(
+        for key in "${!env[@]}"; do
+            export "$key"="${env[$key]}"
+        done
+        "$script" 2>&1
+    )
     exit_code=$?
     # Print hook output to stderr (so it appears in logs)
     if [[ -n "$output" ]]; then

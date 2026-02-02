@@ -3,11 +3,13 @@
 # Provides file-based TSV storage with flock locking
 
 # Load core utilities
+# Determine absolute directory of this script
+_TMUX_INTRAY_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./colors.sh disable=SC1091
 # The sourced file exists at runtime but ShellCheck can't resolve it due to relative path/context.
-source "$(dirname "${BASH_SOURCE[0]}")/colors.sh"
+source "$_TMUX_INTRAY_LIB_DIR/colors.sh"
 # shellcheck source=./hooks.sh disable=SC1091
-source "$(dirname "${BASH_SOURCE[0]}")/hooks.sh"
+source "$_TMUX_INTRAY_LIB_DIR/hooks.sh"
 
 # Default directories
 TMUX_INTRAY_STATE_DIR="${TMUX_INTRAY_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/tmux-intray}"

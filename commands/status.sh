@@ -2,10 +2,10 @@
 # Status command - Show notification status summary
 
 # Source core libraries
-
+_CMD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/core.sh disable=SC1091
 # The sourced file exists at runtime but ShellCheck can't resolve it due to relative path/context.
-source "$(dirname "${BASH_SOURCE[0]}")/../lib/core.sh"
+source "$_CMD_DIR/../lib/core.sh"
 
 # Default configuration
 TMUX_INTRAY_STATUS_FORMAT="${TMUX_INTRAY_STATUS_FORMAT:-summary}"

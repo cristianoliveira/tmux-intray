@@ -2,8 +2,9 @@
 # Cleanup command - Clean up old dismissed notifications
 
 # Source core libraries
+_CMD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/core.sh disable=SC1091
-source "$(dirname "${BASH_SOURCE[0]}")/../lib/core.sh"
+source "$_CMD_DIR/../lib/core.sh"
 
 cleanup_command() {
     local dry_run=false

@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # Core functions for tmux-intray
 
+# Determine absolute directory of this script
+_TMUX_INTRAY_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Load storage and configuration
 # shellcheck source=./storage.sh disable=SC1091
 # The sourced file exists at runtime but ShellCheck can't resolve it due to relative path/context.
-source "$(dirname "${BASH_SOURCE[0]}")/storage.sh"
+source "$_TMUX_INTRAY_LIB_DIR/storage.sh"
 # shellcheck source=./config.sh disable=SC1091
 # The sourced file exists at runtime but ShellCheck can't resolve it due to relative path/context.
-source "$(dirname "${BASH_SOURCE[0]}")/config.sh"
+source "$_TMUX_INTRAY_LIB_DIR/config.sh"
 
 # Initialize configuration
 config_load
