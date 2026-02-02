@@ -25,6 +25,7 @@ if [ -L "$SCRIPT_SOURCE" ]; then
 fi
 SCRIPT_DIR="$( cd "$( dirname "$SCRIPT_SOURCE" )" && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+export TMUX_INTRAY_ROOT="$PROJECT_ROOT"
 COMMANDS_DIR="$PROJECT_ROOT/commands"
 LIB_DIR="$PROJECT_ROOT/lib"
 
