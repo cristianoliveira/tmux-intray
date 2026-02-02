@@ -36,6 +36,14 @@ Quick links to key sections:
 - **CLI Only**: Install via [Homebrew](#homebrew) or [npm](#npm) for tmux-integrated use
 - **Plugin Only**: Install via [Tmux Plugin Manager](#using-tmux-plugin-manager-recommended) if CLI already installed
 
+## Basic usage
+
+```bash
+tmux-intray add "my message!"
+tmux-intray list 
+tmux-intray show | fzf | awk '{ print $1 }' | xargs -I {} tmux-intray jump {}
+```
+
 ## Installation Options
 
 tmux-intray has two main components that can be installed separately or together:
