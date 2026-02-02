@@ -143,10 +143,12 @@ copy_plugin() {
                 "${src_dir}/opencode-tmux-intray/" "${dest_dir}/opencode-tmux-intray/"
         else
             # Using find and cpio to preserve directory structure and exclude patterns
-            (cd "${src_dir}/opencode-tmux-intray" &&
+            (
+                cd "${src_dir}/opencode-tmux-intray" || exit 1
                 find . -type f \( -name ".*" -prune -o -print \) |
-                grep -E -v '(^\./node_modules|^\./\.tmp|^\./\.git)' |
-                    cpio -pdum "${dest_dir}/opencode-tmux-intray/" 2>/dev/null || true)
+                    grep -E -v '(^\./node_modules|^\./\.tmp|^\./\.git)' |
+                    cpio -pdum "${dest_dir}/opencode-tmux-intray/" 2>/dev/null || true
+            )
             # Fallback to cp -R if cpio fails
             if [[ ! -d "${dest_dir}/opencode-tmux-intray" ]]; then
                 log_warn "Using simple cp -R (exclusions may not work)"

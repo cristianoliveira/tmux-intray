@@ -146,7 +146,12 @@ _hook_execute_script() {
 
     local output
     local exit_code=0
-    output=$("$script" 2>&1)
+    local env_args=()
+    local key
+    for key in "${!env[@]}"; do
+        env_args+=("$key=${env[$key]}")
+    done
+    output=$(env "${env_args[@]}" "$script" 2>&1)
     exit_code=$?
     # Print hook output to stderr (so it appears in logs)
     if [[ -n "$output" ]]; then
@@ -157,13 +162,7 @@ _hook_execute_script() {
     local duration
     duration=$(awk "BEGIN {printf \"%.2f\", $end_time - $start_time}")
 
-    # Clean up exported variables (except TMUX_INTRAY_HOOKS_FAILURE_MODE which is global)
-    for key in "${!env[@]}"; do
-        if [[ "$key" != "TMUX_INTRAY_HOOKS_FAILURE_MODE" ]]; then
-            unset "$key"
-        fi
-    done
-    debug "  Cleaned up environment variables"
+    debug "  Environment variables passed to hook script"
 
     # Handle script result based on failure mode
     case "$TMUX_INTRAY_HOOKS_FAILURE_MODE" in
