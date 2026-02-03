@@ -126,18 +126,18 @@ _hook_execute_script() {
 
     # Run script
     if [[ "$TMUX_INTRAY_HOOKS_ASYNC" == "1" ]]; then
-        # Run asynchronously (fire and forget)
-        info "  Starting hook asynchronously: $(basename "$script")"
+        # Run asynchronously (fire and forget) with double-fork to avoid zombies
+        log_info "  Starting hook asynchronously: $(basename "$script")"
         (
             # Export environment for the child process
             for key in "${!env[@]}"; do
                 export "$key"="${env[$key]}"
             done
-            # Execute script
-            exec "$script"
-        ) &
+            # Double-fork to detach from parent and avoid zombies
+            (exec "$script") &
+        )
         # Clean up exported variables in parent (they were exported in subshell only)
-        debug "  Hook script started asynchronously"
+        debug "  Hook script started asynchronously (detached)"
         return 0
     fi
 

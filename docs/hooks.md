@@ -104,6 +104,7 @@ mkdir -p "$(dirname "$LOG_FILE")"
 
 ### Performance Considerations
 - Hooks add overhead to notification operations
+- Asynchronous hooks use double-fork to avoid zombie processes; the parent process does not wait for child termination
 - Asynchronous hooks minimize impact but lose error feedback
 - Consider batching external calls in hooks that run frequently
 
