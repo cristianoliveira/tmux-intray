@@ -14,12 +14,124 @@ TMUX_INTRAY_HOOKS_ENABLED="${TMUX_INTRAY_HOOKS_ENABLED:-1}"
 TMUX_INTRAY_HOOKS_FAILURE_MODE="${TMUX_INTRAY_HOOKS_FAILURE_MODE:-warn}"
 TMUX_INTRAY_HOOKS_ASYNC="${TMUX_INTRAY_HOOKS_ASYNC:-0}"
 TMUX_INTRAY_HOOKS_DIR="${TMUX_INTRAY_HOOKS_DIR:-${TMUX_INTRAY_CONFIG_DIR}/hooks}"
+TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT="${TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT:-30}"
+
+# Internal tracking of async hook processes
+_TMUX_INTRAY_HOOK_PIDS=()
+_TMUX_INTRAY_MAX_HOOKS="${TMUX_INTRAY_MAX_HOOKS:-10}"
+_TMUX_INTRAY_HOOKS_TRAPS_SET=0
+
+# Async hook process management
+_reap_children() {
+    local pid
+    local status
+    # Filter out PIDs that are no longer running and reap zombies
+    local new_pids=()
+    for pid in "${_TMUX_INTRAY_HOOK_PIDS[@]}"; do
+        if kill -0 "$pid" 2>/dev/null; then
+            # Process exists, check if it's a zombie
+            status=$(ps -o stat= -p "$pid" 2>/dev/null || echo '')
+            if [[ "$status" == "Z" ]]; then
+                # Zombie, reap it
+                wait "$pid" 2>/dev/null && debug "Reaped zombie async hook PID $pid"
+                # After reaping, the PID will be removed (don't add to new_pids)
+            else
+                # Still running (or sleeping, etc.)
+                new_pids+=("$pid")
+            fi
+        else
+            # Process no longer exists (already terminated and reaped)
+            debug "Async hook PID $pid terminated"
+        fi
+    done
+    _TMUX_INTRAY_HOOK_PIDS=("${new_pids[@]}")
+}
+
+_cleanup_async_hooks() {
+    # Wait for all remaining async hooks, kill them if they exceed timeout
+    if [[ ${#_TMUX_INTRAY_HOOK_PIDS[@]} -gt 0 ]]; then
+        info "Waiting for ${#_TMUX_INTRAY_HOOK_PIDS[@]} async hook(s) to complete..."
+        local pid
+        for pid in "${_TMUX_INTRAY_HOOK_PIDS[@]}"; do
+            # Wait with a small timeout to avoid hanging forever
+            # Use kill to check if still alive
+            if kill -0 "$pid" 2>/dev/null; then
+                debug "Waiting for async hook PID $pid"
+                if wait "$pid" 2>/dev/null; then
+                    debug "Hook process $pid exited"
+                else
+                    debug "Hook process $pid already exited"
+                fi
+            fi
+        done
+        _TMUX_INTRAY_HOOK_PIDS=()
+        debug "All async hooks cleaned up"
+    fi
+}
+
+_setup_hooks_traps() {
+    # Set up traps for SIGCHLD, EXIT, INT, TERM only once
+    if [[ $_TMUX_INTRAY_HOOKS_TRAPS_SET -eq 0 ]]; then
+        trap '_reap_children' CHLD
+        trap '_cleanup_async_hooks' EXIT INT TERM
+        _TMUX_INTRAY_HOOKS_TRAPS_SET=1
+        debug "Async hook traps set"
+    fi
+}
+
+_execute_async_hook_with_timeout() {
+    local script="$1"
+    local env_array_name="$2"
+    local -n env="$env_array_name"
+    local timeout="${TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT:-30}"
+
+    # Check if we have too many pending hooks
+    if [[ ${#_TMUX_INTRAY_HOOK_PIDS[@]} -ge $_TMUX_INTRAY_MAX_HOOKS ]]; then
+        warning "Too many async hooks pending (max: $_TMUX_INTRAY_MAX_HOOKS), skipping $script"
+        return 1
+    fi
+
+    # Ensure traps are set
+    _setup_hooks_traps
+
+    # Run script with timeout inside a subshell to isolate environment
+    # Note: stdout is redirected to stderr (1>&2) to avoid blocking on pipe while still
+    # allowing hook output to appear in logs.
+    (
+        # Redirect stdout to stderr so output goes to terminal/logs, not pipe
+        exec 1>&2
+        # Export environment (isolated to this subshell)
+        for key in "${!env[@]}"; do
+            export "$key"="${env[$key]}"
+        done
+        # Execute with timeout if available, otherwise execute directly
+        if command -v timeout >/dev/null 2>&1; then
+            timeout "$timeout" "$script" 2>&1
+        else
+            if [[ "$timeout" != "30" ]]; then
+                warning "timeout command not found, ignoring TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT=$timeout"
+            fi
+            exec "$script" 2>&1
+        fi
+    ) &
+
+    local pid=$!
+
+    # Track the PID
+    _TMUX_INTRAY_HOOK_PIDS+=("$pid")
+    debug "Started async hook $script with PID $pid (timeout: ${timeout}s)"
+
+    return 0
+}
 
 # Initialize hooks subsystem
 hooks_init() {
     debug "Initializing hooks subsystem"
     # Ensure configuration loaded
     config_load
+
+    # Set up traps for async hook cleanup
+    _setup_hooks_traps
 
     # Create hooks directory if it doesn't exist
     mkdir -p "$TMUX_INTRAY_HOOKS_DIR"
@@ -125,20 +237,12 @@ _hook_execute_script() {
     # Build environment for script
 
     # Run script
+    debug "  Hook execution mode: async=$TMUX_INTRAY_HOOKS_ASYNC"
     if [[ "$TMUX_INTRAY_HOOKS_ASYNC" == "1" ]]; then
-        # Run asynchronously (fire and forget) with double-fork to avoid zombies
-        log_info "  Starting hook asynchronously: $(basename "$script")"
-        (
-            # Export environment for the child process
-            for key in "${!env[@]}"; do
-                export "$key"="${env[$key]}"
-            done
-            # Double-fork to detach from parent and avoid zombies
-            (exec "$script") &
-        )
-        # Clean up exported variables in parent (they were exported in subshell only)
-        debug "  Hook script started asynchronously (detached)"
-        return 0
+        # Run asynchronously with timeout and cleanup
+        info "  Starting hook asynchronously: $(basename "$script")"
+        _execute_async_hook_with_timeout "$script" "$env_array_name"
+        return $?
     fi
 
     # Synchronous execution
