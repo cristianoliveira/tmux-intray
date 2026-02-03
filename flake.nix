@@ -17,6 +17,23 @@
             shfmt
 
             prek
+
+            ## For tmux
+            go
+
+            golangci-lint
+
+            # Test runner with good output
+            # USAGE: gotestsum --watch
+            gotestsum
+
+            # To create new subcommands, run:
+            # cobra-cli add <subcommand-name>
+            cobra-cli
+
+            # To generate the mock for the interfaces, run:
+            # mockgen -source=./pkg/cli/cli.go -destination=./pkg/cli/mock/mock_cli.go -package=mock
+            mockgen
           ];
         };
 

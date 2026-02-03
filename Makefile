@@ -69,6 +69,6 @@ install-npm:
 
 install-go:
 	@echo "Building Go binary..."
-	go build -o tmux-intray-go ./cmd/tmux-intray
+	go build -o tmux-intray-go .
 
 install-all: install-homebrew install-npm install-go
