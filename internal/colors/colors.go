@@ -1,32 +1,135 @@
 // Package colors provides color output utilities.
 package colors
 
-// Error outputs an error message.
-func Error(msg string) {
-	_ = msg
+import (
+	"fmt"
+	"os"
+	"strings"
+)
+
+// Color constants
+const (
+	Red    = "\033[0;31m"
+	Green  = "\033[0;32m"
+	Yellow = "\033[1;33m"
+	Blue   = "\033[0;34m"
+	Cyan   = "\033[0;36m"
+	Reset  = "\033[0m"
+)
+
+const checkmark = "✓"
+
+var (
+	debugEnabled    = false
+	inErrorHandling = false
+)
+
+func init() {
+	if val := os.Getenv("TMUX_INTRAY_DEBUG"); val == "true" || val == "1" {
+		debugEnabled = true
+	}
 }
 
-// Success outputs a success message.
-func Success(msg string) {
-	_ = msg
+// SetDebug enables or disables debug output.
+func SetDebug(enabled bool) {
+	debugEnabled = enabled
 }
 
-// Warning outputs a warning message.
-func Warning(msg string) {
-	_ = msg
+// errorFallback logs an error message without using colors to avoid recursion.
+func errorFallback(msg string) {
+	// Direct write to stderr, ignore errors
+	fmt.Fprintf(os.Stderr, "%s\n", msg)
 }
 
-// Info outputs an informational message.
-func Info(msg string) {
-	_ = msg
+// Error outputs an error message to stderr.
+func Error(msgs ...string) {
+	msg := strings.Join(msgs, " ")
+	_, err := fmt.Fprintf(os.Stderr, "%sError:%s %s%s\n", Red, Reset, msg, Reset)
+	if err != nil {
+		if !inErrorHandling {
+			inErrorHandling = true
+			defer func() { inErrorHandling = false }()
+			Warning("failed to print error message: " + err.Error())
+		} else {
+			errorFallback("Error: failed to print error message: " + err.Error())
+		}
+	}
 }
 
-// LogInfo outputs a log informational message.
-func LogInfo(msg string) {
-	_ = msg
+// Success outputs a success message to stdout.
+func Success(msgs ...string) {
+	msg := strings.Join(msgs, " ")
+	_, err := fmt.Fprintf(os.Stdout, "%s%s%s %s%s\n", Green, checkmark, Reset, msg, Reset)
+	if err != nil {
+		if !inErrorHandling {
+			inErrorHandling = true
+			defer func() { inErrorHandling = false }()
+			Warning("failed to print success message: " + err.Error())
+		} else {
+			errorFallback("Warning: failed to print success message: " + err.Error())
+		}
+	}
 }
 
-// Debug outputs a debug message.
-func Debug(msg string) {
-	_ = msg
+// Warning outputs a warning message to stderr.
+func Warning(msgs ...string) {
+	msg := strings.Join(msgs, " ")
+	_, err := fmt.Fprintf(os.Stderr, "%sWarning:%s %s%s\n", Yellow, Reset, msg, Reset)
+	if err != nil {
+		if !inErrorHandling {
+			inErrorHandling = true
+			defer func() { inErrorHandling = false }()
+			Error("failed to print warning message: " + err.Error())
+		} else {
+			errorFallback("Error: failed to print warning message: " + err.Error())
+		}
+	}
+}
+
+// Info outputs an informational message to stdout.
+func Info(msgs ...string) {
+	msg := strings.Join(msgs, " ")
+	_, err := fmt.Fprintf(os.Stdout, "%s%s%s\n", Blue, msg, Reset)
+	if err != nil {
+		if !inErrorHandling {
+			inErrorHandling = true
+			defer func() { inErrorHandling = false }()
+			Warning("failed to print info message: " + err.Error())
+		} else {
+			errorFallback("Warning: failed to print info message: " + err.Error())
+		}
+	}
+}
+
+// LogInfo outputs a log informational message to stderr.
+func LogInfo(msgs ...string) {
+	msg := strings.Join(msgs, " ")
+	_, err := fmt.Fprintf(os.Stderr, "%s%s%s\n", Blue, msg, Reset)
+	if err != nil {
+		if !inErrorHandling {
+			inErrorHandling = true
+			defer func() { inErrorHandling = false }()
+			Warning("failed to print log info message: " + err.Error())
+		} else {
+			errorFallback("Warning: failed to print log info message: " + err.Error())
+		}
+	}
+}
+
+// Debug outputs a debug message to stderr if debug is enabled.
+func Debug(msgs ...string) {
+	if !debugEnabled {
+		return
+	}
+	msg := strings.Join(msgs, " ")
+	_, err := fmt.Fprintf(os.Stderr, "%sDebug:%s %s%s\n", Cyan, Reset, msg, Reset)
+	if err != nil {
+		if !inErrorHandling {
+			inErrorHandling = true
+			defer func() { inErrorHandling = false }()
+			Warning("failed to print debug message: " + err.Error())
+		} else {
+			errorFallback("Warning: failed to print debug message: " + err.Error())
+		}
+	}
 }
