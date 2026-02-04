@@ -615,6 +615,8 @@ _filter_out_ids() {
     # Create temporary file
     local temp_file
     temp_file=$(mktemp)
+    # Ensure cleanup on exit
+    trap 'rm -f "$temp_file" 2>/dev/null || true' EXIT
 
     # Filter using awk
     awk -F'\t' "$pattern" "$file" >"$temp_file"
