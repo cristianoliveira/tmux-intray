@@ -1,4 +1,4 @@
-.PHONY: all tests fmt check-fmt lint clean install install-homebrew install-npm install-go install-all verify-install security-check docs
+.PHONY: all tests fmt check-fmt lint clean install install-homebrew install-docker install-npm install-go install-all verify-install security-check docs
 
 all: tests lint
 
@@ -24,7 +24,7 @@ check-fmt:
 		exit 1; \
 	fi
 	@if find . -type f \( -name "*.sh" -o -name "*.tmux" \) -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/_tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/.gwt/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -print0 | xargs -0 shfmt -ln bash -i 4 -d; then \
-		echo "All shell scripts are formatted correctly"; \
+		true; \
 	else \
 		echo "Some shell scripts need formatting. Run 'make fmt' to fix."; \
 		exit 1; \
@@ -42,6 +42,10 @@ security-check:
 	@echo "Running security checks..."
 	./scripts/security-check.sh
 
+verify-install:
+	@echo "Verifying install.sh..."
+	shellcheck install.sh
+
 clean:
 	@echo "Cleaning..."
 	rm -rf .tmp
@@ -52,16 +56,15 @@ install:
 	chmod +x scripts/lint.sh
 	chmod +x scripts/security-check.sh
 	chmod +x tmux-intray.tmux
-
-verify-install:
-	@echo "Verifying install.sh..."
-	shellcheck install.sh
+	chmod +x install.sh
 
 install-homebrew:
 	@echo "Installing via Homebrew..."
 	brew install ./Formula/tmux-intray.rb
 
-
+install-docker:
+	@echo "Building Docker image..."
+	docker build -t tmux-intray .
 
 install-npm:
 	@echo "Installing via npm..."
@@ -69,6 +72,6 @@ install-npm:
 
 install-go:
 	@echo "Building Go binary..."
-	go build -o tmux-intray-go .
+	go build -o tmux-intray-go ./cmd/tmux-intray
 
-install-all: install-homebrew install-npm install-go
+install-all: install-homebrew install-docker install-npm install-go

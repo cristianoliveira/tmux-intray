@@ -1,5 +1,5 @@
 class TmuxIntray < Formula
-  desc "Quiet inbox for things that happen while you're not looking"
+  desc "A quiet inbox for things that happen while you're not looking"
   homepage "https://github.com/cristianoliveira/tmux-intray"
   url "https://github.com/cristianoliveira/tmux-intray/archive/refs/tags/v#{version}.tar.gz"
   version "0.1.0"

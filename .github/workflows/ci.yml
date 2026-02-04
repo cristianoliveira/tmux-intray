@@ -6,9 +6,7 @@ on:
       - main
       - develop
   pull_request:
-    branches:
-      - main
-      - develop
+    branches: [ '*' ]
 
 jobs:
   test:
@@ -21,7 +19,7 @@ jobs:
       TMUX_INTRAY_DEBUG: 0
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Install dependencies
         uses: ./.github/actions/setup-environment
@@ -38,15 +36,15 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Cache npm dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v4
         with:
           path: ~/.npm
           key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
@@ -62,10 +60,13 @@ jobs:
         run: npm test
 
   lint:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Install dependencies
         uses: ./.github/actions/setup-environment
@@ -78,11 +79,14 @@ jobs:
       - name: Run security check
         run: make security-check
 
+      - name: Check formatting
+        run: make check-fmt
+
   install:
     runs-on: macos-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Install dependencies
         uses: ./.github/actions/setup-environment
@@ -90,22 +94,16 @@ jobs:
           os: ${{ runner.os }}
           install-go: true
           install-node: true
+
       - name: Update npm
         shell: bash
         run: npm install -g npm
 
       - name: Audit Homebrew formula
-        run: |
-          brew tap cristianoliveira/tmux-intray "$GITHUB_WORKSPACE"
-          HOMEBREW_NO_INSTALL_FROM_API=1 HOMEBREW_NO_AUTO_UPDATE=1 brew audit --strict --formula tmux-intray
+        run: brew audit --strict ./Formula/tmux-intray.rb
 
       - name: Test npm installation
-        run: |
-          echo "Debugging make..."
-          make -p | grep install-npm || true
-          which npm
-          npm --version
-          make install-npm
+        run: make install-npm
 
       - name: Test Go binary build
         run: make install-go
@@ -117,7 +115,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Install dependencies
         uses: ./.github/actions/setup-environment
@@ -127,18 +125,13 @@ jobs:
           install-node: true
 
       - name: Test npm installation
-        run: |
-          echo "Debugging make..."
-          make -p | grep install-npm || true
-          which npm
-          npm --version
-          make install-npm
+        run: make install-npm
 
       - name: Test Go binary build
         run: make install-go
 
-
+      - name: Test Docker installation
+        run: make install-docker
 
       - name: Test source installation
         run: make install
-
