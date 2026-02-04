@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -78,8 +79,52 @@ func ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, pa
 }
 
 // DismissNotification dismisses a notification by ID.
-func DismissNotification(id string) {
-	_ = id
+func DismissNotification(id string) error {
+	colors.Debug("DismissNotification called for ID:", id)
+	// Run pre-clear hooks? No, only per-notification hooks.
+	return withLock(func() error {
+		line, err := getLatestLineForID(id)
+		if err != nil {
+			return fmt.Errorf("failed to read notifications: %w", err)
+		}
+		if line == "" {
+			return fmt.Errorf("Notification with ID %s not found", id)
+		}
+		lineID, timestamp, state, session, window, pane, message, paneCreated, level := parseLine(line)
+		if lineID != id {
+			// Should never happen
+			return errors.New("internal error: ID mismatch")
+		}
+		if state == "dismissed" {
+			return fmt.Errorf("Notification %s is already dismissed", id)
+		}
+		// Run pre-dismiss hooks
+		envVars := []string{
+			fmt.Sprintf("NOTIFICATION_ID=%s", id),
+			fmt.Sprintf("LEVEL=%s", level),
+			fmt.Sprintf("MESSAGE=%s", message),
+			fmt.Sprintf("ESCAPED_MESSAGE=%s", message), // same as raw for now
+			fmt.Sprintf("TIMESTAMP=%s", timestamp),
+			fmt.Sprintf("SESSION=%s", session),
+			fmt.Sprintf("WINDOW=%s", window),
+			fmt.Sprintf("PANE=%s", pane),
+			fmt.Sprintf("PANE_CREATED=%s", paneCreated),
+		}
+		if err := hooks.Run("pre-dismiss", envVars...); err != nil {
+			return err
+		}
+		// Append dismissed version
+		err = appendLine(id, timestamp, "dismissed", session, window, pane, message, paneCreated, level)
+		if err != nil {
+			return err
+		}
+		// Run post-dismiss hooks
+		if err := hooks.Run("post-dismiss", envVars...); err != nil {
+			return err
+		}
+		updateTmuxStatusOption()
+		return nil
+	})
 }
 
 // withLock runs fn while holding a file system lock.
@@ -167,6 +212,29 @@ func getLatestActiveLines() ([]string, error) {
 	return result, nil
 }
 
+// getLatestLineForID returns the latest line for a notification ID.
+func getLatestLineForID(id string) (string, error) {
+	file := getNotificationsFile()
+	colors.Debug("reading notifications file:", file)
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return "", err
+	}
+	lines := strings.Split(string(data), "\n")
+	// Iterate from end to find latest occurrence of ID
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			continue
+		}
+		lineID, _, _, _, _, _, _, _, _ := parseLine(line)
+		if lineID == id {
+			return line, nil
+		}
+	}
+	return "", nil // not found
+}
+
 // appendLine appends a line to the notifications file.
 func appendLine(id, timestamp, state, session, window, pane, message, paneCreated, level string) error {
 	file := getNotificationsFile()
@@ -221,8 +289,7 @@ func DismissAll() error {
 				return err
 			}
 		}
-		// Update tmux status (stub)
-		// TODO: update tmux status option
+		updateTmuxStatusOption()
 		return nil
 	})
 }
@@ -233,7 +300,25 @@ func CleanupOldNotifications(daysThreshold int, dryRun bool) {
 	_ = dryRun
 }
 
+// updateTmuxStatusOption updates the tmux status option with the current active count.
+func updateTmuxStatusOption() {
+	// Only update if tmux is running
+	cmd := exec.Command("tmux", "has-session")
+	if err := cmd.Run(); err != nil {
+		// tmux not running, skip
+		return
+	}
+	count := GetActiveCount()
+	cmd = exec.Command("tmux", "set", "-g", "@tmux_intray_active_count", fmt.Sprintf("%d", count))
+	cmd.Run() // ignore error
+}
+
 // GetActiveCount returns the active notification count.
 func GetActiveCount() int {
-	return 0
+	activeLines, err := getLatestActiveLines()
+	if err != nil {
+		colors.Debug("failed to get active lines:", err.Error())
+		return 0
+	}
+	return len(activeLines)
 }
