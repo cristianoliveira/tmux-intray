@@ -5,16 +5,34 @@ setup() {
     # Create a temporary directory for test
     TEST_DIR="$(mktemp -d)"
     export TEST_DIR
-    # Create a fake tarball of the project
+    # Create a staged copy of the project to avoid tar races
+    local stage_dir="$TEST_DIR/stage"
+    mkdir -p "$stage_dir"
     cd "$BATS_TEST_DIRNAME/.." || exit
-    tar -czf "$TEST_DIR/tmux-intray-main.tar.gz" \
-        --exclude='.git' \
-        --exclude='dist' \
-        --exclude='.tmp' \
-        --exclude='.bv' \
-        --exclude='.local' \
-        --exclude='tmp' \
-        --exclude='*.swp' .
+    # Use rsync if available for efficient copying with exclusions
+    if command -v rsync >/dev/null 2>&1; then
+        rsync -a \
+            --exclude='.git' \
+            --exclude='dist' \
+            --exclude='.tmp' \
+            --exclude='.bv' \
+            --exclude='.local' \
+            --exclude='tmp' \
+            --exclude='*.swp' \
+            --exclude='bin' \
+            . "$stage_dir/"
+    else
+        # Fallback: copy everything and remove excluded directories
+        cp -R . "$stage_dir/"
+        rm -rf "$stage_dir/.git" "$stage_dir/dist" "$stage_dir/.tmp" \
+            "$stage_dir/.bv" "$stage_dir/.local" "$stage_dir/tmp" 2>/dev/null || true
+        find "$stage_dir" -name '*.swp' -delete 2>/dev/null || true
+    fi
+    # Ensure bin directory exists with the shell script (required by installer)
+    mkdir -p "$stage_dir/bin"
+    cp -p bin/tmux-intray "$stage_dir/bin/"
+    # Create tarball from staged copy
+    tar -czf "$TEST_DIR/tmux-intray-main.tar.gz" -C "$stage_dir" .
     # Create a mock curl that returns our tarball
     cat >"$TEST_DIR/curl" <<'EOF'
 #!/usr/bin/env bash

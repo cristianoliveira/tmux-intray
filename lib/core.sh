@@ -128,7 +128,13 @@ clear_tray_items() {
 }
 
 get_visibility() {
-    tmux show-environment -g TMUX_INTRAY_VISIBLE 2>/dev/null || echo "0"
+    local output
+    output=$(tmux show-environment -g TMUX_INTRAY_VISIBLE 2>/dev/null)
+    if [[ -n "$output" && "$output" =~ ^TMUX_INTRAY_VISIBLE=(.*)$ ]]; then
+        echo "${BASH_REMATCH[1]}"
+    else
+        echo "0"
+    fi
 }
 
 set_visibility() {

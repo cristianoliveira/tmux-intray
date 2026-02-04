@@ -46,12 +46,15 @@ export TMUX_INTRAY_ROOT="$PROJECT_ROOT"
 
 # If TMUX_INTRAY_BIN is set, execute that binary
 if [[ -n "${TMUX_INTRAY_BIN:-}" ]]; then
-    if [[ ! -x "$TMUX_INTRAY_BIN" ]]; then
-        echo "Error: TMUX_INTRAY_BIN is set to '$TMUX_INTRAY_BIN' but it's not executable" >&2
-        exit 1
+    # If we're already running inside the wrapper (extracted environment), don't recurse
+    if [[ -z "${TMUX_INTRAY_TEMP_ROOT:-}" ]]; then
+        if [[ ! -x "$TMUX_INTRAY_BIN" ]]; then
+            echo "Error: TMUX_INTRAY_BIN is set to '$TMUX_INTRAY_BIN' but it's not executable" >&2
+            exit 1
+        fi
+        echo "Executing $TMUX_INTRAY_BIN" >&2
+        exec "$TMUX_INTRAY_BIN" "$@"
     fi
-    echo "Executing $TMUX_INTRAY_BIN" >&2
-    exec "$TMUX_INTRAY_BIN" "$@"
 fi
 
 # If TMUX_INTRAY_IMPL is set to "go", execute the Go binary

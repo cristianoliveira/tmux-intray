@@ -233,7 +233,7 @@ storage_add_notification() {
     _with_lock "$LOCK_DIR" _append_notification_line "$id" "$timestamp" "active" "$session" "$window" "$pane" "$escaped_message" "$pane_created" "$level"
     debug "Notification appended to storage"
 
-    # Update tmux status option
+    # Update tmux status option outside lock to avoid deadlock (_update_tmux_status also acquires a lock)
     _update_tmux_status
     debug "Updated tmux status option"
 
@@ -437,7 +437,7 @@ storage_dismiss_notification() {
     _with_lock "$LOCK_DIR" _append_notification_line "$id" "$timestamp" "dismissed" "$session" "$window" "$pane" "$message" "$pane_created" "$level"
     debug "Dismissed version appended"
 
-    # Update tmux status option
+    # Update tmux status option outside lock to avoid deadlock (_update_tmux_status also acquires a lock)
     _update_tmux_status
     debug "Updated tmux status option"
 
@@ -515,7 +515,7 @@ storage_dismiss_all() {
     done <<<"$active_lines"
     debug "All active notifications dismissed"
 
-    # Update tmux status option
+    # Update tmux status option outside lock to avoid deadlock (_update_tmux_status also acquires a lock)
     _update_tmux_status
     debug "Updated tmux status option"
 }

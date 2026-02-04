@@ -8,4 +8,5 @@ import "embed"
 //go:embed lib
 //go:embed scripts
 //go:embed tmux-intray.tmux
+//go:embed go.mod
 var FS embed.FS

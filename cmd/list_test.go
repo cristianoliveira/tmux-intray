@@ -1,0 +1,266 @@
+package cmd
+
+import (
+	"bytes"
+	"strings"
+	"testing"
+)
+
+// mockLines returns a fixed TSV string for testing.
+func mockLines() string {
+	return `1	2025-01-01T10:00:00Z	active	sess1	win1	pane1	message one	123	info
+2	2025-01-01T11:00:00Z	active	sess1	win1	pane2	message two	124	warning
+3	2025-01-01T12:00:00Z	dismissed	sess2	win2	pane3	message three	125	error
+4	2025-01-01T13:00:00Z	active	sess2	win2	pane4	message four	126	info
+5	2025-01-01T14:00:00Z	active	sess3	win3	pane5	message five	127	info`
+}
+
+func setupMock() {
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+		// We'll apply basic filters here for simplicity.
+		// In real tests we can filter based on parameters.
+		return mockLines()
+	}
+}
+
+func restoreMock() {
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+		// default to real storage (not used in tests)
+		return ""
+	}
+}
+
+func TestPrintListEmpty(t *testing.T) {
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+		return ""
+	}
+	defer restoreMock()
+
+	var buf bytes.Buffer
+	listOutputWriter = &buf
+	defer func() { listOutputWriter = nil }()
+
+	PrintList(FilterOptions{})
+	output := buf.String()
+	if output != "No notifications found\n" {
+		t.Errorf("Expected 'No notifications found', got %q", output)
+	}
+}
+
+func TestPrintListLegacyFormat(t *testing.T) {
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+		return mockLines()
+	}
+	defer restoreMock()
+
+	var buf bytes.Buffer
+	listOutputWriter = &buf
+	defer func() { listOutputWriter = nil }()
+
+	PrintList(FilterOptions{Format: "legacy"})
+	output := buf.String()
+	// Should contain only messages, one per line
+	if !strings.Contains(output, "message one") {
+		t.Error("Missing message one")
+	}
+	if !strings.Contains(output, "message two") {
+		t.Error("Missing message two")
+	}
+	// Ensure no IDs or timestamps appear
+	if strings.Contains(output, "1") && strings.Contains(output, "2025-01-01") {
+		t.Error("Legacy format should not show IDs or timestamps")
+	}
+}
+
+func TestPrintListTableFormat(t *testing.T) {
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+		return mockLines()
+	}
+	defer restoreMock()
+
+	var buf bytes.Buffer
+	listOutputWriter = &buf
+	defer func() { listOutputWriter = nil }()
+
+	PrintList(FilterOptions{Format: "table"})
+	output := buf.String()
+	// Should contain header
+	if !strings.Contains(output, "ID") || !strings.Contains(output, "Timestamp") {
+		t.Error("Table missing header")
+	}
+	// Should contain IDs
+	if !strings.Contains(output, "1") || !strings.Contains(output, "2") {
+		t.Error("Table missing IDs")
+	}
+	// Should contain pane IDs
+	if !strings.Contains(output, "pane1") || !strings.Contains(output, "pane2") {
+		t.Error("Table missing pane IDs")
+	}
+}
+
+func TestPrintListCompactFormat(t *testing.T) {
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+		return mockLines()
+	}
+	defer restoreMock()
+
+	var buf bytes.Buffer
+	listOutputWriter = &buf
+	defer func() { listOutputWriter = nil }()
+
+	PrintList(FilterOptions{Format: "compact"})
+	output := buf.String()
+	// Should contain messages only, no extra whitespace
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	if len(lines) != 5 {
+		t.Errorf("Expected 5 lines, got %d", len(lines))
+	}
+	for i, line := range lines {
+		if !strings.HasPrefix(line, "message ") {
+			t.Errorf("Line %d doesn't start with 'message ': %q", i, line)
+		}
+	}
+}
+
+func TestPrintListSearchFilter(t *testing.T) {
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+		return mockLines()
+	}
+	defer restoreMock()
+
+	var buf bytes.Buffer
+	listOutputWriter = &buf
+	defer func() { listOutputWriter = nil }()
+
+	// Substring search
+	PrintList(FilterOptions{Search: "three", Format: "legacy"})
+	output := buf.String()
+	if !strings.Contains(output, "message three") {
+		t.Error("Search filter didn't find 'message three'")
+	}
+	if strings.Contains(output, "message one") {
+		t.Error("Search filter incorrectly included 'message one'")
+	}
+}
+
+func TestPrintListRegexSearch(t *testing.T) {
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+		return mockLines()
+	}
+	defer restoreMock()
+
+	var buf bytes.Buffer
+	listOutputWriter = &buf
+	defer func() { listOutputWriter = nil }()
+
+	// Regex search for messages ending with 'e'
+	PrintList(FilterOptions{Search: "e$", Regex: true, Format: "legacy"})
+	output := buf.String()
+	// message one, three, five end with 'e'
+	if !strings.Contains(output, "message one") {
+		t.Error("Regex missing message one")
+	}
+	if !strings.Contains(output, "message three") {
+		t.Error("Regex missing message three")
+	}
+	if !strings.Contains(output, "message five") {
+		t.Error("Regex missing message five")
+	}
+	if strings.Contains(output, "message two") {
+		t.Error("Regex incorrectly included message two")
+	}
+}
+
+func TestPrintListGroupByLevel(t *testing.T) {
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+		return mockLines()
+	}
+	defer restoreMock()
+
+	var buf bytes.Buffer
+	listOutputWriter = &buf
+	defer func() { listOutputWriter = nil }()
+
+	PrintList(FilterOptions{GroupBy: "level", Format: "legacy"})
+	output := buf.String()
+	// Should contain group headers
+	if !strings.Contains(output, "=== info (3) ===") {
+		t.Error("Missing info group header")
+	}
+	if !strings.Contains(output, "=== warning (1) ===") {
+		t.Error("Missing warning group header")
+	}
+	if !strings.Contains(output, "=== error (1) ===") {
+		t.Error("Missing error group header")
+	}
+}
+
+func TestPrintListGroupCount(t *testing.T) {
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+		return mockLines()
+	}
+	defer restoreMock()
+
+	var buf bytes.Buffer
+	listOutputWriter = &buf
+	defer func() { listOutputWriter = nil }()
+
+	PrintList(FilterOptions{GroupBy: "level", GroupCount: true})
+	output := buf.String()
+	// Should contain group counts only
+	if !strings.Contains(output, "Group: info (3)") {
+		t.Error("Missing group count for info")
+	}
+	if !strings.Contains(output, "Group: warning (1)") {
+		t.Error("Missing group count for warning")
+	}
+	if !strings.Contains(output, "Group: error (1)") {
+		t.Error("Missing group count for error")
+	}
+	// Should not contain messages
+	if strings.Contains(output, "message") {
+		t.Error("Group count should not list messages")
+	}
+}
+
+func TestParseNotification(t *testing.T) {
+	line := "1\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\ttest\\tmessage\t123\tinfo"
+	notif, err := parseNotification(line)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if notif.ID != 1 {
+		t.Errorf("Expected ID 1, got %d", notif.ID)
+	}
+	if notif.Timestamp != "2025-01-01T12:00:00Z" {
+		t.Errorf("Timestamp mismatch")
+	}
+	if notif.State != "active" {
+		t.Errorf("State mismatch")
+	}
+	if notif.Message != "test\tmessage" {
+		t.Errorf("Message not unescaped: %q", notif.Message)
+	}
+	if notif.Level != "info" {
+		t.Errorf("Level mismatch")
+	}
+}
+
+func TestUnescapeMessage(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"plain", "plain"},
+		{"test\\nnewline", "test\nnewline"},
+		{"test\\ttab", "test\ttab"},
+		{"back\\\\slash", "back\\slash"},
+		{"mixed\\n\\t\\", "mixed\n\t\\"},
+	}
+	for _, tt := range tests {
+		got := unescapeMessage(tt.input)
+		if got != tt.expected {
+			t.Errorf("unescapeMessage(%q) = %q, want %q", tt.input, got, tt.expected)
+		}
+	}
+}
