@@ -18,8 +18,21 @@ Each command sources the necessary libraries and implements a `{command}_command
 
 ```
 github.com/cristianoliveira/tmux-intray/
-├── cmd/
-│   └── tmux-intray/           # CLI entry point (main)
+├── cmd/                       # CLI command implementations
+│   ├── add.go                 # Add command
+│   ├── list.go                # List command
+│   ├── dismiss.go             # Dismiss command
+│   ├── clear.go               # Clear command
+│   ├── toggle.go              # Toggle command
+│   ├── jump.go                # Jump command
+│   ├── status.go              # Status command
+│   ├── status-panel.go        # Status-panel command
+│   ├── follow.go              # Follow command
+│   ├── help.go                # Help command
+│   ├── version.go             # Version command
+│   ├── cleanup.go             # Cleanup command
+│   ├── root.go                # Root command and CLI entry point
+│   └── wrapper/               # Wrapper for Bash migration
 │       └── main.go
 ├── internal/                  # Private application code
 │   ├── core/                  # Core tmux interaction & tray management
@@ -34,29 +47,7 @@ github.com/cristianoliveira/tmux-intray/
 │   │   └── config.go
 │   ├── hooks/                 # Hooks subsystem
 │   │   └── hooks.go
-│   └── commands/              # Command implementations
-│       ├── add/
-│       │   └── add.go
-│       ├── list/
-│       │   └── list.go
-│       ├── dismiss/
-│       │   └── dismiss.go
-│       ├── clear/
-│       │   └── clear.go
-│       ├── toggle/
-│       │   └── toggle.go
-│       ├── jump/
-│       │   └── jump.go
-│       ├── status/
-│       │   └── status.go
-│       ├── follow/
-│       │   └── follow.go
-│       ├── status-panel/
-│       │   └── status-panel.go
-│       ├── help/
-│       │   └── help.go
-│       └── version/
-│           └── version.go
+│   └── tmuxintray/            # Tmux integration utilities
 ├── pkg/                       # Public APIs (if any)
 │   └── api/                   # External integration APIs
 └── go.mod                     # Go module definition
@@ -64,13 +55,13 @@ github.com/cristianoliveira/tmux-intray/
 
 ## Package Descriptions
 
-### `cmd/tmux-intray`
+### `cmd/` (CLI Entry Point and Commands)
 
-The main CLI entry point that:
-- Parses command-line arguments
-- Dispatches to appropriate command implementation
-- Handles global flags and version/help commands
-- Initializes configuration and storage
+The CLI is structured as a flat set of command files in the `cmd/` directory:
+- `root.go` defines the root command and handles command dispatch
+- Each command file (e.g., `add.go`, `list.go`) contains Cobra command definition and business logic
+- Commands delegate core functionality to internal packages (`core`, `storage`, etc.)
+- The wrapper subdirectory contains the temporary wrapper for Bash migration
 
 ### `internal/core`
 
@@ -108,12 +99,12 @@ Hook subsystem for extensibility:
 - Custom script execution
 - Event-driven architecture
 
-### `internal/commands`
+### Command Implementation in `cmd/`
 
-Each command is implemented as a separate package following the Command pattern:
-- Each package exports a `Run(args []string) error` function
-- Commands receive parsed arguments and have access to shared dependencies (storage, config, etc.)
-- Command-specific logic and validation
+Each command is implemented as a Cobra command defined directly in `cmd/*.go` files, combining CLI definition with business logic:
+- Each command file contains the Cobra command definition, flag parsing, and a `Run` function
+- Business logic delegates to internal packages (`core`, `storage`, `config`, etc.)
+- This simpler structure reduces package nesting while maintaining clear separation between CLI and core logic
 
 ## Design Principles
 
