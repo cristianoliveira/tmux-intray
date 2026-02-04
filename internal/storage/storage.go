@@ -598,3 +598,10 @@ func strToInt(s string) int {
 	n, _ := strconv.Atoi(s)
 	return n
 }
+
+// Reset resets the storage package state for testing.
+func Reset() {
+	notificationsFile = ""
+	lockDir = ""
+	initialized = false
+}
