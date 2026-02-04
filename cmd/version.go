@@ -1,13 +1,24 @@
-// Package version implements the version command.
-package version
+package cmd
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/spf13/cobra"
+)
 
 // Version is the version of tmux-intray.
 const Version = "0.1.0"
 
-// Run executes the version command.
-func Run(args []string) error {
-	fmt.Printf("tmux-intray v%s\n", Version)
-	return nil
+// versionCmd represents the version command
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "Show version information",
+	Long:  `Show the current version of tmux-intray.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Printf("tmux-intray v%s\n", Version)
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(versionCmd)
 }

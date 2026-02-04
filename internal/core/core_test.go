@@ -25,7 +25,7 @@ func TestCore(t *testing.T) {
 
 	// Helper to clear all notifications before each subtest
 	clearNotifications := func() {
-		storage.DismissAll()
+		_ = storage.DismissAll()
 	}
 
 	t.Run("GetTrayItems", func(t *testing.T) {

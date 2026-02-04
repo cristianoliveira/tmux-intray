@@ -1,40 +1,32 @@
 /*
 Copyright © 2026 NAME HERE <EMAIL ADDRESS>
-
 */
 package cmd
 
 import (
-	"fmt"
-
+	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/spf13/cobra"
 )
 
 // dismissCmd represents the dismiss command
 var dismissCmd = &cobra.Command{
-	Use:   "dismiss",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("dismiss called")
+	Use:   "dismiss ID",
+	Short: "Dismiss a notification",
+	Long: `Dismiss a specific notification by ID.
+Runs pre-dismiss and post-dismiss hooks, updates tmux status.`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		id := args[0]
+		storage.Init()
+		err := storage.DismissNotification(id)
+		if err != nil {
+			return err
+		}
+		cmd.Printf("Notification %s dismissed\n", id)
+		return nil
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(dismissCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// dismissCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// dismissCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

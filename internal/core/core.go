@@ -73,8 +73,7 @@ func AddTrayItem(item, session, window, pane, paneCreated string, noAuto bool, l
 
 // ClearTrayItems dismisses all active tray items.
 func ClearTrayItems() error {
-	storage.DismissAll()
-	return nil
+	return storage.DismissAll()
 }
 
 // GetVisibility returns the visibility state as "0" or "1".

@@ -1,27 +1,33 @@
 /*
 Copyright © 2026 NAME HERE <EMAIL ADDRESS>
-
 */
 package cmd
 
 import (
 	"fmt"
 
+	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/spf13/cobra"
 )
 
 // clearCmd represents the clear command
 var clearCmd = &cobra.Command{
 	Use:   "clear",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
+	Short: "Clear all items from the tray",
+	Long: `Clear all active notifications from the tray.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("clear called")
+This command dismisses all active notifications, running pre-clear and per-notification
+hooks, and updates the tmux status option.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// Initialize storage
+		storage.Init()
+		// Run clear operation
+		err := storage.DismissAll()
+		if err != nil {
+			return fmt.Errorf("failed to clear tray: %w", err)
+		}
+		cmd.Println("Tray cleared")
+		return nil
 	},
 }
 

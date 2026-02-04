@@ -2,8 +2,10 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/config"
+	"github.com/cristianoliveira/tmux-intray/internal/hooks"
 )
 
 const (
@@ -127,31 +130,130 @@ func ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, pa
 }
 
 // DismissNotification dismisses a notification by ID.
-func DismissNotification(id string) {
+func DismissNotification(id string) error {
 	Init()
 	if !initialized {
-		return
+		return errors.New("storage not initialized")
 	}
-	err := WithLock(lockDir, func() error {
-		return dismissByID(id)
+	colors.Debug("DismissNotification called for ID:", id)
+	return WithLock(lockDir, func() error {
+		latest, err := getLatestNotifications()
+		if err != nil {
+			return fmt.Errorf("failed to read notifications: %w", err)
+		}
+		var targetLine string
+		for _, line := range latest {
+			fields := strings.Split(line, "\t")
+			if len(fields) > fieldID && fields[fieldID] == id {
+				targetLine = line
+				break
+			}
+		}
+		if targetLine == "" {
+			return fmt.Errorf("notification %s not found", id)
+		}
+		fields := strings.Split(targetLine, "\t")
+		if len(fields) < numFields {
+			return fmt.Errorf("invalid line format")
+		}
+		if fields[fieldState] == "dismissed" {
+			return fmt.Errorf("notification %s is already dismissed", id)
+		}
+		envVars := []string{
+			fmt.Sprintf("NOTIFICATION_ID=%s", id),
+			fmt.Sprintf("LEVEL=%s", fields[fieldLevel]),
+			fmt.Sprintf("MESSAGE=%s", fields[fieldMessage]),
+			fmt.Sprintf("ESCAPED_MESSAGE=%s", fields[fieldMessage]),
+			fmt.Sprintf("TIMESTAMP=%s", fields[fieldTimestamp]),
+			fmt.Sprintf("SESSION=%s", fields[fieldSession]),
+			fmt.Sprintf("WINDOW=%s", fields[fieldWindow]),
+			fmt.Sprintf("PANE=%s", fields[fieldPane]),
+			fmt.Sprintf("PANE_CREATED=%s", fields[fieldPaneCreated]),
+		}
+		if err := hooks.Run("pre-dismiss", envVars...); err != nil {
+			return err
+		}
+		if err := appendLine(
+			strToInt(fields[fieldID]),
+			fields[fieldTimestamp],
+			"dismissed",
+			fields[fieldSession],
+			fields[fieldWindow],
+			fields[fieldPane],
+			fields[fieldMessage],
+			fields[fieldPaneCreated],
+			fields[fieldLevel],
+		); err != nil {
+			return err
+		}
+		if err := hooks.Run("post-dismiss", envVars...); err != nil {
+			return err
+		}
+		updateTmuxStatusOption()
+		return nil
 	})
-	if err != nil {
-		colors.Error(fmt.Sprintf("failed to dismiss notification %s: %v", id, err))
-	}
 }
 
 // DismissAll dismisses all active notifications.
-func DismissAll() {
+func DismissAll() error {
 	Init()
 	if !initialized {
-		return
+		return errors.New("storage not initialized")
 	}
-	err := WithLock(lockDir, func() error {
-		return dismissAllActive()
+	colors.Debug("DismissAll called")
+	if err := hooks.Run("pre-clear"); err != nil {
+		return err
+	}
+	return WithLock(lockDir, func() error {
+		latest, err := getLatestNotifications()
+		if err != nil {
+			return err
+		}
+		for _, line := range latest {
+			fields := strings.Split(line, "\t")
+			if len(fields) < numFields {
+				for len(fields) < numFields {
+					fields = append(fields, "")
+				}
+			}
+			if fields[fieldState] != "active" {
+				continue
+			}
+			id := fields[fieldID]
+			envVars := []string{
+				fmt.Sprintf("NOTIFICATION_ID=%s", id),
+				fmt.Sprintf("LEVEL=%s", fields[fieldLevel]),
+				fmt.Sprintf("MESSAGE=%s", fields[fieldMessage]),
+				fmt.Sprintf("ESCAPED_MESSAGE=%s", fields[fieldMessage]),
+				fmt.Sprintf("TIMESTAMP=%s", fields[fieldTimestamp]),
+				fmt.Sprintf("SESSION=%s", fields[fieldSession]),
+				fmt.Sprintf("WINDOW=%s", fields[fieldWindow]),
+				fmt.Sprintf("PANE=%s", fields[fieldPane]),
+				fmt.Sprintf("PANE_CREATED=%s", fields[fieldPaneCreated]),
+			}
+			if err := hooks.Run("pre-dismiss", envVars...); err != nil {
+				return err
+			}
+			if err := appendLine(
+				strToInt(fields[fieldID]),
+				fields[fieldTimestamp],
+				"dismissed",
+				fields[fieldSession],
+				fields[fieldWindow],
+				fields[fieldPane],
+				fields[fieldMessage],
+				fields[fieldPaneCreated],
+				fields[fieldLevel],
+			); err != nil {
+				return err
+			}
+			if err := hooks.Run("post-dismiss", envVars...); err != nil {
+				return err
+			}
+		}
+		updateTmuxStatusOption()
+		return nil
 	})
-	if err != nil {
-		colors.Error(fmt.Sprintf("failed to dismiss all notifications: %v", err))
-	}
 }
 
 // CleanupOldNotifications cleans up notifications older than the threshold.
@@ -166,6 +268,19 @@ func CleanupOldNotifications(daysThreshold int, dryRun bool) {
 	if err != nil {
 		colors.Error(fmt.Sprintf("cleanup failed: %v", err))
 	}
+}
+
+// updateTmuxStatusOption updates the tmux status option with the current active count.
+func updateTmuxStatusOption() {
+	// Only update if tmux is running
+	cmd := exec.Command("tmux", "has-session")
+	if err := cmd.Run(); err != nil {
+		// tmux not running, skip
+		return
+	}
+	count := GetActiveCount()
+	cmd = exec.Command("tmux", "set", "-g", "@tmux_intray_active_count", fmt.Sprintf("%d", count))
+	cmd.Run() // ignore error
 }
 
 // GetActiveCount returns the active notification count.

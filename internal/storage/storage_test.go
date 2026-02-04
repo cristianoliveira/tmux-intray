@@ -14,6 +14,7 @@ func setupTest(t *testing.T) string {
 	tmpDir := t.TempDir()
 	os.Setenv("TMUX_INTRAY_STATE_DIR", tmpDir)
 	os.Setenv("TMUX_INTRAY_DEBUG", "true")
+	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "0")
 	colors.SetDebug(true)
 	// Reset package state
 	notificationsFile = ""
@@ -28,7 +29,6 @@ func TestStorageInit(t *testing.T) {
 	require.True(t, initialized)
 	// Check notifications file exists
 	require.FileExists(t, filepath.Join(tmpDir, "notifications.tsv"))
-	// Lock directory will be created when needed, not during init
 }
 
 func TestAddNotification(t *testing.T) {
@@ -124,22 +124,27 @@ func TestDismissNotification(t *testing.T) {
 	list := ListNotifications("active", "", "", "", "", "", "")
 	require.Contains(t, list, id)
 	// Dismiss
-	DismissNotification(id)
+	err := DismissNotification(id)
+	require.NoError(t, err)
 	// Should not appear in active
 	list = ListNotifications("active", "", "", "", "", "", "")
 	require.NotContains(t, list, id)
 	// Should appear in dismissed
 	list = ListNotifications("dismissed", "", "", "", "", "", "")
 	require.Contains(t, list, id)
+	// Dismissing again should return error
+	err = DismissNotification(id)
+	require.Error(t, err)
 }
 
-func TestDismissAll(t *testing.T) {
+func TestDismissAllFromStorage(t *testing.T) {
 	setupTest(t)
 	Init()
 	id1 := AddNotification("msg1", "", "", "", "", "", "info")
 	id2 := AddNotification("msg2", "", "", "", "", "", "warning")
 	require.Equal(t, 2, GetActiveCount())
-	DismissAll()
+	err := DismissAll()
+	require.NoError(t, err)
 	require.Equal(t, 0, GetActiveCount())
 	list := ListNotifications("dismissed", "", "", "", "", "", "")
 	require.Contains(t, list, id1)
@@ -151,7 +156,7 @@ func TestCleanupOldNotifications(t *testing.T) {
 	Init()
 	// Add a notification with old timestamp
 	id := AddNotification("old", "2000-01-01T00:00:00Z", "", "", "", "", "info")
-	DismissNotification(id)
+	_ = DismissNotification(id)
 	// Cleanup with threshold 1 day (dry run)
 	CleanupOldNotifications(1, true)
 	// Should still exist
@@ -172,8 +177,8 @@ func TestGetActiveCount(t *testing.T) {
 	_ = AddNotification("msg2", "", "", "", "", "", "warning")
 	require.Equal(t, 2, GetActiveCount())
 	// Dismiss one
-	DismissNotification(id1)
+	_ = DismissNotification(id1)
 	require.Equal(t, 1, GetActiveCount())
-	DismissAll()
+	_ = DismissAll()
 	require.Equal(t, 0, GetActiveCount())
 }
