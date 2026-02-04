@@ -4,7 +4,7 @@ Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
-	"os"
+	"fmt"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
@@ -20,11 +20,10 @@ var toggleCmd = &cobra.Command{
 
 This command shows or hides the tray by setting the global tmux environment
 variable TMUX_INTRAY_VISIBLE to "1" (visible) or "0" (hidden).`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		// Ensure tmux is running
 		if !core.EnsureTmuxRunning() {
-			colors.Error("No tmux session running")
-			os.Exit(1)
+			return fmt.Errorf("No tmux session running")
 		}
 
 		// Get current visibility
@@ -50,22 +49,23 @@ variable TMUX_INTRAY_VISIBLE to "1" (visible) or "0" (hidden).`,
 		}
 		if err := hooks.Run("pre-toggle", envVars...); err != nil {
 			colors.Error(err.Error())
-			os.Exit(1)
+			return err
 		}
 
 		// Set new visibility
 		if err := core.SetVisibility(newVisible); err != nil {
 			colors.Error(err.Error())
-			os.Exit(1)
+			return err
 		}
 
 		// Run post-toggle hooks
 		if err := hooks.Run("post-toggle", envVars...); err != nil {
 			colors.Error(err.Error())
-			os.Exit(1)
+			return err
 		}
 
 		colors.Info(msg)
+		return nil
 	},
 }
 
