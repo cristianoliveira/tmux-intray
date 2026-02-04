@@ -4,16 +4,29 @@ Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"fmt"
+	"strings"
+	"time"
+
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
 	"github.com/spf13/cobra"
 )
 
+var (
+	sessionFlag     string
+	windowFlag      string
+	paneFlag        string
+	paneCreatedFlag string
+	noAssociateFlag bool
+	levelFlag       string
+)
+
 // addCmd represents the add command
 var addCmd = &cobra.Command{
-	Use:   "add",
+	Use:   "add [OPTIONS] <message>",
 	Short: "Add a new item to the tray",
-	Long: `Add a new item to the tray.
+	Long: `tmux-intray add - Add a new item to the tray
 
 USAGE:
     tmux-intray add [OPTIONS] <message>
@@ -29,76 +42,76 @@ OPTIONS:
 
 If no pane association options are provided, automatically associates with
 the current tmux pane (if inside tmux). Use --no-associate to skip.`,
-	Run: runAdd,
-}
+	Args: cobra.MinimumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// Ensure tmux is running (required for auto-association unless --no-associate)
+		if !noAssociateFlag && sessionFlag == "" && windowFlag == "" && paneFlag == "" {
+			if !core.EnsureTmuxRunning() {
+				return fmt.Errorf("No tmux session running")
+			}
+		}
 
-var (
-	addSession     string
-	addWindow      string
-	addPane        string
-	addPaneCreated string
-	addNoAssociate bool
-	addLevel       string
-)
+		// Join arguments as message (bash style)
+		message := strings.Join(args, " ")
 
-var addFunc = func(item, session, window, pane, paneCreated string, noAuto bool, level string) string {
-	return core.AddTrayItem(item, session, window, pane, paneCreated, noAuto, level)
-}
+		// Validate message
+		if err := validateMessage(message); err != nil {
+			return err
+		}
 
-type AddOptions struct {
-	Message     string
-	Session     string
-	Window      string
-	Pane        string
-	PaneCreated string
-	NoAuto      bool
-	Level       string
-}
+		// Format message with timestamp (as Bash does)
+		formattedMessage := formatMessage(message)
 
-func Add(opts AddOptions) string {
-	return addFunc(opts.Message, opts.Session, opts.Window, opts.Pane, opts.PaneCreated, opts.NoAuto, opts.Level)
+		// Determine level
+		level := levelFlag
+		if level == "" {
+			level = "info"
+		}
+
+		// Run pre-add hooks (they will be run again by storage.AddNotification)
+		// We could skip here, but storage already runs hooks; we still need to ensure
+		// hooks are initialized. The root command already calls hooks.Init().
+		// We'll rely on storage hooks.
+
+		// Add tray item
+		id := core.AddTrayItem(formattedMessage, sessionFlag, windowFlag, paneFlag, paneCreatedFlag, noAssociateFlag, level)
+		if id == "" {
+			return fmt.Errorf("Failed to add tray item")
+		}
+
+		colors.Success("Item added to tray")
+		return nil
+	},
 }
 
 func init() {
 	rootCmd.AddCommand(addCmd)
 
-	// Local flags
-	addCmd.Flags().StringVar(&addSession, "session", "", "Associate with specific session ID")
-	addCmd.Flags().StringVar(&addWindow, "window", "", "Associate with specific window ID")
-	addCmd.Flags().StringVar(&addPane, "pane", "", "Associate with specific pane ID")
-	addCmd.Flags().StringVar(&addPaneCreated, "pane-created", "", "Pane creation timestamp (seconds since epoch)")
-	addCmd.Flags().BoolVar(&addNoAssociate, "no-associate", false, "Do not associate with any pane")
-	addCmd.Flags().StringVar(&addLevel, "level", "info", "Notification level: info, warning, error, critical")
+	// Define flags
+	addCmd.Flags().StringVar(&sessionFlag, "session", "", "Associate with specific session ID")
+	addCmd.Flags().StringVar(&windowFlag, "window", "", "Associate with specific window ID")
+	addCmd.Flags().StringVar(&paneFlag, "pane", "", "Associate with specific pane ID")
+	addCmd.Flags().StringVar(&paneCreatedFlag, "pane-created", "", "Pane creation timestamp (seconds since epoch)")
+	addCmd.Flags().BoolVar(&noAssociateFlag, "no-associate", false, "Do not associate with any pane")
+	addCmd.Flags().StringVar(&levelFlag, "level", "info", "Notification level: info, warning, error, critical")
 }
 
-func runAdd(cmd *cobra.Command, args []string) {
-	if len(args) == 0 {
-		colors.Error("'add' requires a message")
-		cmd.PrintErrln("Usage: tmux-intray add [OPTIONS] <message>")
-		return
+// validateMessage checks message length and emptiness (matches Bash validation)
+func validateMessage(message string) error {
+	// Check length
+	if len(message) > 1000 {
+		return fmt.Errorf("Message too long (max 1000 characters)")
 	}
-	message := ""
-	// Join all remaining arguments as message (preserving spaces)
-	for i, arg := range args {
-		if i > 0 {
-			message += " "
-		}
-		message += arg
+	// Check if empty after stripping whitespace
+	trimmed := strings.TrimSpace(message)
+	if trimmed == "" {
+		return fmt.Errorf("Message cannot be empty")
 	}
+	return nil
+}
 
-	opts := AddOptions{
-		Message:     message,
-		Session:     addSession,
-		Window:      addWindow,
-		Pane:        addPane,
-		PaneCreated: addPaneCreated,
-		NoAuto:      addNoAssociate,
-		Level:       addLevel,
-	}
-	id := Add(opts)
-	if id == "" {
-		colors.Error("Failed to add notification")
-		return
-	}
-	colors.Success("Item added to tray (ID: " + id + ")")
+// formatMessage adds timestamp prefix like Bash's format_message
+func formatMessage(message string) string {
+	timestamp := time.Now().Format("2006-01-02 15:04:05")
+	return fmt.Sprintf("[%s] %s", timestamp, message)
 }
