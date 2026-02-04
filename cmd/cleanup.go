@@ -1,6 +1,5 @@
 /*
 Copyright © 2026 NAME HERE <EMAIL ADDRESS>
-
 */
 package cmd
 
@@ -13,13 +12,20 @@ import (
 // cleanupCmd represents the cleanup command
 var cleanupCmd = &cobra.Command{
 	Use:   "cleanup",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
+	Short: "Clean up old dismissed notifications",
+	Long: `Clean up old dismissed notifications.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+USAGE:
+    tmux-intray cleanup [OPTIONS]
+
+OPTIONS:
+    --days N          Clean up notifications dismissed more than N days ago
+                      (default: TMUX_INTRAY_AUTO_CLEANUP_DAYS config value)
+    --dry-run         Show what would be deleted without actually deleting
+    -h, --help        Show this help
+
+Automatically cleans up notifications that have been dismissed and are older
+than the configured auto-cleanup days. This helps prevent storage bloat.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("cleanup called")
 	},
