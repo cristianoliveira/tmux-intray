@@ -92,6 +92,24 @@ func AddNotification(message, timestamp, session, window, pane, paneCreated, lev
 	}
 	// Escape message
 	escapedMessage := escapeMessage(message)
+
+	// Run pre-add hooks
+	envVars := []string{
+		fmt.Sprintf("NOTIFICATION_ID=%d", id),
+		fmt.Sprintf("LEVEL=%s", level),
+		fmt.Sprintf("MESSAGE=%s", message),
+		fmt.Sprintf("ESCAPED_MESSAGE=%s", escapedMessage),
+		fmt.Sprintf("TIMESTAMP=%s", timestamp),
+		fmt.Sprintf("SESSION=%s", session),
+		fmt.Sprintf("WINDOW=%s", window),
+		fmt.Sprintf("PANE=%s", pane),
+		fmt.Sprintf("PANE_CREATED=%s", paneCreated),
+	}
+	if err := hooks.Run("pre-add", envVars...); err != nil {
+		colors.Error(fmt.Sprintf("pre-add hook aborted: %v", err))
+		return ""
+	}
+
 	// Append line with lock
 	err = WithLock(lockDir, func() error {
 		return appendLine(id, timestamp, "active", session, window, pane, escapedMessage, paneCreated, level)
@@ -102,6 +120,13 @@ func AddNotification(message, timestamp, session, window, pane, paneCreated, lev
 	}
 	// Update tmux status option outside lock to avoid deadlock (updateTmuxStatusOption also acquires a lock) and keep lock duration short
 	updateTmuxStatusOption()
+
+	// Run post-add hooks
+	if err := hooks.Run("post-add", envVars...); err != nil {
+		colors.Error(fmt.Sprintf("post-add hook aborted: %v", err))
+		// Still return ID because notification was added
+	}
+
 	// Return ID as string
 	return strconv.Itoa(id)
 }
