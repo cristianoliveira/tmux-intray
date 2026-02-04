@@ -17,8 +17,8 @@
 - **Wrapper implementation**: `cmd/wrapper/main.go` exists (embeds Bash script for transition)
 - **Documentation updated**: Migration roadmap and testing strategy documents moved to `docs/`
 - **Verification report updated**: Package structure verified and deviations documented
-- **Package structure decision**: Hybrid Cobra + internal/commands approach documented (`docs/design/package-structure-decision.md`)
-- **Command scaffold**: All 11 command packages exist in `.gwt/gocli/internal/commands/` (to be moved to root `internal/commands/`)
+- **Package structure decision**: Simple flat cmd/ structure documented (`docs/design/package-structure-decision.md`)
+- **Command implementation**: All 11 commands are implemented directly in `cmd/*.go` files, combining CLI definitions and business logic
 
 ### Current Status
 
@@ -28,11 +28,9 @@
 
 ### Next Immediate Steps
 
-1. Move command scaffold from `.gwt/gocli/internal/commands/` to root `internal/commands/`
-2. Update Cobra command files (`cmd/*.go`) to delegate to the corresponding `internal/commands/<command>` packages
-3. Implement core storage layer (TSV file I/O, locking)
-4. Set up Go‑specific linting (`golangci‑lint`) and pre‑commit hooks
-5. Create CI workflow for Go builds and tests
+1. Implement core storage layer (TSV file I/O, locking)
+2. Set up Go‑specific linting (`golangci‑lint`) and pre‑commit hooks
+3. Create CI workflow for Go builds and tests
 
 ## Migration Phases
 
