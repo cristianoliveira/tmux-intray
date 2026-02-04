@@ -75,6 +75,8 @@ func setDefaults() {
 	setDefault("hooks_enabled", "true")
 	setDefault("hooks_failure_mode", "warn")
 	setDefault("hooks_async", "false")
+	setDefault("hooks_async_timeout", "30")
+	setDefault("max_hooks", "10")
 	// Optional per-hook keys default to "true"
 	setDefault("hooks_enabled_pre_add", "true")
 	setDefault("hooks_enabled_post_add", "true")
@@ -174,6 +176,20 @@ func validate() {
 		}
 	}
 
+	// hooks_async_timeout must be positive integer
+	if val, ok := config["hooks_async_timeout"]; ok {
+		if n, err := strconv.Atoi(val); err != nil || n <= 0 {
+			config["hooks_async_timeout"] = configMap["hooks_async_timeout"]
+		}
+	}
+
+	// max_hooks must be positive integer
+	if val, ok := config["max_hooks"]; ok {
+		if n, err := strconv.Atoi(val); err != nil || n <= 0 {
+			config["max_hooks"] = configMap["max_hooks"]
+		}
+	}
+
 	// table_format must be one of allowed values
 	if val, ok := config["table_format"]; ok {
 		valLower := strings.ToLower(val)
@@ -253,7 +269,7 @@ func normalizeBool(val string) string {
 // valueToInterface converts a configuration value to appropriate type for TOML.
 func valueToInterface(key, val string) interface{} {
 	// integer keys
-	if key == "max_notifications" || key == "auto_cleanup_days" {
+	if key == "max_notifications" || key == "auto_cleanup_days" || key == "hooks_async_timeout" || key == "max_hooks" {
 		if n, err := strconv.Atoi(val); err == nil {
 			return n
 		}

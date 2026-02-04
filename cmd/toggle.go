@@ -4,8 +4,11 @@ Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
+	"github.com/cristianoliveira/tmux-intray/internal/hooks"
 	"github.com/spf13/cobra"
 )
 
@@ -38,62 +41,59 @@ func Toggle() (bool, error) {
 var toggleCmd = &cobra.Command{
 	Use:   "toggle",
 	Short: "Toggle the tray visibility",
-	Long: `Toggle the tray visibility.
+	Long: `Toggle the visibility of the tmux-intray tray.
 
-USAGE:
-    tmux-intray toggle
+This command shows or hides the tray by setting the global tmux environment
+variable TMUX_INTRAY_VISIBLE to "1" (visible) or "0" (hidden).`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// Ensure tmux is running
+		if !core.EnsureTmuxRunning() {
+			return fmt.Errorf("No tmux session running")
+		}
 
-DESCRIPTION:
-    Toggles the global visibility flag for the tray. When hidden, notifications
-    are still stored but may not appear in status bar indicators. This command
-    is primarily used by the tmux plugin (bound to 'prefix+i').
+		// Get current visibility
+		oldVisible := core.GetVisibility()
+		var newVisible bool
+		var msg string
+		if oldVisible == "1" {
+			newVisible = false
+			msg = "Tray hidden"
+		} else {
+			newVisible = true
+			msg = "Tray visible"
+		}
+		newVisibleStr := "0"
+		if newVisible {
+			newVisibleStr = "1"
+		}
 
-EXAMPLES:
-    # Toggle tray visibility
-    tmux-intray toggle`,
-	Run: runToggle,
+		// Run pre-toggle hooks
+		envVars := []string{
+			"OLD_VISIBLE=" + oldVisible,
+			"VISIBLE=" + newVisibleStr,
+		}
+		if err := hooks.Run("pre-toggle", envVars...); err != nil {
+			colors.Error(err.Error())
+			return err
+		}
+
+		// Set new visibility
+		if err := core.SetVisibility(newVisible); err != nil {
+			colors.Error(err.Error())
+			return err
+		}
+
+		// Run post-toggle hooks
+		if err := hooks.Run("post-toggle", envVars...); err != nil {
+			colors.Error(err.Error())
+			return err
+		}
+
+		colors.Info(msg)
+		return nil
+	},
 }
 
 func init() {
 	rootCmd.AddCommand(toggleCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// toggleCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// toggleCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-}
-
-func runToggle(cmd *cobra.Command, args []string) {
-	// Ensure tmux is running (mirror bash script behavior)
-	if !core.EnsureTmuxRunning() {
-		colors.Error("tmux is not running")
-		return
-	}
-
-	// Get current visibility before toggle (optional display)
-	current := GetCurrentVisibility()
-	status := "hidden"
-	if current {
-		status = "visible"
-	}
-	colors.Info("Current visibility: " + status)
-
-	// Toggle visibility
-	newVisible, err := Toggle()
-	if err != nil {
-		colors.Error(err.Error())
-		return
-	}
-
-	// Display result
-	result := "hidden"
-	if newVisible {
-		result = "visible"
-	}
-	colors.Success("Tray " + result)
 }

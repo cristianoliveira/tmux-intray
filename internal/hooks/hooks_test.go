@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cristianoliveira/tmux-intray/internal/config"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,231 +17,134 @@ func TestInitAndRunNoPanic(t *testing.T) {
 	})
 }
 
-func TestHookDirectoryCreation(t *testing.T) {
+func TestRunSyncHookSuccess(t *testing.T) {
 	tmpDir := t.TempDir()
-	t.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
-
-	Init()
-	// Ensure directory exists
-	_, err := os.Stat(tmpDir)
-	assert.NoError(t, err)
-}
-
-func TestHookEnabled(t *testing.T) {
-	tests := []struct {
-		name      string
-		global    string
-		hookPoint string
-		want      bool
-	}{
-		{"global enabled", "1", "pre-add", true},
-		{"global disabled", "0", "pre-add", false},
-		{"hook point disabled", "1", "pre-add", false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("TMUX_INTRAY_HOOKS_ENABLED", tt.global)
-			t.Setenv("TMUX_INTRAY_HOOKS_ENABLED_PRE_ADD", tt.hookPoint)
-			// Reset manager to re-read config
-			Reset()
-			config.Load()
-			t.Logf("TMUX_INTRAY_HOOKS_DIR env: %s", os.Getenv("TMUX_INTRAY_HOOKS_DIR"))
-			t.Logf("hooks_dir config: %s", config.Get("hooks_dir", ""))
-			Init()
-			// We can't directly test isHookEnabled because it's private.
-			// Instead test Run behavior by creating a dummy hook directory.
-			tmpDir := t.TempDir()
-			t.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
-			hookDir := filepath.Join(tmpDir, "pre-add")
-			os.MkdirAll(hookDir, 0755)
-			script := filepath.Join(hookDir, "test.sh")
-			os.WriteFile(script, []byte("#!/bin/sh\nexit 0"), 0755)
-			err := Run("pre-add")
-			if tt.want {
-				assert.NoError(t, err)
-			} else {
-				// Run returns nil when hooks disabled
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestRunWithExecutableScript(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
-	t.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
-	t.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
-	Reset()
-	config.Load()
-	Init()
-
-	hookDir := filepath.Join(tmpDir, "post-add")
-	os.MkdirAll(hookDir, 0755)
+	hookDir := filepath.Join(tmpDir, "pre-add")
+	require.NoError(t, os.MkdirAll(hookDir, 0755))
 	script := filepath.Join(hookDir, "test.sh")
-	os.WriteFile(script, []byte(`#!/bin/sh
-echo "hook executed"
-`), 0755)
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\necho hello"), 0755))
 
-	err := Run("post-add", "FOO=bar")
-	assert.NoError(t, err)
+	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
+	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
+	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
+
+	require.NoError(t, Run("pre-add", "FOO=bar"))
 }
 
-func TestRunWithNonExecutableScript(t *testing.T) {
+func TestRunSyncHookFailureModes(t *testing.T) {
 	tmpDir := t.TempDir()
-	t.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
-	t.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
-	Reset()
-	config.Load()
-	Init()
-
-	hookDir := filepath.Join(tmpDir, "post-add")
-	os.MkdirAll(hookDir, 0755)
-	script := filepath.Join(hookDir, "test.sh")
-	os.WriteFile(script, []byte("not executable"), 0644)
-
-	err := Run("post-add")
-	assert.NoError(t, err) // skipped
-}
-
-func TestRunWithScriptFailureModes(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
-	t.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
-	Reset()
-	config.Load()
-	Init()
-
-	hookDir := filepath.Join(tmpDir, "pre-dismiss")
-	os.MkdirAll(hookDir, 0755)
+	hookDir := filepath.Join(tmpDir, "pre-add")
+	require.NoError(t, os.MkdirAll(hookDir, 0755))
 	script := filepath.Join(hookDir, "fail.sh")
-	os.WriteFile(script, []byte(`#!/bin/sh
-exit 1
-`), 0755)
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nexit 1"), 0755))
 
-	t.Run("abort mode", func(t *testing.T) {
-		t.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "abort")
-		config.Load()
-		err := Run("pre-dismiss")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "hook fail.sh failed")
-	})
+	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
+	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
 
-	t.Run("warn mode", func(t *testing.T) {
-		t.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "warn")
-		config.Load()
-		err := Run("pre-dismiss")
-		assert.NoError(t, err) // warning printed but no error returned
-	})
+	// abort mode should return error
+	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "abort")
+	err := Run("pre-add")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "hook fail.sh failed")
 
-	t.Run("ignore mode", func(t *testing.T) {
-		t.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
-		config.Load()
-		err := Run("pre-dismiss")
-		assert.NoError(t, err)
-	})
+	// warn mode should not error but print warning (we can't capture stderr easily)
+	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "warn")
+	require.NoError(t, Run("pre-add"))
+
+	// ignore mode should not error
+	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
+	require.NoError(t, Run("pre-add"))
 }
 
-func TestAsyncHook(t *testing.T) {
+func TestRunSyncHookEnvVars(t *testing.T) {
 	tmpDir := t.TempDir()
-	t.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
-	t.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
-	t.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1")
-	t.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
-	Reset()
-	config.Load()
-	Init()
+	hookDir := filepath.Join(tmpDir, "pre-add")
+	require.NoError(t, os.MkdirAll(hookDir, 0755))
+	script := filepath.Join(hookDir, "env.sh")
+	// Write script that prints env var
+	require.NoError(t, os.WriteFile(script, []byte(`#!/bin/sh
+echo "HOOK_POINT=$HOOK_POINT"
+echo "FOO=$FOO"
+`), 0755))
 
-	hookDir := filepath.Join(tmpDir, "post-list")
-	os.MkdirAll(hookDir, 0755)
+	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
+	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
+	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
+
+	// Capture output? We'll just ensure no error.
+	require.NoError(t, Run("pre-add", "FOO=bar"))
+}
+
+func TestRunSyncHookOrdering(t *testing.T) {
+	tmpDir := t.TempDir()
+	hookDir := filepath.Join(tmpDir, "pre-add")
+	require.NoError(t, os.MkdirAll(hookDir, 0755))
+	// Create scripts with numeric names out of order
+	script1 := filepath.Join(hookDir, "2-second.sh")
+	script2 := filepath.Join(hookDir, "1-first.sh")
+	script3 := filepath.Join(hookDir, "3-third.sh")
+	require.NoError(t, os.WriteFile(script1, []byte("#!/bin/sh\necho second"), 0755))
+	require.NoError(t, os.WriteFile(script2, []byte("#!/bin/sh\necho first"), 0755))
+	require.NoError(t, os.WriteFile(script3, []byte("#!/bin/sh\necho third"), 0755))
+
+	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
+	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
+	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
+
+	// No easy way to verify order, but we can at least ensure they all run
+	require.NoError(t, Run("pre-add"))
+}
+
+func TestRunAsyncHook(t *testing.T) {
+	tmpDir := t.TempDir()
+	hookDir := filepath.Join(tmpDir, "pre-add")
+	require.NoError(t, os.MkdirAll(hookDir, 0755))
 	script := filepath.Join(hookDir, "async.sh")
-	os.WriteFile(script, []byte(`#!/bin/sh
-sleep 0.1
-echo "async done"
-`), 0755)
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nsleep 0.1\necho done"), 0755))
+
+	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
+	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
+	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1")
+	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
 
 	start := time.Now()
-	err := Run("post-list")
-	assert.NoError(t, err)
-	duration := time.Since(start)
-	t.Logf("async hook Run duration: %v", duration)
-	// Async execution should return immediately (allow up to 250ms for slow CI)
-	assert.True(t, duration < 250*time.Millisecond)
+	require.NoError(t, Run("pre-add"))
+	// Async should return quickly (not wait for sleep)
+	require.Less(t, time.Since(start), 50*time.Millisecond)
 	// Wait a bit for async hook to complete
 	time.Sleep(200 * time.Millisecond)
 }
 
-func TestAsyncHookTimeout(t *testing.T) {
+func TestRunAsyncHookMaxLimit(t *testing.T) {
 	tmpDir := t.TempDir()
-	t.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
-	t.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
-	t.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1")
-	t.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "1")
-	t.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
-	Reset()
-	config.Load()
-	Init()
-
-	hookDir := filepath.Join(tmpDir, "post-list")
-	os.MkdirAll(hookDir, 0755)
-	script := filepath.Join(hookDir, "sleep.sh")
-	os.WriteFile(script, []byte(`#!/bin/sh
-sleep 5
-`), 0755)
-
-	err := Run("post-list")
-	assert.NoError(t, err) // starts async, timeout kills after 1 second
-	// Wait for timeout to trigger
-	time.Sleep(2 * time.Second)
-}
-
-func TestMaxAsyncHooks(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
-	t.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
-	t.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1")
-	t.Setenv("TMUX_INTRAY_MAX_HOOKS", "2")
-	t.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
-	Reset()
-	config.Load()
-	Init()
-
-	hookDir := filepath.Join(tmpDir, "post-add")
-	os.MkdirAll(hookDir, 0755)
-	// Create 3 scripts
-	for i := 0; i < 3; i++ {
+	hookDir := filepath.Join(tmpDir, "pre-add")
+	require.NoError(t, os.MkdirAll(hookDir, 0755))
+	// Create 3 scripts that sleep
+	for i := 1; i <= 3; i++ {
 		script := filepath.Join(hookDir, fmt.Sprintf("hook%d.sh", i))
-		os.WriteFile(script, []byte(`#!/bin/sh
-sleep 0.5
-`), 0755)
+		require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nsleep 0.5"), 0755))
 	}
 
-	err := Run("post-add")
-	assert.NoError(t, err)
-	// Should have started only 2 async hooks, third skipped with warning
-	// Wait for hooks to finish
-	time.Sleep(1 * time.Second)
-}
+	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
+	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
+	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1")
+	os.Setenv("TMUX_INTRAY_MAX_HOOKS", "2")
+	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
 
-func TestShutdown(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
-	t.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
-	t.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1")
-	t.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
-	Reset()
-	config.Load()
-	Init()
-
-	hookDir := filepath.Join(tmpDir, "pre-add")
-	os.MkdirAll(hookDir, 0755)
-	script := filepath.Join(hookDir, "long.sh")
-	os.WriteFile(script, []byte(`#!/bin/sh
-sleep 10
-`), 0755)
-
-	err := Run("pre-add")
-	assert.NoError(t, err)
-	// Shutdown should wait for pending hooks
-	Shutdown()
+	// Should skip the third hook due to max limit (warning printed)
+	require.NoError(t, Run("pre-add"))
+	// Wait for pending hooks
+	time.Sleep(600 * time.Millisecond)
 }

@@ -3,8 +3,14 @@ Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 */
 package main
 
-import "github.com/cristianoliveira/tmux-intray/cmd"
+import (
+	"os"
+
+	"github.com/cristianoliveira/tmux-intray/cmd"
+)
 
 func main() {
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		os.Exit(1)
+	}
 }

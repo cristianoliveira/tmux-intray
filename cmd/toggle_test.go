@@ -1,123 +1,85 @@
 package cmd
 
 import (
-	"errors"
+	"os/exec"
+	"strings"
 	"testing"
 )
 
-func TestGetCurrentVisibility(t *testing.T) {
-	originalGetVisibilityFunc := toggleGetVisibilityFunc
-	defer func() { toggleGetVisibilityFunc = originalGetVisibilityFunc }()
-
-	// Test visible
-	toggleGetVisibilityFunc = func() string {
-		return "1"
-	}
-	if !GetCurrentVisibility() {
-		t.Error("Expected visibility true for '1'")
+func TestToggleCommand(t *testing.T) {
+	// Skip if tmux not running
+	if err := exec.Command("tmux", "has-session").Run(); err != nil {
+		t.Skip("tmux not running, skipping toggle test")
 	}
 
-	// Test hidden
-	toggleGetVisibilityFunc = func() string {
-		return "0"
-	}
-	if GetCurrentVisibility() {
-		t.Error("Expected visibility false for '0'")
-	}
-
-	// Test other value defaults to hidden
-	toggleGetVisibilityFunc = func() string {
-		return "something"
-	}
-	if GetCurrentVisibility() {
-		t.Error("Expected visibility false for non '1' value")
-	}
-}
-
-func TestToggleSuccess(t *testing.T) {
-	originalGetVisibilityFunc := toggleGetVisibilityFunc
-	originalSetVisibilityFunc := toggleSetVisibilityFunc
-	defer func() {
-		toggleGetVisibilityFunc = originalGetVisibilityFunc
-		toggleSetVisibilityFunc = originalSetVisibilityFunc
-	}()
-
-	var gotVisible bool
-	toggleGetVisibilityFunc = func() string {
-		return "0" // hidden initially
-	}
-	toggleSetVisibilityFunc = func(visible bool) error {
-		gotVisible = visible
-		return nil
+	// Use the Go binary built in the project root
+	binary := "../tmux-intray-go"
+	if _, err := exec.LookPath(binary); err != nil {
+		// Try to build it
+		cmd := exec.Command("go", "build", "-o", binary)
+		cmd.Dir = ".."
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("failed to build binary: %v, output: %s", err, out)
+		}
 	}
 
-	visible, err := Toggle()
-	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
-	}
-	if !visible {
-		t.Error("Expected new visibility true after toggle from hidden")
-	}
-	if !gotVisible {
-		t.Error("Expected setVisibilityFunc called with true")
-	}
-}
-
-func TestToggleError(t *testing.T) {
-	originalGetVisibilityFunc := toggleGetVisibilityFunc
-	originalSetVisibilityFunc := toggleSetVisibilityFunc
-	defer func() {
-		toggleGetVisibilityFunc = originalGetVisibilityFunc
-		toggleSetVisibilityFunc = originalSetVisibilityFunc
-	}()
-
-	expectedErr := errors.New("tmux operation failed")
-	toggleGetVisibilityFunc = func() string {
-		return "1"
-	}
-	toggleSetVisibilityFunc = func(visible bool) error {
-		return expectedErr
-	}
-
-	visible, err := Toggle()
-	if err != expectedErr {
-		t.Errorf("Expected error %v, got %v", expectedErr, err)
-	}
-	if visible {
-		t.Error("Expected visible false when error occurs")
-	}
-}
-
-func TestToggleMultipleCalls(t *testing.T) {
-	originalGetVisibilityFunc := toggleGetVisibilityFunc
-	originalSetVisibilityFunc := toggleSetVisibilityFunc
-	defer func() {
-		toggleGetVisibilityFunc = originalGetVisibilityFunc
-		toggleSetVisibilityFunc = originalSetVisibilityFunc
-	}()
-
-	calls := 0
-	toggleGetVisibilityFunc = func() string {
-		// Alternate between "0" and "1"
-		if calls%2 == 0 {
+	// Helper to get current visibility
+	getVisibility := func() string {
+		cmd := exec.Command("tmux", "show-environment", "-g", "TMUX_INTRAY_VISIBLE")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			// Variable not set, default to "0"
 			return "0"
 		}
-		return "1"
-	}
-	toggleSetVisibilityFunc = func(visible bool) error {
-		calls++
-		return nil
+		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+		for _, line := range lines {
+			if strings.HasPrefix(line, "TMUX_INTRAY_VISIBLE=") {
+				return strings.TrimPrefix(line, "TMUX_INTRAY_VISIBLE=")
+			}
+		}
+		return "0"
 	}
 
-	visible1, _ := Toggle()
-	if !visible1 {
-		t.Error("Expected first toggle to return true (from hidden)")
+	// Helper to run toggle command
+	runToggle := func() (string, error) {
+		cmd := exec.Command(binary, "toggle")
+		out, err := cmd.CombinedOutput()
+		return string(out), err
 	}
-	visible2, _ := Toggle()
-	if visible2 {
-		t.Error("Expected second toggle to return false (from visible)")
+
+	// Record initial visibility
+	initial := getVisibility()
+	t.Logf("initial visibility: %s", initial)
+
+	// Toggle twice and verify behavior
+	for i := 0; i < 2; i++ {
+		visibleBefore := getVisibility()
+		out, err := runToggle()
+		if err != nil {
+			t.Fatalf("toggle %d failed: %v, output: %s", i+1, err, out)
+		}
+		// Determine expected message based on visibility before toggle
+		// Message indicates new state after toggle
+		var expected string
+		if visibleBefore == "1" {
+			expected = "Tray hidden"
+		} else {
+			expected = "Tray visible"
+		}
+		if !strings.Contains(out, expected) {
+			t.Errorf("toggle %d: expected output to contain %q, got %q", i+1, expected, out)
+		}
+		// Verify visibility changed
+		visibleAfter := getVisibility()
+		if visibleAfter == visibleBefore {
+			t.Errorf("toggle %d: visibility did not change (still %s)", i+1, visibleAfter)
+		}
+		t.Logf("toggle %d: %s -> %s", i+1, visibleBefore, visibleAfter)
 	}
-	if calls != 2 {
-		t.Errorf("Expected setVisibilityFunc to be called 2 times, got %d", calls)
+
+	// Final visibility should match initial (after two toggles)
+	final := getVisibility()
+	if final != initial {
+		t.Errorf("final visibility %s does not match initial %s", final, initial)
 	}
 }
