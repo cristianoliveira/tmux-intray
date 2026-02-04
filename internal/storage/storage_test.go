@@ -158,12 +158,14 @@ func TestCleanupOldNotifications(t *testing.T) {
 	id := AddNotification("old", "2000-01-01T00:00:00Z", "", "", "", "", "info")
 	_ = DismissNotification(id)
 	// Cleanup with threshold 1 day (dry run)
-	CleanupOldNotifications(1, true)
+	err := CleanupOldNotifications(1, true)
+	require.NoError(t, err)
 	// Should still exist
 	list := ListNotifications("all", "", "", "", "", "", "")
 	require.Contains(t, list, id)
 	// Real cleanup (should delete because timestamp is very old)
-	CleanupOldNotifications(1, false)
+	err = CleanupOldNotifications(1, false)
+	require.NoError(t, err)
 	list = ListNotifications("all", "", "", "", "", "", "")
 	require.NotContains(t, list, id)
 }
