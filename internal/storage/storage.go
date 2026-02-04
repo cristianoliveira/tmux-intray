@@ -100,7 +100,8 @@ func AddNotification(message, timestamp, session, window, pane, paneCreated, lev
 		colors.Error(fmt.Sprintf("failed to add notification: %v", err))
 		return ""
 	}
-	// Update tmux status (not implemented yet)
+	// Update tmux status option outside lock to avoid deadlock (updateTmuxStatusOption also acquires a lock) and keep lock duration short
+	updateTmuxStatusOption()
 	// Return ID as string
 	return strconv.Itoa(id)
 }
@@ -136,7 +137,7 @@ func DismissNotification(id string) error {
 		return errors.New("storage not initialized")
 	}
 	colors.Debug("DismissNotification called for ID:", id)
-	return WithLock(lockDir, func() error {
+	err := WithLock(lockDir, func() error {
 		latest, err := getLatestNotifications()
 		if err != nil {
 			return fmt.Errorf("failed to read notifications: %w", err)
@@ -189,9 +190,13 @@ func DismissNotification(id string) error {
 		if err := hooks.Run("post-dismiss", envVars...); err != nil {
 			return err
 		}
-		updateTmuxStatusOption()
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	updateTmuxStatusOption()
+	return nil
 }
 
 // DismissAll dismisses all active notifications.
@@ -204,7 +209,7 @@ func DismissAll() error {
 	if err := hooks.Run("pre-clear"); err != nil {
 		return err
 	}
-	return WithLock(lockDir, func() error {
+	err := WithLock(lockDir, func() error {
 		latest, err := getLatestNotifications()
 		if err != nil {
 			return err
@@ -251,9 +256,13 @@ func DismissAll() error {
 				return err
 			}
 		}
-		updateTmuxStatusOption()
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	updateTmuxStatusOption()
+	return nil
 }
 
 // CleanupOldNotifications cleans up notifications older than the threshold.
