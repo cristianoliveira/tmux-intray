@@ -19,7 +19,26 @@ check-fmt:
 		exit 1; \
 	fi
 
-lint: check-fmt
+go-fmt:
+	@echo "Formatting Go code..."
+	gofmt -w .
+
+go-fmt-check:
+	@echo "Checking Go formatting..."
+	@if gofmt -d . | grep -q '^'; then \
+		echo "Some Go files need formatting. Run 'make go-fmt' to fix."; \
+		exit 1; \
+	else \
+		echo "All Go files are formatted correctly"; \
+	fi
+
+go-vet:
+	@echo "Running go vet..."
+	go vet ./...
+
+go-lint: go-fmt-check go-vet
+
+lint: check-fmt go-lint
 	@echo "Running linter..."
 	./scripts/lint.sh
 

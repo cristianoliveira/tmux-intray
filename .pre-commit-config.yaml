@@ -16,3 +16,8 @@ repos:
         entry: bats
         language: system
         files: ^tests/.*\.bats$
+      - id: gofmt-vet
+        name: Go fmt/vet
+        entry: bash -c './scripts/go-pre-commit.sh "$@"' --
+        language: system
+        files: \.go$
