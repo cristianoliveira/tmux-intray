@@ -8,6 +8,11 @@
 # Test artifacts
 /tmp/
 /tmp*/
+core.test
+coverage.out
+internal/config/config.test
+internal/core/cover.out
+internal/core/tmux_test.go
 
 # Local development
 .local/
