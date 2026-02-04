@@ -33,6 +33,8 @@ func TestDefaultConfig(t *testing.T) {
 	require.Equal(t, "true", Get("hooks_enabled", ""))
 	require.Equal(t, "warn", Get("hooks_failure_mode", ""))
 	require.Equal(t, "false", Get("hooks_async", ""))
+	require.Equal(t, "30", Get("hooks_async_timeout", ""))
+	require.Equal(t, "10", Get("max_hooks", ""))
 	// Directories should be non-empty.
 	require.NotEmpty(t, Get("state_dir", ""))
 	require.NotEmpty(t, Get("config_dir", ""))
@@ -46,12 +48,16 @@ func TestEnvironmentOverrides(t *testing.T) {
 	t.Setenv("TMUX_INTRAY_MAX_NOTIFICATIONS", "500")
 	t.Setenv("TMUX_INTRAY_STATUS_ENABLED", "0")
 	t.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
+	t.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "60")
+	t.Setenv("TMUX_INTRAY_MAX_HOOKS", "5")
 
 	Load()
 
 	require.Equal(t, "500", Get("max_notifications", ""))
 	require.Equal(t, "false", Get("status_enabled", ""))
 	require.Equal(t, "ignore", Get("hooks_failure_mode", ""))
+	require.Equal(t, "60", Get("hooks_async_timeout", ""))
+	require.Equal(t, "5", Get("max_hooks", ""))
 }
 
 func TestConfigFileTOML(t *testing.T) {
@@ -137,6 +143,22 @@ func TestValidation(t *testing.T) {
 	t.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "invalid")
 	Load()
 	require.Equal(t, "warn", Get("hooks_failure_mode", ""))
+
+	// Invalid hooks_async_timeout
+	reset()
+	tmpDir4 := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir4)
+	t.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "-10")
+	Load()
+	require.Equal(t, "30", Get("hooks_async_timeout", ""))
+
+	// Invalid max_hooks
+	reset()
+	tmpDir5 := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir5)
+	t.Setenv("TMUX_INTRAY_MAX_HOOKS", "0")
+	Load()
+	require.Equal(t, "10", Get("max_hooks", ""))
 }
 
 func TestGetIntGetBool(t *testing.T) {
@@ -145,10 +167,14 @@ func TestGetIntGetBool(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", tmpDir)
 	t.Setenv("TMUX_INTRAY_MAX_NOTIFICATIONS", "123")
 	t.Setenv("TMUX_INTRAY_STATUS_ENABLED", "1")
+	t.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "45")
+	t.Setenv("TMUX_INTRAY_MAX_HOOKS", "7")
 	Load()
 
 	require.Equal(t, 123, GetInt("max_notifications", 0))
 	require.Equal(t, true, GetBool("status_enabled", false))
+	require.Equal(t, 45, GetInt("hooks_async_timeout", 0))
+	require.Equal(t, 7, GetInt("max_hooks", 0))
 	// Missing key returns default.
 	require.Equal(t, 999, GetInt("missing_key", 999))
 	require.Equal(t, true, GetBool("missing_key", true))
