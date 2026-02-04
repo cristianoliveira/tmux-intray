@@ -17,7 +17,7 @@ echo "Adding notification to tmux-intray..."
 # Wait a moment
 sleep 1
 
-# Show all items
+# List all items
 echo ""
 echo "Current tray items:"
-"$TMUX_INTRAY_BIN" show
+"$TMUX_INTRAY_BIN" list --format=table

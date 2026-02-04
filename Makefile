@@ -1,4 +1,4 @@
-.PHONY: all tests fmt check-fmt lint clean install install-homebrew install-docker install-npm install-go install-all verify-install
+.PHONY: all tests fmt check-fmt lint clean install install-homebrew install-docker install-npm install-go install-all verify-install security-check docs
 
 all: tests lint
 
@@ -8,12 +8,23 @@ tests:
 
 fmt:
 	@echo "Formatting shell scripts..."
-	find . -type f \( -name "*.sh" -o -name "*.bats" -o -name "*.tmux" \) -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/.gwt/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -print0 | xargs -0 shfmt -w
+	find . -type f -name "*.bats" -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/_tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/.gwt/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -print0 | xargs -0 shfmt -ln bats -i 4 -w
+	find . -type f \( -name "*.sh" -o -name "*.tmux" \) -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/_tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/.gwt/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -print0 | xargs -0 shfmt -ln bash -i 4 -w
 
 check-fmt:
 	@echo "Checking shell script formatting..."
-	@if find . -type f \( -name "*.sh" -o -name "*.bats" -o -name "*.tmux" \) -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/.gwt/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -print0 | xargs -0 shfmt -d 2>/dev/null; then \
-		echo "All shell scripts are formatted correctly"; \
+	@if ! command -v shfmt >/dev/null 2>&1; then \
+		echo "shfmt is not installed. Install it to run formatting checks."; \
+		exit 1; \
+	fi
+	@if find . -type f -name "*.bats" -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/_tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/.gwt/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -print0 | xargs -0 shfmt -ln bats -i 4 -d; then \
+		true; \
+	else \
+		echo "Some shell scripts need formatting. Run 'make fmt' to fix."; \
+		exit 1; \
+	fi
+	@if find . -type f \( -name "*.sh" -o -name "*.tmux" \) -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/_tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/.gwt/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -print0 | xargs -0 shfmt -ln bash -i 4 -d; then \
+		true; \
 	else \
 		echo "Some shell scripts need formatting. Run 'make fmt' to fix."; \
 		exit 1; \
@@ -42,6 +53,14 @@ lint: check-fmt go-lint
 	@echo "Running linter..."
 	./scripts/lint.sh
 
+docs:
+	@echo "Generating documentation..."
+	./scripts/generate-docs.sh
+
+security-check:
+	@echo "Running security checks..."
+	./scripts/security-check.sh
+
 verify-install:
 	@echo "Verifying install.sh..."
 	shellcheck install.sh
@@ -54,6 +73,7 @@ install:
 	@echo "Installing tmux-intray..."
 	chmod +x bin/tmux-intray
 	chmod +x scripts/lint.sh
+	chmod +x scripts/security-check.sh
 	chmod +x tmux-intray.tmux
 	chmod +x install.sh
 

@@ -1,5 +1,11 @@
 name: Release
 
+# Release automation for tmux-intray
+# Optionally integrate with semantic-release by adding a job that:
+# 1. Runs on push to main/develop
+# 2. Uses semantic-release action to determine next version
+# 3. Creates a tag and triggers this release workflow
+
 on:
   push:
     tags:
@@ -33,6 +39,34 @@ jobs:
             exit 1
           fi
 
+      - name: Generate documentation
+        run: |
+          ./scripts/generate-docs.sh
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Go mod download
+        run: go mod download
+
+      - name: Build Go binaries
+        env:
+          VERSION: ${{ steps.tag.outputs.VERSION }}
+        run: |
+          mkdir -p dist
+          # Remove leading 'v' from version for ldflags
+          VERSION="${VERSION#v}"
+          PLATFORMS="linux/amd64 linux/arm64 darwin/amd64 darwin/arm64"
+          for PLATFORM in $PLATFORMS; do
+            GOOS=${PLATFORM%/*}
+            GOARCH=${PLATFORM#*/}
+            output="dist/tmux-intray_${GOOS}_${GOARCH}"
+            if [ "$GOOS" = "windows" ]; then output="${output}.exe"; fi
+            GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-X main.Version=$VERSION" -o "$output" ./cmd/tmux-intray
+          done
+
       - name: Generate release notes
         id: release-notes
         run: |
@@ -47,10 +81,10 @@ jobs:
               break
             fi
           done
-          
+
           echo "Current tag: $CURRENT_TAG"
           echo "Previous tag: ${PREVIOUS_TAG:-none}"
-          
+
           # Generate changelog
           if [ -z "$PREVIOUS_TAG" ]; then
             # No previous tag, include all commits
@@ -59,14 +93,13 @@ jobs:
             # Get commits between previous tag and current tag
             CHANGELOG=$(git log --oneline --no-merges --format="- %s (%h)" "$PREVIOUS_TAG"..HEAD)
           fi
-          
+
           # Format for GitHub release notes
           RELEASE_NOTES="# $CURRENT_TAG"
           RELEASE_NOTES+=$'\n\n'
           RELEASE_NOTES+="## Changelog"
           RELEASE_NOTES+=$'\n\n'
           RELEASE_NOTES+="$CHANGELOG"
-          
           # Output for next step (using environment file)
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_ENV"
           echo "$RELEASE_NOTES" >> "$GITHUB_ENV"
@@ -89,8 +122,41 @@ jobs:
             .
           echo "TARBALL_PATH=dist/tmux-intray-${TAG}.tar.gz" >> "$GITHUB_OUTPUT"
 
+      - name: Update Homebrew formula
+        run: |
+          # Switch to main branch
+          git checkout main
+          git pull origin main
+          # Compute SHA256 of the source tarball
+          TARBALL="${{ steps.package.outputs.TARBALL_PATH }}"
+          NEW_SHA256=$(shasum -a 256 "$TARBALL" | awk '{print $1}')
+          # Extract version from tag (remove leading v)
+          VERSION="${{ steps.tag.outputs.VERSION }}"
+          VERSION="${VERSION#v}"
+          # Update formula file using Ruby
+          ruby -i -pe "
+            if /^\s*version\s+\"/ && !\$updated_version
+              gsub(/\"[^\"]+\"/, '\"#{VERSION}\"')
+              \$updated_version = true
+            end
+            if /^\s*sha256\s+\"/ && !\$updated_sha
+              gsub(/\"[^\"]+\"/, '\"#{NEW_SHA256}\"')
+              \$updated_sha = true
+            end
+          " Formula/tmux-intray.rb
+          # Commit changes if any
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add Formula/tmux-intray.rb
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(ci): update homebrew formula to v${VERSION}"
+            git push origin main
+          else
+            echo "No changes to formula."
+          fi
+
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           name: Release ${{ steps.tag.outputs.VERSION }}
           body: ${{ env.RELEASE_NOTES }}
@@ -99,3 +165,4 @@ jobs:
           generate_release_notes: false  # We generate our own
           files: |
             ${{ steps.package.outputs.TARBALL_PATH }}
+            dist/tmux-intray_*

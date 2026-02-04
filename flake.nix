@@ -14,6 +14,26 @@
             bash
             bats
             shellcheck
+            shfmt
+
+            prek
+
+            ## For tmux
+            go
+
+            golangci-lint
+
+            # Test runner with good output
+            # USAGE: gotestsum --watch
+            gotestsum
+
+            # To create new subcommands, run:
+            # cobra-cli add <subcommand-name>
+            cobra-cli
+
+            # To generate the mock for the interfaces, run:
+            # mockgen -source=./pkg/cli/cli.go -destination=./pkg/cli/mock/mock_cli.go -package=mock
+            mockgen
           ];
         };
 
@@ -22,7 +42,7 @@
             pname = "tmux-intray";
             version = "0.1.0";
             src = ./.;
-            nativeBuildInputs = with pkgs; [ bats tmux ];
+            nativeBuildInputs = with pkgs; [ bats tmux shfmt shellcheck ];
             preBuild = ''
               export XDG_STATE_HOME=$(mktemp -d)
               export XDG_CONFIG_HOME=$(mktemp -d)

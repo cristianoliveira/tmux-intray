@@ -25,6 +25,7 @@ if [ -L "$SCRIPT_SOURCE" ]; then
 fi
 SCRIPT_DIR="$( cd "$( dirname "$SCRIPT_SOURCE" )" && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+export TMUX_INTRAY_ROOT="$PROJECT_ROOT"
 COMMANDS_DIR="$PROJECT_ROOT/commands"
 LIB_DIR="$PROJECT_ROOT/lib"
 
@@ -42,11 +43,11 @@ USAGE:
     tmux-intray [COMMAND] [OPTIONS]
 
 COMMANDS:
-    show            Show all items in the tray (deprecated, use list)
     add <message>   Add a new item to the tray
     list            List notifications with filters and formats
     dismiss <id>    Dismiss a notification
     clear           Clear all items from the tray
+    cleanup         Clean up old dismissed notifications
     toggle          Toggle the tray visibility
     jump <id>       Jump to the pane of a notification
     status          Show notification status summary
@@ -71,7 +72,7 @@ main() {
     shift || true
 
     case "$command" in
-        show|add|clear|toggle|help|version|list|dismiss|jump|status|follow|status-panel)
+        add|clear|cleanup|toggle|help|version|list|dismiss|jump|status|follow|status-panel)
             # Load and execute the command
             source "$COMMANDS_DIR/${command}.sh"
             local cmd_func="${command//-/_}_command"

@@ -11,13 +11,8 @@ tmux-intray/
 │   ├── add/                 # Add command's private modules
 │   │   └── modules/
 │   │       ├── validators.sh
-│   │       └── formatters.sh
-│   ├── show.sh              # show command (with sub-modules)
-│   ├── show/                # Show command's private modules
-│   │   └── modules/
-│   │       ├── filters.sh
-│   │       └── display.sh
-│   ├── clear.sh             # clear command
+ │   │       └── formatters.sh
+ │   ├── clear.sh             # clear command
 │   ├── toggle.sh            # toggle command
 │   ├── help.sh              # help command
 │   └── version.sh           # version command
@@ -31,10 +26,10 @@ tmux-intray/
 │   ├── tray.bats            # Tray management tests
 │   └── commands/            # Command-specific tests
 │       ├── add.bats
-│       ├── show.bats
 │       └── management.bats
 ├── scripts/
-│   └── lint.sh              # ShellCheck linter
+│   ├── lint.sh              # ShellCheck linter
+│   └── security-check.sh    # Security-focused ShellCheck
 ├── tmux-intray.tmux         # Tmux plugin entry point
 ├── Makefile                 # Build automation
 └── flake.nix                # Nix flake for dev environment
@@ -66,7 +61,7 @@ tmux-intray/
 3. Add the command to the main CLI in `bin/tmux-intray`:
    ```bash
    case "$command" in
-       show|add|clear|toggle|help|version|mycommand)
+        add|clear|toggle|help|version|mycommand)
            source "$COMMANDS_DIR/${command}.sh"
            "${command}_command" "$@"
            ;;
@@ -107,7 +102,7 @@ For complex commands that need their own modules:
    ```bash
    # commands/mycommand/modules/helper.sh
    #!/usr/bin/env bash
-   
+
    helper_function() {
        echo "Helper result"
    }
@@ -117,12 +112,12 @@ For complex commands that need their own modules:
    ```bash
    #!/usr/bin/env bash
    # My command - Complex command with sub-modules
-   
+
    # Source local modules
    # shellcheck disable=SC1091
    COMMAND_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
    source "$COMMAND_DIR/mycommand/modules/helper.sh"
-   
+
    mycommand_command() {
        # Use local module functions
        helper_function
@@ -146,10 +141,12 @@ Core tmux interaction functions:
 
 ### lib/colors.sh
 Color output utilities:
-- `error()` - Print error message (red)
-- `success()` - Print success message (green)
-- `warning()` - Print warning message (yellow)
-- `info()` - Print info message (blue)
+- `error()` - Print error message (red) to stderr
+- `success()` - Print success message (green) to stdout
+- `warning()` - Print warning message (yellow) to stdout
+- `info()` - Print info message (blue) to stdout (user-facing messages)
+- `log_info()` - Log info message (blue) to stderr (debug/logging)
+- `debug()` - Log debug message (cyan) to stderr when TMUX_INTRAY_DEBUG is set
 
 ## Development
 
@@ -163,7 +160,10 @@ make tests
 # Run linter
 make lint
 
-# Run both
+# Run security check
+make security-check
+
+# Run both tests and lint
 make all
 
 # Run specific test file
@@ -230,3 +230,13 @@ add_command() {
     add_tray_item "$..."           # From lib/core.sh
 }
 ```
+
+## CI/CD Pipeline
+
+tmux-intray uses GitHub Actions for continuous integration and deployment. For detailed documentation on the CI/CD pipeline, see [CI/CD Documentation](docs/ci-cd.md).
+
+Key workflows:
+- **CI**: Runs tests, linting, security checks, format checks, install verification, and plugin tests on every push and pull request.
+- **Release**: Automates release creation, binary building, and Homebrew formula updates when tags are pushed.
+
+Plugin tests are located in `opencode/plugins/opencode-tmux-intray/` and run via `npm test`. They are automatically executed on push and pull requests to main/develop branches.

@@ -2,9 +2,11 @@
 # Configuration management for tmux-intray
 
 # Load core utilities
+# Determine absolute directory of this script
+_TMUX_INTRAY_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./colors.sh disable=SC1091
 # The sourced file exists at runtime but ShellCheck can't resolve it due to relative path/context.
-source "$(dirname "${BASH_SOURCE[0]}")/colors.sh"
+source "$_TMUX_INTRAY_LIB_DIR/colors.sh"
 
 # Default configuration values
 TMUX_INTRAY_STATE_DIR="${TMUX_INTRAY_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/tmux-intray}"
@@ -19,6 +21,12 @@ TMUX_INTRAY_STATUS_FORMAT="${TMUX_INTRAY_STATUS_FORMAT:-compact}"
 TMUX_INTRAY_SHOW_LEVELS="${TMUX_INTRAY_SHOW_LEVELS:-0}"
 TMUX_INTRAY_LEVEL_COLORS="${TMUX_INTRAY_LEVEL_COLORS:-info:green,warning:yellow,error:red,critical:magenta}"
 
+# Hook system defaults
+TMUX_INTRAY_HOOKS_ENABLED="${TMUX_INTRAY_HOOKS_ENABLED:-1}"
+TMUX_INTRAY_HOOKS_FAILURE_MODE="${TMUX_INTRAY_HOOKS_FAILURE_MODE:-warn}"
+TMUX_INTRAY_HOOKS_ASYNC="${TMUX_INTRAY_HOOKS_ASYNC:-0}"
+TMUX_INTRAY_HOOKS_DIR="${TMUX_INTRAY_HOOKS_DIR:-${TMUX_INTRAY_CONFIG_DIR}/hooks}"
+
 # Load user configuration if exists
 config_load() {
     # Guard against duplicate loading
@@ -32,7 +40,7 @@ config_load() {
         # shellcheck source=/dev/null
         # Config file may not exist; we check existence before sourcing.
         source "$config_file"
-        info "Loaded configuration from $config_file"
+        debug "Loaded configuration from $config_file"
     else
         # Create directory and sample config file
         mkdir -p "$TMUX_INTRAY_CONFIG_DIR"
@@ -78,6 +86,23 @@ _create_sample_config() {
 # Level colors for status bar (format: level:color,level:color)
 # Available colors: black, red, green, yellow, blue, magenta, cyan, white
 # TMUX_INTRAY_LEVEL_COLORS="info:green,warning:yellow,error:red,critical:magenta"
+
+# Hook system
+# Enable/disable hooks globally (0=disabled, 1=enabled)
+# TMUX_INTRAY_HOOKS_ENABLED=1
+# Hook failure mode: ignore, warn, abort
+# TMUX_INTRAY_HOOKS_FAILURE_MODE="warn"
+# Run hooks asynchronously (0=synchronous, 1=asynchronous) - NOT IMPLEMENTED YET
+# TMUX_INTRAY_HOOKS_ASYNC=0
+# Hook directory (default: $TMUX_INTRAY_CONFIG_DIR/hooks)
+# TMUX_INTRAY_HOOKS_DIR="$HOME/.config/tmux-intray/hooks"
+# Per-hook enable/disable (0=disabled, 1=enabled)
+# TMUX_INTRAY_HOOKS_ENABLED_pre_add=1
+# TMUX_INTRAY_HOOKS_ENABLED_post_add=1
+# TMUX_INTRAY_HOOKS_ENABLED_pre_dismiss=1
+# TMUX_INTRAY_HOOKS_ENABLED_post_dismiss=1
+# TMUX_INTRAY_HOOKS_ENABLED_cleanup=1
+# TMUX_INTRAY_HOOKS_ENABLED_post_cleanup=1
 EOF
 
     info "Created sample configuration at $config_file"

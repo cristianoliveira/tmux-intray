@@ -1,4 +1,10 @@
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-added-large-files
+        name: Check for large files
+        args: ['--maxkb=5120']
   - repo: https://github.com/koalaman/shellcheck-precommit
     rev: v0.10.0
     hooks:
@@ -11,13 +17,20 @@ repos:
         args: ["-e", "SC2034", "-e", "SC1091"]
   - repo: local
     hooks:
+      - id: shfmt-check
+        name: shfmt check
+        entry: shfmt -d
+        language: system
+        files: \.(sh|bats|tmux)$
+        exclude: ^(\.git|\.tmp|\.bv|\.local|tmp|\.gwt|\.direnv|\.beads)/
+        pass_filenames: true
       - id: bats
         name: Bats
         entry: bats
         language: system
         files: ^tests/.*\.bats$
       - id: gofmt-vet
-        name: Go fmt/vet
-        entry: bash -c './scripts/go-pre-commit.sh "$@"' --
+        name: gofmt+vet
+        entry: scripts/go-pre-commit.sh
         language: system
         files: \.go$

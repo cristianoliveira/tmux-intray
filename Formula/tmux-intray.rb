@@ -1,23 +1,30 @@
 class TmuxIntray < Formula
   desc "A quiet inbox for things that happen while you're not looking"
   homepage "https://github.com/cristianoliveira/tmux-intray"
-  url "https://github.com/cristianoliveira/tmux-intray/archive/refs/heads/main.tar.gz"
+  url "https://github.com/cristianoliveira/tmux-intray/archive/refs/tags/v#{version}.tar.gz"
   version "0.1.0"
-  sha256 "54afc2329913aed280fb6a3ca4a7da25b95a2822af7fc7113b48d3b5587c2066"
+  sha256 "0019dfc4b32d63c1392aa264aed2253c1e0c2fb09216f8e2cc269bbfb8bb49b5"
   license "MIT"
 
   head "https://github.com/cristianoliveira/tmux-intray.git", branch: "main"
 
-  depends_on "bash"
+  livecheck do
+    url :stable
+    strategy :github_latest
+  end
+
+  depends_on "go" => :build
 
   def install
-    # Install all files to libexec
-    libexec.install Dir["*"]
-    # Symlink the main binary to bin
-    bin.install_symlink libexec/"bin/tmux-intray"
+    # Build the Go binary
+    system "go", "build", "-o", "tmux-intray", "./cmd/tmux-intray"
+    # Install binary to libexec
+    libexec.install "tmux-intray"
+    # Symlink to bin
+    bin.install_symlink libexec/"tmux-intray"
   end
 
   test do
-    system "#{bin}/tmux-intray", "version"
+    system bin/"tmux-intray", "version"
   end
 end

@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # Core functions for tmux-intray
 
+# Determine absolute directory of this script
+_TMUX_INTRAY_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Load storage and configuration
 # shellcheck source=./storage.sh disable=SC1091
 # The sourced file exists at runtime but ShellCheck can't resolve it due to relative path/context.
-source "$(dirname "${BASH_SOURCE[0]}")/storage.sh"
+source "$_TMUX_INTRAY_LIB_DIR/storage.sh"
 # shellcheck source=./config.sh disable=SC1091
 # The sourced file exists at runtime but ShellCheck can't resolve it due to relative path/context.
-source "$(dirname "${BASH_SOURCE[0]}")/config.sh"
+source "$_TMUX_INTRAY_LIB_DIR/config.sh"
 
 # Initialize configuration
 config_load
@@ -65,6 +68,10 @@ jump_to_pane() {
             return 1
         fi
         return 0
+    fi
+    if ! tmux select-window -t "${session}:${window}"; then
+        error "Window ${session}:${window} does not exist"
+        return 1
     fi
     tmux select-pane -t "${session}:${window}.${pane}"
 }
