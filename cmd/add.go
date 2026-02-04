@@ -1,40 +1,117 @@
 /*
 Copyright © 2026 NAME HERE <EMAIL ADDRESS>
-
 */
 package cmd
 
 import (
 	"fmt"
+	"strings"
+	"time"
 
+	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/core"
 	"github.com/spf13/cobra"
+)
+
+var (
+	sessionFlag     string
+	windowFlag      string
+	paneFlag        string
+	paneCreatedFlag string
+	noAssociateFlag bool
+	levelFlag       string
 )
 
 // addCmd represents the add command
 var addCmd = &cobra.Command{
-	Use:   "add",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
+	Use:   "add [OPTIONS] <message>",
+	Short: "Add a new item to the tray",
+	Long: `tmux-intray add - Add a new item to the tray
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("add called")
+USAGE:
+    tmux-intray add [OPTIONS] <message>
+
+OPTIONS:
+    --session <id>          Associate with specific session ID
+    --window <id>           Associate with specific window ID
+    --pane <id>             Associate with specific pane ID
+    --pane-created <time>   Pane creation timestamp (seconds since epoch)
+    --no-associate          Do not associate with any pane
+    --level <level>         Notification level: info, warning, error, critical (default: info)
+    -h, --help              Show this help
+
+If no pane association options are provided, automatically associates with
+the current tmux pane (if inside tmux). Use --no-associate to skip.`,
+	Args: cobra.MinimumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// Ensure tmux is running (required for auto-association unless --no-associate)
+		if !noAssociateFlag && sessionFlag == "" && windowFlag == "" && paneFlag == "" {
+			if !core.EnsureTmuxRunning() {
+				return fmt.Errorf("No tmux session running")
+			}
+		}
+
+		// Join arguments as message (bash style)
+		message := strings.Join(args, " ")
+
+		// Validate message
+		if err := validateMessage(message); err != nil {
+			return err
+		}
+
+		// Format message with timestamp (as Bash does)
+		formattedMessage := formatMessage(message)
+
+		// Determine level
+		level := levelFlag
+		if level == "" {
+			level = "info"
+		}
+
+		// Run pre-add hooks (they will be run again by storage.AddNotification)
+		// We could skip here, but storage already runs hooks; we still need to ensure
+		// hooks are initialized. The root command already calls hooks.Init().
+		// We'll rely on storage hooks.
+
+		// Add tray item
+		id := core.AddTrayItem(formattedMessage, sessionFlag, windowFlag, paneFlag, paneCreatedFlag, noAssociateFlag, level)
+		if id == "" {
+			return fmt.Errorf("Failed to add tray item")
+		}
+
+		colors.Success("Item added to tray")
+		return nil
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(addCmd)
 
-	// Here you will define your flags and configuration settings.
+	// Define flags
+	addCmd.Flags().StringVar(&sessionFlag, "session", "", "Associate with specific session ID")
+	addCmd.Flags().StringVar(&windowFlag, "window", "", "Associate with specific window ID")
+	addCmd.Flags().StringVar(&paneFlag, "pane", "", "Associate with specific pane ID")
+	addCmd.Flags().StringVar(&paneCreatedFlag, "pane-created", "", "Pane creation timestamp (seconds since epoch)")
+	addCmd.Flags().BoolVar(&noAssociateFlag, "no-associate", false, "Do not associate with any pane")
+	addCmd.Flags().StringVar(&levelFlag, "level", "info", "Notification level: info, warning, error, critical")
+}
 
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// addCmd.PersistentFlags().String("foo", "", "A help for foo")
+// validateMessage checks message length and emptiness (matches Bash validation)
+func validateMessage(message string) error {
+	// Check length
+	if len(message) > 1000 {
+		return fmt.Errorf("Message too long (max 1000 characters)")
+	}
+	// Check if empty after stripping whitespace
+	trimmed := strings.TrimSpace(message)
+	if trimmed == "" {
+		return fmt.Errorf("Message cannot be empty")
+	}
+	return nil
+}
 
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// addCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+// formatMessage adds timestamp prefix like Bash's format_message
+func formatMessage(message string) string {
+	timestamp := time.Now().Format("2006-01-02 15:04:05")
+	return fmt.Sprintf("[%s] %s", timestamp, message)
 }

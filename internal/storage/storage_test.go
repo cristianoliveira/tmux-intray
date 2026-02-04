@@ -358,3 +358,82 @@ storage_list_notifications "%s" "%s" "%s" "%s" "%s" "%s" "%s"
 		}
 	})
 }
+
+func TestAddNotificationWithHooks(t *testing.T) {
+	tmpDir := t.TempDir()
+	hookDir := filepath.Join(tmpDir, "hooks")
+	preAddDir := filepath.Join(hookDir, "pre-add")
+	require.NoError(t, os.MkdirAll(preAddDir, 0755))
+	postAddDir := filepath.Join(hookDir, "post-add")
+	require.NoError(t, os.MkdirAll(postAddDir, 0755))
+
+	// Create a hook script that logs its execution
+	script := filepath.Join(preAddDir, "test.sh")
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\necho 'pre-add hook executed'"), 0755))
+	script2 := filepath.Join(postAddDir, "test.sh")
+	require.NoError(t, os.WriteFile(script2, []byte("#!/bin/sh\necho 'post-add hook executed'"), 0755))
+
+	// Set environment variables
+	oldHookDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
+	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldHookDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_DIR", hookDir)
+	oldEnabled := os.Getenv("TMUX_INTRAY_HOOKS_ENABLED")
+	defer os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", oldEnabled)
+	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
+	oldFailureMode := os.Getenv("TMUX_INTRAY_HOOKS_FAILURE_MODE")
+	defer os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", oldFailureMode)
+	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
+	// Ensure state directory is separate
+	oldStateDir := os.Getenv("TMUX_INTRAY_STATE_DIR")
+	defer os.Setenv("TMUX_INTRAY_STATE_DIR", oldStateDir)
+	stateDir := t.TempDir()
+	os.Setenv("TMUX_INTRAY_STATE_DIR", stateDir)
+
+	// Reset storage state
+	notificationsFile = ""
+	lockDir = ""
+	initialized = false
+
+	// Add notification
+	id := AddNotification("test message", "", "", "", "", "", "info")
+	require.NotEmpty(t, id)
+	// Verify notification exists
+	list := ListNotifications("active", "", "", "", "", "", "")
+	require.Contains(t, list, id)
+	// Note: we cannot easily capture hook output; but if hook fails with abort mode, AddNotification would return empty.
+}
+
+func TestAddNotificationHookAbort(t *testing.T) {
+	tmpDir := t.TempDir()
+	hookDir := filepath.Join(tmpDir, "hooks")
+	preAddDir := filepath.Join(hookDir, "pre-add")
+	require.NoError(t, os.MkdirAll(preAddDir, 0755))
+	script := filepath.Join(preAddDir, "abort.sh")
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nexit 1"), 0755))
+
+	oldHookDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
+	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldHookDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_DIR", hookDir)
+	oldEnabled := os.Getenv("TMUX_INTRAY_HOOKS_ENABLED")
+	defer os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", oldEnabled)
+	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
+	oldFailureMode := os.Getenv("TMUX_INTRAY_HOOKS_FAILURE_MODE")
+	defer os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", oldFailureMode)
+	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "abort")
+	oldStateDir := os.Getenv("TMUX_INTRAY_STATE_DIR")
+	defer os.Setenv("TMUX_INTRAY_STATE_DIR", oldStateDir)
+	stateDir := t.TempDir()
+	os.Setenv("TMUX_INTRAY_STATE_DIR", stateDir)
+
+	// Reset storage state
+	notificationsFile = ""
+	lockDir = ""
+	initialized = false
+
+	// Add notification should fail
+	id := AddNotification("test message", "", "", "", "", "", "info")
+	require.Empty(t, id)
+	// Ensure no notification added
+	list := ListNotifications("all", "", "", "", "", "", "")
+	require.NotContains(t, list, "test message")
+}
