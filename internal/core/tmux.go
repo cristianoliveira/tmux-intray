@@ -41,7 +41,7 @@ func EnsureTmuxRunning() bool {
 
 // GetCurrentTmuxContext returns the current tmux context.
 func GetCurrentTmuxContext() TmuxContext {
-	format := "#{session_id} #{window_id} #{pane_id} #{pane_created}"
+	format := "#{session_id} #{window_id} #{pane_id}"
 	stdout, stderr, err := tmuxRunner("display", "-p", format)
 	if err != nil {
 		colors.Error("Failed to get tmux context: " + err.Error())
@@ -52,16 +52,19 @@ func GetCurrentTmuxContext() TmuxContext {
 	}
 	// Split by whitespace
 	parts := strings.Fields(stdout)
-	if len(parts) != 4 {
+	if len(parts) != 3 {
 		colors.Error("Unexpected tmux display output: " + stdout)
 		return TmuxContext{}
 	}
-	return TmuxContext{
-		SessionID:   parts[0],
-		WindowID:    parts[1],
-		PaneID:      parts[2],
-		PaneCreated: parts[3],
+	ctx := TmuxContext{
+		SessionID: parts[0],
+		WindowID:  parts[1],
+		PaneID:    parts[2],
 	}
+	// Try to get pane creation time (pane_created is not a standard tmux format variable)
+	// We'll use an empty string since pane_created is not available in tmux format variables
+	ctx.PaneCreated = ""
+	return ctx
 }
 
 // ValidatePaneExists checks if a pane exists.
