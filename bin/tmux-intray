@@ -24,8 +24,46 @@ if [ -L "$SCRIPT_SOURCE" ]; then
     fi
 fi
 SCRIPT_DIR="$( cd "$( dirname "$SCRIPT_SOURCE" )" && pwd )"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+# If running under Bats, use the original test directory to locate project root
+if [[ -n "${BATS_TEST_DIRNAME:-}" && -d "${BATS_TEST_DIRNAME}" ]]; then
+    PROJECT_ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
+else
+    # Try to find the original project root by looking for go.mod
+    find_project_root() {
+        local dir="$1"
+        while [[ "$dir" != "/" ]]; do
+            if [[ -f "$dir/go.mod" ]]; then
+                echo "$dir"
+                return 0
+            fi
+            dir="$(dirname "$dir")"
+        done
+        echo "$1"
+    }
+    PROJECT_ROOT="$(find_project_root "$SCRIPT_DIR")"
+fi
 export TMUX_INTRAY_ROOT="$PROJECT_ROOT"
+
+# If TMUX_INTRAY_BIN is set, execute that binary
+if [[ -n "${TMUX_INTRAY_BIN:-}" ]]; then
+    if [[ ! -x "$TMUX_INTRAY_BIN" ]]; then
+        echo "Error: TMUX_INTRAY_BIN is set to '$TMUX_INTRAY_BIN' but it's not executable" >&2
+        exit 1
+    fi
+    echo "Executing $TMUX_INTRAY_BIN" >&2
+    exec "$TMUX_INTRAY_BIN" "$@"
+fi
+
+# If TMUX_INTRAY_IMPL is set to "go", execute the Go binary
+if [[ "${TMUX_INTRAY_IMPL:-}" == "go" ]]; then
+    GO_BIN="$PROJECT_ROOT/bin/tmux-intray-go"
+    if [[ ! -x "$GO_BIN" ]]; then
+        echo "Error: Go binary not found at '$GO_BIN'. Build it with 'make go-build'." >&2
+        exit 1
+    fi
+    exec "$GO_BIN" "$@"
+fi
+
 COMMANDS_DIR="$PROJECT_ROOT/commands"
 LIB_DIR="$PROJECT_ROOT/lib"
 
