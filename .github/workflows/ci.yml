@@ -197,6 +197,8 @@ jobs:
           cp ./Formula/tmux-intray.rb "$TAP_DIR/Formula/"
           # Remove the url, version, and sha256 lines to force using head
           sed -i '' '/^  url /d; /^  version /d; /^  sha256 /d' "$TAP_DIR/Formula/tmux-intray.rb"
+          # Fix description to not start with an article (for brew audit)
+          sed -i '' 's/desc "A quiet/desc "Quiet/' "$TAP_DIR/Formula/tmux-intray.rb"
           
           # Initialize it as a git repository (required for Homebrew taps)
           cd "$TAP_DIR"
