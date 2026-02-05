@@ -104,10 +104,6 @@ install-homebrew:
 	@echo "Installing via Homebrew..."
 	brew install ./Formula/tmux-intray.rb
 
-install-docker:
-	@echo "Building Docker image..."
-	docker build -t tmux-intray .
-
 install-npm:
 	@echo "Installing via npm..."
 	npm install -g .
