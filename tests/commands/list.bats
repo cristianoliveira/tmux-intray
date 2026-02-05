@@ -8,24 +8,63 @@ setup() {
     XDG_CONFIG_HOME="$(mktemp -d)"
     export XDG_CONFIG_HOME
 
-    tmux -L "$TMUX_SOCKET_NAME" kill-server 2>/dev/null || true
-    sleep 0.1
-    tmux -L "$TMUX_SOCKET_NAME" new-session -d -s test
-    sleep 0.1
-    # Capture session, window, pane IDs for use in tests
-    TMUX_TEST_SESSION_ID=$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{session_id}')
-    export TMUX_TEST_SESSION_ID
-    TMUX_TEST_WINDOW_ID=$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{window_id}')
-    export TMUX_TEST_WINDOW_ID
-    TMUX_TEST_PANE_ID=$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{pane_id}')
-    export TMUX_TEST_PANE_ID
+    # Determine if we can use tmux
+    export TMUX_AVAILABLE=0
+    export TMUX_TEST_SESSION_ID=""
+    export TMUX_TEST_WINDOW_ID=""
+    export TMUX_TEST_PANE_ID=""
+    if [[ -z "${CI:-}" ]] && command -v tmux >/dev/null 2>&1; then
+        # Clean up any existing server
+        tmux -L "$TMUX_SOCKET_NAME" kill-server 2>/dev/null || true
+        sleep 0.2
+
+        # Start a tmux server for testing
+        if tmux -L "$TMUX_SOCKET_NAME" new-session -d -s test 2>/dev/null; then
+            # Wait for server to be ready and socket path to exist
+            local max_retries=5
+            local retry=0
+            local socket_path=""
+            while [[ $retry -lt $max_retries ]]; do
+                sleep 0.2
+                socket_path=$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{socket_path}' 2>/dev/null)
+                if [[ -n "$socket_path" && -S "$socket_path" ]]; then
+                    break
+                fi
+                retry=$((retry + 1))
+            done
+            if [[ -n "$socket_path" && -S "$socket_path" ]]; then
+                # Capture session, window, pane IDs for use in tests
+                TMUX_TEST_SESSION_ID=$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{session_id}')
+                export TMUX_TEST_SESSION_ID
+                TMUX_TEST_WINDOW_ID=$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{window_id}')
+                export TMUX_TEST_WINDOW_ID
+                TMUX_TEST_PANE_ID=$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{pane_id}')
+                export TMUX_TEST_PANE_ID
+                export TMUX_AVAILABLE=1
+            else
+                echo "warning: tmux socket path missing or not a socket, disabling tmux support" >&2
+                export TMUX_AVAILABLE=0
+                export TMUX_TEST_SESSION_ID=""
+                export TMUX_TEST_WINDOW_ID=""
+                export TMUX_TEST_PANE_ID=""
+                tmux -L "$TMUX_SOCKET_NAME" kill-server 2>/dev/null || true
+            fi
+        else
+            export TMUX_AVAILABLE=0
+            export TMUX_TEST_SESSION_ID=""
+            export TMUX_TEST_WINDOW_ID=""
+            export TMUX_TEST_PANE_ID=""
+        fi
+    fi
     # Enable debug output for tests
     export TMUX_INTRAY_DEBUG=1
 }
 
 teardown() {
-    tmux -L "$TMUX_SOCKET_NAME" kill-server 2>/dev/null || true
-    sleep 0.1
+    if [[ "${TMUX_AVAILABLE:-0}" -eq 1 ]]; then
+        tmux -L "$TMUX_SOCKET_NAME" kill-server 2>/dev/null || true
+        sleep 0.1
+    fi
     rm -rf "$XDG_STATE_HOME" "$XDG_CONFIG_HOME"
 }
 
@@ -36,12 +75,14 @@ teardown() {
 }
 
 @test "list with empty tray" {
+    [[ "${TMUX_AVAILABLE:-0}" -ne 1 ]] && skip "tmux not available"
     run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray list"
     [ "$status" -eq 0 ]
     [[ "$output" == *"empty"* ]]
 }
 
 @test "list shows active notifications" {
+    [[ "${TMUX_AVAILABLE:-0}" -ne 1 ]] && skip "tmux not available"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'Test message 1'"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'Test message 2'"
 
@@ -52,6 +93,7 @@ teardown() {
 }
 
 @test "list --format=table" {
+    [[ "${TMUX_AVAILABLE:-0}" -ne 1 ]] && skip "tmux not available"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'Test message'"
 
     run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray list --format=table"
@@ -62,6 +104,7 @@ teardown() {
 }
 
 @test "list --format=compact" {
+    [[ "${TMUX_AVAILABLE:-0}" -ne 1 ]] && skip "tmux not available"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'Test message'"
 
     run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray list --format=compact"
@@ -70,6 +113,7 @@ teardown() {
 }
 
 @test "list --dismissed shows dismissed only" {
+    [[ "${TMUX_AVAILABLE:-0}" -ne 1 ]] && skip "tmux not available"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'Active'"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'To dismiss'"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray dismiss 2"
@@ -81,6 +125,7 @@ teardown() {
 }
 
 @test "list --all shows all notifications" {
+    [[ "${TMUX_AVAILABLE:-0}" -ne 1 ]] && skip "tmux not available"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'Active'"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'To dismiss'"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray dismiss 2"
@@ -92,6 +137,7 @@ teardown() {
 }
 
 @test "list --session filters by session" {
+    [[ "${TMUX_AVAILABLE:-0}" -ne 1 ]] && skip "tmux not available"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'Msg1'"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add --session wrong_session 'Msg2'"
 
@@ -102,6 +148,7 @@ teardown() {
 }
 
 @test "list --window filters by window" {
+    [[ "${TMUX_AVAILABLE:-0}" -ne 1 ]] && skip "tmux not available"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'Msg1'"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add --window wrong_window 'Msg2'"
 
@@ -112,6 +159,7 @@ teardown() {
 }
 
 @test "list --older-than filters older notifications" {
+    [[ "${TMUX_AVAILABLE:-0}" -ne 1 ]] && skip "tmux not available"
     # Add a notification now (should be newer than 1 day ago)
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'Recent'"
     # Older than 0 days (older than now) should include recent notifications (since they are older than now)
@@ -121,6 +169,7 @@ teardown() {
 }
 
 @test "list --newer-than filters newer notifications" {
+    [[ "${TMUX_AVAILABLE:-0}" -ne 1 ]] && skip "tmux not available"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'Recent'"
     # Newer than 1 day ago should include recent
     run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray list --newer-than=1"
@@ -129,6 +178,7 @@ teardown() {
 }
 
 @test "list --search filters by substring" {
+    [[ "${TMUX_AVAILABLE:-0}" -ne 1 ]] && skip "tmux not available"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'Hello world'"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'Goodbye world'"
 
@@ -139,6 +189,7 @@ teardown() {
 }
 
 @test "list --search with --regex filters by regex" {
+    [[ "${TMUX_AVAILABLE:-0}" -ne 1 ]] && skip "tmux not available"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'Error 123'"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'Warning 456'"
 
@@ -149,6 +200,7 @@ teardown() {
 }
 
 @test "list --group-by groups notifications" {
+    [[ "${TMUX_AVAILABLE:-0}" -ne 1 ]] && skip "tmux not available"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add --level=warning 'Warning 1'"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add --level=warning 'Warning 2'"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add --level=error 'Error 1'"
@@ -163,6 +215,7 @@ teardown() {
 }
 
 @test "list --group-by with --group-count shows only counts" {
+    [[ "${TMUX_AVAILABLE:-0}" -ne 1 ]] && skip "tmux not available"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add --level=warning 'Warning 1'"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add --level=warning 'Warning 2'"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add --level=error 'Error 1'"
@@ -176,6 +229,7 @@ teardown() {
 }
 
 @test "list combined filters work together" {
+    [[ "${TMUX_AVAILABLE:-0}" -ne 1 ]] && skip "tmux not available"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add --level=warning 'Test warning'"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add --level=error 'Test error'"
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add --level=info 'Test info'"

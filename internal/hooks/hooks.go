@@ -4,6 +4,8 @@ package hooks
 import (
 	"context"
 	"fmt"
+	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,9 +14,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/cristianoliveira/tmux-intray/internal/colors"
-	"github.com/cristianoliveira/tmux-intray/internal/config"
 )
 
 var (
@@ -55,6 +54,7 @@ func getManager() *hookManager {
 
 // Init initializes the hooks subsystem.
 func Init() {
+	config.Load()
 	m := getManager()
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -69,6 +69,7 @@ func Init() {
 
 // getHooksDir returns the hooks directory path.
 func getHooksDir() string {
+	config.Load()
 	// First check environment variable (highest precedence)
 	if dir := os.Getenv("TMUX_INTRAY_HOOKS_DIR"); dir != "" {
 		return dir
@@ -285,41 +286,12 @@ func ResetForTesting() {
 	asyncPending = sync.WaitGroup{}
 }
 
-// Reset resets the hooks subsystem for testing.
-func Reset() {
-	m := getManager()
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.initialized = false
-	m.pending = make(map[int]*pendingHook)
-	once = sync.Once{}
+// WaitForPendingHooks waits for all pending async hooks to complete.
+func WaitForPendingHooks() {
+	asyncPending.Wait()
 }
 
 // Shutdown gracefully shuts down the hooks subsystem.
 func Shutdown() {
-	m := getManager()
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if !m.initialized {
-		return
-	}
-	// Cancel all pending hooks
-	for _, ph := range m.pending {
-		if ph.cancel != nil {
-			ph.cancel()
-		}
-	}
-	// Wait for all to finish
-	m.wg.Wait()
-	// Close shutdown channel
-	close(m.shutdown)
-	// Reset
-	m.initialized = false
-	m.pending = make(map[int]*pendingHook)
-	once = sync.Once{}
-}
-
-// WaitForPendingHooks waits for all pending async hooks to complete.
-func WaitForPendingHooks() {
-	asyncPending.Wait()
+	WaitForPendingHooks()
 }

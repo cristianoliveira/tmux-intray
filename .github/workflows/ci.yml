@@ -29,6 +29,34 @@ jobs:
       - name: Run tests
         run: make tests
 
+  test-go:
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    env:
+      TMUX_INTRAY_CONFIG_LOADED: 1
+      TMUX_INTRAY_DEBUG: 0
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        uses: ./.github/actions/setup-environment
+        with:
+          os: ${{ runner.os }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build Go binary
+        run: make go-build
+
+      - name: Run tests against Go binary
+        run: make tests-go
+
   plugin-tests:
     strategy:
       matrix:
@@ -73,6 +101,11 @@ jobs:
         with:
           os: ${{ runner.os }}
 
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
       - name: Run lint
         run: make lint
 
@@ -81,6 +114,31 @@ jobs:
 
       - name: Check formatting
         run: make check-fmt
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        uses: ./.github/actions/setup-environment
+        with:
+          os: ${{ runner.os }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run coverage
+        run: make go-cover
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.out
 
   install:
     runs-on: macos-latest

@@ -22,7 +22,7 @@ func setupTest(t *testing.T) string {
 	t.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "0")
 	// Reset package states
 	storage.Reset()
-	hooks.Reset()
+	hooks.ResetForTesting()
 	colors.SetDebug(true)
 	return tmpDir
 }

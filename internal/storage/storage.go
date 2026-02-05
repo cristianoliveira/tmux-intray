@@ -560,10 +560,15 @@ func dismissAllActive() error {
 }
 
 func cleanupOld(daysThreshold int, dryRun bool) error {
+	allDismissed := daysThreshold == 0
 	cutoff := time.Now().UTC().AddDate(0, 0, -daysThreshold)
 	cutoffStr := cutoff.Format("2006-01-02T15:04:05Z")
 
-	colors.Info(fmt.Sprintf("Cleaning up notifications dismissed before %s", cutoffStr))
+	if allDismissed {
+		colors.Info("Cleaning up all dismissed notifications")
+	} else {
+		colors.Info(fmt.Sprintf("Cleaning up notifications dismissed before %s", cutoffStr))
+	}
 
 	// Run pre-cleanup hooks
 	envVars := []string{
@@ -581,7 +586,7 @@ func cleanupOld(daysThreshold int, dryRun bool) error {
 		return fmt.Errorf("failed to read notifications: %w", err)
 	}
 
-	// Collect IDs of dismissed notifications older than cutoff
+	// Collect IDs of dismissed notifications older than cutoff (or all dismissed if daysThreshold == 0)
 	var idsToDelete []int
 	for _, line := range latestLines {
 		fields := strings.Split(line, "\t")
@@ -591,7 +596,7 @@ func cleanupOld(daysThreshold int, dryRun bool) error {
 		if fields[fieldState] != "dismissed" {
 			continue
 		}
-		if fields[fieldTimestamp] >= cutoffStr {
+		if !allDismissed && fields[fieldTimestamp] >= cutoffStr {
 			continue
 		}
 		id, err := strconv.Atoi(fields[fieldID])

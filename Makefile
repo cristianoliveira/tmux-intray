@@ -6,6 +6,10 @@ tests:
 	@echo "Running tests..."
 	bats tests
 
+tests-go: go-build
+	@echo "Running tests against Go binary..."
+	TMUX_INTRAY_BIN=$$PWD/bin/tmux-intray-go bats tests
+
 fmt:
 	@echo "Formatting shell scripts..."
 	find . -type f -name "*.bats" -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/_tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/.gwt/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -print0 | xargs -0 shfmt -ln bats -i 4 -w
@@ -30,7 +34,41 @@ check-fmt:
 		exit 1; \
 	fi
 
-lint: check-fmt
+go-fmt:
+	@echo "Formatting Go code..."
+	gofmt -w .
+
+go-fmt-check:
+	@echo "Checking Go formatting..."
+	@if gofmt -d . | grep -q '^'; then \
+		echo "Some Go files need formatting. Run 'make go-fmt' to fix."; \
+		exit 1; \
+	else \
+		echo "All Go files are formatted correctly"; \
+	fi
+
+go-vet:
+	@echo "Running go vet..."
+	go vet ./...
+
+go-lint: go-fmt-check go-vet
+
+go-cover:
+	@echo "Running Go test coverage..."
+	go test ./... -coverprofile=coverage.out
+	@echo "Coverage summary:"
+	@go tool cover -func=coverage.out | tail -n 1
+
+go-cover-html: go-cover
+	@echo "Generating HTML coverage report..."
+	@go tool cover -html=coverage.out -o coverage.html
+	@echo "HTML report: coverage.html"
+
+go-build:
+	@echo "Building Go binary..."
+	go build -o bin/tmux-intray-go ./cmd/tmux-intray
+
+lint: check-fmt go-lint
 	@echo "Running linter..."
 	./scripts/lint.sh
 
@@ -72,6 +110,6 @@ install-npm:
 
 install-go:
 	@echo "Building Go binary..."
-	go build -o tmux-intray-go ./cmd/tmux-intray
+	go build -o bin/tmux-intray-go ./cmd/tmux-intray
 
 install-all: install-homebrew install-docker install-npm install-go
