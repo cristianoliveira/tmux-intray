@@ -1,12 +1,14 @@
 /*
 Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 */
-package cmd
+package main
 
 import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/cristianoliveira/tmux-intray/cmd"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/spf13/cobra"
@@ -113,5 +115,5 @@ var helpCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.SetHelpCommand(helpCmd)
+	cmd.RootCmd.SetHelpCommand(helpCmd)
 }

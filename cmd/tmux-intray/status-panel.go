@@ -1,12 +1,14 @@
 /*
 Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 */
-package cmd
+package main
 
 import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/cristianoliveira/tmux-intray/cmd"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/config"
@@ -259,7 +261,7 @@ DESCRIPTION:
 }
 
 func init() {
-	rootCmd.AddCommand(statusPanelCmd)
+	cmd.RootCmd.AddCommand(statusPanelCmd)
 
 	statusPanelCmd.Flags().StringVar(&statusPanelFormat, "format", "", "Output format: compact, detailed, count-only")
 	statusPanelCmd.Flags().StringVar(&statusPanelEnabled, "enabled", "", "Enable/disable status indicator (0 or 1)")

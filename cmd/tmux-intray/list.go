@@ -1,7 +1,7 @@
 /*
 Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 */
-package cmd
+package main
 
 import (
 	"fmt"
@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/cristianoliveira/tmux-intray/cmd"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
@@ -261,7 +263,7 @@ func printCompact(notifs []Notification, w io.Writer) {
 }
 
 func init() {
-	rootCmd.AddCommand(listCmd)
+	cmd.RootCmd.AddCommand(listCmd)
 
 	// State filters (mutually exclusive)
 	listCmd.Flags().Bool("active", false, "Show active notifications (default)")

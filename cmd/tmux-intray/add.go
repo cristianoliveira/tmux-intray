@@ -1,13 +1,14 @@
 /*
 Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 */
-package cmd
+package main
 
 import (
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/cristianoliveira/tmux-intray/cmd"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
 	"github.com/spf13/cobra"
@@ -91,7 +92,7 @@ the current tmux pane (if inside tmux). Use --no-associate to skip.`,
 }
 
 func init() {
-	rootCmd.AddCommand(addCmd)
+	cmd.RootCmd.AddCommand(addCmd)
 
 	// Define flags
 	addCmd.Flags().StringVar(&sessionFlag, "session", "", "Associate with specific session ID")

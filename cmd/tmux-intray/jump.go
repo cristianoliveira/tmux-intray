@@ -1,12 +1,14 @@
 /*
 Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 */
-package cmd
+package main
 
 import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/cristianoliveira/tmux-intray/cmd"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
@@ -131,7 +133,7 @@ func Jump(id string) (*JumpResult, error) {
 }
 
 func init() {
-	rootCmd.AddCommand(jumpCmd)
+	cmd.RootCmd.AddCommand(jumpCmd)
 
 	// Here you will define your flags and configuration settings.
 

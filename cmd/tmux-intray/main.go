@@ -1,8 +1,9 @@
 package main
 
 import (
-	"github.com/cristianoliveira/tmux-intray/cmd"
 	"os"
+
+	"github.com/cristianoliveira/tmux-intray/cmd"
 )
 
 func main() {

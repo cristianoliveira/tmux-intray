@@ -10,8 +10,8 @@ import (
 	"os"
 )
 
-// rootCmd represents the base command when called without any subcommands
-var rootCmd = &cobra.Command{
+// RootCmd represents the base command when called without any subcommands
+var RootCmd = &cobra.Command{
 	Use:   "tmux-intray",
 	Short: "A quiet inbox for things that happen while you're not looking.",
 	Long:  `A quiet inbox for things that happen while you're not looking.`,
@@ -49,31 +49,31 @@ func handleCommandError(cmd *cobra.Command, args []string) error {
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
+// This is called by main.main(). It only needs to happen once to the RootCmd.
 func ExecuteOriginal() error {
 	defer hooks.WaitForPendingHooks()
 	hooks.Init()
-	return rootCmd.Execute()
+	return RootCmd.Execute()
 }
 
 func init() {
 	// Set version for use in help output
-	rootCmd.Version = Version
+	RootCmd.Version = Version
 
 	// Hide the completion command
-	rootCmd.CompletionOptions.HiddenDefaultCmd = true
+	RootCmd.CompletionOptions.HiddenDefaultCmd = true
 
 	// Custom help is provided by the help command; default help template is used for --help
 
 	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
+	// Cobra supports persistent flags which, if defined here,
 	// will be global for your application.
 
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.tmux-intray.yaml)")
+	// RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.tmux-intray.yaml)")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
-	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	// RootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -87,13 +87,13 @@ func Execute() error {
 
 	// If no command provided or it's a help request, use cobra's default behavior
 	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
-		return rootCmd.Execute()
+		return RootCmd.Execute()
 	}
 
 	// Check if the command exists
-	for _, cmd := range rootCmd.Commands() {
+	for _, cmd := range RootCmd.Commands() {
 		if cmd.Name() == args[0] {
-			return rootCmd.Execute()
+			return RootCmd.Execute()
 		}
 	}
 

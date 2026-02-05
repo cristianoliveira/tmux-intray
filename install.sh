@@ -39,9 +39,9 @@ Example:
   $0 --prefix /usr/local
 
 The installer downloads the latest release from GitHub and installs tmux-intray
-to PREFIX/share/tmux-intray.
+to PREFIX/bin/tmux-intray.
 
-The installer installs the Go binary for optimal performance.
+The installer downloads the pre-built Go binary for optimal performance.
 EOF
 }
 
@@ -87,55 +87,62 @@ add_to_path() {
     fi
 }
 
-# Download latest release tarball, fall back to main branch if no releases
-# If TMUX_INTRAY_LOCAL_TARBALL is set, use that local file instead.
-download_latest_release() {
+# Download binary from GitHub release
+download_binary() {
     local temp_dir="$1"
+    local platform="$2"
+    local arch="$3"
 
-    # If local tarball is provided, use it (for testing)
-    if [[ -n "${TMUX_INTRAY_LOCAL_TARBALL:-}" ]]; then
-        log_info "Using local tarball: ${TMUX_INTRAY_LOCAL_TARBALL}"
-        local tarball_path="${temp_dir}/tmux-intray-local.tar.gz"
-        cp "$TMUX_INTRAY_LOCAL_TARBALL" "$tarball_path"
-        echo "$tarball_path"
-        return 0
-    fi
-
+    # Get latest release info
     local api_url="https://api.github.com/repos/cristianoliveira/tmux-intray/releases/latest"
 
     log_info "Fetching latest release information..."
-    # Get latest release tag
-    local tag_name
-    if ! tag_name=$(curl -fsSL "$api_url" 2>/dev/null | grep -o '"tag_name": "[^"]*"' | cut -d'"' -f4); then
-        log_warn "No releases found, falling back to main branch"
-        tag_name="main"
-    fi
-    if [[ -z "$tag_name" ]]; then
-        log_error "Failed to fetch latest release tag"
+    local release_info
+    if ! release_info=$(curl -fsSL "$api_url" 2>/dev/null); then
+        log_error "Failed to fetch release information from GitHub"
         return 1
     fi
 
-    log_info "Using version: ${tag_name}"
-    local tarball_url
-    local tarball_url2
-    if [[ "$tag_name" == "main" ]]; then
-        tarball_url="https://github.com/cristianoliveira/tmux-intray/archive/refs/heads/main.tar.gz"
-        tarball_url2="https://github.com/cristianoliveira/tmux-intray/archive/main.tar.gz"
-    else
-        tarball_url="https://github.com/cristianoliveira/tmux-intray/archive/refs/tags/${tag_name}.tar.gz"
-        tarball_url2="https://github.com/cristianoliveira/tmux-intray/archive/${tag_name}.tar.gz"
+    # Get tag name
+    local tag_name
+    if ! tag_name=$(echo "$release_info" | grep -o '"tag_name": "[^"]*"' | cut -d'"' -f4); then
+        log_error "Failed to extract tag name from release"
+        return 1
     fi
-    local tarball_path="${temp_dir}/tmux-intray-${tag_name}.tar.gz"
 
-    log_info "Downloading ${tarball_url}..."
-    if ! curl -fsSL -o "$tarball_path" "$tarball_url"; then
-        log_warn "First URL failed, trying alternative..."
-        if ! curl -fsSL -o "$tarball_path" "$tarball_url2"; then
-            log_error "Failed to download tarball from both URLs"
-            return 1
-        fi
+    log_info "Found latest release: ${tag_name}"
+
+    # Determine binary name based on platform
+    local binary_name="tmux-intray_${platform}_${arch}"
+    if [[ "$platform" == "windows" ]]; then
+        binary_name="${binary_name}.exe"
     fi
-    echo "$tarball_path"
+
+    # Find the download URL for our binary
+    local download_url
+    download_url=$(echo "$release_info" | grep -o "\"browser_download_url\": *\"[^\"]*${binary_name}[^\"]*\"" | cut -d'"' -f4)
+
+    if [[ -z "$download_url" ]]; then
+        log_error "Binary ${binary_name} not found in release artifacts"
+        log_error "Available artifacts:"
+        echo "$release_info" | grep -o '"browser_download_url": *"[^"]*"' | cut -d'"' -f4 | sed 's/^/  - /' >&2
+        return 1
+    fi
+
+    # Download the binary
+    local binary_path="${temp_dir}/${binary_name}"
+    log_info "Downloading ${binary_name} from ${download_url}..."
+    if ! curl -fsSL -o "$binary_path" "$download_url"; then
+        log_error "Failed to download binary"
+        return 1
+    fi
+
+    # Make binary executable (except on Windows)
+    if [[ "$platform" != "windows" ]]; then
+        chmod +x "$binary_path"
+    fi
+
+    echo "$binary_path"
 }
 
 main() {
@@ -173,7 +180,6 @@ main() {
     # Update installation directories based on prefix
     INSTALL_PREFIX="$prefix"
     INSTALL_BIN_DIR="${INSTALL_PREFIX}/bin"
-    INSTALL_SHARE_DIR="${INSTALL_PREFIX}/share/tmux-intray"
 
     log_info "Starting tmux-intray installation..."
     log_info "Installation prefix: ${INSTALL_PREFIX}"
@@ -187,82 +193,64 @@ main() {
         exit 1
     fi
 
+    # Detect platform and architecture
+    local platform
+    local arch
+    platform=$(detect_platform)
+    arch=$(detect_arch)
+
+    if [[ "$platform" == "unknown" ]]; then
+        log_error "Unsupported platform: $(uname -s)"
+        exit 1
+    fi
+
+    if [[ "$arch" == "unknown" ]]; then
+        log_error "Unsupported architecture: $(uname -m)"
+        exit 1
+    fi
+
+    log_info "Detected platform: ${platform}/${arch}"
+
     # Create temporary directory
     local temp_dir
     temp_dir=$(mktemp -d)
     trap '[[ -n "${temp_dir:-}" ]] && rm -rf "$temp_dir"' EXIT
 
-    # Download latest release
-    local tarball
-    tarball=$(download_latest_release "$temp_dir") || exit 1
-
-    # Extract tarball
-    log_info "Extracting tarball..."
+    # Download binary
+    local binary_path
     if [[ "$dry_run" != true ]]; then
-        tar -xzf "$tarball" -C "$temp_dir"
+        binary_path=$(download_binary "$temp_dir" "$platform" "$arch") || exit 1
     else
-        log_info "[dry-run] Would extract tarball"
-    fi
-    local extracted_dir
-    extracted_dir=$(find "$temp_dir" -type d -name "tmux-intray-*" | head -1)
-    if [[ -z "$extracted_dir" ]]; then
-        # If no top-level directory, assume files were extracted directly
-        extracted_dir="$temp_dir"
-        log_info "No top-level directory found, using extraction root"
+        log_info "[dry-run] Would download binary for ${platform}/${arch}"
+        binary_path="${temp_dir}/tmux-intray_${platform}_${arch}"
     fi
 
-    # Create installation directories
+    # Create installation directory
     if [[ "$dry_run" != true ]]; then
-        mkdir -p "$INSTALL_BIN_DIR" "$INSTALL_SHARE_DIR"
+        mkdir -p "$INSTALL_BIN_DIR"
     else
-        log_info "[dry-run] Would create directories: ${INSTALL_BIN_DIR}, ${INSTALL_SHARE_DIR}"
+        log_info "[dry-run] Would create directory: ${INSTALL_BIN_DIR}"
     fi
 
-    # Copy files to share directory
-    log_info "Installing tmux-intray to ${INSTALL_SHARE_DIR}..."
+    # Install binary
+    local install_path="${INSTALL_BIN_DIR}/tmux-intray"
+    if [[ "$platform" == "windows" ]]; then
+        install_path="${install_path}.exe"
+    fi
+
+    log_info "Installing tmux-intray to ${install_path}..."
     if [[ "$dry_run" != true ]]; then
-        cp -R "$extracted_dir/." "$INSTALL_SHARE_DIR/"
-        log_info "Installing Go binary..."
-        cd "$INSTALL_SHARE_DIR"
-        go install github.com/cristianoliveira/tmux-intray@latest
-        cd - >/dev/null
-    else
-        log_info "[dry-run] Would copy files from ${extracted_dir} to ${INSTALL_SHARE_DIR}"
-        log_info "[dry-run] Would install Go binary via 'go install github.com/cristianoliveira/tmux-intray@latest'"
-    fi
-
-    # Make scripts executable
-    if [[ "$dry_run" != true ]]; then
-        chmod +x "$INSTALL_SHARE_DIR/scripts/lint.sh" 2>/dev/null || true
-        chmod +x "$INSTALL_SHARE_DIR/tmux-intray.tmux" 2>/dev/null || true
-    else
-        log_info "[dry-run] Would make scripts executable"
-    fi
-
-    # Create symlink in bin directory pointing to Go binary
-    local symlink_path="${INSTALL_BIN_DIR}/tmux-intray"
-    local go_bin_path
-    go_bin_path="$(go env GOPATH)/bin/tmux-intray"
-    if [[ -L "$symlink_path" ]] || [[ -f "$symlink_path" ]]; then
-        log_warn "Existing tmux-intray found at ${symlink_path}"
-        if [[ "$dry_run" != true ]]; then
+        if [[ -f "$install_path" ]]; then
+            log_warn "Existing tmux-intray found at ${install_path}"
             read -r -p "Overwrite? [y/N] " response
             if [[ ! "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-                log_info "Skipping symlink creation"
-            else
-                ln -sf "$go_bin_path" "$symlink_path"
-                log_info "Symlink created at ${symlink_path} -> ${go_bin_path}"
+                log_info "Skipping installation"
+                exit 0
             fi
-        else
-            log_info "[dry-run] Would prompt to overwrite existing symlink"
         fi
+        cp "$binary_path" "$install_path"
     else
-        if [[ "$dry_run" != true ]]; then
-            ln -s "$go_bin_path" "$symlink_path"
-            log_info "Symlink created at ${symlink_path} -> ${go_bin_path}"
-        else
-            log_info "[dry-run] Would create symlink at ${symlink_path} -> ${go_bin_path}"
-        fi
+        log_info "[dry-run] Would copy binary to ${install_path}"
     fi
 
     # Check PATH
@@ -271,20 +259,17 @@ main() {
     # Verify installation
     log_info "Verifying installation..."
     if [[ "$dry_run" != true ]]; then
-        # Check if Go binary exists and is executable
-        local go_bin_path
-        go_bin_path="$(go env GOPATH)/bin/tmux-intray"
-        if [[ -x "$go_bin_path" ]]; then
-            # Test Go binary directly
-            if "$go_bin_path" version >/dev/null 2>&1; then
-                log_info "tmux-intray Go binary installed successfully!"
+        if [[ -x "$install_path" ]]; then
+            # Test the installed binary
+            if "$install_path" version >/dev/null 2>&1; then
+                log_info "tmux-intray installed successfully!"
                 log_info "Run 'tmux-intray --help' to get started."
             else
-                log_error "Go binary verification failed"
+                log_error "Binary verification failed"
                 exit 1
             fi
         else
-            log_error "Go binary not found at ${go_bin_path}"
+            log_error "Binary not found at ${install_path}"
             exit 1
         fi
     else

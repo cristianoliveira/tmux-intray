@@ -1,11 +1,13 @@
 /*
 Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 */
-package cmd
+package main
 
 import (
 	"errors"
 	"fmt"
+
+	"github.com/cristianoliveira/tmux-intray/cmd"
 
 	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
@@ -59,7 +61,7 @@ than the configured auto-cleanup days. This helps prevent storage bloat.`,
 }
 
 func init() {
-	rootCmd.AddCommand(cleanupCmd)
+	cmd.RootCmd.AddCommand(cleanupCmd)
 
 	// Default days 0 means "use config value"
 	cleanupCmd.Flags().IntVar(&daysFlag, "days", 0, "Clean up notifications dismissed more than N days ago (default: TMUX_INTRAY_AUTO_CLEANUP_DAYS config value)")

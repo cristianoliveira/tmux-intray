@@ -1,10 +1,12 @@
 /*
 Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 */
-package cmd
+package main
 
 import (
 	"fmt"
+
+	"github.com/cristianoliveira/tmux-intray/cmd"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
@@ -95,5 +97,5 @@ variable TMUX_INTRAY_VISIBLE to "1" (visible) or "0" (hidden).`,
 }
 
 func init() {
-	rootCmd.AddCommand(toggleCmd)
+	cmd.RootCmd.AddCommand(toggleCmd)
 }

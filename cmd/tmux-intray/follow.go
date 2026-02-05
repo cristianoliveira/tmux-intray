@@ -1,7 +1,7 @@
 /*
 Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 */
-package cmd
+package main
 
 import (
 	"context"
@@ -12,6 +12,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/cristianoliveira/tmux-intray/cmd"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
@@ -219,7 +221,7 @@ func Follow(ctx context.Context, opts FollowOptions) error {
 }
 
 func init() {
-	rootCmd.AddCommand(followCmd)
+	cmd.RootCmd.AddCommand(followCmd)
 
 	followCmd.Flags().BoolVar(&followAll, "all", false, "Show all notifications (not just active)")
 	followCmd.Flags().BoolVar(&followDismissed, "dismissed", false, "Show only dismissed notifications")

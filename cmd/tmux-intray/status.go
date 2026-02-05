@@ -1,13 +1,15 @@
 /*
 Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 */
-package cmd
+package main
 
 import (
 	"fmt"
 	"io"
 	"os"
 	"strings"
+
+	"github.com/cristianoliveira/tmux-intray/cmd"
 
 	"github.com/cristianoliveira/tmux-intray/internal/core"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
@@ -171,7 +173,7 @@ func formatJSON(w io.Writer) {
 }
 
 func init() {
-	rootCmd.AddCommand(statusCmd)
+	cmd.RootCmd.AddCommand(statusCmd)
 
 	statusCmd.Flags().StringVar(&statusFormat, "format", "summary", "Output format: summary, levels, panes, json")
 }

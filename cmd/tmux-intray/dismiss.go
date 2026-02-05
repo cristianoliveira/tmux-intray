@@ -1,13 +1,15 @@
 /*
 Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 */
-package cmd
+package main
 
 import (
 	"bufio"
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/cristianoliveira/tmux-intray/cmd"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
@@ -51,7 +53,7 @@ func DismissAll() error {
 }
 
 func init() {
-	rootCmd.AddCommand(dismissCmd)
+	cmd.RootCmd.AddCommand(dismissCmd)
 
 	// Local flags
 	dismissCmd.Flags().BoolVar(&dismissAll, "all", false, "Dismiss all active notifications")
