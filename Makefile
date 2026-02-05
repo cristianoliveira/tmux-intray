@@ -107,4 +107,15 @@ install-npm:
 	@echo "Installing via npm..."
 	npm install -g .
 
-install-all: install-homebrew install-docker install-npm
+install-go:
+	@echo "Building and installing Go binary..."
+	go build -o tmux-intray ./cmd/tmux-intray
+	@echo "✓ Go binary built: ./tmux-intray"
+	@echo "  You can run it with: ./tmux-intray --help"
+
+install-docker:
+	@echo "Docker support not yet implemented for Go-only version"
+	@echo "  Skipping Docker build (no Dockerfile present)"
+	@echo "✓ Docker install check passed (no-op)"
+
+install-all: install-homebrew install-docker install-npm install-go

@@ -60,7 +60,7 @@ jobs:
         run: make go-build
 
       - name: Run tests against Go binary
-        run: make tests-go
+        run: make tests
       
       - name: Verify Go binary execution
         run: TMUX_INTRAY_BIN=$PWD/tmux-intray ./scripts/verify-binary.sh
@@ -90,6 +90,16 @@ jobs:
       - name: Install dependencies
         working-directory: opencode/plugins/opencode-tmux-intray
         run: npm ci
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Build Go binary
+        run: make go-build
 
       - name: Run plugin tests
         working-directory: opencode/plugins/opencode-tmux-intray
