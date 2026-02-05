@@ -26,11 +26,21 @@ jobs:
         with:
           os: ${{ runner.os }}
 
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      
+      - name: Build Go binary
+        run: make go-build
+      
       - name: Run tests
         run: make tests
       
       - name: Verify binary execution
-        run: ./scripts/verify-binary.sh
+        run: TMUX_INTRAY_BIN=$PWD/tmux-intray ./scripts/verify-binary.sh
 
   test-go:
     strategy:
