@@ -28,6 +28,9 @@ jobs:
 
       - name: Run tests
         run: make tests
+      
+      - name: Verify binary execution
+        run: ./scripts/verify-binary.sh
 
   test-go:
     strategy:
@@ -56,6 +59,9 @@ jobs:
 
       - name: Run tests against Go binary
         run: make tests-go
+      
+      - name: Verify Go binary execution
+        run: TMUX_INTRAY_BIN=$PWD/bin/tmux-intray-go ./scripts/verify-binary.sh
 
   plugin-tests:
     strategy:

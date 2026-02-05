@@ -5,10 +5,14 @@ all: tests lint
 tests:
 	@echo "Running tests..."
 	bats tests
+	@echo "Verifying bash wrapper execution..."
+	./scripts/verify-binary.sh
 
 tests-go: go-build
 	@echo "Running tests against Go binary..."
 	TMUX_INTRAY_BIN=$$PWD/bin/tmux-intray-go bats tests
+	@echo "Verifying Go binary execution..."
+	TMUX_INTRAY_BIN=$$PWD/bin/tmux-intray-go ./scripts/verify-binary.sh
 
 fmt:
 	@echo "Formatting shell scripts..."
