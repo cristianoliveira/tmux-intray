@@ -101,7 +101,13 @@ install:
 
 install-homebrew:
 	@echo "Installing via Homebrew..."
-	brew install ./Formula/tmux-intray.rb
+	@echo "Note: For production use, this formula should be in a proper Homebrew tap."
+	@echo "Creating temporary local tap for installation..."
+	@TAP_DIR=$$(brew --repository)/Library/Taps/tmux-intray/homebrew-tap; \
+	mkdir -p "$$TAP_DIR/Formula"; \
+	cp ./Formula/tmux-intray.rb "$$TAP_DIR/Formula/"; \
+	brew tap tmux-intray/tmux-intray file://"$$TAP_DIR" || true; \
+	brew install tmux-intray/tmux-intray/tmux-intray || brew install ./Formula/tmux-intray.rb
 
 install-npm:
 	@echo "Installing via npm..."

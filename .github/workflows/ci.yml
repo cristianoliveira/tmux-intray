@@ -187,12 +187,26 @@ jobs:
 
       - name: Audit Homebrew formula
         run: |
-          # First, tap the formula locally if not already tapped
-          if ! brew list tmux-intray >/dev/null 2>&1; then
-            brew install --formula ./Formula/tmux-intray.rb
-          fi
-          # Audit using formula name instead of path
-          brew audit --strict tmux-intray
+          # Create a temporary tap for testing
+          TAP_DIR=$(brew --repository)/Library/Taps/tmux-intray/homebrew-tap
+          mkdir -p "$TAP_DIR"
+          
+          # Copy the formula to the tap
+          mkdir -p "$TAP_DIR/Formula"
+          cp ./Formula/tmux-intray.rb "$TAP_DIR/Formula/"
+          
+          # Tap the local repository
+          brew tap tmux-intray/tmux-intray file://"$TAP_DIR"
+          
+          # Install from the tap
+          brew install tmux-intray/tmux-intray/tmux-intray
+          
+          # Audit the formula
+          brew audit --strict tmux-intray/tmux-intray/tmux-intray
+          
+          # Clean up
+          brew untap tmux-intray/tmux-intray
+          rm -rf "$TAP_DIR"
 
       - name: Test npm installation
         run: make install-npm
