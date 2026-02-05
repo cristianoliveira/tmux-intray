@@ -236,22 +236,27 @@ func printTable(notifs []Notification, w io.Writer) {
 	}
 	headerColor := colors.Blue
 	reset := colors.Reset
-	fmt.Fprintf(w, "%sID    Timestamp                 Pane    Level   Message%s\n", headerColor, reset)
-	fmt.Fprintf(w, "%s----  ------------------------  ------  ------  -------%s\n", headerColor, reset)
+	fmt.Fprintf(w, "%sID    Timestamp                 Session Window    Pane    Level   Message%s\n", headerColor, reset)
+	fmt.Fprintf(w, "%s----  ------------------------  ------ ------  ------  ------  -------%s\n", headerColor, reset)
 	for _, n := range notifs {
 		// Truncate message for display
 		displayMsg := n.Message
 		if len(displayMsg) > 35 {
 			displayMsg = displayMsg[:32] + "..."
 		}
-		fmt.Fprintf(w, "%-4d  %-25s  %-6s  %-6s  %s\n", n.ID, n.Timestamp, n.Pane, n.Level, displayMsg)
+		fmt.Fprintf(w, "%-4d  %-25s  %-6s %-6s  %-6s  %-6s  %s\n", n.ID, n.Timestamp, n.Session, n.Window, n.Pane, n.Level, displayMsg)
 	}
 }
 
-// printCompact prints only messages (like legacy) but without extra newlines.
+// printCompact prints a compact format with ID and Message only.
 func printCompact(notifs []Notification, w io.Writer) {
 	for _, n := range notifs {
-		fmt.Fprintln(w, n.Message)
+		// Truncate message for display
+		displayMsg := n.Message
+		if len(displayMsg) > 60 {
+			displayMsg = displayMsg[:57] + "..."
+		}
+		fmt.Fprintf(w, "%4d: %s\n", n.ID, displayMsg)
 	}
 }
 

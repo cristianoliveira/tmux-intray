@@ -41,7 +41,7 @@ func EnsureTmuxRunning() bool {
 
 // GetCurrentTmuxContext returns the current tmux context.
 func GetCurrentTmuxContext() TmuxContext {
-	format := "#{session_id} #{window_id} #{pane_id}"
+	format := "#{session_id} #{window_id} #{pane_id} #{pane_pid}"
 	stdout, stderr, err := tmuxRunner("display", "-p", format)
 	if err != nil {
 		colors.Error("Failed to get tmux context: " + err.Error())
@@ -106,30 +106,38 @@ func ValidatePaneExists(sessionID, windowID, paneID string) bool {
 
 // JumpToPane jumps to a specific pane.
 func JumpToPane(sessionID, windowID, paneID string) bool {
-	// First try to jump to window
+	// First validate if the pane exists
+	paneExists := ValidatePaneExists(sessionID, windowID, paneID)
+
+	// Select the window (this happens regardless of whether the pane exists)
 	targetWindow := sessionID + ":" + windowID
 	_, stderr, err := tmuxRunner("select-window", "-t", targetWindow)
 	if err != nil {
-		colors.Warning("Window " + targetWindow + " does not exist")
+		colors.Error("Window " + targetWindow + " does not exist")
 		if stderr != "" {
 			colors.Debug("stderr: " + stderr)
 		}
 		return false
 	}
-	// Then select pane
+
+	// If pane doesn't exist, show warning and return success
+	if !paneExists {
+		colors.Warning("Pane " + sessionID + ":" + windowID + "." + paneID + " does not exist, jumping to window instead")
+		return true
+	}
+
+	// Pane exists, select it
 	targetPane := sessionID + ":" + windowID + "." + paneID
 	_, stderr, err = tmuxRunner("select-pane", "-t", targetPane)
 	if err != nil {
-		colors.Warning("Pane " + targetPane + " does not exist, but window selected")
+		// This is unexpected since we validated the pane exists, but handle it gracefully
+		colors.Warning("Failed to select pane " + targetPane + " (window selected)")
 		if stderr != "" {
 			colors.Debug("stderr: " + stderr)
 		}
-		// We still selected the window, return true? The bash script returns 0.
-		// The function returns bool indicating success; we could consider window selection as partial success.
-		// According to bash script, if pane doesn't exist, they still select window and return 0.
-		// So we should return true.
-		return true
+		return true // Still count as success since window is selected
 	}
+
 	return true
 }
 
