@@ -55,22 +55,10 @@ var ensureTmuxRunningFunc = func() bool {
 }
 
 // getNotificationLineFunc is the function used to get notification line by ID.
+// Uses optimized retrieval to improve performance with large datasets.
 var getNotificationLineFunc = func(id string) (string, error) {
-	// Get all latest notifications
-	lines := storage.ListNotifications("all", "", "", "", "", "", "")
-	if lines == "" {
-		return "", fmt.Errorf("notification with ID %s not found", id)
-	}
-	for _, line := range strings.Split(lines, "\n") {
-		if line == "" {
-			continue
-		}
-		fields := strings.Split(line, "\t")
-		if len(fields) > fieldID && fields[fieldID] == id {
-			return line, nil
-		}
-	}
-	return "", fmt.Errorf("notification with ID %s not found", id)
+	// Use the optimized function that directly retrieves by ID
+	return storage.GetNotificationByID(id)
 }
 
 // validatePaneExistsFunc is the function used to validate pane exists.

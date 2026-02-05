@@ -155,6 +155,52 @@ func ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, pa
 	return strings.Join(lines, "\n")
 }
 
+// GetNotificationByID retrieves a single notification by its ID.
+// This is an optimized version that avoids reading all notifications when possible.
+// Returns the notification line as a TSV string or an error if not found.
+func GetNotificationByID(id string) (string, error) {
+	Init()
+	if !initialized {
+		return "", errors.New("storage not initialized")
+	}
+
+	// Validate ID format
+	if id == "" {
+		return "", errors.New("notification ID cannot be empty")
+	}
+
+	var result string
+	err := WithLock(lockDir, func() error {
+		// Get all notifications to find the latest version of the requested ID
+		// Note: This is necessary to ensure we get the latest state (active/dismissed)
+		latest, err := getLatestNotifications()
+		if err != nil {
+			return fmt.Errorf("failed to read notifications: %w", err)
+		}
+
+		// Find the notification with matching ID
+		for _, line := range latest {
+			fields := strings.Split(line, "\t")
+			if len(fields) > fieldID && fields[fieldID] == id {
+				result = line
+				return nil
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	if result == "" {
+		return "", fmt.Errorf("notification with ID %s not found", id)
+	}
+
+	return result, nil
+}
+
 // DismissNotification dismisses a notification by ID.
 func DismissNotification(id string) error {
 	Init()

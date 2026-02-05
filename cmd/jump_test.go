@@ -2,7 +2,10 @@ package cmd
 
 import (
 	"errors"
+	"os"
 	"testing"
+
+	"github.com/cristianoliveira/tmux-intray/internal/storage"
 )
 
 func TestJumpSuccess(t *testing.T) {
@@ -20,7 +23,7 @@ func TestJumpSuccess(t *testing.T) {
 	ensureTmuxRunningFunc = func() bool { return true }
 	getNotificationLineFunc = func(id string) (string, error) {
 		if id != "42" {
-			return "", errors.New("not found")
+			return "", errors.New("notification with ID 42 not found")
 		}
 		// Simulate TSV line: ID, timestamp, state, session, window, pane, message, pane_created, level
 		return "42\t2025-02-04T10:00:00Z\tactive\t$0\t%0\t:0.0\thello\t1234567890\tinfo", nil
@@ -184,5 +187,67 @@ func TestJumpInvalidLineFormat(t *testing.T) {
 	_, err := Jump("42")
 	if err == nil {
 		t.Error("Expected error when line format invalid")
+	}
+}
+
+func TestJumpOptimizedRetrieval(t *testing.T) {
+	// Test that the jump command uses the optimized GetNotificationByID function
+	// This test verifies the integration between cmd/jump.go and internal/storage
+	originalEnsureTmuxRunningFunc := ensureTmuxRunningFunc
+	originalValidatePaneExistsFunc := validatePaneExistsFunc
+	originalJumpToPaneFunc := jumpToPaneFunc
+	defer func() {
+		ensureTmuxRunningFunc = originalEnsureTmuxRunningFunc
+		validatePaneExistsFunc = originalValidatePaneExistsFunc
+		jumpToPaneFunc = originalJumpToPaneFunc
+	}()
+
+	ensureTmuxRunningFunc = func() bool { return true }
+	validatePaneExistsFunc = func(session, window, pane string) bool { return true }
+	jumpToPaneFunc = func(session, window, pane string) bool { return true }
+
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "tmux-intray-jump-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Reset storage state
+	os.Setenv("TMUX_INTRAY_STATE_DIR", tempDir)
+	storage.Reset()
+	storage.Init()
+
+	// Add a test notification
+	id := storage.AddNotification("test message", "2025-02-04T10:00:00Z", "session1", "window1", "pane1", "123456", "info")
+	if id == "" {
+		t.Fatal("Failed to add notification")
+	}
+
+	// Jump to the notification
+	result, err := Jump(id)
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+	if result.ID != id {
+		t.Errorf("Expected ID %s, got %s", id, result.ID)
+	}
+	if result.Session != "session1" {
+		t.Errorf("Expected session session1, got %s", result.Session)
+	}
+	if result.Window != "window1" {
+		t.Errorf("Expected window window1, got %s", result.Window)
+	}
+	if result.Pane != "pane1" {
+		t.Errorf("Expected pane pane1, got %s", result.Pane)
+	}
+	if result.State != "active" {
+		t.Errorf("Expected state active, got %s", result.State)
+	}
+	if result.Message != "test message" {
+		t.Errorf("Expected message 'test message', got %s", result.Message)
+	}
+	if !result.PaneExists {
+		t.Error("Expected pane exists true")
 	}
 }
