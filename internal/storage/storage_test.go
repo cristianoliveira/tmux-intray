@@ -242,7 +242,7 @@ func TestBashStorageCompatibility(t *testing.T) {
 		cmd.Env = append(os.Environ(),
 			"TMUX_INTRAY_STATE_DIR="+tmpDir,
 			"TMUX_INTRAY_HOOKS_ENABLED=0",
-			"TMUX_INTRAY_DEBUG=true")
+			"TMUX_INTRAY_DEBUG=false")
 		output, err := cmd.Output()
 		if err != nil {
 			return "", fmt.Errorf("bash script failed: %w", err)
@@ -263,7 +263,7 @@ storage_add_notification "$TMUX_INTRAY_MESSAGE" "$TMUX_INTRAY_TIMESTAMP" "$TMUX_
 		cmd.Env = append(os.Environ(),
 			"TMUX_INTRAY_STATE_DIR="+tmpDir,
 			"TMUX_INTRAY_HOOKS_ENABLED=0",
-			"TMUX_INTRAY_DEBUG=true",
+			"TMUX_INTRAY_DEBUG=false",
 			"TMUX_INTRAY_MESSAGE="+message,
 			"TMUX_INTRAY_TIMESTAMP="+timestamp,
 			"TMUX_INTRAY_SESSION="+session,

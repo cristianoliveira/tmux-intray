@@ -48,6 +48,7 @@ EOF
 # Default installation directory
 INSTALL_PREFIX="${HOME}/.local"
 INSTALL_BIN_DIR="${INSTALL_PREFIX}/bin"
+# shellcheck disable=SC2034
 INSTALL_SHARE_DIR="${INSTALL_PREFIX}/share/tmux-intray"
 
 # Detect platform
