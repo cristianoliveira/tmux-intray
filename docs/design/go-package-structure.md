@@ -4,13 +4,20 @@
 
 This document describes the Go package organization that preserves the modular architecture of the current Bash implementation. The goal is to provide a clear, maintainable structure that mirrors the existing separation of concerns while leveraging Go's type safety and standard library.
 
-## Current Bash Modular Architecture
+## Previous Bash Modular Architecture
 
-The current Bash implementation consists of:
+The previous Bash implementation consisted of:
 
-- **`bin/tmux-intray`**: Main entry point, command dispatch
+- **`bin/tmux-intray`**: Main entry point, command dispatch (removed)
 - **`lib/`**: Shared libraries (core, storage, colors, config, hooks)
 - **`commands/`**: Individual command implementations (add, list, dismiss, etc.)
+
+## Current Go Implementation
+
+The project now uses a pure Go implementation:
+
+- **`tmux-intray`**: Go binary with all commands implemented natively
+- **`cmd/tmux-intray/`**: Go command implementations
 
 Each command sources the necessary libraries and implements a `{command}_command` function.
 

@@ -4,9 +4,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-BIN_PATH="$PROJECT_ROOT/bin/tmux-intray"
+BIN_PATH="$PROJECT_ROOT/tmux-intray"
 MAN_DIR="$PROJECT_ROOT/man/man1"
 DOCS_DIR="$PROJECT_ROOT/docs/cli"
+# Ensure binary is built
+if [[ ! -f "$BIN_PATH" ]]; then
+    (cd "$PROJECT_ROOT" && make go-build)
+fi
 VERSION="$("$BIN_PATH" version | awk '{print $NF}')"
 
 # Create directories

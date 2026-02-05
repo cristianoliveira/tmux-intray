@@ -28,16 +28,18 @@ jobs:
 
       - name: Verify version consistency
         run: |
-          SCRIPT_VERSION=$(grep -E '^VERSION="[0-9]+\.[0-9]+\.[0-9]+"' bin/tmux-intray | cut -d'"' -f2)
+          # Version is now managed through Go ldflags during build
+          # We just need to verify the tag follows semantic versioning
           TAG_VERSION="${{ steps.tag.outputs.VERSION }}"
-          # Remove leading 'v' from tag for comparison
+          # Remove leading 'v' from tag for verification
           TAG_VERSION="${TAG_VERSION#v}"
-          if [ "$SCRIPT_VERSION" != "$TAG_VERSION" ]; then
-            echo "Error: Version mismatch"
-            echo "  bin/tmux-intray version: $SCRIPT_VERSION"
-            echo "  Git tag version: $TAG_VERSION"
+          if ! echo "$TAG_VERSION" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' > /dev/null; then
+            echo "Error: Invalid version format in tag"
+            echo "  Expected format: v1.2.3"
+            echo "  Got tag: ${{ steps.tag.outputs.VERSION }}"
             exit 1
           fi
+          echo "✓ Version format validated: $TAG_VERSION"
 
       - name: Generate documentation
         run: |

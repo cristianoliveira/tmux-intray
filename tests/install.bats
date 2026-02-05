@@ -28,9 +28,11 @@ setup() {
             "$stage_dir/.bv" "$stage_dir/.local" "$stage_dir/tmp" 2>/dev/null || true
         find "$stage_dir" -name '*.swp' -delete 2>/dev/null || true
     fi
-    # Ensure bin directory exists with the shell script (required by installer)
+    # Ensure bin directory exists with the binary (required by installer)
     mkdir -p "$stage_dir/bin"
-    cp -p bin/tmux-intray "$stage_dir/bin/"
+    # Build and copy the Go binary
+    make go-build
+    cp -p tmux-intray "$stage_dir/bin/"
     # Create tarball from staged copy
     tar -czf "$TEST_DIR/tmux-intray-main.tar.gz" -C "$stage_dir" .
     # Create a mock curl that returns our tarball

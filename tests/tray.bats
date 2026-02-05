@@ -66,17 +66,17 @@ teardown() {
 
 @test "clear tray" {
     if [[ -n "${CI:-}" ]] || [[ "${TMUX_AVAILABLE:-0}" -ne 1 ]]; then
-        run "$PWD/bin/tmux-intray" add 'test' 2>&1
+        run "$PWD/tmux-intray" add 'test' 2>&1
     else
-        run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'test' 2>&1"
+        run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/tmux-intray add 'test' 2>&1"
     fi
     [ "$status" -eq 0 ]
     [[ "$output" == *"added"* ]]
 
     if [[ -n "${CI:-}" ]] || [[ "${TMUX_AVAILABLE:-0}" -ne 1 ]]; then
-        run "$PWD/bin/tmux-intray" clear 2>&1
+        run "$PWD/tmux-intray" clear 2>&1
     else
-        run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray clear 2>&1"
+        run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/tmux-intray clear 2>&1"
     fi
     [ "$status" -eq 0 ]
     [[ "$output" == *"cleared"* ]]
@@ -84,9 +84,9 @@ teardown() {
 
 @test "toggle tray visibility" {
     if [[ -n "${CI:-}" ]] || [[ "${TMUX_AVAILABLE:-0}" -ne 1 ]]; then
-        run "$PWD/bin/tmux-intray" toggle 2>&1
+        run "$PWD/tmux-intray" toggle 2>&1
     else
-        run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray toggle 2>&1"
+        run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/tmux-intray toggle 2>&1"
     fi
     [ "$status" -eq 0 ]
 }

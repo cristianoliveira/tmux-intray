@@ -48,9 +48,12 @@
               export XDG_CONFIG_HOME=$(mktemp -d)
               export HOME=$(mktemp -d)
             '';
+            buildPhase = ''
+              go build -o tmux-intray ./cmd/tmux-intray
+            '';
             installPhase = ''
               mkdir -p $out/bin
-              cp bin/tmux-intray $out/bin/tmux-intray
+              cp tmux-intray $out/bin/tmux-intray
               chmod +x $out/bin/tmux-intray
             '';
           };

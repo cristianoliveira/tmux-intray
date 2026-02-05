@@ -15,15 +15,10 @@ This document describes the architecture for enabling gradual Bash-to-Go migrati
 
 ### Components
 
-1. **Go Wrapper** (`main.go`)
-   - Extracts embedded files to temporary directory
-   - Executes the main Bash script (`bin/tmux-intray`)
-   - Sets `TMUX_INTRAY_TEMP_ROOT` environment variable
-
-2. **Bash Entry Point** (`bin/tmux-intray`)
-   - Main CLI dispatcher with case statement routing
-   - Sources command scripts from `commands/` directory
-   - 12 commands implemented as Bash functions
+1. **Go Binary** (`tmux-intray`)
+    - Pure Go implementation of all commands
+    - No wrapper or shell script dependencies
+    - Built from `cmd/tmux-intray` package
 
 3. **Command Implementations** (`commands/*.sh`)
    - Each command is a Bash script with a `_command` function
@@ -40,9 +35,8 @@ This document describes the architecture for enabling gradual Bash-to-Go migrati
 
 ```mermaid
 graph TD
-    A[User: tmux-intray add message] --> B[Go Wrapper]
-    B --> C[Extract embedded files]
-    C --> D[Execute bin/tmux-intray]
+    A[User: tmux-intray add message] --> B[Go Binary]
+    B --> C[Direct command execution]
     D --> E[Case statement routing]
     E --> F[Source commands/add.sh]
     F --> G[Execute add_command]
@@ -140,12 +134,11 @@ tmux-intray/
 │   └── internal/            # Internal packages
 │       └── routing/
 │           └── router.go    # Command routing logic
-├── commands/                # Existing Bash scripts (preserved)
-│   ├── add.sh
-│   ├── list.sh
-│   └── ...
-├── bin/tmux-intray          # Bash entry point (unchanged)
-└── embed.go                 # Updated to include go/ directory
+├── cmd/
+│   └── tmux-intray/
+│       ├── main.go          # Go binary entry point
+│       └── commands/        # Go command implementations
+└── tmux-intray               # Compiled Go binary
 ```
 
 ## Implementation Details
@@ -293,7 +286,7 @@ func (r *Router) executeGo(command string, args []string) (int, error) {
 
 // executeBash executes Bash implementation
 func (r *Router) executeBash(command string, args []string) int {
-    // Build command: bash bin/tmux-intray <command> [args]
+    // Build command: ./tmux-intray <command> [args]
     // Note: The script receives command as first argument, then remaining args
     cmdArgs := []string{"bash", os.Args[0], command}
     cmdArgs = append(cmdArgs, args...)
@@ -729,7 +722,7 @@ type BashExecutor struct {
 }
 
 func (e *BashExecutor) Execute(args []string) (int, error) {
-    // Build command: bash bin/tmux-intray <command> [args]
+    // Build command: ./tmux-intray <command> [args]
     // Note: The script receives command as first argument, then remaining args
     cmdArgs := []string{"bash", os.Args[0], e.command}
     cmdArgs = append(cmdArgs, args...)

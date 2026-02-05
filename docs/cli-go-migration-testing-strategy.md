@@ -12,17 +12,14 @@
 ## Implementation Approach
 
 ### 1. Bats Test Adapter
-Create a test runner that executes existing Bats tests against either:
-- **Bash implementation**: Current `bin/tmux-intray`
-- **Go implementation**: New Go binary
+The existing Bats tests now run directly against the Go binary:
+- **Go implementation**: The `tmux-intray` binary
 
-**Environment Variable Control**:
+**Test Execution**:
 ```bash
-# Test Bash implementation (default)
-TMUX_INTRAY_BINARY="bin/tmux-intray" make test
-
-# Test Go implementation  
-TMUX_INTRAY_BINARY="./tmux-intray-go" make test-go
+# Build and test Go implementation
+make go-build
+make test
 ```
 
 ### 2. Test Runner Design
@@ -30,50 +27,35 @@ TMUX_INTRAY_BINARY="./tmux-intray-go" make test-go
 #!/usr/bin/env bash
 # tests/run-bats.sh
 
-# Determine which binary to test
-if [[ -z "$TMUX_INTRAY_BINARY" ]]; then
-  if [[ -f "./tmux-intray-go" ]]; then
-    TMUX_INTRAY_BINARY="./tmux-intray-go"
-  else
-    TMUX_INTRAY_BINARY="bin/tmux-intray"
-  fi
+# Ensure Go binary is built
+if [[ ! -f "./tmux-intray" ]]; then
+  make go-build
 fi
 
-export TMUX_INTRAY_BINARY
+# Export binary path for tests
+export TMUX_INTRAY_BINARY="./tmux-intray"
 
 # Run Bats tests
 bats "$@"
 ```
 
 ### 3. Test Adaptation in Bats Files
-Modify existing Bats tests to use the configurable binary:
+The Bats tests have been updated to use the Go binary directly:
 
 ```bash
-# Before (hardcoded):
+# Updated tests use:
 @test "add command works" {
-  run bin/tmux-intray add "Test message"
-  [ "$status" -eq 0 ]
-}
-
-# After (configurable):
-@test "add command works" {
-  run "$TMUX_INTRAY_BINARY" add "Test message"
+  run ./tmux-intray add "Test message"
   [ "$status" -eq 0 ]
 }
 ```
 
 ### 4. Special Considerations
 
-**Bash-Specific Tests**:
-- Some tests may rely on Bash-specific behavior or implementation details
-- These need to be identified and either:
-  1. Adapted to work with both implementations
-  2. Marked as Bash-only and skipped for Go testing
-  3. Rewritten to test behavior, not implementation
-
-**Setup/Teardown**:
-- Tests may need adjustment for Go's file handling or timing
-- Ensure test isolation works with Go's storage layer
+**Test Implementation**:
+- All tests have been updated to work with the Go binary
+- Tests now verify behavior rather than implementation details
+- Proper test isolation is maintained with Go's storage layer
 
 ## Integration with CI/CD
 
@@ -82,24 +64,17 @@ Modify existing Bats tests to use the configurable binary:
 # GitHub Actions matrix
 strategy:
   matrix:
-    implementation: [bash, go]
     os: [ubuntu-latest, macos-latest]
   
 steps:
+  - name: Build Go binary
+    run: make go-build
   - name: Run Bats tests
-    run: |
-      if [[ "${{ matrix.implementation }}" == "go" ]]; then
-        make build-go
-        export TMUX_INTRAY_BINARY="./tmux-intray-go"
-      fi
-      make test
+    run: make test
 ```
 
-### Validation Gates
-1. **Phase 1**: Bats tests pass with Bash implementation (baseline)
-2. **Phase 2-4**: Bats tests pass with Go implementation for migrated components
-3. **Phase 5**: All Bats tests pass with Go implementation
-4. **Phase 6**: Remove Bash-only tests, keep only Go tests
+### Current Status
+All tests have been migrated to use the Go binary directly.
 
 ## Benefits
 

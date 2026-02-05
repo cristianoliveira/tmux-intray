@@ -206,6 +206,44 @@ func Run(hookPoint string, envVars ...string) error {
 	envMap["HOOK_POINT"] = hookPoint
 	envMap["TMUX_INTRAY_HOOKS_FAILURE_MODE"] = getFailureMode()
 	envMap["HOOK_TIMESTAMP"] = time.Now().Format(time.RFC3339)
+	// Add the tmux-intray binary path to help hooks find it
+	// Try multiple methods to find the binary
+	var tmuxIntrayPath string
+	// Method 1: Use os.Executable()
+	if exe, err := os.Executable(); err == nil {
+		tmuxIntrayPath = exe
+	}
+	// Method 2: Check if we're being called directly and use argv[0]
+	if len(os.Args) > 0 && os.Args[0] != "" {
+		// Resolve relative paths
+		if filepath.IsAbs(os.Args[0]) {
+			tmuxIntrayPath = os.Args[0]
+		} else {
+			// Try to find the command in PATH
+			if path, err := exec.LookPath(os.Args[0]); err == nil {
+				tmuxIntrayPath = path
+			}
+		}
+	}
+	// Method 3: Try common installation paths if still not found
+	if tmuxIntrayPath == "" {
+		// Check common installation directories
+		home, _ := os.UserHomeDir()
+		commonPaths := []string{
+			filepath.Join(home, ".local", "bin", "tmux-intray"),
+			"/usr/local/bin/tmux-intray",
+			"/usr/bin/tmux-intray",
+		}
+		for _, path := range commonPaths {
+			if _, err := os.Stat(path); err == nil {
+				tmuxIntrayPath = path
+				break
+			}
+		}
+	}
+	if tmuxIntrayPath != "" {
+		envMap["TMUX_INTRAY_BINARY"] = tmuxIntrayPath
+	}
 	for _, v := range envVars {
 		parts := strings.SplitN(v, "=", 2)
 		if len(parts) == 2 {

@@ -57,15 +57,15 @@ teardown() {
     read -r session window pane pane_created <<<"$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{session_id} #{window_id} #{pane_id} #{pane_created}')"
 
     # Add two notifications with same pane
-    tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'First message'"
-    tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'Second message'"
+    tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/tmux-intray add 'First message'"
+    tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/tmux-intray add 'Second message'"
 
     # Create another pane and add notification there (simulate by directly writing with different pane ID)
     source ./lib/storage.sh
     storage_add_notification "Other pane message" "" "\$other" "@other" "%other" "999"
 
     # List with pane filter
-    run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray list --pane $pane --format=compact"
+    run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/tmux-intray list --pane $pane --format=compact"
     [ "$status" -eq 0 ]
     [[ "$output" == *"First message"* ]]
     [[ "$output" == *"Second message"* ]]
@@ -76,14 +76,14 @@ teardown() {
     source ./lib/storage.sh
     storage_add_notification "Test message" "" "\$1" "@2" "%3" "123"
 
-    run ./bin/tmux-intray list --format=table
+    run ./tmux-intray list --format=table
     [ "$status" -eq 0 ]
     [[ "$output" == *"Pane"* ]]
     [[ "$output" == *"%3"* ]]
 }
 
 @test "list with pane filter on non-existent pane shows empty" {
-    run ./bin/tmux-intray list --pane %nonexistent --format=compact
+    run ./tmux-intray list --pane %nonexistent --format=compact
     [ "$status" -eq 0 ]
     [[ "$output" == *"No notifications found"* ]] || ! grep -qv '^Loaded' <<<"$output"
 }

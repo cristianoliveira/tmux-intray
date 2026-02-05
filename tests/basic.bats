@@ -2,33 +2,31 @@
 # Test basic tmux-intray functionality
 
 @test "tmux-intray shows help" {
-    run ./bin/tmux-intray help
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"tmux-intray"* ]] || [[ "$output" == *"USAGE:"* ]]
-
-    # If TMUX_INTRAY_BIN is set, verify we're using the Go binary
-    if [ -n "${TMUX_INTRAY_BIN:-}" ]; then
-        # Check for either the Executing message or the Go help format
-        [[ "$output" == *"Executing ${TMUX_INTRAY_BIN}"* ]] || [[ "$output" == *"USAGE:"* ]] || {
-            echo "ERROR: Expected to find 'Executing ${TMUX_INTRAY_BIN}' or 'USAGE:' in output"
-            echo "Output was: $output"
-            exit 1
-        }
+    # Ensure the Go binary exists
+    if [ ! -f "./tmux-intray" ]; then
+        skip "tmux-intray binary not found (run 'make go-build' first)"
     fi
+
+    run ./tmux-intray help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"USAGE:"* ]] || {
+        echo "ERROR: Expected to find 'USAGE:' in help output"
+        echo "Output was: $output"
+        exit 1
+    }
 }
 
 @test "tmux-intray shows version" {
-    run ./bin/tmux-intray version
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"tmux-intray"* ]]
-
-    # If TMUX_INTRAY_BIN is set, verify we're using the Go binary
-    if [ -n "${TMUX_INTRAY_BIN:-}" ]; then
-        # Check for either the Executing message or the Go version format
-        [[ "$output" == *"Executing ${TMUX_INTRAY_BIN}"* ]] || [[ "$output" == *"tmux-intray v"* ]] || {
-            echo "ERROR: Expected to find 'Executing ${TMUX_INTRAY_BIN}' or 'tmux-intray v' in output"
-            echo "Output was: $output"
-            exit 1
-        }
+    # Ensure the Go binary exists
+    if [ ! -f "./tmux-intray" ]; then
+        skip "tmux-intray binary not found (run 'make go-build' first)"
     fi
+
+    run ./tmux-intray version
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"tmux-intray"* ]] || {
+        echo "ERROR: Expected to find 'tmux-intray' in version output"
+        echo "Output was: $output"
+        exit 1
+    }
 }

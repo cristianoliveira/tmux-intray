@@ -15,19 +15,19 @@ teardown() {
 }
 
 @test "add requires a message" {
-    run ./bin/tmux-intray add
+    run ./tmux-intray add
     [ "$status" -eq 1 ]
     [[ "$output" == *"requires a message"* ]]
 }
 
 @test "add item to tray" {
-    run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'test message'"
+    run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/tmux-intray add 'test message'"
     [ "$status" -eq 0 ]
     [[ "$output" == *"added"* ]]
 }
 
 @test "add empty message fails" {
-    run ./bin/tmux-intray add ""
+    run ./tmux-intray add ""
     [ "$status" -eq 1 ]
     [[ "$output" == *"empty"* ]]
 }
@@ -35,7 +35,7 @@ teardown() {
 @test "add long message fails (>1000 chars)" {
     local long_message
     long_message=$(printf 'a%.0s' {1..1001})
-    run ./bin/tmux-intray add "$long_message"
+    run ./tmux-intray add "$long_message"
     [ "$status" -eq 1 ]
     [[ "$output" == *"too long"* ]]
 }

@@ -27,10 +27,9 @@
 - `tests/commands/*.bats` – per‑command tests (add, list, show, status, jump, dismiss, follow, management, status‑panel, list‑pane)
 - Total: ~15 Bats files containing ~60 individual test cases
 
-**Dual‑runner approach**
-- Each golden fixture will be derived from the Bash CLI (`bin/tmux-intray`) as the oracle
-- Go CLI (`tmux-intray-go`) will be validated against the same fixtures
-- During migration, Bash remains the source of truth; after switchover, Go becomes the oracle
+**Single‑runner approach**
+- Each golden fixture will be derived from the Go CLI (`tmux-intray`) as the oracle
+- The Go binary is now the single source of truth for all commands
 
 **Parsing Bats tests**
 - Extract test names, command invocations, input arguments, environment variables, and expected assertions
@@ -123,7 +122,7 @@ set -euo pipefail
 # Configuration
 BATS_DIR="tests"
 FIXTURES_DIR="tests/fixtures/golden"
-BASH_CLI="./bin/tmux-intray"
+GO_CLI="./tmux-intray"
 
 # For each .bats file
 for bats_file in "$BATS_DIR"/*.bats "$BATS_DIR"/commands/*.bats; do
@@ -138,8 +137,9 @@ for bats_file in "$BATS_DIR"/*.bats "$BATS_DIR"/commands/*.bats; do
     export TMUX_INTRAY_CONFIG_DIR="$tmpdir/config"
     mkdir -p "$TMUX_INTRAY_STATE_DIR" "$TMUX_INTRAY_CONFIG_DIR"
 
-    # Run Bash CLI
-    output=$("$BASH_CLI" "${args[@]}" 2>&1)
+    # Build and run Go CLI
+    make go-build
+    output=$("$GO_CLI" "${args[@]}" 2>&1)
     exit_code=$?
 
     # Capture stdout/stderr (separately if possible)
