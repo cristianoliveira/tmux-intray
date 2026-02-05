@@ -32,7 +32,7 @@ dist/
 # Docker build cache
 .dockerignore
 result
-tmux-intray
+/tmux-intray
 test-binary
 node_modules
 intray

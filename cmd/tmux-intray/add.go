@@ -51,9 +51,12 @@ the current tmux pane (if inside tmux). Use --no-associate to skip.`,
 			return fmt.Errorf("")
 		}
 
-		// Ensure tmux is running (required for auto-association unless --no-associate)
-		if !noAssociateFlag && sessionFlag == "" && windowFlag == "" && paneFlag == "" {
-			if !core.EnsureTmuxRunning() {
+		needsAutoAssociation := !noAssociateFlag && sessionFlag == "" && windowFlag == "" && paneFlag == ""
+		if needsAutoAssociation && !core.EnsureTmuxRunning() {
+			if allowTmuxlessMode() {
+				colors.Warning("tmux not running; adding notification without pane association")
+				noAssociateFlag = true
+			} else {
 				return fmt.Errorf("No tmux session running")
 			}
 		}

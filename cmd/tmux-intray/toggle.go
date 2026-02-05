@@ -50,6 +50,10 @@ variable TMUX_INTRAY_VISIBLE to "1" (visible) or "0" (hidden).`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Ensure tmux is running
 		if !core.EnsureTmuxRunning() {
+			if allowTmuxlessMode() {
+				colors.Warning("tmux not running; skipping toggle")
+				return nil
+			}
 			return fmt.Errorf("No tmux session running")
 		}
 

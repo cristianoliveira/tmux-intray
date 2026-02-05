@@ -91,7 +91,7 @@ clean:
 
 install:
 	@echo "Installing tmux-intray..."
-	go install github.com/cristianoliveira/tmux-intray@latest
+	go install github.com/cristianoliveira/tmux-intray/cmd/tmux-intray@latest
 	chmod +x scripts/lint.sh
 	chmod +x scripts/security-check.sh
 	chmod +x tmux-intray.tmux
