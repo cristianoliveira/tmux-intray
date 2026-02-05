@@ -170,6 +170,10 @@ jobs:
               gsub(/\"[^\"]+\"/, '\"#{VERSION}\"')
               \$updated_version = true
             end
+            if /^\s*url\s+\".*\/v[^\"]+\.tar\.gz\"/ && !\$updated_url
+              gsub(/\/v[^\"]+\.tar\.gz/, \"/v#{VERSION}.tar.gz\")
+              \$updated_url = true
+            end
             if /^\s*sha256\s+\"/ && !\$updated_sha
               gsub(/\"[^\"]+\"/, '\"#{NEW_SHA256}\"')
               \$updated_sha = true
