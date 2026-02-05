@@ -15,7 +15,7 @@ This document describes the architecture for enabling gradual Bash-to-Go migrati
 
 ### Components
 
-1. **Go Wrapper** (`cmd/tmux-intray/main.go`)
+1. **Go Wrapper** (`main.go`)
    - Extracts embedded files to temporary directory
    - Executes the main Bash script (`bin/tmux-intray`)
    - Sets `TMUX_INTRAY_TEMP_ROOT` environment variable
@@ -127,8 +127,7 @@ All 12 commands mapped with their migration status:
 
 ```
 tmux-intray/
-├── cmd/tmux-intray/
-│   └── main.go              # Enhanced Go wrapper with routing
+├── main.go                  # Enhanced Go wrapper with routing
 ├── go/                      # New directory for Go implementations
 │   ├── commands/            # Go command implementations
 │   │   ├── add.go
@@ -1995,7 +1994,7 @@ jobs:
 ```yaml
 # .goreleaser.yml
 builds:
-  - main: ./cmd/tmux-intray
+  - main: .
     id: tmux-intray
     binary: tmux-intray
     goos:
@@ -2013,7 +2012,7 @@ builds:
 
 ### Phase 1 Checklist (Infrastructure)
 - [ ] Create `docs/architecture/go-wrapper-architecture.md` (this document) (beads#TBD)
-- [ ] Update Go wrapper with routing logic (`cmd/tmux-intray/main.go`) (beads#TBD)
+- [ ] Update Go wrapper with routing logic (`main.go`) (beads#TBD)
 - [ ] Create `go/` directory structure (beads#TBD)
 - [ ] Implement feature flag parsing (beads#TBD)
 - [ ] Create executor interfaces (beads#TBD)

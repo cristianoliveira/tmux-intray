@@ -1,6 +1,6 @@
 module github.com/cristianoliveira/tmux-intray
 
-go 1.24.4
+go 1.21.0
 
 require (
 	github.com/pelletier/go-toml/v2 v2.2.4

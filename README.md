@@ -95,10 +95,10 @@ brew install cristianoliveira/tmux-intray/tmux-intray
 npm install -g tmux-intray
 ```
 
-#### Go
+#### Go (Recommended)
 
 ```bash
-go install github.com/cristianoliveira/tmux-intray/cmd/tmux-intray@latest
+go install github.com/cristianoliveira/tmux-intray@latest
 ```
 
 #### From Source
@@ -177,9 +177,7 @@ The tmux-intray CLI is a command-line interface for managing notifications withi
 ### CLI Requirements
 
 - **tmux**: Most commands require an active tmux session
-- **Go**: Default implementation (for optimal performance)
-- **Bash**: Fallback implementation available (set TMUX_INTRAY_IMPL=bash)
-- **Standard Unix utilities**: Used by bash implementation fallback
+- **Go**: Required for installation and execution
 
 ### CLI Commands
 
@@ -477,26 +475,25 @@ tmux-intray is built with a modular architecture that separates concerns:
 │                     tmux-intray System                       │
 ├─────────────────┬───────────────────────────────────────────┤
 │   CLI Core      │           Tmux Integration                │
-│  (bash-based)   │        (tmux-intray.tmux)                 │
+│   (Go-based)    │        (tmux-intray.tmux)                 │
 ├─────────────────┼───────────────────────────────────────────┤
 │ • Storage       │ • Key bindings (prefix+i, prefix+I)       │
 │ • Commands      │ • Status bar updates                      │
 │ • Hooks system  │ • Pane context capture                    │
 │ • Configuration │ • Environment setup                       │
 └─────────────────┴───────────────────────────────────────────┘
-                           │
-                    ┌──────┴──────┐
-                    │   tmux      │
-                    │  session    │
-                    └─────────────┘
+                            │
+                     ┌──────┴──────┐
+                     │   tmux      │
+                     │  session    │
+                     └─────────────┘
 ```
 
 ### Core Components
 
 1. **Storage Layer**: File-based TSV storage with `flock` locking in `~/.local/state/tmux-intray/`
-2. **Command Layer**: Individual command implementations in `commands/*.sh`
-3. **Library Modules**: Core functions in `lib/*.sh` (core, storage, config, hooks)
-4. **Tmux Integration**: Plugin loader in `tmux-intray.tmux` and status panel in `scripts/status-panel.sh`
+2. **Command Layer**: Individual command implementations in `cmd/*.go`
+3. **Tmux Integration**: Plugin loader in `tmux-intray.tmux` and status panel command (`tmux-intray status-panel`)
 
 ### Data Flow
 

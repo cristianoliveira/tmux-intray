@@ -39,7 +39,9 @@ Example:
   $0 --prefix /usr/local
 
 The installer downloads the latest release from GitHub and installs tmux-intray
-to PREFIX/share/tmux-intray, with a symlink in PREFIX/bin.
+to PREFIX/share/tmux-intray.
+
+The installer installs the Go binary for optimal performance.
 EOF
 }
 
@@ -220,21 +222,27 @@ main() {
     log_info "Installing tmux-intray to ${INSTALL_SHARE_DIR}..."
     if [[ "$dry_run" != true ]]; then
         cp -R "$extracted_dir/." "$INSTALL_SHARE_DIR/"
+        log_info "Installing Go binary..."
+        cd "$INSTALL_SHARE_DIR"
+        go install github.com/cristianoliveira/tmux-intray@latest
+        cd - >/dev/null
     else
         log_info "[dry-run] Would copy files from ${extracted_dir} to ${INSTALL_SHARE_DIR}"
+        log_info "[dry-run] Would install Go binary via 'go install github.com/cristianoliveira/tmux-intray@latest'"
     fi
 
     # Make scripts executable
     if [[ "$dry_run" != true ]]; then
-        chmod +x "$INSTALL_SHARE_DIR/bin/tmux-intray"
         chmod +x "$INSTALL_SHARE_DIR/scripts/lint.sh" 2>/dev/null || true
         chmod +x "$INSTALL_SHARE_DIR/tmux-intray.tmux" 2>/dev/null || true
     else
         log_info "[dry-run] Would make scripts executable"
     fi
 
-    # Create symlink in bin directory
+    # Create symlink in bin directory pointing to Go binary
     local symlink_path="${INSTALL_BIN_DIR}/tmux-intray"
+    local go_bin_path
+    go_bin_path="$(go env GOPATH)/bin/tmux-intray"
     if [[ -L "$symlink_path" ]] || [[ -f "$symlink_path" ]]; then
         log_warn "Existing tmux-intray found at ${symlink_path}"
         if [[ "$dry_run" != true ]]; then
@@ -242,18 +250,18 @@ main() {
             if [[ ! "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
                 log_info "Skipping symlink creation"
             else
-                ln -sf "$INSTALL_SHARE_DIR/bin/tmux-intray" "$symlink_path"
-                log_info "Symlink created at ${symlink_path}"
+                ln -sf "$go_bin_path" "$symlink_path"
+                log_info "Symlink created at ${symlink_path} -> ${go_bin_path}"
             fi
         else
             log_info "[dry-run] Would prompt to overwrite existing symlink"
         fi
     else
         if [[ "$dry_run" != true ]]; then
-            ln -s "$INSTALL_SHARE_DIR/bin/tmux-intray" "$symlink_path"
-            log_info "Symlink created at ${symlink_path}"
+            ln -s "$go_bin_path" "$symlink_path"
+            log_info "Symlink created at ${symlink_path} -> ${go_bin_path}"
         else
-            log_info "[dry-run] Would create symlink at ${symlink_path}"
+            log_info "[dry-run] Would create symlink at ${symlink_path} -> ${go_bin_path}"
         fi
     fi
 
@@ -263,11 +271,20 @@ main() {
     # Verify installation
     log_info "Verifying installation..."
     if [[ "$dry_run" != true ]]; then
-        if "$symlink_path" version >/dev/null 2>&1; then
-            log_info "tmux-intray installed successfully!"
-            log_info "Run 'tmux-intray --help' to get started."
+        # Check if Go binary exists and is executable
+        local go_bin_path
+        go_bin_path="$(go env GOPATH)/bin/tmux-intray"
+        if [[ -x "$go_bin_path" ]]; then
+            # Test Go binary directly
+            if "$go_bin_path" version >/dev/null 2>&1; then
+                log_info "tmux-intray Go binary installed successfully!"
+                log_info "Run 'tmux-intray --help' to get started."
+            else
+                log_error "Go binary verification failed"
+                exit 1
+            fi
         else
-            log_error "Installation verification failed"
+            log_error "Go binary not found at ${go_bin_path}"
             exit 1
         fi
     else

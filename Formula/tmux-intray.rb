@@ -17,11 +17,9 @@ class TmuxIntray < Formula
 
   def install
     # Build the Go binary
-    system "go", "build", "-o", "tmux-intray", "./cmd/tmux-intray"
-    # Install binary to libexec
-    libexec.install "tmux-intray"
-    # Symlink to bin
-    bin.install_symlink libexec/"tmux-intray"
+    system "go", "build", "-o", "tmux-intray", "."
+    # Install binary to bin
+    bin.install "tmux-intray"
   end
 
   test do

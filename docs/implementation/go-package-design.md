@@ -19,8 +19,8 @@ Direct migration of Bash libraries to Go with backward compatibility:
 | hooks.sh (missing) | `internal/hooks` | Execute pre/post hooks for notifications; manage hook scripts | `type HookManager struct`, `ExecutePreAdd`, `ExecutePostAdd` | internal/config, internal/types | Hook scripts remain Bash for compatibility; execution sync/async TBD |
 | core.sh | `internal/core` | Tmux context retrieval, pane validation, jump, tray operations, visibility | `type Core struct`, `GetTmuxContext`, `ValidatePane`, `JumpToPane`, `AddItem`, `GetItems`, `ClearItems`, `GetVisibility`, `SetVisibility` | internal/storage, internal/config, internal/tmux, internal/types | Same tmux display -p format, same fallback behavior |
 | colors.sh | `internal/log` | Colored output for errors, warnings, info, success; logging levels | `Error()`, `Warning()`, `Info()`, `Success()`, `SetLevel()` | none | Output colors match existing; optional structured logging |
-| tmux-intray.sh (placeholder) | `cmd/tmux-intray` | Main CLI entry point; command routing | `main()`, command subcommands | internal/core, internal/config, internal/storage, internal/log | Same subcommands (show, status, toggle, dismiss, help) |
-| commands/*.sh | `cmd/tmux-intray` (subcommands) | Individual command implementations | `runShow()`, `runStatus()`, `runToggle()`, `runDismiss()`, `runHelp()` | internal/core, internal/log | Same CLI flags, output format, exit codes |
+| tmux-intray.sh (placeholder) | `.` (root) | Main CLI entry point; command routing | `main()`, command subcommands | internal/core, internal/config, internal/storage, internal/log | Same subcommands (show, status, toggle, dismiss, help) |
+| commands/*.sh | `cmd` (subcommands) | Individual command implementations | `runShow()`, `runStatus()`, `runToggle()`, `runDismiss()`, `runHelp()` | internal/core, internal/log | Same CLI flags, output format, exit codes |
 
 ## Detailed Package Briefs
 
@@ -241,7 +241,7 @@ func UnescapeField(s string) string
 - Unit tests for edge cases (empty fields, tabs, newlines).
 - Golden compatibility with Bash implementation.
 
-### cmd/tmux-intray
+### Root Main Package
 
 **Overview & inputs/outputs**
 - Main CLI entry point parsing subcommands.
@@ -311,7 +311,7 @@ Later overrides earlier.
 - internal/core (3-4 days)
 
 **Phase 4 – Commands (Large)**
-- cmd/tmux-intray with subcommands (5-7 days)
+- Root main package with subcommands (5-7 days)
 
 **Phase 5 – Hooks & Integration (Medium)**
 - internal/hooks (2-3 days)

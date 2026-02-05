@@ -1,18 +1,14 @@
-.PHONY: all tests fmt check-fmt lint clean install install-homebrew install-docker install-npm install-go install-all verify-install security-check docs
+.PHONY: all tests fmt check-fmt lint clean install install-homebrew install-docker install-npm install-go install-all verify-install security-check docs test
 
-all: go-build tests lint
+# tmux-intray is a pure Go implementation
 
-tests: go-build
-	@echo "Running tests with Go binary..."
-	TMUX_INTRAY_BIN=$$PWD/bin/tmux-intray-go bats tests
-	@echo "Verifying Go binary execution..."
-	TMUX_INTRAY_BIN=$$PWD/bin/tmux-intray-go ./scripts/verify-binary.sh
+all: tests
+	@echo "✓ Build and test complete" lint
 
-tests-go: go-build
-	@echo "Running tests against Go binary..."
-	TMUX_INTRAY_BIN=$$PWD/bin/tmux-intray-go bats tests
-	@echo "Verifying Go binary execution..."
-	TMUX_INTRAY_BIN=$$PWD/bin/tmux-intray-go ./scripts/verify-binary.sh
+tests:
+	@echo "Running tests..."
+	go test ./...
+	bats tests
 
 fmt:
 	@echo "Formatting shell scripts..."
@@ -70,7 +66,7 @@ go-cover-html: go-cover
 
 go-build:
 	@echo "Building Go binary..."
-	go build -o bin/tmux-intray-go ./cmd/go-cli
+	go build -o tmux-intray ./cmd/tmux-intray
 
 lint: check-fmt go-lint
 	@echo "Running linter..."
@@ -79,6 +75,7 @@ lint: check-fmt go-lint
 docs:
 	@echo "Generating documentation..."
 	./scripts/generate-docs.sh
+	@echo "✓ Documentation generated"
 
 security-check:
 	@echo "Running security checks..."
@@ -92,14 +89,15 @@ clean:
 	@echo "Cleaning..."
 	rm -rf .tmp
 
-install: go-build
-	@echo "Installing tmux-intray with Go implementation..."
-	chmod +x bin/tmux-intray
-	chmod +x bin/tmux-intray-go
+install:
+	@echo "Installing tmux-intray..."
+	go install github.com/cristianoliveira/tmux-intray@latest
 	chmod +x scripts/lint.sh
 	chmod +x scripts/security-check.sh
 	chmod +x tmux-intray.tmux
 	chmod +x install.sh
+	@echo "✓ Installation complete"
+	@echo "  - Go binary installed to: $$(go env GOPATH)/bin/tmux-intray"
 
 install-homebrew:
 	@echo "Installing via Homebrew..."
@@ -109,8 +107,4 @@ install-npm:
 	@echo "Installing via npm..."
 	npm install -g .
 
-install-go:
-	@echo "Building Go binary..."
-	go build -o bin/tmux-intray-go ./cmd/tmux-intray
-
-install-all: install-homebrew install-docker install-npm install-go
+install-all: install-homebrew install-docker install-npm

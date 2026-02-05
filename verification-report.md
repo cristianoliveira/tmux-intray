@@ -24,7 +24,7 @@ The Go package structure scaffold has been created and largely matches the inten
 - **Package naming matches directories**: Each `.go` file declares the appropriate package.
 - **Command interface consistent**: Each command exports `func Run(args []string) error` as specified.
 - **Bash mapping correct**: Each Bash library (`lib/*.sh`) has a corresponding Go package.
-- **Entry point**: `cmd/tmux-intray/main.go` exists (currently the embed wrapper; Phase 1).
+- **Entry point**: `main.go` exists (currently the embed wrapper; Phase 1).
 - **Module path**: `go.mod` uses correct module path `github.com/cristianoliveira/tmux-intray`.
 
 ### ⚠️ Minor Issues

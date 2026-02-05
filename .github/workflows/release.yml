@@ -47,9 +47,8 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
-
-      - name: Go mod download
-        run: go mod download
+          cache: true
+          cache-dependency-path: go.sum
 
       - name: Build Go binaries
         env:
@@ -58,13 +57,43 @@ jobs:
           mkdir -p dist
           # Remove leading 'v' from version for ldflags
           VERSION="${VERSION#v}"
-          PLATFORMS="linux/amd64 linux/arm64 darwin/amd64 darwin/arm64"
+          PLATFORMS="linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64"
           for PLATFORM in $PLATFORMS; do
             GOOS=${PLATFORM%/*}
             GOARCH=${PLATFORM#*/}
             output="dist/tmux-intray_${GOOS}_${GOARCH}"
             if [ "$GOOS" = "windows" ]; then output="${output}.exe"; fi
-            GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-X main.Version=$VERSION" -o "$output" ./cmd/tmux-intray
+            GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-X github.com/cristianoliveira/tmux-intray/cmd.Version=$VERSION" -o "$output" ./cmd/tmux-intray
+            echo "Built: $output"
+          done
+
+      - name: Verify built binaries
+        run: |
+          echo "Verifying built binaries..."
+          for binary in dist/tmux-intray_*; do
+            if [[ "$binary" == *.exe ]]; then
+              # Windows binary - just check file exists and has content
+              if [ -f "$binary" ] && [ -s "$binary" ]; then
+                echo "✓ Windows binary verified: $(basename "$binary")"
+              else
+                echo "✗ Windows binary failed: $(basename "$binary")"
+                exit 1
+              fi
+            else
+              # Unix-like binary - check if executable and reports version
+              if [ -x "$binary" ]; then
+                version_output=$("$binary" version 2>&1 || true)
+                if [[ "$version_output" == *"tmux-intray v"* ]]; then
+                  echo "✓ Unix binary verified: $(basename "$binary")"
+                else
+                  echo "⚠ Unix binary version check failed: $(basename "$binary")"
+                  echo "  Output: $version_output"
+                fi
+              else
+                echo "✗ Unix binary not executable: $(basename "$binary")"
+                exit 1
+              fi
+            fi
           done
 
       - name: Generate release notes
