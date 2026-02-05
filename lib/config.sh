@@ -105,8 +105,10 @@ _create_sample_config() {
 # TMUX_INTRAY_HOOKS_ENABLED_post_cleanup=1
 EOF
 
-    info "Created sample configuration at $config_file"
-    info "Edit this file to customize tmux-intray behavior."
+    # Use log_info instead of info to avoid outputting to stdout
+    # This is important for storage operations that need clean output
+    log_info "Created sample configuration at $config_file"
+    log_info "Edit this file to customize tmux-intray behavior."
 }
 
 # Get configuration value with default
