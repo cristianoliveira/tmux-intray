@@ -50,16 +50,32 @@ func GetCurrentTmuxContext() TmuxContext {
 		}
 		return TmuxContext{}
 	}
-	// Split by whitespace
-	parts := strings.Fields(stdout)
-	if len(parts) != 3 {
-		colors.Error("Unexpected tmux display output: " + stdout)
+
+	// Trim whitespace from the output
+	stdout = strings.TrimSpace(stdout)
+
+	// Split by space - tmux output should be exactly 3 parts
+	parts := strings.Split(stdout, " ")
+
+	// Filter out empty strings that might result from multiple spaces
+	var filteredParts []string
+	for _, part := range parts {
+		if part != "" {
+			filteredParts = append(filteredParts, part)
+		}
+	}
+
+	// Check if we have exactly 3 parts (session, window, pane)
+	if len(filteredParts) != 3 {
+		// The tmux output should always have 3 parts
+		// If not, something is wrong
 		return TmuxContext{}
 	}
+
 	ctx := TmuxContext{
-		SessionID: parts[0],
-		WindowID:  parts[1],
-		PaneID:    parts[2],
+		SessionID: filteredParts[0],
+		WindowID:  filteredParts[1],
+		PaneID:    filteredParts[2],
 	}
 	// Try to get pane creation time (pane_created is not a standard tmux format variable)
 	// We'll use an empty string since pane_created is not available in tmux format variables

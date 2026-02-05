@@ -13,6 +13,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Flag variables for cleanup command
+var (
+	daysFlag   int
+	dryRunFlag bool
+)
+
 // cleanupCmd represents the cleanup command
 var cleanupCmd = &cobra.Command{
 	Use:   "cleanup",
@@ -29,17 +35,10 @@ than the configured auto-cleanup days. This helps prevent storage bloat.`,
 			return errors.New("no tmux session running")
 		}
 
-		days, err := cmd.Flags().GetInt("days")
-		if err != nil {
-			return fmt.Errorf("invalid days value: %w", err)
-		}
-		// If days is 0 (default), use config value
+		// Get flags
+		days := daysFlag
 		if days == 0 {
 			days = config.GetInt("auto_cleanup_days", 30)
-		}
-		dryRun, err := cmd.Flags().GetBool("dry-run")
-		if err != nil {
-			return fmt.Errorf("invalid dry-run flag: %w", err)
 		}
 
 		if days <= 0 {
@@ -49,7 +48,7 @@ than the configured auto-cleanup days. This helps prevent storage bloat.`,
 		cmd.Printf("Starting cleanup of notifications dismissed more than %d days ago\n", days)
 
 		storage.Init()
-		err = storage.CleanupOldNotifications(days, dryRun)
+		err := storage.CleanupOldNotifications(days, dryRunFlag)
 		if err != nil {
 			return fmt.Errorf("cleanup failed: %w", err)
 		}
@@ -63,6 +62,6 @@ func init() {
 	rootCmd.AddCommand(cleanupCmd)
 
 	// Default days 0 means "use config value"
-	cleanupCmd.Flags().Int("days", 0, "Clean up notifications dismissed more than N days ago (default: TMUX_INTRAY_AUTO_CLEANUP_DAYS config value)")
-	cleanupCmd.Flags().Bool("dry-run", false, "Show what would be deleted without actually deleting")
+	cleanupCmd.Flags().IntVar(&daysFlag, "days", 0, "Clean up notifications dismissed more than N days ago (default: TMUX_INTRAY_AUTO_CLEANUP_DAYS config value)")
+	cleanupCmd.Flags().BoolVar(&dryRunFlag, "dryrun", false, "Show what would be deleted without actually deleting")
 }

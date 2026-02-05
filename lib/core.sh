@@ -29,7 +29,8 @@ get_current_tmux_context() {
         return 1
     fi
     # Use tmux display -p to get formatted strings
-    local format="#{session_id} #{window_id} #{pane_id} #{pane_created}"
+    # Note: pane_created is not a standard tmux format variable, so we exclude it
+    local format="#{session_id} #{window_id} #{pane_id}"
     local result
     if ! result=$(tmux display -p "$format" 2>/dev/null); then
         error "Failed to get tmux context"
@@ -37,6 +38,8 @@ get_current_tmux_context() {
     fi
     # Split by space
     IFS=' ' read -r current_session current_window current_pane current_pane_created <<<"$result"
+    # Set pane_created to empty since it's not available in tmux format variables
+    current_pane_created=""
 }
 
 # Validate that a pane exists given session, window, pane IDs

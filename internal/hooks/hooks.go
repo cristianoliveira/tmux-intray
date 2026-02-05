@@ -12,6 +12,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/config"
 )
 
 var (
@@ -280,6 +283,40 @@ func ResetForTesting() {
 	defer asyncPendingMu.Unlock()
 	asyncPendingCount = 0
 	asyncPending = sync.WaitGroup{}
+}
+
+// Reset resets the hooks subsystem for testing.
+func Reset() {
+	m := getManager()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.initialized = false
+	m.pending = make(map[int]*pendingHook)
+	once = sync.Once{}
+}
+
+// Shutdown gracefully shuts down the hooks subsystem.
+func Shutdown() {
+	m := getManager()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.initialized {
+		return
+	}
+	// Cancel all pending hooks
+	for _, ph := range m.pending {
+		if ph.cancel != nil {
+			ph.cancel()
+		}
+	}
+	// Wait for all to finish
+	m.wg.Wait()
+	// Close shutdown channel
+	close(m.shutdown)
+	// Reset
+	m.initialized = false
+	m.pending = make(map[int]*pendingHook)
+	once = sync.Once{}
 }
 
 // WaitForPendingHooks waits for all pending async hooks to complete.
