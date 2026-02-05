@@ -189,23 +189,45 @@ func TestGetActiveCount(t *testing.T) {
 
 func TestBashStorageCompatibility(t *testing.T) {
 	tmpDir := setupTest(t)
-	// Find lib directory (project root is parent of internal)
-	// First try relative to current directory
+	// Find lib directory (project root)
 	libDir := ""
-	candidates := []string{
-		filepath.Join("lib"),
-		filepath.Join("..", "lib"),
-		filepath.Join("..", "..", "lib"),
+	cwd, _ := os.Getwd()
+	absPath, _ := filepath.Abs(cwd)
+
+	// Try from current dir and go up looking for lib directory
+	currentDir := absPath
+	for i := 0; i < 5; i++ { // Limit depth to avoid infinite loops
+		testPath := filepath.Join(currentDir, "lib")
+		if _, err := os.Stat(testPath); err == nil {
+			libDir = testPath
+			break
+		}
+		parent := filepath.Dir(currentDir)
+		if parent == currentDir { // Reached root
+			break
+		}
+		currentDir = parent
 	}
-	for _, cand := range candidates {
-		if _, err := os.Stat(cand); err == nil {
-			abs, err := filepath.Abs(cand)
-			if err == nil {
-				libDir = abs
-				break
+
+	// If still not found, try relative paths as fallback
+	if libDir == "" {
+		candidates := []string{
+			filepath.Join("lib"),
+			filepath.Join("..", "lib"),
+			filepath.Join("..", "..", "lib"),
+			filepath.Join("../../../lib"),
+		}
+		for _, cand := range candidates {
+			if _, err := os.Stat(cand); err == nil {
+				abs, err := filepath.Abs(cand)
+				if err == nil {
+					libDir = abs
+					break
+				}
 			}
 		}
 	}
+
 	require.NotEmpty(t, libDir, "lib directory not found")
 	require.DirExists(t, libDir)
 

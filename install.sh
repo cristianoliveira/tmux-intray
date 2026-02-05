@@ -87,6 +87,49 @@ add_to_path() {
     fi
 }
 
+# Build from source if pre-built binary is not available
+build_from_source() {
+    local temp_dir="$1"
+
+    log_info "Building tmux-intray from source..."
+
+    # Check if Go is installed
+    if ! command_exists go; then
+        log_error "Go is required for building from source. Please install Go first."
+        log_error "Visit https://golang.org/dl/ for installation instructions."
+        return 1
+    fi
+
+    # Get source code
+    local source_url="https://github.com/cristianoliveira/tmux-intray/archive/refs/heads/main.tar.gz"
+    local source_path="${temp_dir}/source.tar.gz"
+    local extract_dir="${temp_dir}/source"
+
+    log_info "Downloading source code..."
+    if ! curl -fsSL -o "$source_path" "$source_url"; then
+        log_error "Failed to download source code"
+        return 1
+    fi
+
+    # Extract source
+    mkdir -p "$extract_dir"
+    if ! tar -xzf "$source_path" -C "$extract_dir" --strip-components=1; then
+        log_error "Failed to extract source code"
+        return 1
+    fi
+
+    # Build the binary
+    log_info "Building binary..."
+    cd "$extract_dir"
+    if ! go build -o tmux-intray ./cmd/tmux-intray; then
+        log_error "Failed to build binary"
+        return 1
+    fi
+
+    # Return path to built binary
+    echo "${extract_dir}/tmux-intray"
+}
+
 # Download binary from GitHub release
 download_binary() {
     local temp_dir="$1"
@@ -219,7 +262,10 @@ main() {
     # Download binary
     local binary_path
     if [[ "$dry_run" != true ]]; then
-        binary_path=$(download_binary "$temp_dir" "$platform" "$arch") || exit 1
+        if ! binary_path=$(download_binary "$temp_dir" "$platform" "$arch"); then
+            log_info "Pre-built binary not found. Attempting to build from source..."
+            binary_path=$(build_from_source "$temp_dir") || exit 1
+        fi
     else
         log_info "[dry-run] Would download binary for ${platform}/${arch}"
         binary_path="${temp_dir}/tmux-intray_${platform}_${arch}"

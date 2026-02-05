@@ -176,7 +176,7 @@ jobs:
         run: npm install -g npm
 
       - name: Audit Homebrew formula
-        run: brew audit --strict ./Formula/tmux-intray.rb
+        run: brew audit --strict tmux-intray
 
       - name: Test npm installation
         run: make install-npm
