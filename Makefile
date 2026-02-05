@@ -87,7 +87,7 @@ verify-install:
 
 clean:
 	@echo "Cleaning..."
-	rm -rf .tmp
+	rm -rf bin/tmux-intray
 
 install:
 	@echo "Installing tmux-intray..."
@@ -105,6 +105,9 @@ install-homebrew:
 
 install-npm:
 	@echo "Installing via npm..."
+	@echo "Building Go binary for npm package..."
+	@mkdir -p bin
+	@go build -o bin/tmux-intray ./cmd/tmux-intray
 	npm install -g .
 
 install-go:
