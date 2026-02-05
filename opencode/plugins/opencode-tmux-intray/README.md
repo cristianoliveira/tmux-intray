@@ -142,13 +142,13 @@ The plugin reads configuration from `~/.config/opencode-tmux-intray/opencode-con
 
 ```bash
 cd /path/to/tmux-intray/opencode/plugins/opencode-tmux-intray
-./generate-config.js
+./test-utils/generate-config.js
 ```
 
 Or print it to stdout:
 
 ```bash
-./generate-config.js --stdout
+./test-utils/generate-config.js --stdout
 ```
 
 ### Configuration Structure
@@ -306,8 +306,11 @@ opencode/plugins/
 └── opencode-tmux-intray/            # Supporting modules directory
     ├── README.md                    # This file
     ├── config-loader.js             # Configuration loading and validation
-    ├── generate-config.js           # Configuration file generator
     ├── example-config.json          # Example configuration with comments
+    ├── test-utils/                  # Test utility scripts
+    │   ├── convert-tests.js         # Test conversion utility
+    │   ├── fix-warn-mocks.js        # Mock fixing utility
+    │   └── generate-config.js       # Configuration file generator
     └── tests/
         ├── test-plugin.js           # Basic plugin functionality tests
         ├── test-config-loader.js    # Configuration loading tests
@@ -374,9 +377,9 @@ If you're migrating from the older `agentmux-notify` plugin:
 ### Migration Steps
 
 1. **Generate new configuration**:
-   ```bash
-   ./generate-config.js
-   ```
+    ```bash
+    ./test-utils/generate-config.js
+    ```
 
 2. **Review and customize** the generated configuration to match your previous settings.
 

@@ -36,7 +36,7 @@ async function main() {
   ];
   
   for (const file of testFiles) {
-    await fixFile(path.join(process.cwd(), file));
+    await fixFile(path.join(process.cwd(), '..', file));
   }
   
   console.log('Fix complete');

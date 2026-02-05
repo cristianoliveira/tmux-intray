@@ -39,7 +39,7 @@ async function main() {
   ];
   
   for (const file of testFiles) {
-    await convertFile(path.join(process.cwd(), file));
+    await convertFile(path.join(process.cwd(), '..', file));
   }
   
   console.log('Conversion complete');

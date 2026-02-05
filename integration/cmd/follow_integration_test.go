@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cristianoliveira/tmux-intray/cmd"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 )
 
@@ -20,7 +21,8 @@ func TestFollowIntegration(t *testing.T) {
 	os.Setenv("TMUX_INTRAY_STATE_DIR", tmpDir)
 	defer os.Unsetenv("TMUX_INTRAY_STATE_DIR")
 
-	// Ensure storage is initialized
+	// Reset storage state and initialize
+	storage.Reset()
 	storage.Init()
 
 	// Add a notification
@@ -35,7 +37,7 @@ func TestFollowIntegration(t *testing.T) {
 
 	// Capture output
 	var buf bytes.Buffer
-	opts := FollowOptions{
+	opts := cmd.FollowOptions{
 		State:    "active",
 		TickChan: tickChan,
 		Output:   &buf,
@@ -45,7 +47,7 @@ func TestFollowIntegration(t *testing.T) {
 
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- Follow(ctx, opts)
+		errChan <- cmd.Follow(ctx, opts)
 	}()
 
 	// Trigger tick
@@ -76,6 +78,7 @@ func TestFollowIntegrationWithPane(t *testing.T) {
 	tmpDir := t.TempDir()
 	os.Setenv("TMUX_INTRAY_STATE_DIR", tmpDir)
 	defer os.Unsetenv("TMUX_INTRAY_STATE_DIR")
+	storage.Reset()
 	storage.Init()
 
 	// Add notification with pane
@@ -87,7 +90,7 @@ func TestFollowIntegrationWithPane(t *testing.T) {
 	tickChan := make(chan time.Time)
 	defer close(tickChan)
 	var buf bytes.Buffer
-	opts := FollowOptions{
+	opts := cmd.FollowOptions{
 		State:    "active",
 		TickChan: tickChan,
 		Output:   &buf,
@@ -97,7 +100,7 @@ func TestFollowIntegrationWithPane(t *testing.T) {
 
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- Follow(ctx, opts)
+		errChan <- cmd.Follow(ctx, opts)
 	}()
 
 	tickChan <- time.Now()

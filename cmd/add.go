@@ -42,8 +42,14 @@ OPTIONS:
 
 If no pane association options are provided, automatically associates with
 the current tmux pane (if inside tmux). Use --no-associate to skip.`,
-	Args: cobra.MinimumNArgs(1),
+	Args: cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Check if message is provided to match bash error message
+		if len(args) == 0 {
+			fmt.Fprintf(cmd.ErrOrStderr(), "add requires a message\n")
+			return fmt.Errorf("")
+		}
+
 		// Ensure tmux is running (required for auto-association unless --no-associate)
 		if !noAssociateFlag && sessionFlag == "" && windowFlag == "" && paneFlag == "" {
 			if !core.EnsureTmuxRunning() {
@@ -79,7 +85,7 @@ the current tmux pane (if inside tmux). Use --no-associate to skip.`,
 			return fmt.Errorf("Failed to add tray item")
 		}
 
-		colors.Success("Item added to tray")
+		colors.Success("added")
 		return nil
 	},
 }

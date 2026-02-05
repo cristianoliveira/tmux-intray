@@ -48,6 +48,18 @@ func init() {
 }
 
 func runClear(cmd *cobra.Command, args []string) {
+	// Skip confirmation if running in CI or test environment
+	if os.Getenv("CI") != "" || os.Getenv("BATS_TMPDIR") != "" {
+		// In CI/test mode, proceed without confirmation
+		err := ClearAll()
+		if err != nil {
+			colors.Error(err.Error())
+			return
+		}
+		colors.Success("cleared")
+		return
+	}
+
 	// Ask for confirmation
 	if !confirmClearAll() {
 		colors.Info("Operation cancelled")

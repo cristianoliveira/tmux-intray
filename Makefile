@@ -1,12 +1,12 @@
 .PHONY: all tests fmt check-fmt lint clean install install-homebrew install-docker install-npm install-go install-all verify-install security-check docs
 
-all: tests lint
+all: go-build tests lint
 
-tests:
-	@echo "Running tests..."
-	bats tests
-	@echo "Verifying bash wrapper execution..."
-	./scripts/verify-binary.sh
+tests: go-build
+	@echo "Running tests with Go binary..."
+	TMUX_INTRAY_BIN=$$PWD/bin/tmux-intray-go bats tests
+	@echo "Verifying Go binary execution..."
+	TMUX_INTRAY_BIN=$$PWD/bin/tmux-intray-go ./scripts/verify-binary.sh
 
 tests-go: go-build
 	@echo "Running tests against Go binary..."
@@ -70,7 +70,7 @@ go-cover-html: go-cover
 
 go-build:
 	@echo "Building Go binary..."
-	go build -o bin/tmux-intray-go ./cmd/tmux-intray
+	go build -o bin/tmux-intray-go ./cmd/go-cli
 
 lint: check-fmt go-lint
 	@echo "Running linter..."
@@ -92,9 +92,10 @@ clean:
 	@echo "Cleaning..."
 	rm -rf .tmp
 
-install:
-	@echo "Installing tmux-intray..."
+install: go-build
+	@echo "Installing tmux-intray with Go implementation..."
 	chmod +x bin/tmux-intray
+	chmod +x bin/tmux-intray-go
 	chmod +x scripts/lint.sh
 	chmod +x scripts/security-check.sh
 	chmod +x tmux-intray.tmux

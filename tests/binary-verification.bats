@@ -5,10 +5,10 @@
     # Build the Go binary first
     run make go-build
     [ "$status" -eq 0 ]
-    
+
     # Run with TMUX_INTRAY_BIN set like tests-go does
     run bash -c "TMUX_INTRAY_BIN=./bin/tmux-intray-go ./bin/tmux-intray version 2>&1"
-    
+
     [ "$status" -eq 0 ]
     # The wrapper should indicate it's executing the Go binary
     [[ "$output" == *"Executing ./bin/tmux-intray-go"* ]] || {
@@ -23,7 +23,7 @@
     # Run without TMUX_INTRAY_BIN like tests does
     # Clear any TMUX_INTRAY_BIN that might be set
     run bash -c "unset TMUX_INTRAY_BIN && ./bin/tmux-intray version 2>&1"
-    
+
     [ "$status" -eq 0 ]
     # Should NOT show the "Executing" message
     if [[ "$output" == *"Executing"* ]]; then
@@ -37,12 +37,12 @@
     # Build the Go binary
     run make go-build
     [ "$status" -eq 0 ]
-    
+
     # Run with TMUX_INTRAY_BIN
     run bash -c "TMUX_INTRAY_BIN=./bin/tmux-intray-go ./bin/tmux-intray --help 2>&1"
-    
+
     [ "$status" -eq 0 ]
-    
+
     # Must show the execution message
     [[ "$output" == *"Executing ./bin/tmux-intray-go"* ]] || {
         echo "ERROR: Binary verification failed!"

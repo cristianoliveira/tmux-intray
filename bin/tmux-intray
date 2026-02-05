@@ -57,14 +57,28 @@ if [[ -n "${TMUX_INTRAY_BIN:-}" ]]; then
     fi
 fi
 
-# If TMUX_INTRAY_IMPL is set to "go", execute the Go binary
-if [[ "${TMUX_INTRAY_IMPL:-}" == "go" ]]; then
-    GO_BIN="$PROJECT_ROOT/bin/tmux-intray-go"
-    if [[ ! -x "$GO_BIN" ]]; then
-        echo "Error: Go binary not found at '$GO_BIN'. Build it with 'make go-build'." >&2
-        exit 1
+# Default to Go implementation unless explicitly set to bash
+if [[ "${TMUX_INTRAY_IMPL:-}" != "bash" ]]; then
+    # First try the same directory as the wrapper
+    GO_BIN="$SCRIPT_DIR/tmux-intray-go"
+    if [[ -x "$GO_BIN" ]]; then
+        exec "$GO_BIN" "$@"
     fi
-    exec "$GO_BIN" "$@"
+    # Fall back to project root bin directory
+    GO_BIN="$PROJECT_ROOT/bin/tmux-intray-go"
+    if [[ -x "$GO_BIN" ]]; then
+        exec "$GO_BIN" "$@"
+    fi
+    # Last try - use the wrapper's original location (handles temp directories)
+    if [[ -x "${BASH_SOURCE[0]}" ]]; then
+        WRAPPER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        GO_BIN="$WRAPPER_DIR/tmux-intray-go"
+        if [[ -x "$GO_BIN" ]]; then
+            exec "$GO_BIN" "$@"
+        fi
+    fi
+    echo "Error: Go binary not found. Build it with 'make go-build'." >&2
+    exit 1
 fi
 
 COMMANDS_DIR="$PROJECT_ROOT/commands"

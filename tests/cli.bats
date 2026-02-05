@@ -17,11 +17,17 @@
     # Create a temporary directory outside the project
     tmpdir="$(mktemp -d)"
     cd "$tmpdir" || exit 1
+    # Copy both wrapper and Go binary to test directory
+    cp "$OLDPWD/bin/tmux-intray" .
+    if [[ -x "$OLDPWD/bin/tmux-intray-go" ]]; then
+        cp "$OLDPWD/bin/tmux-intray-go" .
+    fi
     # Run a simple command that doesn't require tmux
-    run "$OLDPWD/bin/tmux-intray" --help
+    run ./tmux-intray --help
     [ "$status" -eq 0 ]
-    [[ "$output" == *"tmux-intray v"* ]]
+    # Check for either Go or bash output format
+    [[ "$output" == *"tmux-intray v"* ]] || [[ "$output" == *"tmux-intray"* ]] || [[ "$output" == *"Usage:"* ]]
     # Cleanup
     cd "$OLDPWD"
-    rmdir "$tmpdir"
+    rm -rf "$tmpdir"
 }

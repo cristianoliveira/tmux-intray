@@ -177,8 +177,9 @@ The tmux-intray CLI is a command-line interface for managing notifications withi
 ### CLI Requirements
 
 - **tmux**: Most commands require an active tmux session
-- **Bash**: Core implementation is bash-based (4.0+)
-- **Standard Unix utilities**: flock, awk, grep, sed, etc.
+- **Go**: Default implementation (for optimal performance)
+- **Bash**: Fallback implementation available (set TMUX_INTRAY_IMPL=bash)
+- **Standard Unix utilities**: Used by bash implementation fallback
 
 ### CLI Commands
 
