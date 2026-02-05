@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"errors"
 	"testing"
 )
 
@@ -258,6 +257,16 @@ func TestRunCountOnlyFormat(t *testing.T) {
 }
 
 func TestRunUnknownFormat(t *testing.T) {
+	originalEnsureTmuxRunningFunc := statusPanelEnsureTmuxRunningFunc
+	originalGetActiveCountFunc := statusPanelGetActiveCountFunc
+	defer func() {
+		statusPanelEnsureTmuxRunningFunc = originalEnsureTmuxRunningFunc
+		statusPanelGetActiveCountFunc = originalGetActiveCountFunc
+	}()
+
+	statusPanelEnsureTmuxRunningFunc = func() bool { return true }
+	statusPanelGetActiveCountFunc = func() int { return 1 } // Non-zero to proceed to format check
+
 	opts := StatusPanelOptions{
 		Format:  "invalid",
 		Enabled: true,
@@ -266,7 +275,7 @@ func TestRunUnknownFormat(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for unknown format")
 	}
-	if !errors.Is(err, err) && err.Error() != "unknown format: invalid" {
+	if err.Error() != "unknown format: invalid" {
 		t.Errorf("Expected 'unknown format: invalid', got %v", err)
 	}
 }

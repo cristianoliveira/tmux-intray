@@ -2,7 +2,6 @@
 package storage
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -27,16 +26,18 @@ func NewLock(dir string) *Lock {
 func (l *Lock) Acquire() error {
 	start := time.Now()
 	for {
-		err := os.Mkdir(l.dir, 0755)
+		// Use MkdirAll to ensure parent directories exist
+		err := os.MkdirAll(l.dir, 0755)
 		if err == nil {
 			return nil
 		}
-		if !os.IsExist(err) {
-			return fmt.Errorf("failed to create lock directory: %w", err)
+		// If directory already exists, that's fine
+		if os.IsExist(err) {
+			return nil
 		}
-		// Lock exists, wait and retry
+		// Log the error and retry
 		if time.Since(start) > lockTimeout {
-			return errors.New("timeout acquiring lock")
+			return fmt.Errorf("failed to create lock directory after timeout: %w", err)
 		}
 		time.Sleep(lockRetry)
 	}

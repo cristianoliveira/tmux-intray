@@ -248,7 +248,7 @@ func printTable(notifs []Notification, w io.Writer) {
 	}
 }
 
-// printCompact prints a compact format with ID and Message only.
+// printCompact prints a compact format with Message only.
 func printCompact(notifs []Notification, w io.Writer) {
 	for _, n := range notifs {
 		// Truncate message for display
@@ -256,7 +256,7 @@ func printCompact(notifs []Notification, w io.Writer) {
 		if len(displayMsg) > 60 {
 			displayMsg = displayMsg[:57] + "..."
 		}
-		fmt.Fprintf(w, "%4d: %s\n", n.ID, displayMsg)
+		fmt.Fprintln(w, displayMsg)
 	}
 }
 
