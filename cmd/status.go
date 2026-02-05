@@ -9,7 +9,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/spf13/cobra"
@@ -32,7 +31,7 @@ EXAMPLES:
     tmux-intray status               # Show summary
     tmux-intray status --format=levels # Show counts by level
     tmux-intray status --format=panes  # Show counts by pane`,
-	Run: runStatus,
+	RunE: runStatus,
 }
 
 var statusFormat string
@@ -146,19 +145,13 @@ func paneCounts() map[string]int {
 
 func formatSummary(w io.Writer) {
 	active := countByState("active")
-	dismissed := countByState("dismissed")
-	total := active + dismissed
-	if total == 0 {
-		fmt.Fprintf(w, "%sNo notifications%s\n", colors.Blue, colors.Reset)
+	if active == 0 {
+		fmt.Fprintf(w, "No active notifications\n")
 		return
 	}
-	fmt.Fprintf(w, "%sActive notifications: %d%s\n", colors.Blue, active, colors.Reset)
-	fmt.Fprintf(w, "%sDismissed notifications: %d%s\n", colors.Blue, dismissed, colors.Reset)
-	fmt.Fprintf(w, "%sTotal notifications: %d%s\n", colors.Blue, total, colors.Reset)
-	if active > 0 {
-		info, warning, error, critical := countByLevel()
-		fmt.Fprintf(w, "%s  info: %d, warning: %d, error: %d, critical: %d%s\n", colors.Blue, info, warning, error, critical, colors.Reset)
-	}
+	fmt.Fprintf(w, "Active notifications: %d\n", active)
+	info, warning, error, critical := countByLevel()
+	fmt.Fprintf(w, "  info: %d, warning: %d, error: %d, critical: %d\n", info, warning, error, critical)
 }
 
 func formatLevels(w io.Writer) {
@@ -183,12 +176,31 @@ func init() {
 	statusCmd.Flags().StringVar(&statusFormat, "format", "summary", "Output format: summary, levels, panes, json")
 }
 
-func runStatus(cmd *cobra.Command, args []string) {
+func runStatus(cmd *cobra.Command, args []string) error {
 	// Ensure tmux is running (mirror bash script behavior)
 	if !core.EnsureTmuxRunning() {
-		colors.Error("tmux is not running")
-		return
+		return fmt.Errorf("tmux is not running")
 	}
 
-	PrintStatus(statusFormat)
+	// Determine format: flag > environment variable > default
+	format := statusFormat
+	if !cmd.Flag("format").Changed {
+		if envFormat := os.Getenv("TMUX_INTRAY_STATUS_FORMAT"); envFormat != "" {
+			format = envFormat
+		}
+	}
+
+	// Validate format
+	validFormats := map[string]bool{
+		"summary": true,
+		"levels":  true,
+		"panes":   true,
+		"json":    true,
+	}
+	if !validFormats[format] {
+		return fmt.Errorf("Unknown format: %s", format)
+	}
+
+	PrintStatus(format)
+	return nil
 }

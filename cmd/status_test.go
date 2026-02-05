@@ -75,7 +75,7 @@ func TestPrintStatusEmpty(t *testing.T) {
 
 	PrintStatus("summary")
 	output := buf.String()
-	expected := "No notifications"
+	expected := "No active notifications"
 	if !strings.Contains(output, expected) {
 		t.Errorf("Expected output to contain %q, got %q", expected, output)
 	}
@@ -91,15 +91,9 @@ func TestPrintStatusSummary(t *testing.T) {
 
 	PrintStatus("summary")
 	output := buf.String()
-	// Should contain active, dismissed, total counts
+	// Should contain active count and level breakdown
 	if !strings.Contains(output, "Active notifications: 4") {
 		t.Errorf("Expected active count 4, got %q", output)
-	}
-	if !strings.Contains(output, "Dismissed notifications: 1") {
-		t.Errorf("Expected dismissed count 1, got %q", output)
-	}
-	if !strings.Contains(output, "Total notifications: 5") {
-		t.Errorf("Expected total count 5, got %q", output)
 	}
 	// Should contain level breakdown (only active notifications)
 	if !strings.Contains(output, "info: 2") {
