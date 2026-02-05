@@ -223,6 +223,7 @@ jobs:
           brew audit --strict tmux-intray/tmux-intray/tmux-intray
           
           # Clean up
+          brew uninstall tmux-intray || true
           brew untap tmux-intray/tmux-intray
           rm -rf "$TAP_DIR"
 
