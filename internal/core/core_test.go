@@ -141,4 +141,45 @@ func TestCore(t *testing.T) {
 		require.Error(t, err)
 		require.Equal(t, ErrTmuxOperationFailed, err)
 	})
+
+	t.Run("escapeMessage", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			input    string
+			expected string
+		}{
+			{
+				name:     "normal text",
+				input:    "hello world",
+				expected: "hello world",
+			},
+			{
+				name:     "newline",
+				input:    "line1\nline2",
+				expected: "line1\\nline2",
+			},
+			{
+				name:     "tab",
+				input:    "col1\tcol2",
+				expected: "col1\\tcol2",
+			},
+			{
+				name:     "backslash",
+				input:    "path\\to\\file",
+				expected: "path\\\\to\\\\file",
+			},
+			{
+				name:     "mixed special chars",
+				input:    "line1\n\ttab\\end",
+				expected: "line1\\n\\ttab\\\\end",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				result := escapeMessage(tt.input)
+				require.Equal(t, tt.expected, result)
+			})
+		}
+	})
 }

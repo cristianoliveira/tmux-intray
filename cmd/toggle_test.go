@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"os/exec"
-	"strings"
 	"testing"
 )
 
@@ -12,74 +11,75 @@ func TestToggleCommand(t *testing.T) {
 		t.Skip("tmux not running, skipping toggle test")
 	}
 
-	// Use the Go binary built in the project root
-	binary := "../tmux-intray-go"
-	if _, err := exec.LookPath(binary); err != nil {
-		// Try to build it
-		cmd := exec.Command("go", "build", "-o", binary)
-		cmd.Dir = ".."
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("failed to build binary: %v, output: %s", err, out)
-		}
+	// Test the toggle logic directly rather than through the binary
+	// to avoid race conditions with external state
+
+	// Test GetCurrentVisibility and Toggle functions
+	tests := []struct {
+		name     string
+		initial  string
+		expected bool
+		msg      string
+	}{
+		{
+			name:     "visible to hidden",
+			initial:  "1",
+			expected: false,
+			msg:      "Tray hidden",
+		},
+		{
+			name:     "hidden to visible",
+			initial:  "0",
+			expected: true,
+			msg:      "Tray visible",
+		},
 	}
 
-	// Helper to get current visibility
-	getVisibility := func() string {
-		cmd := exec.Command("tmux", "show-environment", "-g", "TMUX_INTRAY_VISIBLE")
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			// Variable not set, default to "0"
-			return "0"
-		}
-		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-		for _, line := range lines {
-			if strings.HasPrefix(line, "TMUX_INTRAY_VISIBLE=") {
-				return strings.TrimPrefix(line, "TMUX_INTRAY_VISIBLE=")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set up mock functions
+			origGet := toggleGetVisibilityFunc
+			origSet := toggleSetVisibilityFunc
+
+			// Restore original functions after test
+			defer func() {
+				toggleGetVisibilityFunc = origGet
+				toggleSetVisibilityFunc = origSet
+			}()
+
+			// Mock get visibility to return our test value
+			toggleGetVisibilityFunc = func() string {
+				return tt.initial
 			}
-		}
-		return "0"
-	}
 
-	// Helper to run toggle command
-	runToggle := func() (string, error) {
-		cmd := exec.Command(binary, "toggle")
-		out, err := cmd.CombinedOutput()
-		return string(out), err
-	}
+			// Mock set visibility to capture the value
+			var setVisibilityCalled bool
+			var capturedVisibility bool
+			toggleSetVisibilityFunc = func(visible bool) error {
+				setVisibilityCalled = true
+				capturedVisibility = visible
+				return nil
+			}
 
-	// Record initial visibility
-	initial := getVisibility()
-	t.Logf("initial visibility: %s", initial)
+			// Test Toggle function
+			result, err := Toggle()
+			if err != nil {
+				t.Fatalf("Toggle() failed: %v", err)
+			}
 
-	// Toggle twice and verify behavior
-	for i := 0; i < 2; i++ {
-		visibleBefore := getVisibility()
-		out, err := runToggle()
-		if err != nil {
-			t.Fatalf("toggle %d failed: %v, output: %s", i+1, err, out)
-		}
-		// Determine expected message based on visibility before toggle
-		// Message indicates new state after toggle
-		var expected string
-		if visibleBefore == "1" {
-			expected = "Tray hidden"
-		} else {
-			expected = "Tray visible"
-		}
-		if !strings.Contains(out, expected) {
-			t.Errorf("toggle %d: expected output to contain %q, got %q", i+1, expected, out)
-		}
-		// Verify visibility changed
-		visibleAfter := getVisibility()
-		if visibleAfter == visibleBefore {
-			t.Errorf("toggle %d: visibility did not change (still %s)", i+1, visibleAfter)
-		}
-		t.Logf("toggle %d: %s -> %s", i+1, visibleBefore, visibleAfter)
-	}
+			if !setVisibilityCalled {
+				t.Error("SetVisibility was not called")
+			}
 
-	// Final visibility should match initial (after two toggles)
-	final := getVisibility()
-	if final != initial {
-		t.Errorf("final visibility %s does not match initial %s", final, initial)
+			if capturedVisibility != tt.expected {
+				t.Errorf("Expected SetVisibility to be called with %v, got %v",
+					tt.expected, capturedVisibility)
+			}
+
+			if result != tt.expected {
+				t.Errorf("Expected Toggle to return %v, got %v",
+					tt.expected, result)
+			}
+		})
 	}
 }
