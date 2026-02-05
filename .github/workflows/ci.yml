@@ -189,11 +189,22 @@ jobs:
         run: |
           # Create a temporary tap for testing
           TAP_DIR=$(brew --repository)/Library/Taps/tmux-intray/homebrew-tap
+          rm -rf "$TAP_DIR"
           mkdir -p "$TAP_DIR"
           
+          # Initialize it as a git repository (required for Homebrew taps)
+          cd "$TAP_DIR"
+          git init
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          
           # Copy the formula to the tap
-          mkdir -p "$TAP_DIR/Formula"
-          cp ./Formula/tmux-intray.rb "$TAP_DIR/Formula/"
+          mkdir -p Formula
+          cp ./Formula/tmux-intray.rb Formula/
+          
+          # Create initial commit
+          git add Formula/tmux-intray.rb
+          git commit -m "Add tmux-intray formula"
           
           # Tap the local repository
           brew tap tmux-intray/tmux-intray file://"$TAP_DIR"
