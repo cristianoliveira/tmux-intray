@@ -15,13 +15,13 @@ teardown() {
 }
 
 @test "clear tray" {
-    tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'test'"
-    run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray clear"
+    tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/tmux-intray add 'test'"
+    run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/tmux-intray clear"
     [ "$status" -eq 0 ]
     [[ "$output" == *"cleared"* ]]
 }
 
 @test "toggle tray visibility" {
-    run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray toggle"
+    run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/tmux-intray toggle"
     [ "$status" -eq 0 ]
 }

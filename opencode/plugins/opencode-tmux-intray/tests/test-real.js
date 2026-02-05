@@ -20,7 +20,7 @@ const pluginPath = join(__dirname, '../../opencode-tmux-intray.js');
 const execAsync = promisify(exec);
 
 function getLocalTmuxIntrayPath() {
-  const localBinary = join(__dirname, '../../../../bin/tmux-intray');
+  const localBinary = join(__dirname, '../../../../tmux-intray');
   return localBinary;
 }
 

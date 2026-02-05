@@ -17,6 +17,23 @@
             shfmt
 
             prek
+
+            ## For tmux
+            go
+
+            golangci-lint
+
+            # Test runner with good output
+            # USAGE: gotestsum --watch
+            gotestsum
+
+            # To create new subcommands, run:
+            # cobra-cli add <subcommand-name>
+            cobra-cli
+
+            # To generate the mock for the interfaces, run:
+            # mockgen -source=./pkg/cli/cli.go -destination=./pkg/cli/mock/mock_cli.go -package=mock
+            mockgen
           ];
         };
 
@@ -31,9 +48,12 @@
               export XDG_CONFIG_HOME=$(mktemp -d)
               export HOME=$(mktemp -d)
             '';
+            buildPhase = ''
+              go build -o tmux-intray ./cmd/tmux-intray
+            '';
             installPhase = ''
               mkdir -p $out/bin
-              cp bin/tmux-intray $out/bin/tmux-intray
+              cp tmux-intray $out/bin/tmux-intray
               chmod +x $out/bin/tmux-intray
             '';
           };

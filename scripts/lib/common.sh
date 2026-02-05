@@ -10,6 +10,7 @@ find_shell_scripts() {
     find "$root_dir" -type f \( -name "*.sh" -o -name "*.bats" -o -name "*.tmux" \) \
         -not -path "*/.git/*" \
         -not -path "*/.tmp/*" \
+        -not -path "*/_tmp/*" \
         -not -path "*/.bv/*" \
         -not -path "*/.local/*" \
         -not -path "*/tmp/*" \
@@ -29,32 +30,10 @@ get_extra_files() {
     local extra_files=()
 
     if [[ "$file" == *.sh ]]; then
-        # Add all lib files
+        # Add all lib files from scripts/lib directory
         while IFS= read -r -d '' lib_file; do
             extra_files+=("$lib_file")
-        done < <(find "$root_dir/lib" -name "*.sh" -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -not -path "*/.gwt" -not -path "*/.direnv/*" -not -path "*/.beads/*" -print0)
-
-        # For command files, also check their modules
-        if echo "$file" | grep -q "commands/[^/]*\.sh$"; then
-            # Main command files (not in modules/)
-            local cmd_name
-            cmd_name=$(basename "$file" .sh)
-            local modules_dir="$root_dir/commands/$cmd_name/modules"
-            if [[ -d "$modules_dir" ]]; then
-                while IFS= read -r -d '' module_file; do
-                    extra_files+=("$module_file")
-                done < <(find "$modules_dir" -name "*.sh" -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -not -path "*/.gwt" -not -path "*/.direnv/*" -not -path "*/.beads/*" -print0)
-            fi
-        elif echo "$file" | grep -q "commands/.*/modules/.*\.sh$"; then
-            # Module files (in modules/ subdirectory)
-            local module_dir
-            module_dir=$(dirname "$file")
-            while IFS= read -r -d '' module_file; do
-                if [[ "$module_file" != "$file" ]]; then
-                    extra_files+=("$module_file")
-                fi
-            done < <(find "$module_dir" -name "*.sh" -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -not -path "*/.gwt" -not -path "*/.direnv/*" -not -path "*/.beads/*" -print0)
-        fi
+        done < <(find "$root_dir/scripts/lib" -name "*.sh" -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/_tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -not -path "*/.gwt" -not -path "*/.direnv/*" -not -path "*/.beads/*" -print0)
     fi
 
     # Return extra files by printing them null-delimited (safe for spaces)

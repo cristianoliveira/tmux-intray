@@ -29,3 +29,8 @@ repos:
         entry: bats
         language: system
         files: ^tests/.*\.bats$
+      - id: gofmt-vet
+        name: gofmt+vet
+        entry: scripts/go-pre-commit.sh
+        language: system
+        files: \.go$

@@ -1,7 +1,7 @@
 class TmuxIntray < Formula
   desc "Quiet inbox for things that happen while you're not looking"
   homepage "https://github.com/cristianoliveira/tmux-intray"
-  url "https://github.com/cristianoliveira/tmux-intray/archive/refs/tags/v#{version}.tar.gz"
+  url "https://github.com/cristianoliveira/tmux-intray/archive/refs/tags/v0.1.0.tar.gz"
   version "0.1.0"
   sha256 "0019dfc4b32d63c1392aa264aed2253c1e0c2fb09216f8e2cc269bbfb8bb49b5"
   license "MIT"
@@ -18,10 +18,8 @@ class TmuxIntray < Formula
   def install
     # Build the Go binary
     system "go", "build", "-o", "tmux-intray", "./cmd/tmux-intray"
-    # Install binary to libexec
-    libexec.install "tmux-intray"
-    # Symlink to bin
-    bin.install_symlink libexec/"tmux-intray"
+    # Install binary to bin
+    bin.install "tmux-intray"
   end
 
   test do

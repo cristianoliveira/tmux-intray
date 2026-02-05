@@ -1,4 +1,5 @@
 name: Release
+
 # Release automation for tmux-intray
 # Optionally integrate with semantic-release by adding a job that:
 # 1. Runs on push to main/develop
@@ -17,7 +18,7 @@ jobs:
       contents: write  # Needed for creating releases
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch all history for changelog generation
 
@@ -27,28 +28,29 @@ jobs:
 
       - name: Verify version consistency
         run: |
-          SCRIPT_VERSION=$(grep -E '^VERSION="[0-9]+\.[0-9]+\.[0-9]+"' bin/tmux-intray | cut -d'"' -f2)
+          # Version is now managed through Go ldflags during build
+          # We just need to verify the tag follows semantic versioning
           TAG_VERSION="${{ steps.tag.outputs.VERSION }}"
-          # Remove leading 'v' from tag for comparison
+          # Remove leading 'v' from tag for verification
           TAG_VERSION="${TAG_VERSION#v}"
-          if [ "$SCRIPT_VERSION" != "$TAG_VERSION" ]; then
-            echo "Error: Version mismatch"
-            echo "  bin/tmux-intray version: $SCRIPT_VERSION"
-            echo "  Git tag version: $TAG_VERSION"
+          if ! echo "$TAG_VERSION" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' > /dev/null; then
+            echo "Error: Invalid version format in tag"
+            echo "  Expected format: v1.2.3"
+            echo "  Got tag: ${{ steps.tag.outputs.VERSION }}"
             exit 1
           fi
+          echo "✓ Version format validated: $TAG_VERSION"
 
       - name: Generate documentation
         run: |
           ./scripts/generate-docs.sh
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
-
-      - name: Go mod download
-        run: go mod download
+          cache: true
+          cache-dependency-path: go.sum
 
       - name: Build Go binaries
         env:
@@ -57,13 +59,43 @@ jobs:
           mkdir -p dist
           # Remove leading 'v' from version for ldflags
           VERSION="${VERSION#v}"
-          PLATFORMS="linux/amd64 linux/arm64 darwin/amd64 darwin/arm64"
+          PLATFORMS="linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64"
           for PLATFORM in $PLATFORMS; do
             GOOS=${PLATFORM%/*}
             GOARCH=${PLATFORM#*/}
             output="dist/tmux-intray_${GOOS}_${GOARCH}"
             if [ "$GOOS" = "windows" ]; then output="${output}.exe"; fi
-            GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-X main.Version=$VERSION" -o "$output" ./cmd/tmux-intray
+            GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-X github.com/cristianoliveira/tmux-intray/cmd.Version=$VERSION" -o "$output" ./cmd/tmux-intray
+            echo "Built: $output"
+          done
+
+      - name: Verify built binaries
+        run: |
+          echo "Verifying built binaries..."
+          for binary in dist/tmux-intray_*; do
+            if [[ "$binary" == *.exe ]]; then
+              # Windows binary - just check file exists and has content
+              if [ -f "$binary" ] && [ -s "$binary" ]; then
+                echo "✓ Windows binary verified: $(basename "$binary")"
+              else
+                echo "✗ Windows binary failed: $(basename "$binary")"
+                exit 1
+              fi
+            else
+              # Unix-like binary - check if executable and reports version
+              if [ -x "$binary" ]; then
+                version_output=$("$binary" version 2>&1 || true)
+                if [[ "$version_output" == *"tmux-intray v"* ]]; then
+                  echo "✓ Unix binary verified: $(basename "$binary")"
+                else
+                  echo "⚠ Unix binary version check failed: $(basename "$binary")"
+                  echo "  Output: $version_output"
+                fi
+              else
+                echo "✗ Unix binary not executable: $(basename "$binary")"
+                exit 1
+              fi
+            fi
           done
 
       - name: Generate release notes
@@ -99,7 +131,6 @@ jobs:
           RELEASE_NOTES+="## Changelog"
           RELEASE_NOTES+=$'\n\n'
           RELEASE_NOTES+="$CHANGELOG"
-
           # Output for next step (using environment file)
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_ENV"
           echo "$RELEASE_NOTES" >> "$GITHUB_ENV"
@@ -139,6 +170,10 @@ jobs:
               gsub(/\"[^\"]+\"/, '\"#{VERSION}\"')
               \$updated_version = true
             end
+            if /^\s*url\s+\".*\/v[^\"]+\.tar\.gz\"/ && !\$updated_url
+              gsub(/\/v[^\"]+\.tar\.gz/, \"/v#{VERSION}.tar.gz\")
+              \$updated_url = true
+            end
             if /^\s*sha256\s+\"/ && !\$updated_sha
               gsub(/\"[^\"]+\"/, '\"#{NEW_SHA256}\"')
               \$updated_sha = true
@@ -149,7 +184,7 @@ jobs:
           git config user.email "github-actions@github.com"
           git add Formula/tmux-intray.rb
           if ! git diff --cached --quiet; then
-          git commit -m "chore(ci): update homebrew formula to v${VERSION}"
+            git commit -m "chore(ci): update homebrew formula to v${VERSION}"
             git push origin main
           else
             echo "No changes to formula."
@@ -166,5 +201,3 @@ jobs:
           files: |
             ${{ steps.package.outputs.TARBALL_PATH }}
             dist/tmux-intray_*
-
-

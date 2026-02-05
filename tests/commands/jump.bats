@@ -29,13 +29,13 @@ teardown() {
 }
 
 @test "jump requires an id" {
-    run ./bin/tmux-intray jump
+    run ./tmux-intray jump
     [ "$status" -eq 1 ]
     [[ "$output" == *"requires a notification ID"* ]]
 }
 
 @test "jump with invalid id fails" {
-    run ./bin/tmux-intray jump 999
+    run ./tmux-intray jump 999
     [ "$status" -eq 1 ]
     [[ "$output" == *"not found"* ]]
 }
@@ -47,13 +47,13 @@ teardown() {
     read -r session window pane pane_created <<<"$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{session_id} #{window_id} #{pane_id} #{pane_created}')"
 
     # Use tmux run-shell to add notification within the tmux server context
-    tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'test message'"
+    tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/tmux-intray add 'test message'"
     # Get the ID (output includes ID and success message)
     local id
-    id=$(tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'another message' 2>&1 | head -n1")
+    id=$(tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/tmux-intray add 'another message' 2>&1 | head -n1")
 
     # Jump to pane (should succeed)
-    run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray jump $id"
+    run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/tmux-intray jump $id"
     [ "$status" -eq 0 ]
     [[ "$output" == *"Jumped to pane"* ]]
 }
@@ -63,13 +63,13 @@ teardown() {
     read -r session window pane pane_created <<<"$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{session_id} #{window_id} #{pane_id} #{pane_created}')"
 
     local id
-    id=$(tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray add 'test message' 2>&1 | head -n1")
+    id=$(tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/tmux-intray add 'test message' 2>&1 | head -n1")
 
     # Dismiss notification
-    tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray dismiss $id"
+    tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/tmux-intray dismiss $id"
 
     # Jump should still work (with warning)
-    run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/bin/tmux-intray jump $id"
+    run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/tmux-intray jump $id"
     [ "$status" -eq 0 ]
     [[ "$output" == *"dismissed"* ]]
     [[ "$output" == *"Jumped to pane"* ]]
@@ -83,7 +83,7 @@ teardown() {
     id=$(storage_add_notification "Test" "" "\$none" "@none" "%none" "123")
 
     # Try to jump
-    run ./bin/tmux-intray jump "$id"
+    run ./tmux-intray jump "$id"
     [ "$status" -eq 1 ]
     [[ "$output" == *"does not exist"* ]]
 }

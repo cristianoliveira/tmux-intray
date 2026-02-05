@@ -28,7 +28,7 @@ function isTestMode() {
 /**
  * Get the tmux-intray command to use.
  * Checks TMUX_INTRAY_PATH environment variable first.
- * Then checks for local binary at ../../bin/tmux-intray relative to this file.
+ * Then checks for local binary at ../../tmux-intray relative to this file.
  * Falls back to 'tmux-intray' command in PATH.
  * When TEST_MODE=1 is set, the plugin may log additional debug information.
  * @returns {Promise<string>} Command string
@@ -42,7 +42,7 @@ async function getTmuxIntrayCommand() {
     // Try local binary relative to this plugin file
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = dirname(__filename);
-    const localBinary = join(__dirname, '../../bin/tmux-intray');
+    const localBinary = join(__dirname, '../../tmux-intray');
     
     try {
       // Check if file exists and is executable
