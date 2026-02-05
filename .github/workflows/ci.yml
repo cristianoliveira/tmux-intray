@@ -193,8 +193,10 @@ jobs:
           mkdir -p "$TAP_DIR"
           mkdir -p "$TAP_DIR/Formula"
           
-          # Copy the formula to the tap (before changing directory)
+          # Copy the formula to the tap and modify it to use head
           cp ./Formula/tmux-intray.rb "$TAP_DIR/Formula/"
+          # Remove the url, version, and sha256 lines to force using head
+          sed -i '' '/^  url /d; /^  version /d; /^  sha256 /d' "$TAP_DIR/Formula/tmux-intray.rb"
           
           # Initialize it as a git repository (required for Homebrew taps)
           cd "$TAP_DIR"
@@ -213,7 +215,7 @@ jobs:
           brew tap tmux-intray/tmux-intray file://"$TAP_DIR"
           
           # Install from the tap
-          brew install tmux-intray/tmux-intray/tmux-intray
+          brew install tmux-intray/tmux-intray/tmux-intray --HEAD
           
           # Audit the formula
           brew audit --strict tmux-intray/tmux-intray/tmux-intray
