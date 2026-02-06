@@ -267,7 +267,7 @@ For a comprehensive list of filters and detailed examples, see the [CLI Referenc
 
 The tmux plugin enhances the CLI with tmux-specific features:
 
-- **Key bindings**: `prefix+i` toggles tray, `prefix+I` shows notifications
+- **Key bindings**: `prefix+I` shows notifications in real-time (follow mode), `prefix+J` opens interactive TUI in popup window
 - **Status bar integration**: Real-time notification count in status-right
 - **Pane context capture**: Automatic tracking of notification origins
 - **Environment setup**: Proper PATH and configuration for CLI access
@@ -286,8 +286,33 @@ set -g status-right "#(tmux-intray status-panel) %H:%M"
 
 ### Key Bindings
 
-- `prefix + i` - Toggle tray visibility
-- `prefix + I` - Show all notifications
+- `prefix + I` - Show notifications in real-time (follow mode)
+- `prefix + J` - Open interactive TUI in popup window
+
+### Interactive TUI
+
+The `tmux-intray tui` command provides an interactive terminal user interface for managing notifications. It can be accessed via the `prefix + J` key binding, which opens the TUI in a tmux popup window (80% width, 80% height).
+
+**TUI Key Bindings:**
+
+| Key          | Action                                     |
+|--------------|--------------------------------------------|
+| j/k          | Navigate up/down in the list               |
+| /            | Enter search mode                          |
+| :            | Enter command mode                         |
+| ESC          | Exit search/command mode, or quit TUI      |
+| d            | Dismiss selected notification              |
+| Enter        | Jump to pane (or execute command in command mode) |
+| q            | Quit TUI                                   |
+| i            | Edit search query (when in search mode)    |
+
+**Features:**
+- Table view with TYPE, STATUS, SUMMARY, SOURCE, AGE columns
+- Real-time search filtering
+- Vim-like navigation
+- Dismiss notifications directly
+- Jump to source panes
+- Notifications sorted by most recent first
 
 ### Status Bar Integration
 
@@ -311,7 +336,7 @@ export TMUX_INTRAY_STATUS_FORMAT="compact"
 2. **Review notifications** when ready:
    ```bash
    tmux-intray list
-   # or use tmux key binding: prefix+I
+    # or use tmux key bindings: prefix+I (follow mode) or prefix+J (interactive TUI)
    ```
 
 3. **Manage notifications**:
@@ -472,7 +497,7 @@ tmux-intray is built with a modular architecture that separates concerns:
 │   CLI Core      │           Tmux Integration                │
 │   (Go-based)    │        (tmux-intray.tmux)                 │
 ├─────────────────┼───────────────────────────────────────────┤
-│ • Storage       │ • Key bindings (prefix+i, prefix+I)       │
+│ • Storage       │ • Key bindings (prefix+I, prefix+J)       │
 │ • Commands      │ • Status bar updates                      │
 │ • Hooks system  │ • Pane context capture                    │
 │ • Configuration │ • Environment setup                       │
