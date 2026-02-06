@@ -252,6 +252,78 @@ func TestTmuxFunctions(t *testing.T) {
 			t.Error("Expected false when set fails")
 		}
 	})
+
+	t.Run("GetCurrentTmuxContext", func(t *testing.T) {
+		// Tiger Style: Test successful parsing of 4-part format
+		// ASSERTION: Format string produces 4 parts: session_id window_id pane_id pane_pid
+		tmuxRunner = func(args ...string) (string, string, error) {
+			// Return format: #{session_id} #{window_id} #{pane_id} #{pane_pid}
+			return "$3 @16 %21 8443\n", "", nil
+		}
+		ctx := GetCurrentTmuxContext()
+		if ctx.SessionID != "$3" {
+			t.Errorf("Expected SessionID '$3', got '%s'", ctx.SessionID)
+		}
+		if ctx.WindowID != "@16" {
+			t.Errorf("Expected WindowID '@16', got '%s'", ctx.WindowID)
+		}
+		if ctx.PaneID != "%21" {
+			t.Errorf("Expected PaneID '%%21', got '%s'", ctx.PaneID)
+		}
+		if ctx.PaneCreated != "8443" {
+			t.Errorf("Expected PaneCreated '8443', got '%s'", ctx.PaneCreated)
+		}
+
+		// Tiger Style: Test with extra whitespace (multiple spaces)
+		// ASSERTION: Extra spaces should be filtered out
+		tmuxRunner = func(args ...string) (string, string, error) {
+			return "$0  @5   %10    1234\n", "", nil
+		}
+		ctx = GetCurrentTmuxContext()
+		if ctx.SessionID != "$0" || ctx.WindowID != "@5" || ctx.PaneID != "%10" || ctx.PaneCreated != "1234" {
+			t.Error("Expected filtering of multiple spaces to work correctly")
+		}
+
+		// Tiger Style: Test format error (too few parts)
+		// ASSERTION: Should return empty context when format is wrong
+		tmuxRunner = func(args ...string) (string, string, error) {
+			return "$0 @5 %10\n", "", nil // Only 3 parts, should fail
+		}
+		ctx = GetCurrentTmuxContext()
+		if ctx.SessionID != "" {
+			t.Errorf("Expected empty SessionID for invalid format, got '%s'", ctx.SessionID)
+		}
+
+		// Tiger Style: Test format error (too many parts)
+		// ASSERTION: Should return empty context when format has extra parts
+		tmuxRunner = func(args ...string) (string, string, error) {
+			return "$0 @5 %10 1234 extra\n", "", nil // 5 parts, should fail
+		}
+		ctx = GetCurrentTmuxContext()
+		if ctx.SessionID != "" {
+			t.Errorf("Expected empty SessionID for invalid format, got '%s'", ctx.SessionID)
+		}
+
+		// Tiger Style: Test empty session_id (validation)
+		// ASSERTION: Should return empty context when session_id is empty
+		tmuxRunner = func(args ...string) (string, string, error) {
+			return " @5 %10 1234\n", "", nil // Empty session_id
+		}
+		ctx = GetCurrentTmuxContext()
+		if ctx.SessionID != "" {
+			t.Errorf("Expected empty SessionID when input has empty session_id, got '%s'", ctx.SessionID)
+		}
+
+		// Tiger Style: Test tmux command failure
+		// ASSERTION: Should return empty context when tmux command fails
+		tmuxRunner = func(args ...string) (string, string, error) {
+			return "", "not in a tmux session", errors.New("command failed")
+		}
+		ctx = GetCurrentTmuxContext()
+		if ctx.SessionID != "" {
+			t.Errorf("Expected empty SessionID on command failure, got '%s'", ctx.SessionID)
+		}
+	})
 }
 
 func TestColorsErrorFallback(t *testing.T) {
