@@ -48,7 +48,7 @@ func TestTUIModelInit(t *testing.T) {
 
 // TestTUIModelUpdateHandlesNavigation verifies j/k navigation works correctly.
 func TestTUIModelUpdateHandlesNavigation(t *testing.T) {
-	model := tuiModel{
+	model := &tuiModel{
 		notifications: []Notification{
 			{ID: 1, Message: "First"},
 			{ID: 2, Message: "Second"},
@@ -65,7 +65,7 @@ func TestTUIModelUpdateHandlesNavigation(t *testing.T) {
 	// Test k key (move up - should stay at 0)
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}}
 	newModel, _ := model.Update(msg)
-	model = newModel.(tuiModel)
+	model = newModel.(*tuiModel)
 	if model.cursor != 0 {
 		t.Errorf("Expected cursor to stay at 0 when moving up from position 0, got %d", model.cursor)
 	}
@@ -73,7 +73,7 @@ func TestTUIModelUpdateHandlesNavigation(t *testing.T) {
 	// Test j key (move down)
 	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}}
 	newModel, _ = model.Update(msg)
-	model = newModel.(tuiModel)
+	model = newModel.(*tuiModel)
 	if model.cursor != 1 {
 		t.Errorf("Expected cursor to move to position 1, got %d", model.cursor)
 	}
@@ -81,7 +81,7 @@ func TestTUIModelUpdateHandlesNavigation(t *testing.T) {
 	// Test j key again (move down)
 	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}}
 	newModel, _ = model.Update(msg)
-	model = newModel.(tuiModel)
+	model = newModel.(*tuiModel)
 	if model.cursor != 2 {
 		t.Errorf("Expected cursor to move to position 2, got %d", model.cursor)
 	}
@@ -89,7 +89,7 @@ func TestTUIModelUpdateHandlesNavigation(t *testing.T) {
 	// Test j key again (should stay at 2 - last position)
 	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}}
 	newModel, _ = model.Update(msg)
-	model = newModel.(tuiModel)
+	model = newModel.(*tuiModel)
 	if model.cursor != 2 {
 		t.Errorf("Expected cursor to stay at 2 when moving down from last position, got %d", model.cursor)
 	}
@@ -97,7 +97,7 @@ func TestTUIModelUpdateHandlesNavigation(t *testing.T) {
 	// Test k key (move up)
 	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}}
 	newModel, _ = model.Update(msg)
-	model = newModel.(tuiModel)
+	model = newModel.(*tuiModel)
 	if model.cursor != 1 {
 		t.Errorf("Expected cursor to move to position 1, got %d", model.cursor)
 	}
@@ -105,7 +105,7 @@ func TestTUIModelUpdateHandlesNavigation(t *testing.T) {
 
 // TestTUIModelUpdateHandlesSearch verifies search functionality works correctly.
 func TestTUIModelUpdateHandlesSearch(t *testing.T) {
-	model := tuiModel{
+	model := &tuiModel{
 		notifications: []Notification{
 			{ID: 1, Message: "Error: file not found"},
 			{ID: 2, Message: "Warning: low memory"},
@@ -122,7 +122,7 @@ func TestTUIModelUpdateHandlesSearch(t *testing.T) {
 	// Test / key (enter search mode)
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}}
 	newModel, _ := model.Update(msg)
-	model = newModel.(tuiModel)
+	model = newModel.(*tuiModel)
 	if !model.searchMode {
 		t.Error("Expected searchMode to be true after pressing /")
 	}
@@ -192,13 +192,13 @@ func TestTUIModelUpdateHandlesQuit(t *testing.T) {
 
 // TestTUIModelUpdateHandlesSearchEscape verifies ESC in search mode exits search mode but not TUI.
 func TestTUIModelUpdateHandlesSearchEscape(t *testing.T) {
-	model := tuiModel{
+	model := &tuiModel{
 		searchMode:  true,
 		searchQuery: "test",
 	}
 	msg := tea.KeyMsg{Type: tea.KeyEsc}
 	newModel, cmd := model.Update(msg)
-	model = newModel.(tuiModel)
+	model = newModel.(*tuiModel)
 	if cmd != nil {
 		t.Error("Expected Update to return nil command for ESC in search mode")
 	}
@@ -212,11 +212,11 @@ func TestTUIModelUpdateHandlesSearchEscape(t *testing.T) {
 
 // TestTUIModelUpdateHandlesCommandMode verifies command mode functionality.
 func TestTUIModelUpdateHandlesCommandMode(t *testing.T) {
-	model := tuiModel{}
+	model := &tuiModel{}
 	// Test ':' enters command mode
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}}
 	newModel, _ := model.Update(msg)
-	model = newModel.(tuiModel)
+	model = newModel.(*tuiModel)
 	if !model.commandMode {
 		t.Error("Expected commandMode to be true after pressing ':'")
 	}
@@ -228,7 +228,7 @@ func TestTUIModelUpdateHandlesCommandMode(t *testing.T) {
 	model.commandQuery = "test"
 	msg = tea.KeyMsg{Type: tea.KeyEsc}
 	newModel, cmd := model.Update(msg)
-	model = newModel.(tuiModel)
+	model = newModel.(*tuiModel)
 	if cmd != nil {
 		t.Error("Expected Update to return nil command for ESC in command mode")
 	}
@@ -242,14 +242,14 @@ func TestTUIModelUpdateHandlesCommandMode(t *testing.T) {
 	model.commandMode = true
 	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}}
 	newModel, _ = model.Update(msg)
-	model = newModel.(tuiModel)
+	model = newModel.(*tuiModel)
 	if model.commandQuery != "q" {
 		t.Errorf("Expected commandQuery to be 'q', got %q", model.commandQuery)
 	}
 	// Test backspace
 	msg = tea.KeyMsg{Type: tea.KeyBackspace}
 	newModel, _ = model.Update(msg)
-	model = newModel.(tuiModel)
+	model = newModel.(*tuiModel)
 	if model.commandQuery != "" {
 		t.Errorf("Expected commandQuery to be empty after backspace, got %q", model.commandQuery)
 	}
@@ -267,11 +267,11 @@ func TestTUIModelUpdateHandlesCommandMode(t *testing.T) {
 
 // TestTUIModelUpdateHandlesWindowSize verifies terminal resize is handled correctly.
 func TestTUIModelUpdateHandlesWindowSize(t *testing.T) {
-	model := tuiModel{}
+	model := &tuiModel{}
 
 	msg := tea.WindowSizeMsg{Width: 100, Height: 30}
 	newModel, _ := model.Update(msg)
-	model = newModel.(tuiModel)
+	model = newModel.(*tuiModel)
 
 	if model.width != 100 {
 		t.Errorf("Expected width to be 100, got %d", model.width)
@@ -486,12 +486,12 @@ func TestHandleDismissWithEmptyList(t *testing.T) {
 
 // TestHandleJump verifies the jump action handles errors correctly.
 func TestHandleJump(t *testing.T) {
-	model := tuiModel{
+	model := &tuiModel{
 		notifications: []Notification{
-			{ID: 1, Message: "Test notification", Session: "$1", Window: "@2", Pane: "%3"},
+			{ID: 1, Message: "Test"},
 		},
 		filtered: []Notification{
-			{ID: 1, Message: "Test notification", Session: "$1", Window: "@2", Pane: "%3"},
+			{ID: 1, Message: "Test"},
 		},
 		cursor: 0,
 	}
@@ -507,12 +507,12 @@ func TestHandleJump(t *testing.T) {
 // TestHandleJumpWithMissingContext verifies jump handles notifications with missing context.
 func TestHandleJumpWithMissingContext(t *testing.T) {
 	// Test with missing session
-	model := tuiModel{
+	model := &tuiModel{
 		notifications: []Notification{
-			{ID: 1, Message: "Test notification", Session: "", Window: "@2", Pane: "%3"},
+			{ID: 1, Message: "Test"},
 		},
 		filtered: []Notification{
-			{ID: 1, Message: "Test notification", Session: "", Window: "@2", Pane: "%3"},
+			{ID: 1, Message: "Test"},
 		},
 		cursor: 0,
 	}
@@ -572,7 +572,7 @@ func TestTUIModelUpdateHandlesDismissKey(t *testing.T) {
 	// Simulate 'd' key press
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}}
 	newModel, _ := model.Update(msg)
-	_ = newModel.(tuiModel) // Verify it's still a valid model
+	_ = newModel.(*tuiModel) // Verify it's still a valid model
 }
 
 // TestTUIModelUpdateHandlesEnterKey verifies the Enter key triggers jump.
@@ -590,5 +590,5 @@ func TestTUIModelUpdateHandlesEnterKey(t *testing.T) {
 	// Simulate Enter key press
 	msg := tea.KeyMsg{Type: tea.KeyEnter}
 	newModel, _ := model.Update(msg)
-	_ = newModel.(tuiModel) // Verify it's still a valid model
+	_ = newModel.(*tuiModel) // Verify it's still a valid model
 }

@@ -6,10 +6,12 @@ package main
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/cristianoliveira/tmux-intray/cmd"
@@ -18,6 +20,23 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/spf13/cobra"
 )
+
+// ansiColorNumber extracts the color number from an ANSI escape sequence.
+// Example: "\033[0;34m" -> "34"
+func ansiColorNumber(ansi string) string {
+	// Remove escape sequence prefix and suffix
+	if len(ansi) < 2 {
+		return ""
+	}
+	// Find the last ';' before the 'm'
+	lastSemicolon := strings.LastIndex(ansi, ";")
+	if lastSemicolon == -1 {
+		return ""
+	}
+	// Extract number between ';' and 'm'
+	color := ansi[lastSemicolon+1 : len(ansi)-1]
+	return color
+}
 
 // tuiModel represents the TUI model for bubbletea.
 type tuiModel struct {
@@ -28,18 +47,18 @@ type tuiModel struct {
 	searchMode    bool
 	commandMode   bool
 	commandQuery  string
-	viewport      tea.Model
+	viewport      viewport.Model
 	width         int
 	height        int
 }
 
 // Init initializes the TUI model.
-func (m tuiModel) Init() tea.Cmd {
+func (m *tuiModel) Init() tea.Cmd {
 	return nil
 }
 
 // Update handles messages and updates the model state.
-func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
@@ -111,12 +130,18 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Move cursor down
 			if m.cursor < len(m.filtered)-1 {
 				m.cursor++
+				m.updateViewportContent()
 			}
+			// Auto-scroll viewport if needed
+			m.ensureCursorVisible()
 		case "k":
 			// Move cursor up
 			if m.cursor > 0 {
 				m.cursor--
+				m.updateViewportContent()
 			}
+			// Auto-scroll viewport if needed
+			m.ensureCursorVisible()
 		case "/":
 			// Enter search mode
 			m.searchMode = true
@@ -142,6 +167,11 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		// Initialize or update viewport dimensions
+		viewportHeight := m.height - 2 // Reserve 1 line for header, 1 line for footer
+		m.viewport = viewport.New(msg.Width, viewportHeight)
+		// Update viewport content
+		m.updateViewportContent()
 	}
 
 	return m, nil
@@ -152,6 +182,7 @@ func (m *tuiModel) applySearchFilter() {
 	if m.searchQuery == "" {
 		m.filtered = m.notifications
 		m.cursor = 0
+		m.updateViewportContent()
 		return
 	}
 
@@ -166,6 +197,7 @@ func (m *tuiModel) applySearchFilter() {
 		}
 	}
 	m.cursor = 0
+	m.updateViewportContent()
 }
 
 // executeCommand executes the current command query and returns a command to run.
@@ -181,7 +213,7 @@ func (m *tuiModel) executeCommand() tea.Cmd {
 }
 
 // View renders the TUI.
-func (m tuiModel) View() string {
+func (m *tuiModel) View() string {
 	if m.width == 0 {
 		m.width = 80
 	}
@@ -189,38 +221,75 @@ func (m tuiModel) View() string {
 		m.height = 24
 	}
 
+	// Ensure viewport is initialized
+	if m.viewport.Height == 0 {
+		viewportHeight := m.height - 2 // Reserve 1 line for header, 1 line for footer
+		m.viewport = viewport.New(m.width, viewportHeight)
+		m.updateViewportContent()
+	}
+
 	var s strings.Builder
 
 	// Header
 	s.WriteString(m.renderHeader())
 
-	// Table rows
-	if len(m.filtered) == 0 {
-		s.WriteString("\n")
-		s.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("No notifications found"))
-	} else {
-		for i, notif := range m.filtered {
-			if i >= m.height-5 { // Reserve space for header and footer
-				s.WriteString(fmt.Sprintf("\n%s ... %d more", lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render(" "), len(m.filtered)-i))
-				break
-			}
-			s.WriteString("\n")
-			s.WriteString(m.renderRow(notif, i == m.cursor))
-		}
-	}
+	// Viewport with table rows
+	s.WriteString("\n")
+	s.WriteString(m.viewport.View())
 
 	// Footer
-	s.WriteString("\n\n")
+	s.WriteString("\n")
 	s.WriteString(m.renderFooter())
 
 	return s.String()
+}
+
+// updateViewportContent updates the viewport with the current filtered notifications.
+func (m *tuiModel) updateViewportContent() {
+	var content strings.Builder
+
+	if len(m.filtered) == 0 {
+		content.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("No notifications found"))
+	} else {
+		for i, notif := range m.filtered {
+			if i > 0 {
+				content.WriteString("\n")
+			}
+			content.WriteString(m.renderRow(notif, i == m.cursor))
+		}
+	}
+
+	m.viewport.SetContent(content.String())
+}
+
+// ensureCursorVisible ensures the cursor is visible in the viewport.
+func (m *tuiModel) ensureCursorVisible() {
+	if len(m.filtered) == 0 {
+		return
+	}
+
+	// Get the current viewport line offset
+	lineOffset := m.viewport.YOffset
+
+	// Calculate the viewport height
+	viewportHeight := m.viewport.Height
+
+	// If cursor is above viewport, scroll up
+	if m.cursor < lineOffset {
+		m.viewport.LineUp(lineOffset - m.cursor)
+	}
+
+	// If cursor is below viewport, scroll down
+	if m.cursor >= lineOffset+viewportHeight {
+		m.viewport.LineDown(m.cursor - (lineOffset + viewportHeight) + 1)
+	}
 }
 
 // renderHeader renders the table header.
 func (m tuiModel) renderHeader() string {
 	headerStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color(colors.Blue[1:])) // Strip escape code prefix
+		Foreground(lipgloss.Color(ansiColorNumber(colors.Blue))) // Use ANSI color number
 
 	// Column widths: TYPE=6, STATUS=7, SUMMARY=variable, SOURCE=15, AGE=8
 	typeWidth := 6
@@ -244,7 +313,7 @@ func (m tuiModel) renderHeader() string {
 func (m tuiModel) renderRow(notif Notification, isSelected bool) string {
 	rowStyle := lipgloss.NewStyle()
 	if isSelected {
-		rowStyle = rowStyle.Background(lipgloss.Color(colors.Blue[1:])).Foreground(lipgloss.Color("0"))
+		rowStyle = rowStyle.Background(lipgloss.Color(ansiColorNumber(colors.Blue))).Foreground(lipgloss.Color("0"))
 	}
 
 	// Get level icon
@@ -271,6 +340,11 @@ func (m tuiModel) renderRow(notif Notification, isSelected bool) string {
 	sourceWidth := 15
 	ageWidth := 8
 	summaryWidth := m.width - typeWidth - statusWidth - sourceWidth - ageWidth - 13
+
+	// Use default width if not set or too small
+	if m.width == 0 || summaryWidth < 10 {
+		summaryWidth = 50
+	}
 
 	// Truncate source if needed
 	if len(source) > sourceWidth {
@@ -405,6 +479,9 @@ func (m *tuiModel) handleDismiss() tea.Cmd {
 		m.cursor = 0
 	}
 
+	// Update viewport content
+	m.updateViewportContent()
+
 	return nil
 }
 
@@ -445,6 +522,7 @@ func (m *tuiModel) loadNotifications() error {
 	if lines == "" {
 		m.notifications = []Notification{}
 		m.filtered = []Notification{}
+		m.updateViewportContent()
 		return nil
 	}
 
@@ -460,19 +538,26 @@ func (m *tuiModel) loadNotifications() error {
 		notifications = append(notifications, notif)
 	}
 
+	// Sort notifications by timestamp descending (most recent first)
+	sort.Slice(notifications, func(i, j int) bool {
+		return notifications[i].Timestamp > notifications[j].Timestamp
+	})
+
 	m.notifications = notifications
 	m.applySearchFilter()
 	return nil
 }
 
 // NewTUIModel creates a new TUI model.
-func NewTUIModel() (tuiModel, error) {
-	m := tuiModel{}
+func NewTUIModel() (*tuiModel, error) {
+	m := tuiModel{
+		viewport: viewport.New(80, 22), // Default dimensions, will be updated on WindowSizeMsg
+	}
 	err := m.loadNotifications()
 	if err != nil {
-		return tuiModel{}, err
+		return &tuiModel{}, err
 	}
-	return m, nil
+	return &m, nil
 }
 
 // tuiCmd represents the tui command
