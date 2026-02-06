@@ -10,7 +10,7 @@ set_tmux_bindings() {
     if command -v tmux-intray >/dev/null 2>&1; then
         TMUX_INTRAY="tmux-intray"
     else
-        TMUX_INTRAY="go run github.com/cristianoliveira/tmux-intray"
+        TMUX_INTRAY="go run cmd/tmux-intray"
     fi
 
     tmux bind-key -T prefix i run-shell "$TMUX_INTRAY toggle"
