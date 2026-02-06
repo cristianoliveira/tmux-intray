@@ -6,6 +6,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
@@ -38,6 +39,44 @@ func ansiColorNumber(ansi string) string {
 	return color
 }
 
+// sessionNameFetcher fetches session name from tmux for a given session ID.
+// Can be replaced for testing.
+var sessionNameFetcher = func(sessionID string) string {
+	if sessionID == "" {
+		return ""
+	}
+	cmd := exec.Command("tmux", "display-message", "-t", sessionID, "-p", "#S")
+	stdout, err := cmd.Output()
+	if err != nil {
+		return sessionID // fallback to session ID on error
+	}
+	return strings.TrimSpace(string(stdout))
+}
+
+// fetchAllSessionNames fetches all session IDs and names from tmux with a single call.
+// Returns a map from session ID to session name.
+// Can be replaced for testing.
+var fetchAllSessionNames = func() map[string]string {
+	names := make(map[string]string)
+	cmd := exec.Command("tmux", "list-sessions", "-F", "#{session_id}\t#{session_name}")
+	stdout, err := cmd.Output()
+	if err != nil {
+		return names // empty map on error
+	}
+
+	lines := strings.Split(string(stdout), "\n")
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 2)
+		if len(parts) == 2 {
+			names[parts[0]] = parts[1]
+		}
+	}
+	return names
+}
+
 // tuiModel represents the TUI model for bubbletea.
 type tuiModel struct {
 	notifications []Notification
@@ -50,6 +89,7 @@ type tuiModel struct {
 	viewport      viewport.Model
 	width         int
 	height        int
+	sessionNames  map[string]string
 }
 
 // Init initializes the TUI model.
@@ -291,16 +331,20 @@ func (m tuiModel) renderHeader() string {
 		Bold(true).
 		Foreground(lipgloss.Color(ansiColorNumber(colors.Blue))) // Use ANSI color number
 
-	// Column widths: TYPE=6, STATUS=7, SUMMARY=variable, SOURCE=15, AGE=8
+	// Column widths: TYPE=6, STATUS=7, SESSION=12, SUMMARY=variable, SOURCE=15, AGE=8
 	typeWidth := 6
 	statusWidth := 7
+	sessionWidth := 12
 	sourceWidth := 15
 	ageWidth := 8
-	summaryWidth := m.width - typeWidth - statusWidth - sourceWidth - ageWidth - 13 // 13 = spaces between columns
+	totalFixedWidth := typeWidth + statusWidth + sessionWidth + sourceWidth + ageWidth
+	spacesBetweenColumns := 10 // (6 columns - 1) * 2 spaces
+	summaryWidth := m.width - totalFixedWidth - spacesBetweenColumns
 
-	header := fmt.Sprintf("%-*s  %-*s  %-*s  %-*s  %-*s",
+	header := fmt.Sprintf("%-*s  %-*s  %-*s  %-*s  %-*s  %-*s",
 		typeWidth, "TYPE",
 		statusWidth, "STATUS",
+		sessionWidth, "SESSION",
 		summaryWidth, "SUMMARY",
 		sourceWidth, "SOURCE",
 		ageWidth, "AGE",
@@ -331,19 +375,29 @@ func (m tuiModel) renderRow(notif Notification, isSelected bool) string {
 	// Calculate age
 	age := calculateAge(notif.Timestamp)
 
-	// Format source as Session:Window:Pane
-	source := fmt.Sprintf("%s:%s:%s", notif.Session, notif.Window, notif.Pane)
+	// Session column
+	session := m.getSessionName(notif.Session)
+	// Format source as Window:Pane (session is separate column)
+	source := fmt.Sprintf("%s:%s", notif.Window, notif.Pane)
 
 	// Column widths
 	typeWidth := 6
 	statusWidth := 7
+	sessionWidth := 12
 	sourceWidth := 15
 	ageWidth := 8
-	summaryWidth := m.width - typeWidth - statusWidth - sourceWidth - ageWidth - 13
+	totalFixedWidth := typeWidth + statusWidth + sessionWidth + sourceWidth + ageWidth
+	spacesBetweenColumns := 10 // (6 columns - 1) * 2 spaces
+	summaryWidth := m.width - totalFixedWidth - spacesBetweenColumns
 
 	// Use default width if not set or too small
 	if m.width == 0 || summaryWidth < 10 {
 		summaryWidth = 50
+	}
+
+	// Truncate session if needed
+	if len(session) > sessionWidth {
+		session = session[:sessionWidth-3] + "..."
 	}
 
 	// Truncate source if needed
@@ -356,9 +410,10 @@ func (m tuiModel) renderRow(notif Notification, isSelected bool) string {
 		summary = summary[:summaryWidth-3] + "..."
 	}
 
-	row := fmt.Sprintf("%-*s  %-*s  %-*s  %-*s  %-*s",
+	row := fmt.Sprintf("%-*s  %-*s  %-*s  %-*s  %-*s  %-*s",
 		typeWidth, levelIcon,
 		statusWidth, statusIcon,
+		sessionWidth, session,
 		summaryWidth, summary,
 		sourceWidth, source,
 		ageWidth, age,
@@ -548,10 +603,27 @@ func (m *tuiModel) loadNotifications() error {
 	return nil
 }
 
+// getSessionName returns the session name for a session ID, fetching from tmux if not cached.
+func (m *tuiModel) getSessionName(sessionID string) string {
+	if sessionID == "" {
+		return ""
+	}
+	if m.sessionNames == nil {
+		m.sessionNames = make(map[string]string)
+	}
+	if name, ok := m.sessionNames[sessionID]; ok {
+		return name
+	}
+	name := sessionNameFetcher(sessionID)
+	m.sessionNames[sessionID] = name
+	return name
+}
+
 // NewTUIModel creates a new TUI model.
 func NewTUIModel() (*tuiModel, error) {
 	m := tuiModel{
-		viewport: viewport.New(80, 22), // Default dimensions, will be updated on WindowSizeMsg
+		viewport:     viewport.New(80, 22), // Default dimensions, will be updated on WindowSizeMsg
+		sessionNames: fetchAllSessionNames(),
 	}
 	err := m.loadNotifications()
 	if err != nil {

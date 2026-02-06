@@ -12,6 +12,19 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 )
 
+// originalSessionNameFetcher stores the original function to restore after tests.
+var originalSessionNameFetcher func(string) string
+
+// originalFetchAllSessionNames stores the original function to restore after tests.
+var originalFetchAllSessionNames func() map[string]string
+
+func init() {
+	originalSessionNameFetcher = sessionNameFetcher
+	sessionNameFetcher = func(sessionID string) string { return sessionID }
+	originalFetchAllSessionNames = fetchAllSessionNames
+	fetchAllSessionNames = func() map[string]string { return make(map[string]string) }
+}
+
 // TestNewTUIModel creates a new TUI model and verifies it initializes correctly.
 func TestNewTUIModel(t *testing.T) {
 	model, err := NewTUIModel()
@@ -307,6 +320,9 @@ func TestTUIModelView(t *testing.T) {
 	if !strings.Contains(view, "STATUS") {
 		t.Error("Expected View to contain 'STATUS' header")
 	}
+	if !strings.Contains(view, "SESSION") {
+		t.Error("Expected View to contain 'SESSION' header")
+	}
 	if !strings.Contains(view, "SUMMARY") {
 		t.Error("Expected View to contain 'SUMMARY' header")
 	}
@@ -591,4 +607,39 @@ func TestTUIModelUpdateHandlesEnterKey(t *testing.T) {
 	msg := tea.KeyMsg{Type: tea.KeyEnter}
 	newModel, _ := model.Update(msg)
 	_ = newModel.(*tuiModel) // Verify it's still a valid model
+}
+
+// TestRenderRowSessionColumn verifies session column is displayed correctly.
+func TestRenderRowSessionColumn(t *testing.T) {
+	// Mock session name fetcher to return predictable names
+	original := sessionNameFetcher
+	defer func() { sessionNameFetcher = original }()
+	sessionNameFetcher = func(sessionID string) string {
+		return sessionID + "-name"
+	}
+
+	model := tuiModel{width: 100}
+	notif := Notification{
+		ID:        1,
+		Session:   "$1",
+		Window:    "@2",
+		Pane:      "%3",
+		Message:   "Test message",
+		Timestamp: "2024-01-01T12:00:00Z",
+		Level:     "info",
+		State:     "active",
+	}
+	row := model.renderRow(notif, false)
+	// Should contain session name (mocked)
+	if !strings.Contains(row, "$1-name") {
+		t.Error("Expected row to contain session name")
+	}
+	// Should contain source window:pane (without session)
+	if !strings.Contains(row, "@2:%3") {
+		t.Error("Expected row to contain window:pane in source column")
+	}
+	// Should NOT contain session in source column
+	if strings.Contains(row, "$1:@2:%3") {
+		t.Error("Source column should not contain session prefix")
+	}
 }
