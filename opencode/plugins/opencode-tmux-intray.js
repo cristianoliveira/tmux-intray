@@ -109,15 +109,15 @@ async function logDebug(functionName, message) {
  * @returns {Promise<string>} Session ID in $N format, or empty string if unavailable
  */
 async function getTmuxSessionID() {
-   try {
-     const { stdout } = await execAsync('tmux display-message -p "#{session_id}"');
-     const sessionID = stdout.trim();
-     await logDebug('getTmuxSessionID', `captured session=${sessionID}`);
-     return sessionID;
-   } catch (error) {
-     await logDebug('getTmuxSessionID', `failed to get session ID: ${error.message}`);
-     return '';  // Not in tmux or command failed, return empty
-   }
+    try {
+      const { stdout } = await execFileAsync('tmux', ['display-message', '-p', '#{session_id}']);
+      const sessionID = stdout.trim();
+      await logDebug('getTmuxSessionID', `captured session=${sessionID}`);
+      return sessionID;
+    } catch (error) {
+      await logDebug('getTmuxSessionID', `failed to get session ID: ${error.message}`);
+      return '';  // Not in tmux or command failed, return empty
+    }
 }
 
 /**
@@ -127,15 +127,15 @@ async function getTmuxSessionID() {
  * @returns {Promise<string>} Window ID in @N format, or empty string if unavailable
  */
 async function getTmuxWindowID() {
-   try {
-     const { stdout } = await execAsync('tmux display-message -p "#{window_id}"');
-     const windowID = stdout.trim();
-     await logDebug('getTmuxWindowID', `captured window=${windowID}`);
-     return windowID;
-   } catch (error) {
-     await logDebug('getTmuxWindowID', `failed to get window ID: ${error.message}`);
-     return '';  // Not in tmux or command failed, return empty
-   }
+    try {
+      const { stdout } = await execFileAsync('tmux', ['display-message', '-p', '#{window_id}']);
+      const windowID = stdout.trim();
+      await logDebug('getTmuxWindowID', `captured window=${windowID}`);
+      return windowID;
+    } catch (error) {
+      await logDebug('getTmuxWindowID', `failed to get window ID: ${error.message}`);
+      return '';  // Not in tmux or command failed, return empty
+    }
 }
 
 /**
@@ -145,15 +145,15 @@ async function getTmuxWindowID() {
  * @returns {Promise<string>} Pane ID in %N format, or empty string if unavailable
  */
 async function getTmuxPaneID() {
-   try {
-     const { stdout } = await execAsync('tmux display-message -p "#{pane_id}"');
-     const paneID = stdout.trim();
-     await logDebug('getTmuxPaneID', `captured pane=${paneID}`);
-     return paneID;
-   } catch (error) {
-     await logDebug('getTmuxPaneID', `failed to get pane ID: ${error.message}`);
-     return '';  // Not in tmux or command failed, return empty
-   }
+    try {
+      const { stdout } = await execFileAsync('tmux', ['display-message', '-p', '#{pane_id}']);
+      const paneID = stdout.trim();
+      await logDebug('getTmuxPaneID', `captured pane=${paneID}`);
+      return paneID;
+    } catch (error) {
+      await logDebug('getTmuxPaneID', `failed to get pane ID: ${error.message}`);
+      return '';  // Not in tmux or command failed, return empty
+    }
 }
 
 /**
