@@ -198,9 +198,9 @@ func TestTmuxFunctions(t *testing.T) {
 			return "", "", nil
 		}
 		JumpToPane("$2", "@6", "%95")
-		// The format should be sessionID:paneID (not sessionID:windowID.paneID)
-		if capturedTarget != "$2:%95" {
-			t.Errorf("Expected pane target format '$2:%%95', got '%s'", capturedTarget)
+		// The format should be sessionID:windowID.paneID
+		if capturedTarget != "$2:@6.%95" {
+			t.Errorf("Expected pane target format '$2:@6.%%95', got '%s'", capturedTarget)
 		}
 	})
 
