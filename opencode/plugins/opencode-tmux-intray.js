@@ -95,13 +95,56 @@ async function logDebug(message) {
   }
 }
 
+/**
+ * Get the current tmux session ID.
+ * Returns the session ID in the format $N (e.g., $0, $1, $2).
+ * If not in a tmux session or tmux command fails, returns empty string.
+ * @returns {Promise<string>} Session ID in $N format, or empty string if unavailable
+ */
+async function getTmuxSessionID() {
+  try {
+    const { stdout } = await execAsync('tmux display-message -p "#{session_id}"');
+    return stdout.trim();
+  } catch {
+    return '';  // Not in tmux or command failed, return empty
+  }
+}
 
+/**
+ * Get the current tmux window ID.
+ * Returns the window ID in the format @N (e.g., @0, @1, @16).
+ * If not in a tmux session or tmux command fails, returns empty string.
+ * @returns {Promise<string>} Window ID in @N format, or empty string if unavailable
+ */
+async function getTmuxWindowID() {
+  try {
+    const { stdout } = await execAsync('tmux display-message -p "#{window_id}"');
+    return stdout.trim();
+  } catch {
+    return '';  // Not in tmux or command failed, return empty
+  }
+}
 
+/**
+ * Get the current tmux pane ID.
+ * Returns the pane ID in the format %N (e.g., %0, %1, %21).
+ * If not in a tmux session or tmux command fails, returns empty string.
+ * @returns {Promise<string>} Pane ID in %N format, or empty string if unavailable
+ */
+async function getTmuxPaneID() {
+  try {
+    const { stdout } = await execAsync('tmux display-message -p "#{pane_id}"');
+    return stdout.trim();
+  } catch {
+    return '';  // Not in tmux or command failed, return empty
+  }
+}
 
 /**
  * Call tmux-intray with given status and message.
- * The Go CLI automatically detects tmux context (session/window/pane IDs)
- * so the plugin just needs to pass the level and message.
+ * Captures tmux context (session/window/pane IDs) and passes them as flags
+ * to the CLI. The CLI uses these values as primary context, with auto-detection
+ * as fallback when flags are not provided.
  * @param {string} status - Notification status (success, error, pending)
  * @param {string} message - Notification message
  * @returns {Promise<void>}
@@ -118,12 +161,26 @@ async function notify(status, message) {
     try {
       const tmuxIntrayCmd = await getTmuxIntrayCommand();
       
-      // Build the command - let Go CLI handle context detection
-      const addCmd = `${tmuxIntrayCmd} add --level="${level}" "${message}"`;
+      // Capture context from tmux
+      const sessionID = await getTmuxSessionID();
+      const windowID = await getTmuxWindowID();
+      const paneID = await getTmuxPaneID();
       
-      await logDebug(`notify: executing ${tmuxIntrayCmd} add with level=${level}`);
+      // Build command with context flags (if available)
+      let addCmd = `${tmuxIntrayCmd} add --level="${level}" "${message}"`;
+      if (sessionID) {
+        addCmd += ` --session="${sessionID}"`;
+      }
+      if (windowID) {
+        addCmd += ` --window="${windowID}"`;
+      }
+      if (paneID) {
+        addCmd += ` --pane="${paneID}"`;
+      }
       
-      // Call tmux-intray with level and message only
+      await logDebug(`notify: executing ${tmuxIntrayCmd} add with level=${level}, session=${sessionID}, window=${windowID}, pane=${paneID}`);
+      
+      // Call tmux-intray with context flags
       await execAsync(addCmd);
     } catch (error) {
       // Log error but don't crash the plugin
