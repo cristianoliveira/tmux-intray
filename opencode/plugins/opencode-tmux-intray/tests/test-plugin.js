@@ -125,13 +125,17 @@ describe('Simplified plugin behavior (delegating context detection to Go CLI)', 
   let originalConfigPath;
   let binDir;
   let originalTmuxIntrayPath;
+  let originalTestMode;
 
   beforeAll(async () => {
     originalConfigPath = process.env.OPENCODE_TMUX_INTRAY_CONFIG_PATH;
     originalTmuxIntrayPath = process.env.TMUX_INTRAY_PATH;
+    originalTestMode = process.env.TEST_MODE;
     binDir = await fs.promises.mkdtemp(join(os.tmpdir(), 'opencode-tmux-intray-simple-'));
     // Set config path to a non-existent file to ensure default config is used
     process.env.OPENCODE_TMUX_INTRAY_CONFIG_PATH = join(binDir, 'non-existent-config.json');
+    // Disable tmux context capture for these tests (delegate to Go CLI)
+    process.env.TEST_MODE = '1';
   });
 
   afterAll(async () => {
@@ -144,6 +148,11 @@ describe('Simplified plugin behavior (delegating context detection to Go CLI)', 
       delete process.env.TMUX_INTRAY_PATH;
     } else {
       process.env.TMUX_INTRAY_PATH = originalTmuxIntrayPath;
+    }
+    if (originalTestMode === undefined) {
+      delete process.env.TEST_MODE;
+    } else {
+      process.env.TEST_MODE = originalTestMode;
     }
     await fs.promises.rm(binDir, { recursive: true, force: true });
   });
