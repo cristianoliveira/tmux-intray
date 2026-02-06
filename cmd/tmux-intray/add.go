@@ -51,6 +51,12 @@ the current tmux pane (if inside tmux). Use --no-associate to skip.`,
 			return fmt.Errorf("")
 		}
 
+		// Treat empty strings same as not provided (e.g., --session="" from plugin)
+		// This makes the CLI resilient to the plugin passing empty flag values
+		sessionFlag = strings.TrimSpace(sessionFlag)
+		windowFlag = strings.TrimSpace(windowFlag)
+		paneFlag = strings.TrimSpace(paneFlag)
+
 		needsAutoAssociation := !noAssociateFlag && sessionFlag == "" && windowFlag == "" && paneFlag == ""
 		if needsAutoAssociation && !core.EnsureTmuxRunning() {
 			if allowTmuxlessMode() {
