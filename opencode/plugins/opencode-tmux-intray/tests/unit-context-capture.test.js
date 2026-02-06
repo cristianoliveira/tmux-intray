@@ -50,7 +50,8 @@ describe('Context Capture Functions - Unit Tests', () => {
   describe('getTmuxSessionID', () => {
     test('captures session ID in $N format', async () => {
       // Mock execFileAsync to return session ID
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(null, { stdout: '$3\n' }), 0);
       });
 
@@ -66,7 +67,8 @@ describe('Context Capture Functions - Unit Tests', () => {
 
     test('handles whitespace in session ID output', async () => {
       // Mock to return whitespace-padded output
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(null, { stdout: '  $5  \n' }), 0);
       });
 
@@ -78,7 +80,8 @@ describe('Context Capture Functions - Unit Tests', () => {
 
     test('handles newlines in output', async () => {
       // Mock to return output with multiple newlines
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(null, { stdout: '\n\n$7\n\n' }), 0);
       });
 
@@ -89,7 +92,8 @@ describe('Context Capture Functions - Unit Tests', () => {
 
     test('returns empty string on error', async () => {
       // Mock execFileAsync to throw an error
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(new Error('tmux not running')), 0);
       });
 
@@ -100,7 +104,8 @@ describe('Context Capture Functions - Unit Tests', () => {
 
     test('handles execFileAsync throwing non-standard errors', async () => {
       // Mock to throw a different error
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(new Error('ENOENT: command not found')), 0);
       });
 
@@ -111,7 +116,8 @@ describe('Context Capture Functions - Unit Tests', () => {
 
     test('does not crash on null error', async () => {
       // Some callback patterns pass error: null for success
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(null, { stdout: '$2\n' }), 0);
       });
 
@@ -124,7 +130,8 @@ describe('Context Capture Functions - Unit Tests', () => {
   describe('getTmuxWindowID', () => {
     test('captures window ID in @N format', async () => {
       // Mock execFileAsync to return window ID
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(null, { stdout: '@42\n' }), 0);
       });
 
@@ -140,7 +147,8 @@ describe('Context Capture Functions - Unit Tests', () => {
 
     test('handles whitespace in window ID output', async () => {
       // Mock to return whitespace-padded output
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(null, { stdout: '\n  @16\t\n' }), 0);
       });
 
@@ -151,7 +159,8 @@ describe('Context Capture Functions - Unit Tests', () => {
 
     test('handles large window IDs', async () => {
       // Window IDs can be large numbers
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(null, { stdout: '@999\n' }), 0);
       });
 
@@ -162,7 +171,8 @@ describe('Context Capture Functions - Unit Tests', () => {
 
     test('returns empty string on error', async () => {
       // Mock execFileAsync to throw an error
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(new Error('command failed')), 0);
       });
 
@@ -174,7 +184,8 @@ describe('Context Capture Functions - Unit Tests', () => {
     test('handles ENOENT error gracefully', async () => {
       // Common error when binary not found
       const error = new Error('ENOENT: no such file or directory');
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(error), 0);
       });
 
@@ -187,7 +198,8 @@ describe('Context Capture Functions - Unit Tests', () => {
   describe('getTmuxPaneID', () => {
     test('captures pane ID in %N format', async () => {
       // Mock execFileAsync to return pane ID
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(null, { stdout: '%21\n' }), 0);
       });
 
@@ -203,7 +215,8 @@ describe('Context Capture Functions - Unit Tests', () => {
 
     test('handles whitespace in pane ID output', async () => {
       // Mock to return whitespace-padded output
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(null, { stdout: '  %99  \n\n' }), 0);
       });
 
@@ -214,7 +227,8 @@ describe('Context Capture Functions - Unit Tests', () => {
 
     test('handles zero pane ID', async () => {
       // Pane ID 0 is valid
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(null, { stdout: '%0\n' }), 0);
       });
 
@@ -225,7 +239,8 @@ describe('Context Capture Functions - Unit Tests', () => {
 
     test('returns empty string on error', async () => {
       // Mock execFileAsync to throw an error
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(new Error('tmux not available')), 0);
       });
 
@@ -236,7 +251,8 @@ describe('Context Capture Functions - Unit Tests', () => {
 
     test('handles timeout-like errors', async () => {
       // Simulate timeout or other async error
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(new Error('ETIMEDOUT')), 0);
       });
 
@@ -248,7 +264,8 @@ describe('Context Capture Functions - Unit Tests', () => {
 
   describe('execFileAsync usage verification', () => {
     test('getTmuxSessionID calls execFileAsync with correct arguments', async () => {
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(null, { stdout: '$3\n' }), 0);
       });
 
@@ -263,7 +280,8 @@ describe('Context Capture Functions - Unit Tests', () => {
     });
 
     test('getTmuxWindowID calls execFileAsync with correct arguments', async () => {
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(null, { stdout: '@42\n' }), 0);
       });
 
@@ -278,7 +296,8 @@ describe('Context Capture Functions - Unit Tests', () => {
     });
 
     test('getTmuxPaneID calls execFileAsync with correct arguments', async () => {
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(null, { stdout: '%21\n' }), 0);
       });
 
@@ -296,7 +315,8 @@ describe('Context Capture Functions - Unit Tests', () => {
   describe('edge cases and robustness', () => {
     test('handles empty stdout gracefully', async () => {
       // Empty output should be returned as empty string
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(null, { stdout: '' }), 0);
       });
 
@@ -307,7 +327,8 @@ describe('Context Capture Functions - Unit Tests', () => {
 
     test('handles only whitespace in stdout', async () => {
       // Only spaces/newlines should be trimmed to empty string
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(null, { stdout: '   \n  \t' }), 0);
       });
 
@@ -319,7 +340,8 @@ describe('Context Capture Functions - Unit Tests', () => {
     test('handles very long ID values', async () => {
       // Some ID formats might be very long
       const longID = '$' + 'x'.repeat(100);
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(null, { stdout: longID + '\n' }), 0);
       });
 
@@ -333,13 +355,15 @@ describe('Context Capture Functions - Unit Tests', () => {
       const execFileAsyncLocal = promisify(execFile);
 
       // First call
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(null, { stdout: '$1\n' }), 0);
       });
       const result1 = await getTmuxSessionID();
 
       // Second call
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(null, { stdout: '$2\n' }), 0);
       });
       const result2 = await getTmuxSessionID();
@@ -354,7 +378,8 @@ describe('Context Capture Functions - Unit Tests', () => {
     test('logs error messages from execFileAsync', async () => {
       // When execFileAsync throws with a message
       const errorMsg = 'tmux not running in current session';
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(new Error(errorMsg)), 0);
       });
 
@@ -366,7 +391,8 @@ describe('Context Capture Functions - Unit Tests', () => {
 
     test('handles error objects without message property', async () => {
       // Some errors might not have proper message
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         const error = new Error();
         error.message = undefined;
         setTimeout(() => callback(error), 0);
@@ -380,7 +406,8 @@ describe('Context Capture Functions - Unit Tests', () => {
 
     test('never rethrows errors to caller', async () => {
       // Critical: functions must never throw
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(new Error('Any error')), 0);
       });
 
@@ -391,7 +418,8 @@ describe('Context Capture Functions - Unit Tests', () => {
 
   describe('integration patterns', () => {
     test('can be awaited successfully', async () => {
-      vi.mocked(execFile).mockImplementation((cmd, args, callback) => {
+      vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
+        const callback = rest[rest.length - 1]; // Last arg is always callback
         setTimeout(() => callback(null, { stdout: '$3\n' }), 0);
       });
 
@@ -403,7 +431,8 @@ describe('Context Capture Functions - Unit Tests', () => {
     test('works in parallel execution', async () => {
       // All three functions can be called in parallel
       vi.mocked(execFile)
-        .mockImplementation((cmd, args, callback) => {
+        .mockImplementation((cmd, args, ...rest) => {
+          const callback = rest[rest.length - 1]; // Last arg is always callback
           if (args[2]?.includes('session')) {
             setTimeout(() => callback(null, { stdout: '$1\n' }), 0);
           } else if (args[2]?.includes('window')) {
