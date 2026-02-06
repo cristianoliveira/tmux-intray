@@ -10,8 +10,7 @@
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import { promises as fs } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { loadConfig, isEventEnabled, getEventConfig, substituteTemplate } from './opencode-tmux-intray/config-loader.js';
 
 const execAsync = promisify(exec);
@@ -27,35 +26,34 @@ function isTestMode() {
 
 /**
  * Get the tmux-intray command to use.
- * Checks TMUX_INTRAY_PATH environment variable first.
- * Then checks for local binary at ../../tmux-intray relative to this file.
- * Falls back to 'tmux-intray' command in PATH.
- * When TEST_MODE=1 is set, the plugin may log additional debug information.
+ *
+ * Priority order for binary lookup:
+ * 1. TMUX_INTRAY_PATH environment variable (explicit override for tests/deployment)
+ * 2. TMUX_INTRAY_BIN environment variable (binary location hint for CI/deployment)
+ * 3. 'tmux-intray' in PATH (standard for installed binaries via `go install`)
+ *
+ * This follows standard CLI tool conventions and works with `go install`,
+ * Docker, CI/deployment, and local development setups.
+ *
  * @returns {Promise<string>} Command string
  */
 async function getTmuxIntrayCommand() {
-  let command;
-  // Environment variable takes precedence (used by tests for mocking)
+  // Priority 1: Explicit override for tests/deployment
   if (process.env.TMUX_INTRAY_PATH) {
-    command = process.env.TMUX_INTRAY_PATH;
-  } else {
-    // Try local binary relative to this plugin file
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = dirname(__filename);
-    const localBinary = join(__dirname, '../../tmux-intray');
-    
-    try {
-      // Check if file exists and is executable
-      await fs.access(localBinary, fs.constants.X_OK);
-      command = localBinary;
-    } catch {
-      // File doesn't exist or not executable
-      command = 'tmux-intray';
-    }
+    await logDebug(`Using tmux-intray from TMUX_INTRAY_PATH: ${process.env.TMUX_INTRAY_PATH}`);
+    return process.env.TMUX_INTRAY_PATH;
   }
 
-  await logDebug(`Using tmux-intray command: ${command}`);
-  return command;
+  // Priority 2: Binary location hint for CI/deployment
+  if (process.env.TMUX_INTRAY_BIN) {
+    await logDebug(`Using tmux-intray from TMUX_INTRAY_BIN: ${process.env.TMUX_INTRAY_BIN}`);
+    return process.env.TMUX_INTRAY_BIN;
+  }
+
+  // Priority 3: Use PATH (standard for installed binaries)
+  // This is how all CLI tools work
+  await logDebug('Using tmux-intray from PATH');
+  return 'tmux-intray';
 }
 
 /**
