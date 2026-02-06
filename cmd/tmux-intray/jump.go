@@ -114,11 +114,10 @@ func Jump(id string) (*JumpResult, error) {
 	// Validate pane exists
 	paneExists := validatePaneExistsFunc(session, window, pane)
 
-	// Jump to pane
+	// Jump to pane - returns false only if it completely fails (window selection failed)
+	// Returns true even if pane doesn't exist (falls back to window)
 	if !jumpToPaneFunc(session, window, pane) {
-		// JumpToPane returns true even if pane doesn't exist (window selected).
-		// So we treat false as failure to select window.
-		return nil, fmt.Errorf("failed to jump to pane (maybe window no longer exists)")
+		return nil, fmt.Errorf("failed to jump: pane or window does not exist")
 	}
 
 	return &JumpResult{
@@ -171,5 +170,6 @@ func runJump(cmd *cobra.Command, args []string) {
 	if result.State == "dismissed" {
 		colors.Info(fmt.Sprintf("Notification %s is dismissed, but jumping anyway", id))
 	}
-	colors.Success(fmt.Sprintf("Jumped to pane %s:%s.%s", result.Session, result.Window, result.Pane))
+	// Display pane reference in correct tmux format: sessionID:paneID
+	colors.Success(fmt.Sprintf("Jumped to pane %s:%s", result.Session, result.Pane))
 }
