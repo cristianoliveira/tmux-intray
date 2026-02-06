@@ -28,6 +28,7 @@ COMMANDS:
     status          Show notification status summary
     status-panel    Status bar indicator script (for tmux status-right)
     follow          Monitor notifications in real-time
+    tui             Interactive terminal UI for notifications
     help            Show this help message
     version         Show version information
 
@@ -159,8 +160,7 @@ USAGE:
 
 DESCRIPTION:
     Toggles the global visibility flag for the tray. When hidden, notifications
-    are still stored but may not appear in status bar indicators. This command
-    is primarily used by the tmux plugin (bound to `prefix+i`).
+    are still stored but may not appear in status bar indicators. This command can be bound to a tmux key binding if desired (previously bound to `prefix+i`).
 
 EXAMPLES:
     # Toggle tray visibility
@@ -249,6 +249,26 @@ OPTIONS:
     --pane <id>       Filter by pane ID
     --interval <secs>  Poll interval (default: 1)
     -h, --help         Show this help
+```
+
+### tui
+
+Interactive terminal UI for notifications
+
+```
+tmux-intray tui - Interactive terminal UI for notifications
+
+USAGE:
+    tmux-intray tui
+
+KEY BINDINGS:
+    j/k         Move up/down in the list
+    /           Enter search mode
+    :           Enter command mode
+    ESC         Exit search/command mode, or quit TUI
+    d           Dismiss selected notification
+    Enter       Jump to pane (or execute command in command mode)
+    q           Quit TUI
 ```
 
 ### help
