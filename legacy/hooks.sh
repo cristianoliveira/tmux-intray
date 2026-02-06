@@ -2,12 +2,13 @@
 # Hook system for tmux-intray
 
 # Load core utilities
-# Determine absolute directory of this script
-_TMUX_INTRAY_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=./colors.sh disable=SC1091
-source "$_TMUX_INTRAY_LIB_DIR/colors.sh"
+# Determine absolute directories
+_TMUX_INTRAY_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+_TMUX_INTRAY_LEGACY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../lib/colors.sh disable=SC1091
+source "$_TMUX_INTRAY_LIB_DIR/lib/colors.sh"
 # shellcheck source=./config.sh disable=SC1091
-source "$_TMUX_INTRAY_LIB_DIR/config.sh"
+source "$_TMUX_INTRAY_LEGACY_DIR/config.sh"
 
 # Default configuration values
 TMUX_INTRAY_HOOKS_ENABLED="${TMUX_INTRAY_HOOKS_ENABLED:-1}"
