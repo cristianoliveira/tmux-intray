@@ -185,29 +185,29 @@ afterAll(async () => {
 // =============================================================================
 
 describe('Binary Discovery', () => {
-  let originalPathEnv;
-  let originalTmuxIntrayPath;
-  let originalTmuxIntrayBin;
+   let originalPathEnv;
+   let originalTmuxIntrayPath;
+   let originalTmuxIntrayBin;
 
-  beforeEach(() => {
-    originalPathEnv = process.env.PATH;
-    originalTmuxIntrayPath = process.env.TMUX_INTRAY_PATH;
-    originalTmuxIntrayBin = process.env.TMUX_INTRAY_BIN;
-  });
+   beforeEach(() => {
+     originalPathEnv = process.env.PATH;
+     originalTmuxIntrayPath = process.env.TMUX_INTRAY_PATH;
+     originalTmuxIntrayBin = process.env.TMUX_INTRAY_BIN;
+   });
 
-  afterAll(() => {
-    if (originalPathEnv) process.env.PATH = originalPathEnv;
-    if (originalTmuxIntrayPath) {
-      process.env.TMUX_INTRAY_PATH = originalTmuxIntrayPath;
-    } else {
-      delete process.env.TMUX_INTRAY_PATH;
-    }
-    if (originalTmuxIntrayBin) {
-      process.env.TMUX_INTRAY_BIN = originalTmuxIntrayBin;
-    } else {
-      delete process.env.TMUX_INTRAY_BIN;
-    }
-  });
+   afterEach(() => {
+     if (originalPathEnv) process.env.PATH = originalPathEnv;
+     if (originalTmuxIntrayPath) {
+       process.env.TMUX_INTRAY_PATH = originalTmuxIntrayPath;
+     } else {
+       delete process.env.TMUX_INTRAY_PATH;
+     }
+     if (originalTmuxIntrayBin) {
+       process.env.TMUX_INTRAY_BIN = originalTmuxIntrayBin;
+     } else {
+       delete process.env.TMUX_INTRAY_BIN;
+     }
+   });
 
   test('finds tmux-intray via PATH when no env vars set', async () => {
     const env = await createTestEnv();
@@ -303,22 +303,22 @@ describe('Binary Discovery', () => {
 // =============================================================================
 
 describe('Context Capture', () => {
-  let originalTmuxIntrayPath;
-  let originalPath;
+   let originalTmuxIntrayPath;
+   let originalPath;
 
-  beforeEach(() => {
-    originalTmuxIntrayPath = process.env.TMUX_INTRAY_PATH;
-    originalPath = process.env.PATH;
-  });
+   beforeEach(() => {
+     originalTmuxIntrayPath = process.env.TMUX_INTRAY_PATH;
+     originalPath = process.env.PATH;
+   });
 
-  afterAll(() => {
-    if (originalTmuxIntrayPath) {
-      process.env.TMUX_INTRAY_PATH = originalTmuxIntrayPath;
-    } else {
-      delete process.env.TMUX_INTRAY_PATH;
-    }
-    if (originalPath) process.env.PATH = originalPath;
-  });
+   afterEach(() => {
+     if (originalTmuxIntrayPath) {
+       process.env.TMUX_INTRAY_PATH = originalTmuxIntrayPath;
+     } else {
+       delete process.env.TMUX_INTRAY_PATH;
+     }
+     if (originalPath) process.env.PATH = originalPath;
+   });
 
   test('captures session ID and includes in command', async () => {
     const env = await createTestEnv();
@@ -449,22 +449,22 @@ describe('Context Capture', () => {
 // =============================================================================
 
 describe('End-to-End Notifications', () => {
-  let originalTmuxIntrayPath;
-  let originalPath;
+   let originalTmuxIntrayPath;
+   let originalPath;
 
-  beforeEach(() => {
-    originalTmuxIntrayPath = process.env.TMUX_INTRAY_PATH;
-    originalPath = process.env.PATH;
-  });
+   beforeEach(() => {
+     originalTmuxIntrayPath = process.env.TMUX_INTRAY_PATH;
+     originalPath = process.env.PATH;
+   });
 
-  afterAll(() => {
-    if (originalTmuxIntrayPath) {
-      process.env.TMUX_INTRAY_PATH = originalTmuxIntrayPath;
-    } else {
-      delete process.env.TMUX_INTRAY_PATH;
-    }
-    if (originalPath) process.env.PATH = originalPath;
-  });
+   afterEach(() => {
+     if (originalTmuxIntrayPath) {
+       process.env.TMUX_INTRAY_PATH = originalTmuxIntrayPath;
+     } else {
+       delete process.env.TMUX_INTRAY_PATH;
+     }
+     if (originalPath) process.env.PATH = originalPath;
+   });
 
   test('creates notification with full context (session, window, pane)', async () => {
     const env = await createTestEnv();
@@ -580,22 +580,22 @@ describe('End-to-End Notifications', () => {
 // =============================================================================
 
 describe('Flag Passing', () => {
-  let originalTmuxIntrayPath;
-  let originalPath;
+   let originalTmuxIntrayPath;
+   let originalPath;
 
-  beforeEach(() => {
-    originalTmuxIntrayPath = process.env.TMUX_INTRAY_PATH;
-    originalPath = process.env.PATH;
-  });
+   beforeEach(() => {
+     originalTmuxIntrayPath = process.env.TMUX_INTRAY_PATH;
+     originalPath = process.env.PATH;
+   });
 
-  afterAll(() => {
-    if (originalTmuxIntrayPath) {
-      process.env.TMUX_INTRAY_PATH = originalTmuxIntrayPath;
-    } else {
-      delete process.env.TMUX_INTRAY_PATH;
-    }
-    if (originalPath) process.env.PATH = originalPath;
-  });
+   afterEach(() => {
+     if (originalTmuxIntrayPath) {
+       process.env.TMUX_INTRAY_PATH = originalTmuxIntrayPath;
+     } else {
+       delete process.env.TMUX_INTRAY_PATH;
+     }
+     if (originalPath) process.env.PATH = originalPath;
+   });
 
   test('includes context flags in command when available', async () => {
     const env = await createTestEnv();
@@ -707,22 +707,22 @@ describe('Flag Passing', () => {
 // =============================================================================
 
 describe('Error Handling', () => {
-  let originalTmuxIntrayPath;
-  let originalPath;
+   let originalTmuxIntrayPath;
+   let originalPath;
 
-  beforeEach(() => {
-    originalTmuxIntrayPath = process.env.TMUX_INTRAY_PATH;
-    originalPath = process.env.PATH;
-  });
+   beforeEach(() => {
+     originalTmuxIntrayPath = process.env.TMUX_INTRAY_PATH;
+     originalPath = process.env.PATH;
+   });
 
-  afterAll(() => {
-    if (originalTmuxIntrayPath) {
-      process.env.TMUX_INTRAY_PATH = originalTmuxIntrayPath;
-    } else {
-      delete process.env.TMUX_INTRAY_PATH;
-    }
-    if (originalPath) process.env.PATH = originalPath;
-  });
+   afterEach(() => {
+     if (originalTmuxIntrayPath) {
+       process.env.TMUX_INTRAY_PATH = originalTmuxIntrayPath;
+     } else {
+       delete process.env.TMUX_INTRAY_PATH;
+     }
+     if (originalPath) process.env.PATH = originalPath;
+   });
 
   test('gracefully handles tmux not running', async () => {
     const env = await createTestEnv();
@@ -833,22 +833,22 @@ describe('Error Handling', () => {
 // =============================================================================
 
 describe('Real Tmux Environment (Simulated)', () => {
-  let originalTmuxIntrayPath;
-  let originalPath;
+   let originalTmuxIntrayPath;
+   let originalPath;
 
-  beforeEach(() => {
-    originalTmuxIntrayPath = process.env.TMUX_INTRAY_PATH;
-    originalPath = process.env.PATH;
-  });
+   beforeEach(() => {
+     originalTmuxIntrayPath = process.env.TMUX_INTRAY_PATH;
+     originalPath = process.env.PATH;
+   });
 
-  afterAll(() => {
-    if (originalTmuxIntrayPath) {
-      process.env.TMUX_INTRAY_PATH = originalTmuxIntrayPath;
-    } else {
-      delete process.env.TMUX_INTRAY_PATH;
-    }
-    if (originalPath) process.env.PATH = originalPath;
-  });
+   afterEach(() => {
+     if (originalTmuxIntrayPath) {
+       process.env.TMUX_INTRAY_PATH = originalTmuxIntrayPath;
+     } else {
+       delete process.env.TMUX_INTRAY_PATH;
+     }
+     if (originalPath) process.env.PATH = originalPath;
+   });
 
   test('sends notification with tmux context captured', async () => {
     const env = await createTestEnv();
