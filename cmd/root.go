@@ -82,23 +82,28 @@ func Execute() error {
 	defer hooks.WaitForPendingHooks()
 	hooks.Init()
 
-	// Get the command line arguments
 	args := os.Args[1:]
 
-	// If no command provided or it's a help request, use cobra's default behavior
-	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
+	// No args? show help by routing through cobra help command
+	if len(args) == 0 {
+		RootCmd.SetArgs([]string{"help"})
 		return RootCmd.Execute()
 	}
 
-	// Check if the command exists
-	for _, cmd := range RootCmd.Commands() {
-		if cmd.Name() == args[0] {
-			return RootCmd.Execute()
-		}
+	// Pass explicit help flags through cobra
+	if args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
+		RootCmd.SetArgs(args)
+		return RootCmd.Execute()
 	}
 
-	// If command doesn't exist, output the error message and exit
+	// Check if the command exists (including aliases)
+	targetCmd, _, err := RootCmd.Find(args)
+	if err == nil && targetCmd != nil {
+		RootCmd.SetArgs(args)
+		return RootCmd.Execute()
+	}
+
 	fmt.Fprintf(os.Stderr, "Unknown command '%s'\n", args[0])
 	os.Exit(1)
-	return nil // Never reached
+	return nil
 }
