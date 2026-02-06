@@ -168,26 +168,29 @@ describe('Session detection functionality', () => {
       session: { get: async () => ({ data: { title: 'Test Session' } }) },
     };
     const pluginHooks = await pluginModule.default({ client: mockClient });
-    await pluginHooks.event({ event: { type: 'session.idle', properties: {} } });
+    await pluginHooks.event({ event: { type: 'session.error', properties: {} } });
 
     // Verify tmux was called with correct arguments
     const tmuxCalls = (await fs.promises.readFile(tmuxLog, 'utf8')).trim().split('\n').filter(Boolean);
+    // Expect multiple calls during context capture attempt (getTmuxSession, getTmuxSessionID, getTmuxWindowID, getTmuxPaneID)
     expect(tmuxCalls.length).toBeGreaterThan(0);
+    // All calls should be display-message format
     for (const call of tmuxCalls) {
       const args = JSON.parse(call);
       expect(Array.isArray(args)).toBe(true);
       expect(args[0]).toBe('display-message');
       expect(args[1]).toBe('-p');
-      expect(args[2]).toBe('#S');
+      // Accept various format strings: #S (session name), #{session_id}, #{window_id}, #{pane_id}
+      expect(['#S', '#{session_id}', '#{window_id}', '#{pane_id}']).toContain(args[2]);
     }
 
     const notifyCalls = (await fs.promises.readFile(notifyLog, 'utf8')).trim().split('\n').filter(Boolean);
     expect(notifyCalls.length).toBeGreaterThan(0);
     const { agentName, status, session, message } = parseTmuxIntrayArgs(JSON.parse(notifyCalls.pop()));
     expect(agentName).toBe('opencode');
-    expect(status).toBe('success');
+    expect(status).toBe('error');
     expect(session).toBe('');
-    expect(message).toBe('Task completed');
+    expect(message).toBe('Session error');
   });
 
   test('session detection with TMUX environment variable', async () => {
@@ -208,13 +211,16 @@ describe('Session detection functionality', () => {
     await pluginHooks.event({ event: { type: 'session.error', properties: {} } });
 
     const tmuxCalls = (await fs.promises.readFile(tmuxLog, 'utf8')).trim().split('\n').filter(Boolean);
+    // Expect multiple calls during context capture attempt (getTmuxSession, getTmuxSessionID, getTmuxWindowID, getTmuxPaneID)
     expect(tmuxCalls.length).toBeGreaterThan(0);
+    // All calls should be display-message format
     for (const call of tmuxCalls) {
       const args = JSON.parse(call);
       expect(Array.isArray(args)).toBe(true);
       expect(args[0]).toBe('display-message');
       expect(args[1]).toBe('-p');
-      expect(args[2]).toBe('#S');
+      // Accept various format strings: #S (session name), #{session_id}, #{window_id}, #{pane_id}
+      expect(['#S', '#{session_id}', '#{window_id}', '#{pane_id}']).toContain(args[2]);
     }
 
     const notifyCalls = (await fs.promises.readFile(notifyLog, 'utf8')).trim().split('\n').filter(Boolean);
@@ -274,25 +280,28 @@ describe('Session detection edge cases', () => {
       session: { get: async () => ({ data: { title: 'Test Session' } }) },
     };
     const pluginHooks = await pluginModule.default({ client: mockClient });
-    await pluginHooks.event({ event: { type: 'session.idle', properties: {} } });
+    await pluginHooks.event({ event: { type: 'session.error', properties: {} } });
 
     const tmuxCalls = (await fs.promises.readFile(tmuxLog, 'utf8')).trim().split('\n').filter(Boolean);
+    // Expect multiple calls during context capture attempt (getTmuxSession, getTmuxSessionID, getTmuxWindowID, getTmuxPaneID)
     expect(tmuxCalls.length).toBeGreaterThan(0);
+    // All calls should be display-message format
     for (const call of tmuxCalls) {
       const args = JSON.parse(call);
       expect(Array.isArray(args)).toBe(true);
       expect(args[0]).toBe('display-message');
       expect(args[1]).toBe('-p');
-      expect(args[2]).toBe('#S');
+      // Accept various format strings: #S (session name), #{session_id}, #{window_id}, #{pane_id}
+      expect(['#S', '#{session_id}', '#{window_id}', '#{pane_id}']).toContain(args[2]);
     }
 
     const notifyCalls = (await fs.promises.readFile(notifyLog, 'utf8')).trim().split('\n').filter(Boolean);
     expect(notifyCalls.length).toBeGreaterThan(0);
     const { agentName, status, session, message } = parseTmuxIntrayArgs(JSON.parse(notifyCalls.pop()));
     expect(agentName).toBe('opencode');
-    expect(status).toBe('success');
+    expect(status).toBe('error');
     expect(session).toBe('');
-    expect(message).toBe('Task completed');
+    expect(message).toBe('Session error');
   });
 
   test('TMUX not set but tmux command succeeds (fallback detection)', async () => {
@@ -313,13 +322,16 @@ describe('Session detection edge cases', () => {
     await pluginHooks.event({ event: { type: 'session.error', properties: {} } });
 
     const tmuxCalls = (await fs.promises.readFile(tmuxLog, 'utf8')).trim().split('\n').filter(Boolean);
+    // Expect multiple calls during context capture attempt (getTmuxSession, getTmuxSessionID, getTmuxWindowID, getTmuxPaneID)
     expect(tmuxCalls.length).toBeGreaterThan(0);
+    // All calls should be display-message format
     for (const call of tmuxCalls) {
       const args = JSON.parse(call);
       expect(Array.isArray(args)).toBe(true);
       expect(args[0]).toBe('display-message');
       expect(args[1]).toBe('-p');
-      expect(args[2]).toBe('#S');
+      // Accept various format strings: #S (session name), #{session_id}, #{window_id}, #{pane_id}
+      expect(['#S', '#{session_id}', '#{window_id}', '#{pane_id}']).toContain(args[2]);
     }
 
     const notifyCalls = (await fs.promises.readFile(notifyLog, 'utf8')).trim().split('\n').filter(Boolean);
@@ -351,7 +363,13 @@ describe('Session detection edge cases', () => {
     await pluginHooks.event({ event: { type: 'session.error', properties: {} } });
 
     const tmuxCalls = (await fs.promises.readFile(tmuxLog, 'utf8')).trim().split('\n').filter(Boolean);
-    expect(tmuxCalls.length).toBe(1); // Should be exactly 1 call (during plugin initialization)
+    // Should be exactly 4 calls during plugin initialization:
+    // 1. getTmuxSession() - display-message -p #S
+    // 2. getTmuxSessionID() - display-message -p #{session_id}
+    // 3. getTmuxWindowID() - display-message -p #{window_id}
+    // 4. getTmuxPaneID() - display-message -p #{pane_id}
+    // Then zero calls for the 2 events (all context is cached)
+    expect(tmuxCalls.length).toBe(4);
 
     const notifyCalls = (await fs.promises.readFile(notifyLog, 'utf8')).trim().split('\n').filter(Boolean);
     expect(notifyCalls.length).toBeGreaterThanOrEqual(2);

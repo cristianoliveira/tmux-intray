@@ -108,7 +108,24 @@ func Jump(id string) (*JumpResult, error) {
 	message := fields[fieldMessage]
 
 	if session == "" || window == "" || pane == "" {
-		return nil, fmt.Errorf("notification %s has no pane association", id)
+		// Build a detailed error message showing which fields are missing
+		var missingFields []string
+		if session == "" {
+			missingFields = append(missingFields, "session")
+		}
+		if window == "" {
+			missingFields = append(missingFields, "window")
+		}
+		if pane == "" {
+			missingFields = append(missingFields, "pane")
+		}
+
+		return nil, fmt.Errorf(
+			"notification %s is incomplete for jump:\n"+
+				"  missing: %s\n"+
+				"  required fields: session, window, pane\n"+
+				"  hint: notifications must be created from within an active tmux session for jump to work",
+			id, strings.Join(missingFields, ", "))
 	}
 
 	// Validate pane exists
