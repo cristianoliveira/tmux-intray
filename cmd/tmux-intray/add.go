@@ -6,7 +6,6 @@ package main
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/cristianoliveira/tmux-intray/cmd"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
@@ -75,8 +74,8 @@ the current tmux pane (if inside tmux). Use --no-associate to skip.`,
 			return err
 		}
 
-		// Format message with timestamp (as Bash does)
-		formattedMessage := formatMessage(message)
+		// Message is stored as-is; storage layer handles timestamps
+		formattedMessage := message
 
 		// Determine level
 		level := levelFlag
@@ -124,10 +123,4 @@ func validateMessage(message string) error {
 		return fmt.Errorf("Message cannot be empty")
 	}
 	return nil
-}
-
-// formatMessage adds timestamp prefix like Bash's format_message
-func formatMessage(message string) string {
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
-	return fmt.Sprintf("[%s] %s", timestamp, message)
 }
