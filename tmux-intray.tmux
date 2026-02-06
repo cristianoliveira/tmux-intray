@@ -15,6 +15,7 @@ set_tmux_bindings() {
 
     tmux bind-key -T prefix i run-shell "$TMUX_INTRAY toggle"
     tmux bind-key -T prefix I run-shell "$TMUX_INTRAY list"
+    tmux bind-key -T prefix J run-shell "tmux popup -E -h 80% -w 80% \"$TMUX_INTRAY tui\""
 }
 
 # Initialize the plugin
