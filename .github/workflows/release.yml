@@ -41,10 +41,6 @@ jobs:
           fi
           echo "✓ Version format validated: $TAG_VERSION"
 
-      - name: Generate documentation
-        run: |
-          ./scripts/generate-docs.sh
-
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -97,6 +93,10 @@ jobs:
               fi
             fi
           done
+
+      - name: Generate documentation
+        run: |
+          ./scripts/generate-docs.sh
 
       - name: Generate release notes
         id: release-notes
