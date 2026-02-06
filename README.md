@@ -41,7 +41,7 @@ Quick links to key sections:
 
 ```bash
 tmux-intray add "my message!"
-tmux-intray list 
+tmux-intray list
 tmux-intray show | fzf | awk '{ print $1 }' | xargs -I {} tmux-intray jump {}
 ```
 
