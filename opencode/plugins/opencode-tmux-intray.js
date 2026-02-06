@@ -232,56 +232,67 @@ async function logNotification(status, message, session) {
  * @param {string} status - Notification status (success, error, pending)
  * @param {string} message - Notification message
  * @param {string} session - Optional tmux session name (default empty)
+ * @param {string} sessionID - Optional cached session ID (from plugin init)
+ * @param {string} windowID - Optional cached window ID (from plugin init)
+ * @param {string} paneID - Optional cached pane ID (from plugin init)
+ * @param {boolean} contextCached - Whether context was already captured at init time
  * @returns {Promise<void>}
  */
-async function notify(status, message, session = '') {
-   // Log notification for visibility/debugging
-   await logNotification(status, message, session);
+async function notify(status, message, session = '', sessionID = '', windowID = '', paneID = '', contextCached = false) {
+    // Log notification for visibility/debugging
+    await logNotification(status, message, session);
 
-    // Map status to tmux-intray level
-   const levelMap = {
-     'error': 'error',
-     'pending': 'warning',
-     'success': 'info'
-   };
-   const level = levelMap[status] || 'info';
+     // Map status to tmux-intray level
+    const levelMap = {
+      'error': 'error',
+      'pending': 'warning',
+      'success': 'info'
+    };
+    const level = levelMap[status] || 'info';
 
-   try {
-     const tmuxIntrayCmd = await getTmuxIntrayCommand();
-     
-     // Capture tmux context (session/window/pane IDs).
-     // These IDs are required by the jump command to navigate back to the pane
-     // where the notification was created. Capture is best-effort: if any fails,
-     // we still send the notification, just without that context field.
-     const sessionID = await getTmuxSessionID();
-     const windowID = await getTmuxWindowID();
-     const paneID = await getTmuxPaneID();
-     
-     // Build the base command
-     let addCmd = `${tmuxIntrayCmd} add --level="${level}" "${message}"`;
-     
-     // ASSERTION (Power of 10 Rule 5): Only add flags if context is available
-     // This ensures we don't pass empty or invalid values to tmux-intray
-     if (sessionID) {
-       addCmd += ` --session="${sessionID}"`;
-     }
-     if (windowID) {
-       addCmd += ` --window="${windowID}"`;
-     }
-     if (paneID) {
-       addCmd += ` --pane="${paneID}"`;
-     }
-     
-     // Log the final command for debugging (without revealing full message in logs)
-     await logDebug(`notify: executing ${tmuxIntrayCmd} add with level=${level}, sessionID=${sessionID || 'none'}, windowID=${windowID || 'none'}, paneID=${paneID || 'none'}`);
-     
-     // Use execAsync to call tmux-intray with level, message, and context
-     await execAsync(addCmd);
-   } catch (error) {
-     // Log error but don't crash the plugin
-     console.error(`[opencode-tmux-intray] Failed to send notification: ${error.message}`);
-     await logError(error);
-   }
+    try {
+      const tmuxIntrayCmd = await getTmuxIntrayCommand();
+      
+      // Use provided context IDs if caching is enabled, otherwise capture them now
+      let session_id = sessionID;
+      let window_id = windowID;
+      let pane_id = paneID;
+      
+      if (!contextCached) {
+        // Capture tmux context (session/window/pane IDs).
+        // These IDs are required by the jump command to navigate back to the pane
+        // where the notification was created. Capture is best-effort: if any fails,
+        // we still send the notification, just without that context field.
+        session_id = await getTmuxSessionID();
+        window_id = await getTmuxWindowID();
+        pane_id = await getTmuxPaneID();
+      }
+      
+      // Build the base command
+      let addCmd = `${tmuxIntrayCmd} add --level="${level}" "${message}"`;
+      
+      // ASSERTION (Power of 10 Rule 5): Only add flags if context is available
+      // This ensures we don't pass empty or invalid values to tmux-intray
+      if (session_id) {
+        addCmd += ` --session="${session_id}"`;
+      }
+      if (window_id) {
+        addCmd += ` --window="${window_id}"`;
+      }
+      if (pane_id) {
+        addCmd += ` --pane="${pane_id}"`;
+      }
+      
+      // Log the final command for debugging (without revealing full message in logs)
+      await logDebug(`notify: executing ${tmuxIntrayCmd} add with level=${level}, sessionID=${session_id || 'none'}, windowID=${window_id || 'none'}, paneID=${pane_id || 'none'}`);
+      
+      // Use execAsync to call tmux-intray with level, message, and context
+      await execAsync(addCmd);
+    } catch (error) {
+      // Log error but don't crash the plugin
+      console.error(`[opencode-tmux-intray] Failed to send notification: ${error.message}`);
+      await logError(error);
+    }
 }
 
 /**
@@ -291,52 +302,58 @@ async function notify(status, message, session = '') {
  * @returns {Promise<Object>} Plugin hooks
  */
 async function opencodeTmuxIntrayPlugin({ client }) {
-  // Cache tmux session at plugin initialization time
-  // This is more reliable than detecting per-event since:
-  // 1. The session shouldn't change during plugin lifecycle
-  // 2. Environment variables are more likely available at init time
-  const cachedSession = await getTmuxSession();
+   // Cache tmux context at plugin initialization time
+   // This is more reliable than detecting per-event since:
+   // 1. The context shouldn't change during plugin lifecycle
+   // 2. Environment variables are more likely available at init time
+   const cachedSession = await getTmuxSession();
+   const cachedSessionID = await getTmuxSessionID();
+   const cachedWindowID = await getTmuxWindowID();
+   const cachedPaneID = await getTmuxPaneID();
 
-  // Load configuration once at initialization
-  const config = await loadConfig();
+   // Load configuration once at initialization
+   const config = await loadConfig();
 
-  // Log for debugging
-  if (!cachedSession) {
-    await logError(new Error(`Warning: No tmux session detected at init. TMUX env: ${process.env.TMUX || 'not set'}`));
-  }
+   // Log for debugging
+   if (!cachedSession) {
+     await logError(new Error(`Warning: No tmux session detected at init. TMUX env: ${process.env.TMUX || 'not set'}`));
+   }
 
-  return {
-    /**
-     * Event handler for OpenCode events
-     * Handles events configured in opencode-config.json
-     * Default events: session.idle, session.error, session.status, permission.updated
-     * @param {Object} params - Event parameters
-     * @param {Object} params.event - Event object
-     * @returns {Promise<void>}
-     */
-    event: async ({ event }) => {
-      // Use cached session, fallback to detection if cache is empty
-      const session = cachedSession || await getTmuxSession();
+   return {
+     /**
+      * Event handler for OpenCode events
+      * Handles events configured in opencode-config.json
+      * Default events: session.idle, session.error, session.status, permission.updated
+      * @param {Object} params - Event parameters
+      * @param {Object} params.event - Event object
+      * @returns {Promise<void>}
+      */
+     event: async ({ event }) => {
+       // Use cached context, fallback to detection if cache is empty
+       const session = cachedSession || await getTmuxSession();
+       const sessionID = cachedSessionID;
+       const windowID = cachedWindowID;
+       const paneID = cachedPaneID;
 
-      // Special handling for session.status - only notify if status is 'pending'
-      if (event.type === 'session.status') {
-        if (event.properties?.status === 'pending' && isEventEnabled(config, event.type)) {
+       // Special handling for session.status - only notify if status is 'pending'
+       if (event.type === 'session.status') {
+         if (event.properties?.status === 'pending' && isEventEnabled(config, event.type)) {
+           const eventConfig = getEventConfig(config, event.type);
+           const message = substituteTemplate(eventConfig.message, event);
+           await notify(eventConfig.status, message, session, sessionID, windowID, paneID, true);
+         }
+         return;
+       }
+
+        // For all other events, check if enabled and send notification
+        if (isEventEnabled(config, event.type)) {
           const eventConfig = getEventConfig(config, event.type);
           const message = substituteTemplate(eventConfig.message, event);
-          await notify(eventConfig.status, message, session);
+          await notify(eventConfig.status, message, session, sessionID, windowID, paneID, true);
         }
-        return;
-      }
-
-       // For all other events, check if enabled and send notification
-       if (isEventEnabled(config, event.type)) {
-         const eventConfig = getEventConfig(config, event.type);
-         const message = substituteTemplate(eventConfig.message, event);
-         await notify(eventConfig.status, message, session);
-       }
-    },
-  };
-}
+     },
+   };
+ }
 
 // Named export for OpenCode plugin system
 export { opencodeTmuxIntrayPlugin };

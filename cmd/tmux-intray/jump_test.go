@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -112,8 +113,9 @@ func TestJumpNoPaneAssociation(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error when no pane association")
 	}
-	if err.Error() != "notification 42 has no pane association" {
-		t.Errorf("Expected 'notification 42 has no pane association', got %v", err)
+	// Updated error message is now more descriptive with which fields are missing
+	if !strings.Contains(err.Error(), "incomplete for jump") {
+		t.Errorf("Expected error message about incomplete context, got %v", err)
 	}
 }
 
@@ -325,7 +327,7 @@ func TestJumpInvalidFieldData(t *testing.T) {
 	}
 	_, err := Jump("42")
 	assert.Error(t, err, "Should error when session is missing")
-	assert.Contains(t, err.Error(), "no pane association", "Error message should mention pane association")
+	assert.Contains(t, err.Error(), "incomplete for jump", "Error message should indicate incomplete context")
 
 	// Test missing window
 	getNotificationLineFunc = func(id string) (string, error) {
