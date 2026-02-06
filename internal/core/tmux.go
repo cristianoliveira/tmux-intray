@@ -102,8 +102,11 @@ func ValidatePaneExists(sessionID, windowID, paneID string) bool {
 	}
 	// Each pane ID is on a separate line
 	lines := strings.Split(strings.TrimSpace(stdout), "\n")
+	// Trim paneID input in case it has whitespace
+	paneID = strings.TrimSpace(paneID)
 	for _, line := range lines {
-		if line == paneID {
+		// Trim each pane ID from output in case of trailing whitespace
+		if strings.TrimSpace(line) == paneID {
 			return true
 		}
 	}
@@ -126,9 +129,11 @@ func JumpToPane(sessionID, windowID, paneID string) bool {
 
 	// First validate if the pane exists
 	paneExists := ValidatePaneExists(sessionID, windowID, paneID)
+	colors.Debug(fmt.Sprintf("JumpToPane: pane validation for %s:%s in window %s:%s - exists: %v", sessionID, paneID, sessionID, windowID, paneExists))
 
 	// Select the window (this happens regardless of whether the pane exists)
 	targetWindow := sessionID + ":" + windowID
+	colors.Debug(fmt.Sprintf("JumpToPane: selecting window %s", targetWindow))
 	_, stderr, err := tmuxRunner("select-window", "-t", targetWindow)
 	if err != nil {
 		colors.Error("Window " + targetWindow + " does not exist")
@@ -141,12 +146,14 @@ func JumpToPane(sessionID, windowID, paneID string) bool {
 	// If pane doesn't exist, show warning and fall back to window selection
 	if !paneExists {
 		colors.Warning("Pane " + paneID + " does not exist in window " + targetWindow + ", jumping to window instead")
+		colors.Debug(fmt.Sprintf("JumpToPane: falling back to window selection (pane %s not found)", paneID))
 		return true
 	}
 
 	// Pane exists, select it using the correct tmux global pane syntax: "sessionID:paneID"
 	// ASSERTION: targetPane must follow tmux pane reference format
 	targetPane := sessionID + ":" + paneID
+	colors.Debug(fmt.Sprintf("JumpToPane: selecting pane %s", targetPane))
 	_, stderr, err = tmuxRunner("select-pane", "-t", targetPane)
 	if err != nil {
 		// Fail-fast: don't swallow errors, return false to indicate failure
@@ -157,6 +164,7 @@ func JumpToPane(sessionID, windowID, paneID string) bool {
 		return false
 	}
 
+	colors.Debug(fmt.Sprintf("JumpToPane: successfully selected pane %s", targetPane))
 	return true
 }
 

@@ -187,6 +187,13 @@ func runJump(cmd *cobra.Command, args []string) {
 	if result.State == "dismissed" {
 		colors.Info(fmt.Sprintf("Notification %s is dismissed, but jumping anyway", id))
 	}
-	// Display pane reference in correct tmux format: sessionID:paneID
-	colors.Success(fmt.Sprintf("Jumped to pane %s:%s", result.Session, result.Pane))
+
+	// Display appropriate message based on whether pane selection succeeded
+	if result.PaneExists {
+		// Pane exists and was selected
+		colors.Success(fmt.Sprintf("Jumped to session %s, window %s, pane %s", result.Session, result.Window, result.Pane))
+	} else {
+		// Pane doesn't exist, fell back to window selection
+		colors.Warning(fmt.Sprintf("Pane %s no longer exists (jumped to window %s:%s instead)", result.Pane, result.Session, result.Window))
+	}
 }
