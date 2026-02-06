@@ -61,6 +61,7 @@ describe('Context Capture Functions - Unit Tests', () => {
       expect(execFile).toHaveBeenCalledWith(
         'tmux',
         ['display-message', '-p', '#{session_id}'],
+        expect.objectContaining({ env: expect.any(Object) }),
         expect.any(Function)
       );
     });
@@ -141,6 +142,7 @@ describe('Context Capture Functions - Unit Tests', () => {
       expect(execFile).toHaveBeenCalledWith(
         'tmux',
         ['display-message', '-p', '#{window_id}'],
+        expect.objectContaining({ env: expect.any(Object) }),
         expect.any(Function)
       );
     });
@@ -209,6 +211,7 @@ describe('Context Capture Functions - Unit Tests', () => {
       expect(execFile).toHaveBeenCalledWith(
         'tmux',
         ['display-message', '-p', '#{pane_id}'],
+        expect.objectContaining({ env: expect.any(Object) }),
         expect.any(Function)
       );
     });
@@ -275,6 +278,7 @@ describe('Context Capture Functions - Unit Tests', () => {
       expect(execFile).toHaveBeenCalledWith(
         'tmux',
         ['display-message', '-p', '#{session_id}'],
+        expect.objectContaining({ env: expect.any(Object) }),
         expect.any(Function)
       );
     });
@@ -291,6 +295,7 @@ describe('Context Capture Functions - Unit Tests', () => {
       expect(execFile).toHaveBeenCalledWith(
         'tmux',
         ['display-message', '-p', '#{window_id}'],
+        expect.objectContaining({ env: expect.any(Object) }),
         expect.any(Function)
       );
     });
@@ -307,6 +312,7 @@ describe('Context Capture Functions - Unit Tests', () => {
       expect(execFile).toHaveBeenCalledWith(
         'tmux',
         ['display-message', '-p', '#{pane_id}'],
+        expect.objectContaining({ env: expect.any(Object) }),
         expect.any(Function)
       );
     });
