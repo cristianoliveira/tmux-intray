@@ -38,59 +38,68 @@ function isTestMode() {
  * @returns {Promise<string>} Command string
  */
 async function getTmuxIntrayCommand() {
-  // Priority 1: Explicit override for tests/deployment
-  if (process.env.TMUX_INTRAY_PATH) {
-    await logDebug(`Using tmux-intray from TMUX_INTRAY_PATH: ${process.env.TMUX_INTRAY_PATH}`);
-    return process.env.TMUX_INTRAY_PATH;
-  }
+   // Priority 1: Explicit override for tests/deployment
+   if (process.env.TMUX_INTRAY_PATH) {
+     await logDebug('getTmuxIntrayCommand', `using TMUX_INTRAY_PATH=${process.env.TMUX_INTRAY_PATH}`);
+     return process.env.TMUX_INTRAY_PATH;
+   }
 
-  // Priority 2: Binary location hint for CI/deployment
-  if (process.env.TMUX_INTRAY_BIN) {
-    await logDebug(`Using tmux-intray from TMUX_INTRAY_BIN: ${process.env.TMUX_INTRAY_BIN}`);
-    return process.env.TMUX_INTRAY_BIN;
-  }
+   // Priority 2: Binary location hint for CI/deployment
+   if (process.env.TMUX_INTRAY_BIN) {
+     await logDebug('getTmuxIntrayCommand', `using TMUX_INTRAY_BIN=${process.env.TMUX_INTRAY_BIN}`);
+     return process.env.TMUX_INTRAY_BIN;
+   }
 
-  // Priority 3: Use PATH (standard for installed binaries)
-  // This is how all CLI tools work
-  await logDebug('Using tmux-intray from PATH');
-  return 'tmux-intray';
+   // Priority 3: Use PATH (standard for installed binaries)
+   // This is how all CLI tools work
+   await logDebug('getTmuxIntrayCommand', 'using tmux-intray from PATH');
+   return 'tmux-intray';
 }
 
 /**
- * Log error to file for debugging
+ * Log message to file with timestamp and component name.
+ * @param {string} level - Log level (Debug, Info, Error, Success)
+ * @param {string} functionName - Name of the calling function
+ * @param {string} message - Log message
+ * @returns {Promise<void>}
+ */
+async function log(level, functionName, message) {
+   try {
+     const logFile = '/tmp/opencode-tmux-intray.log';
+     const timestamp = new Date().toISOString();
+     const logMessage = `[${timestamp}] [opencode-plugin] ${functionName}: ${message}\n`;
+     await fs.appendFile(logFile, logMessage);
+   } catch (logErr) {
+     // Ignore errors in logging - don't crash the plugin
+   }
+}
+
+/**
+ * Log error to file with full error details.
+ * @param {string} functionName - Name of the calling function
  * @param {Error} error - Error object
  * @returns {Promise<void>}
  */
-async function logError(error) {
-  try {
-    const logDir = join(process.cwd(), '.tmp');
-    const logFile = join(logDir, 'debug.log');
-    await fs.mkdir(logDir, { recursive: true });
-    const timestamp = new Date().toISOString();
-    const message = `[${timestamp}] [opencode-tmux-intray] Error: ${error.message}\n`;
-    await fs.appendFile(logFile, message);
-  } catch (logErr) {
-    // Ignore errors in logging
-  }
+async function logError(functionName, error) {
+   try {
+     const logFile = '/tmp/opencode-tmux-intray.log';
+     const timestamp = new Date().toISOString();
+     const errorDetails = error.stack || error.message;
+     const message = `[${timestamp}] [opencode-plugin] ${functionName}: ERROR - ${errorDetails}\n`;
+     await fs.appendFile(logFile, message);
+   } catch (logErr) {
+     // Ignore errors in logging
+   }
 }
 
 /**
- * Log debug message to file when in test mode.
+ * Log debug message to file.
+ * @param {string} functionName - Name of the calling function
  * @param {string} message - Debug message
  * @returns {Promise<void>}
  */
-async function logDebug(message) {
-  if (!isTestMode()) return;
-  try {
-    const logDir = join(process.cwd(), '.tmp');
-    const logFile = join(logDir, 'debug.log');
-    await fs.mkdir(logDir, { recursive: true });
-    const timestamp = new Date().toISOString();
-    const logMessage = `[${timestamp}] [opencode-tmux-intray] Debug: ${message}\n`;
-    await fs.appendFile(logFile, logMessage);
-  } catch (logErr) {
-    // Ignore errors in logging
-  }
+async function logDebug(functionName, message) {
+   await log('Debug', functionName, message);
 }
 
 /**
@@ -100,12 +109,15 @@ async function logDebug(message) {
  * @returns {Promise<string>} Session ID in $N format, or empty string if unavailable
  */
 async function getTmuxSessionID() {
-  try {
-    const { stdout } = await execAsync('tmux display-message -p "#{session_id}"');
-    return stdout.trim();
-  } catch {
-    return '';  // Not in tmux or command failed, return empty
-  }
+   try {
+     const { stdout } = await execAsync('tmux display-message -p "#{session_id}"');
+     const sessionID = stdout.trim();
+     await logDebug('getTmuxSessionID', `captured session=${sessionID}`);
+     return sessionID;
+   } catch (error) {
+     await logDebug('getTmuxSessionID', `failed to get session ID: ${error.message}`);
+     return '';  // Not in tmux or command failed, return empty
+   }
 }
 
 /**
@@ -115,12 +127,15 @@ async function getTmuxSessionID() {
  * @returns {Promise<string>} Window ID in @N format, or empty string if unavailable
  */
 async function getTmuxWindowID() {
-  try {
-    const { stdout } = await execAsync('tmux display-message -p "#{window_id}"');
-    return stdout.trim();
-  } catch {
-    return '';  // Not in tmux or command failed, return empty
-  }
+   try {
+     const { stdout } = await execAsync('tmux display-message -p "#{window_id}"');
+     const windowID = stdout.trim();
+     await logDebug('getTmuxWindowID', `captured window=${windowID}`);
+     return windowID;
+   } catch (error) {
+     await logDebug('getTmuxWindowID', `failed to get window ID: ${error.message}`);
+     return '';  // Not in tmux or command failed, return empty
+   }
 }
 
 /**
@@ -130,12 +145,15 @@ async function getTmuxWindowID() {
  * @returns {Promise<string>} Pane ID in %N format, or empty string if unavailable
  */
 async function getTmuxPaneID() {
-  try {
-    const { stdout } = await execAsync('tmux display-message -p "#{pane_id}"');
-    return stdout.trim();
-  } catch {
-    return '';  // Not in tmux or command failed, return empty
-  }
+   try {
+     const { stdout } = await execAsync('tmux display-message -p "#{pane_id}"');
+     const paneID = stdout.trim();
+     await logDebug('getTmuxPaneID', `captured pane=${paneID}`);
+     return paneID;
+   } catch (error) {
+     await logDebug('getTmuxPaneID', `failed to get pane ID: ${error.message}`);
+     return '';  // Not in tmux or command failed, return empty
+   }
 }
 
 /**
@@ -148,43 +166,45 @@ async function getTmuxPaneID() {
  * @returns {Promise<void>}
  */
 async function notify(status, message) {
-    // Map status to tmux-intray level
-    const levelMap = {
-      'error': 'error',
-      'pending': 'warning',
-      'success': 'info'
-    };
-    const level = levelMap[status] || 'info';
+     // Map status to tmux-intray level
+     const levelMap = {
+       'error': 'error',
+       'pending': 'warning',
+       'success': 'info'
+     };
+     const level = levelMap[status] || 'info';
 
-    try {
-      const tmuxIntrayCmd = await getTmuxIntrayCommand();
-      
-      // Capture context from tmux
-      const sessionID = await getTmuxSessionID();
-      const windowID = await getTmuxWindowID();
-      const paneID = await getTmuxPaneID();
-      
-      // Build command with context flags (if available)
-      let addCmd = `${tmuxIntrayCmd} add --level="${level}" "${message}"`;
-      if (sessionID) {
-        addCmd += ` --session="${sessionID}"`;
-      }
-      if (windowID) {
-        addCmd += ` --window="${windowID}"`;
-      }
-      if (paneID) {
-        addCmd += ` --pane="${paneID}"`;
-      }
-      
-      await logDebug(`notify: executing ${tmuxIntrayCmd} add with level=${level}, session=${sessionID}, window=${windowID}, pane=${paneID}`);
-      
-      // Call tmux-intray with context flags
-      await execAsync(addCmd);
-    } catch (error) {
-      // Log error but don't crash the plugin
-      console.error(`[opencode-tmux-intray] Failed to send notification: ${error.message}`);
-      await logError(error);
-    }
+     try {
+       const tmuxIntrayCmd = await getTmuxIntrayCommand();
+       
+       // Capture context from tmux
+       const sessionID = await getTmuxSessionID();
+       const windowID = await getTmuxWindowID();
+       const paneID = await getTmuxPaneID();
+       
+       // Build command with context flags (if available)
+       let addCmd = `${tmuxIntrayCmd} add --level="${level}" "${message}"`;
+       if (sessionID) {
+         addCmd += ` --session="${sessionID}"`;
+       }
+       if (windowID) {
+         addCmd += ` --window="${windowID}"`;
+       }
+       if (paneID) {
+         addCmd += ` --pane="${paneID}"`;
+       }
+       
+       await logDebug('notify', `executing command: ${addCmd}`);
+       
+       // Call tmux-intray with context flags
+       await execAsync(addCmd);
+       
+       await logDebug('notify', `success - notification created with message: "${message}"`);
+     } catch (error) {
+       // Log error but don't crash the plugin
+       console.error(`[opencode-tmux-intray] Failed to send notification: ${error.message}`);
+       await logError('notify', error);
+     }
 }
 
 /**
@@ -194,38 +214,41 @@ async function notify(status, message) {
  * @returns {Promise<Object>} Plugin hooks
  */
 async function opencodeTmuxIntrayPlugin({ client }) {
-    // Load configuration once at initialization
-    const config = await loadConfig();
+     // Load configuration once at initialization
+     const config = await loadConfig();
+     
+     // Log plugin initialization
+     await logDebug('opencodeTmuxIntrayPlugin', 'plugin initializing with config loaded');
 
-   return {
-      /**
-       * Event handler for OpenCode events
-       * Handles events configured in opencode-config.json
-       * Default events: session.idle, session.error, session.status, permission.updated
-       * @param {Object} params - Event parameters
-       * @param {Object} params.event - Event object
-       * @returns {Promise<void>}
-       */
-      event: async ({ event }) => {
-        // Special handling for session.status - only notify if status is 'pending'
-        if (event.type === 'session.status') {
-          if (event.properties?.status === 'pending' && isEventEnabled(config, event.type)) {
-            const eventConfig = getEventConfig(config, event.type);
-            const message = substituteTemplate(eventConfig.message, event);
-            await notify(eventConfig.status, message);
-          }
-          return;
-        }
+    return {
+       /**
+        * Event handler for OpenCode events
+        * Handles events configured in opencode-config.json
+        * Default events: session.idle, session.error, session.status, permission.updated
+        * @param {Object} params - Event parameters
+        * @param {Object} params.event - Event object
+        * @returns {Promise<void>}
+        */
+       event: async ({ event }) => {
+         // Special handling for session.status - only notify if status is 'pending'
+         if (event.type === 'session.status') {
+           if (event.properties?.status === 'pending' && isEventEnabled(config, event.type)) {
+             const eventConfig = getEventConfig(config, event.type);
+             const message = substituteTemplate(eventConfig.message, event);
+             await notify(eventConfig.status, message);
+           }
+           return;
+         }
 
-        // For all other events, check if enabled and send notification
-        if (isEventEnabled(config, event.type)) {
-          const eventConfig = getEventConfig(config, event.type);
-          const message = substituteTemplate(eventConfig.message, event);
-          await notify(eventConfig.status, message);
-        }
-      },
-   };
- }
+         // For all other events, check if enabled and send notification
+         if (isEventEnabled(config, event.type)) {
+           const eventConfig = getEventConfig(config, event.type);
+           const message = substituteTemplate(eventConfig.message, event);
+           await notify(eventConfig.status, message);
+         }
+       },
+    };
+  }
 
 // Named export for OpenCode plugin system
 export { opencodeTmuxIntrayPlugin };
