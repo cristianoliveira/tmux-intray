@@ -233,21 +233,22 @@ func printLegacy(notifs []Notification, w io.Writer) {
 
 // printTable prints a formatted table with Timestamp, Session, Window, Pane, Level, Message, and ID.
 // ID is positioned at the end for easy mouse selection and copying.
+// Optimized for 80-column terminals: ~75 characters total width
 func printTable(notifs []Notification, w io.Writer) {
 	if len(notifs) == 0 {
 		return
 	}
 	headerColor := colors.Blue
 	reset := colors.Reset
-	fmt.Fprintf(w, "%sTimestamp                 Session Window    Pane    Level   Message                               ID%s\n", headerColor, reset)
-	fmt.Fprintf(w, "%s------------------------  ------- ------  ------  ------  -------------------------------------- -----%s\n", headerColor, reset)
+	fmt.Fprintf(w, "%sTimestamp            Session Window  Pane   Level  Message          ID%s\n", headerColor, reset)
+	fmt.Fprintf(w, "%s--------------------  ------- ------  -----  -----  ----------------  -----%s\n", headerColor, reset)
 	for _, n := range notifs {
-		// Truncate message for display (more space now that ID is at end)
+		// Truncate message for display (15 chars + ellipsis = 18 max)
 		displayMsg := n.Message
-		if len(displayMsg) > 37 {
-			displayMsg = displayMsg[:34] + "..."
+		if len(displayMsg) > 15 {
+			displayMsg = displayMsg[:12] + "..."
 		}
-		fmt.Fprintf(w, "%-25s  %-7s %-6s  %-6s  %-6s  %-38s %-5d\n", n.Timestamp, n.Session, n.Window, n.Pane, n.Level, displayMsg, n.ID)
+		fmt.Fprintf(w, "%-20s  %-7s %-6s  %-5s  %-5s  %-16s  %-5d\n", n.Timestamp, n.Session, n.Window, n.Pane, n.Level, displayMsg, n.ID)
 	}
 }
 
