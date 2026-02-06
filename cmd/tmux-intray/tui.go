@@ -26,6 +26,8 @@ type tuiModel struct {
 	cursor        int
 	searchQuery   string
 	searchMode    bool
+	commandMode   bool
+	commandQuery  string
 	viewport      tea.Model
 	width         int
 	height        int
@@ -41,11 +43,29 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
-		case tea.KeyCtrlC, tea.KeyEsc:
+		case tea.KeyCtrlC:
 			// Exit
 			return m, tea.Quit
+		case tea.KeyEsc:
+			if m.searchMode {
+				m.searchMode = false
+				m.searchQuery = ""
+				m.applySearchFilter()
+			} else if m.commandMode {
+				m.commandMode = false
+				m.commandQuery = ""
+			} else {
+				return m, tea.Quit
+			}
 
 		case tea.KeyEnter:
+			if m.commandMode {
+				// Execute command
+				cmd := m.executeCommand()
+				m.commandMode = false
+				m.commandQuery = ""
+				return m, cmd
+			}
 			// Jump to pane of selected notification
 			return m, m.handleJump()
 
@@ -56,6 +76,11 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.searchQuery += string(r)
 				}
 				m.applySearchFilter()
+			} else if m.commandMode {
+				// In command mode, append runes to command query
+				for _, r := range msg.Runes {
+					m.commandQuery += string(r)
+				}
 			}
 
 		case tea.KeyBackspace:
@@ -64,11 +89,20 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
 					m.applySearchFilter()
 				}
+			} else if m.commandMode {
+				if len(m.commandQuery) > 0 {
+					m.commandQuery = m.commandQuery[:len(m.commandQuery)-1]
+				}
 			}
 
 		case tea.KeyUp, tea.KeyDown:
 			// Navigation handled below
 			break
+		}
+
+		// If we're in command mode, don't process other key bindings
+		if m.commandMode {
+			return m, nil
 		}
 
 		// Handle specific key bindings
@@ -88,6 +122,12 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.searchMode = true
 			m.searchQuery = ""
 			m.applySearchFilter()
+		case ":":
+			// Enter command mode
+			if !m.searchMode && !m.commandMode {
+				m.commandMode = true
+				m.commandQuery = ""
+			}
 		case "d":
 			// Dismiss selected notification
 			return m, m.handleDismiss()
@@ -126,6 +166,18 @@ func (m *tuiModel) applySearchFilter() {
 		}
 	}
 	m.cursor = 0
+}
+
+// executeCommand executes the current command query and returns a command to run.
+func (m *tuiModel) executeCommand() tea.Cmd {
+	cmd := strings.TrimSpace(m.commandQuery)
+	switch cmd {
+	case "q":
+		return tea.Quit
+	default:
+		// Unknown command - ignore
+		return nil
+	}
 }
 
 // View renders the TUI.
@@ -305,11 +357,19 @@ func (m tuiModel) renderFooter() string {
 	if m.searchMode {
 		help = append(help, "ESC: exit search")
 		help = append(help, fmt.Sprintf("Search: %s", m.searchQuery))
+	} else if m.commandMode {
+		help = append(help, "ESC: cancel")
+		help = append(help, fmt.Sprintf(":%s", m.commandQuery))
 	} else {
 		help = append(help, "/: search")
+		help = append(help, ":: command")
 	}
 	help = append(help, "d: dismiss")
-	help = append(help, "Enter: jump")
+	enterHelp := "Enter: jump"
+	if m.commandMode {
+		enterHelp = "Enter: execute"
+	}
+	help = append(help, enterHelp)
 	help = append(help, "q: quit")
 
 	return helpStyle.Render(strings.Join(help, "  |  "))
@@ -427,9 +487,10 @@ USAGE:
 KEY BINDINGS:
     j/k         Move up/down in the list
     /           Enter search mode
-    ESC         Exit search mode
+    :           Enter command mode
+    ESC         Exit search/command mode, or quit TUI
     d           Dismiss selected notification
-    Enter       Jump to pane of selected notification
+    Enter       Jump to pane (or execute command in command mode)
     q           Quit TUI`,
 	Run: runTUI,
 }
