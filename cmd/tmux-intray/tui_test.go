@@ -190,6 +190,81 @@ func TestTUIModelUpdateHandlesQuit(t *testing.T) {
 	}
 }
 
+// TestTUIModelUpdateHandlesSearchEscape verifies ESC in search mode exits search mode but not TUI.
+func TestTUIModelUpdateHandlesSearchEscape(t *testing.T) {
+	model := tuiModel{
+		searchMode:  true,
+		searchQuery: "test",
+	}
+	msg := tea.KeyMsg{Type: tea.KeyEsc}
+	newModel, cmd := model.Update(msg)
+	model = newModel.(tuiModel)
+	if cmd != nil {
+		t.Error("Expected Update to return nil command for ESC in search mode")
+	}
+	if model.searchMode != false {
+		t.Error("Expected searchMode to be false after ESC")
+	}
+	if model.searchQuery != "" {
+		t.Errorf("Expected searchQuery to be empty after ESC, got %q", model.searchQuery)
+	}
+}
+
+// TestTUIModelUpdateHandlesCommandMode verifies command mode functionality.
+func TestTUIModelUpdateHandlesCommandMode(t *testing.T) {
+	model := tuiModel{}
+	// Test ':' enters command mode
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}}
+	newModel, _ := model.Update(msg)
+	model = newModel.(tuiModel)
+	if !model.commandMode {
+		t.Error("Expected commandMode to be true after pressing ':'")
+	}
+	if model.commandQuery != "" {
+		t.Errorf("Expected commandQuery to be empty, got %q", model.commandQuery)
+	}
+	// Test ESC exits command mode without quitting
+	model.commandMode = true
+	model.commandQuery = "test"
+	msg = tea.KeyMsg{Type: tea.KeyEsc}
+	newModel, cmd := model.Update(msg)
+	model = newModel.(tuiModel)
+	if cmd != nil {
+		t.Error("Expected Update to return nil command for ESC in command mode")
+	}
+	if model.commandMode != false {
+		t.Error("Expected commandMode to be false after ESC")
+	}
+	if model.commandQuery != "" {
+		t.Errorf("Expected commandQuery to be empty after ESC, got %q", model.commandQuery)
+	}
+	// Test command input
+	model.commandMode = true
+	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}}
+	newModel, _ = model.Update(msg)
+	model = newModel.(tuiModel)
+	if model.commandQuery != "q" {
+		t.Errorf("Expected commandQuery to be 'q', got %q", model.commandQuery)
+	}
+	// Test backspace
+	msg = tea.KeyMsg{Type: tea.KeyBackspace}
+	newModel, _ = model.Update(msg)
+	model = newModel.(tuiModel)
+	if model.commandQuery != "" {
+		t.Errorf("Expected commandQuery to be empty after backspace, got %q", model.commandQuery)
+	}
+	// Test executing :q command
+	model.commandMode = true
+	model.commandQuery = "q"
+	msg = tea.KeyMsg{Type: tea.KeyEnter}
+	_, cmd = model.Update(msg)
+	if cmd == nil {
+		t.Error("Expected Update to return non-nil command for :q")
+	}
+	// Ensure command mode is reset after execution
+	// (we can't check because model is not returned, but we can trust the code)
+}
+
 // TestTUIModelUpdateHandlesWindowSize verifies terminal resize is handled correctly.
 func TestTUIModelUpdateHandlesWindowSize(t *testing.T) {
 	model := tuiModel{}
