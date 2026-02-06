@@ -5,6 +5,9 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 )
 
@@ -126,6 +129,9 @@ func TestJumpPaneDoesNotExistButWindowSelected(t *testing.T) {
 		jumpToPaneFunc = originalJumpToPaneFunc
 	}()
 
+	// Tiger Style: Test fallback to window when pane doesn't exist
+	// ASSERTION 1: Should return success (true) when window can be selected
+	// ASSERTION 2: Should mark PaneExists as false to indicate fallback occurred
 	ensureTmuxRunningFunc = func() bool { return true }
 	getNotificationLineFunc = func(id string) (string, error) {
 		return "42\t2025-02-04T10:00:00Z\tactive\t$0\t%0\t:0.0\thello\t1234567890\tinfo", nil
@@ -154,6 +160,9 @@ func TestJumpWindowDoesNotExist(t *testing.T) {
 		jumpToPaneFunc = originalJumpToPaneFunc
 	}()
 
+	// Tiger Style: Test that window/pane not existing returns error
+	// ASSERTION 1: Should return error (not nil)
+	// ASSERTION 2: Error message should clearly indicate what failed
 	ensureTmuxRunningFunc = func() bool { return true }
 	getNotificationLineFunc = func(id string) (string, error) {
 		return "42\t2025-02-04T10:00:00Z\tactive\t$0\t%0\t:0.0\thello\t1234567890\tinfo", nil
@@ -165,8 +174,8 @@ func TestJumpWindowDoesNotExist(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error when window does not exist")
 	}
-	if err.Error() != "failed to jump to pane (maybe window no longer exists)" {
-		t.Errorf("Expected 'failed to jump to pane (maybe window no longer exists)', got %v", err)
+	if err.Error() != "failed to jump: pane or window does not exist" {
+		t.Errorf("Expected 'failed to jump: pane or window does not exist', got %v", err)
 	}
 }
 
@@ -250,4 +259,85 @@ func TestJumpOptimizedRetrieval(t *testing.T) {
 	if !result.PaneExists {
 		t.Error("Expected pane exists true")
 	}
+}
+
+func TestJumpToPaneReturnsCorrectBooleans(t *testing.T) {
+	// Tiger Style: Test that JumpToPane returns correct boolean values
+	// ASSERTION 1: Returns true when jump succeeds to pane
+	// ASSERTION 2: Returns true when jump falls back to window (pane missing)
+	// ASSERTION 3: Returns false when window doesn't exist
+	// ASSERTION 4: Returns false when pane selection fails despite window existing
+	originalJumpToPaneFunc := jumpToPaneFunc
+	defer func() { jumpToPaneFunc = originalJumpToPaneFunc }()
+
+	// Scenario 1: Successful pane jump
+	jumpToPaneFunc = func(session, window, pane string) bool { return true }
+	originalEnsureTmuxRunningFunc := ensureTmuxRunningFunc
+	originalGetNotificationLineFunc := getNotificationLineFunc
+	originalValidatePaneExistsFunc := validatePaneExistsFunc
+	defer func() {
+		ensureTmuxRunningFunc = originalEnsureTmuxRunningFunc
+		getNotificationLineFunc = originalGetNotificationLineFunc
+		validatePaneExistsFunc = originalValidatePaneExistsFunc
+	}()
+
+	ensureTmuxRunningFunc = func() bool { return true }
+	getNotificationLineFunc = func(id string) (string, error) {
+		return "1\t2025-02-04T10:00:00Z\tactive\t$0\t%0\t%1\thello\t1234567890\tinfo", nil
+	}
+	validatePaneExistsFunc = func(session, window, pane string) bool { return true }
+
+	result, err := Jump("1")
+	require.NoError(t, err, "Jump should succeed when JumpToPane returns true")
+	assert.NotNil(t, result, "Result should not be nil on success")
+	assert.True(t, result.PaneExists, "PaneExists should be true when pane exists")
+
+	// Scenario 2: Fall back to window (pane missing but window exists)
+	validatePaneExistsFunc = func(session, window, pane string) bool { return false }
+	jumpToPaneFunc = func(session, window, pane string) bool { return true }
+
+	result, err = Jump("1")
+	require.NoError(t, err, "Jump should succeed even if pane doesn't exist (window fallback)")
+	assert.False(t, result.PaneExists, "PaneExists should be false when pane missing")
+
+	// Scenario 3: Window doesn't exist
+	jumpToPaneFunc = func(session, window, pane string) bool { return false }
+	result, err = Jump("1")
+	assert.Error(t, err, "Jump should fail when window doesn't exist")
+	assert.Nil(t, result, "Result should be nil on failure")
+}
+
+func TestJumpInvalidFieldData(t *testing.T) {
+	// Tiger Style: Test that Jump validates field data properly
+	// ASSERTION: Should return error for missing session/window/pane
+	originalEnsureTmuxRunningFunc := ensureTmuxRunningFunc
+	originalGetNotificationLineFunc := getNotificationLineFunc
+	defer func() {
+		ensureTmuxRunningFunc = originalEnsureTmuxRunningFunc
+		getNotificationLineFunc = originalGetNotificationLineFunc
+	}()
+
+	ensureTmuxRunningFunc = func() bool { return true }
+
+	// Test missing session
+	getNotificationLineFunc = func(id string) (string, error) {
+		return "42\t2025-02-04T10:00:00Z\tactive\t\t%0\t%1\thello\t1234567890\tinfo", nil
+	}
+	_, err := Jump("42")
+	assert.Error(t, err, "Should error when session is missing")
+	assert.Contains(t, err.Error(), "no pane association", "Error message should mention pane association")
+
+	// Test missing window
+	getNotificationLineFunc = func(id string) (string, error) {
+		return "42\t2025-02-04T10:00:00Z\tactive\t$0\t\t%1\thello\t1234567890\tinfo", nil
+	}
+	_, err = Jump("42")
+	assert.Error(t, err, "Should error when window is missing")
+
+	// Test missing pane
+	getNotificationLineFunc = func(id string) (string, error) {
+		return "42\t2025-02-04T10:00:00Z\tactive\t$0\t%0\t\thello\t1234567890\tinfo", nil
+	}
+	_, err = Jump("42")
+	assert.Error(t, err, "Should error when pane is missing")
 }

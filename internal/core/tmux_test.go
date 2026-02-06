@@ -68,7 +68,9 @@ func TestTmuxFunctions(t *testing.T) {
 	})
 
 	t.Run("JumpToPane", func(t *testing.T) {
-		// Test successful jump to existing pane
+		// Tiger Style: Test successful jump to existing pane
+		// ASSERTION 1: select-window must be called to change the active window
+		// ASSERTION 2: select-pane must be called to highlight the target pane
 		var selectWindowCalled, selectPaneCalled bool
 		tmuxRunner = func(args ...string) (string, string, error) {
 			if args[0] == "list-panes" {
@@ -82,7 +84,7 @@ func TestTmuxFunctions(t *testing.T) {
 			}
 			return "", "", nil
 		}
-		result := JumpToPane("1", "1", "%1")
+		result := JumpToPane("$0", "1", "%1")
 		if !result {
 			t.Error("Expected true when jump succeeds")
 		}
@@ -93,7 +95,9 @@ func TestTmuxFunctions(t *testing.T) {
 			t.Error("Expected select-pane to be called")
 		}
 
-		// Test jump to non-existing pane (should fall back to window)
+		// Tiger Style: Test jump to non-existing pane (should fall back to window)
+		// ASSERTION 1: select-window must still be called for fallback to window
+		// ASSERTION 2: select-pane must NOT be called if pane doesn't exist
 		selectWindowCalled = false
 		selectPaneCalled = false
 		tmuxRunner = func(args ...string) (string, string, error) {
@@ -108,7 +112,7 @@ func TestTmuxFunctions(t *testing.T) {
 			}
 			return "", "", nil
 		}
-		result = JumpToPane("1", "1", "%1") // Try to jump to %1
+		result = JumpToPane("$0", "1", "%1") // Try to jump to %1
 		if !result {
 			t.Error("Expected true when window exists even if pane doesn't")
 		}
@@ -117,6 +121,86 @@ func TestTmuxFunctions(t *testing.T) {
 		}
 		if selectPaneCalled {
 			t.Error("Did not expect select-pane to be called when pane doesn't exist")
+		}
+
+		// Tiger Style: Test that select-window failure returns false (fail-fast)
+		// ASSERTION: When select-window fails, return false immediately without trying select-pane
+		tmuxRunner = func(args ...string) (string, string, error) {
+			if args[0] == "list-panes" {
+				return "%1", "", nil
+			} else if args[0] == "select-window" {
+				return "", "invalid target", errors.New("invalid target")
+			}
+			return "", "", nil
+		}
+		result = JumpToPane("$999", "1", "%1")
+		if result {
+			t.Error("Expected false when select-window fails")
+		}
+
+		// Tiger Style: Test that select-pane failure returns false (error not swallowed)
+		// ASSERTION: When select-pane fails, return false and don't hide the error
+		selectPaneCalled = false
+		tmuxRunner = func(args ...string) (string, string, error) {
+			if args[0] == "list-panes" {
+				return "%1", "", nil // Pane exists
+			} else if args[0] == "select-window" {
+				return "", "", nil // Window exists
+			} else if args[0] == "select-pane" {
+				selectPaneCalled = true
+				return "", "invalid pane", errors.New("invalid pane")
+			}
+			return "", "", nil
+		}
+		result = JumpToPane("$0", "1", "%1")
+		if result {
+			t.Error("Expected false when select-pane fails (error not swallowed)")
+		}
+		if !selectPaneCalled {
+			t.Error("Expected select-pane to be called even though it will fail")
+		}
+
+		// Tiger Style: Test that empty parameters are rejected (input validation)
+		// ASSERTION: Empty session/window/pane should return false immediately
+		result = JumpToPane("", "1", "%1")
+		if result {
+			t.Error("Expected false when sessionID is empty")
+		}
+
+		result = JumpToPane("$0", "", "%1")
+		if result {
+			t.Error("Expected false when windowID is empty")
+		}
+
+		result = JumpToPane("$0", "1", "")
+		if result {
+			t.Error("Expected false when paneID is empty")
+		}
+
+		// Tiger Style: Test pane reference format is correct (sessionID:paneID, not sessionID:windowID.paneID)
+		// ASSERTION: select-pane must be called with correct format (sessionID:paneID)
+		var capturedTarget string
+		tmuxRunner = func(args ...string) (string, string, error) {
+			if args[0] == "list-panes" {
+				return "%95", "", nil
+			} else if args[0] == "select-window" {
+				return "", "", nil
+			} else if args[0] == "select-pane" {
+				// Capture the target argument
+				for i, arg := range args {
+					if arg == "-t" && i+1 < len(args) {
+						capturedTarget = args[i+1]
+						break
+					}
+				}
+				return "", "", nil
+			}
+			return "", "", nil
+		}
+		JumpToPane("$2", "@6", "%95")
+		// The format should be sessionID:paneID (not sessionID:windowID.paneID)
+		if capturedTarget != "$2:%95" {
+			t.Errorf("Expected pane target format '$2:%%95', got '%s'", capturedTarget)
 		}
 	})
 

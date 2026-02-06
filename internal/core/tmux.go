@@ -104,8 +104,20 @@ func ValidatePaneExists(sessionID, windowID, paneID string) bool {
 	return false
 }
 
-// JumpToPane jumps to a specific pane.
+// JumpToPane jumps to a specific pane. It returns true if the jump succeeded
+// (either to the pane or fallback to window), false if the jump completely failed.
+// INVARIANTS:
+//   - SessionID, windowID, and paneID must be non-empty (Power of 10 Rule 5)
+//   - Pane reference format must be "sessionID:paneID" (tmux global pane syntax)
+//   - If select-window fails, return false immediately (fail-fast)
+//   - If select-pane fails, return false (don't swallow errors)
 func JumpToPane(sessionID, windowID, paneID string) bool {
+	// ASSERTION: Validate input parameters are non-empty
+	if sessionID == "" || windowID == "" || paneID == "" {
+		colors.Error("JumpToPane: invalid parameters (empty sessionID, windowID, or paneID)")
+		return false
+	}
+
 	// First validate if the pane exists
 	paneExists := ValidatePaneExists(sessionID, windowID, paneID)
 
@@ -120,22 +132,23 @@ func JumpToPane(sessionID, windowID, paneID string) bool {
 		return false
 	}
 
-	// If pane doesn't exist, show warning and return success
+	// If pane doesn't exist, show warning and fall back to window selection
 	if !paneExists {
-		colors.Warning("Pane " + sessionID + ":" + windowID + "." + paneID + " does not exist, jumping to window instead")
+		colors.Warning("Pane " + paneID + " does not exist in window " + targetWindow + ", jumping to window instead")
 		return true
 	}
 
-	// Pane exists, select it
-	targetPane := sessionID + ":" + windowID + "." + paneID
+	// Pane exists, select it using the correct tmux global pane syntax: "sessionID:paneID"
+	// ASSERTION: targetPane must follow tmux pane reference format
+	targetPane := sessionID + ":" + paneID
 	_, stderr, err = tmuxRunner("select-pane", "-t", targetPane)
 	if err != nil {
-		// This is unexpected since we validated the pane exists, but handle it gracefully
-		colors.Warning("Failed to select pane " + targetPane + " (window selected)")
+		// Fail-fast: don't swallow errors, return false to indicate failure
+		colors.Error("Failed to select pane " + targetPane)
 		if stderr != "" {
 			colors.Debug("stderr: " + stderr)
 		}
-		return true // Still count as success since window is selected
+		return false
 	}
 
 	return true
