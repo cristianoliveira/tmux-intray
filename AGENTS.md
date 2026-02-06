@@ -119,6 +119,3 @@ ${Stop/Start/Continue: Was it clear? What was unclear? Where did you lose time? 
 ## Report
 ${Instructions for subagents to report results}
 ```
-
----
-*Last updated: 2026-02-06*
