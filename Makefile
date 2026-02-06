@@ -1,4 +1,4 @@
-.PHONY: all tests fmt check-fmt lint clean install install-homebrew install-docker install-npm install-go install-all verify-install security-check docs test
+.PHONY: all tests fmt check-fmt lint clean install install-docker install-npm install-go install-all verify-install security-check docs test
 
 # tmux-intray is a pure Go implementation
 
@@ -99,15 +99,6 @@ install:
 	@echo "✓ Installation complete"
 	@echo "  - Go binary installed to: $$(go env GOPATH)/bin/tmux-intray"
 
-install-homebrew:
-	@echo "Installing via Homebrew..."
-	@echo "Note: For production use, this formula should be in a proper Homebrew tap."
-	@echo "Creating temporary local tap for installation..."
-	@TAP_DIR=$$(brew --repository)/Library/Taps/tmux-intray/homebrew-tap; \
-	mkdir -p "$$TAP_DIR/Formula"; \
-	cp ./Formula/tmux-intray.rb "$$TAP_DIR/Formula/"; \
-	brew tap tmux-intray/tmux-intray file://"$$TAP_DIR" || true; \
-	brew install tmux-intray/tmux-intray/tmux-intray || brew install ./Formula/tmux-intray.rb
 
 install-npm:
 	@echo "Installing via npm..."
@@ -127,4 +118,4 @@ install-docker:
 	@echo "  Skipping Docker build (no Dockerfile present)"
 	@echo "✓ Docker install check passed (no-op)"
 
-install-all: install-homebrew install-docker install-npm install-go
+install-all: install-docker install-npm install-go

@@ -80,7 +80,7 @@
 - `test` (macOS, Ubuntu): runs `make tests`
 - `lint` (macOS, Ubuntu): runs `make lint`
 - `format` (macOS, Ubuntu): runs `make check-fmt`
-- `install` (macOS): audits Homebrew formula, tests npm/Go/source install
+- `install` (macOS): tests npm/Go/source install
 - `install-linux` (Ubuntu): tests npm/Go/Docker/source install
 
 ## Shadow / Canary Strategy

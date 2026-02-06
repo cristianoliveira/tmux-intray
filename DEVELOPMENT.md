@@ -233,7 +233,7 @@ tmux-intray uses GitHub Actions for continuous integration and deployment. For d
 
 Key workflows:
 - **CI**: Runs Go tests, Bats tests, linting, security checks, format checks, and install verification on every push and pull request.
-- **Release**: Automates release creation, binary building, and Homebrew formula updates when tags are pushed.
+- **Release**: Automates release creation and binary building when tags are pushed.
 
 ## Further Reading
 

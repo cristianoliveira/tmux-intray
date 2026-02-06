@@ -36,11 +36,9 @@ This guide covers common issues and how to resolve them. If you encounter a prob
 - Installation directory not in `$PATH`.
 - The installation script may have placed the binary in a location not included in your shell’s search path.
 - If you installed via npm, the global npm bin directory may not be in your PATH.
-- If you installed via Homebrew, you may need to run `brew link tmux-intray`.
 
 **Solutions:**  
 1. **Check installation location**  
-   - Homebrew: `brew list tmux-intray`  
    - npm: `npm bin -g`  
    - Manual: look in `~/.local/bin` or `/usr/local/bin`
 

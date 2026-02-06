@@ -185,47 +185,7 @@ jobs:
         shell: bash
         run: npm install -g npm
 
-      - name: Audit Homebrew formula
-        run: |
-          # Create a temporary tap for testing
-          TAP_DIR=$(brew --repository)/Library/Taps/tmux-intray/homebrew-tap
-          rm -rf "$TAP_DIR"
-          mkdir -p "$TAP_DIR"
-          mkdir -p "$TAP_DIR/Formula"
-          
-          # Copy the formula to the tap and modify it to use head
-          cp ./Formula/tmux-intray.rb "$TAP_DIR/Formula/"
-          # Remove the url, version, and sha256 lines to force using head
-          sed -i '' '/^  url /d; /^  version /d; /^  sha256 /d' "$TAP_DIR/Formula/tmux-intray.rb"
-          # Fix description to not start with an article (for brew audit)
-          sed -i '' 's/desc "A quiet/desc "Quiet/' "$TAP_DIR/Formula/tmux-intray.rb"
-          
-          # Initialize it as a git repository (required for Homebrew taps)
-          cd "$TAP_DIR"
-          git init
-          git config user.email "test@example.com"
-          git config user.name "Test User"
-          
-          # Create initial commit
-          git add Formula/tmux-intray.rb
-          git commit -m "Add tmux-intray formula"
-          
-          # Go back to the original directory
-          cd -
-          
-          # Tap the local repository
-          brew tap tmux-intray/tmux-intray file://"$TAP_DIR"
-          
-          # Install from the tap
-          brew install tmux-intray/tmux-intray/tmux-intray --HEAD
-          
-          # Audit the formula
-          brew audit --strict tmux-intray/tmux-intray/tmux-intray
-          
-          # Clean up
-          brew uninstall tmux-intray || true
-          brew untap tmux-intray/tmux-intray
-          rm -rf "$TAP_DIR"
+
 
       - name: Test npm installation
         run: make install-npm

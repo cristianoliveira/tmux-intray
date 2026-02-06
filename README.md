@@ -34,7 +34,7 @@ Quick links to key sections:
 
 ### Quick Start
 - **Full Setup (Recommended)**: Install CLI + Tmux Plugin via [One-click installation](#one-click-installation)
-- **CLI Only**: Install via [Homebrew](#homebrew) or [npm](#npm) for tmux-integrated use
+- **CLI Only**: Install via [npm](#npm) or [Go](#go) for tmux-integrated use
 - **Plugin Only**: Install via [Tmux Plugin Manager](#using-tmux-plugin-manager-recommended) if CLI already installed
 
 ## Basic usage
@@ -82,13 +82,6 @@ tmux source-file ~/.tmux.conf
 
 Install just the command-line interface for use within tmux sessions:
 
-#### Homebrew (macOS/Linux)
-
-```bash
-# Install from GitHub repository (formula is in the repo)
-brew install cristianoliveira/tmux-intray/tmux-intray
-```
-
 #### npm
 
 ```bash
@@ -113,7 +106,7 @@ make install
 
 ### Option 3: Tmux Plugin Only
 
-If you already have the CLI installed (e.g., via Homebrew or npm), install just the tmux integration:
+If you already have the CLI installed (e.g., via npm), install just the tmux integration:
 
 #### Using Tmux Plugin Manager (recommended)
 
@@ -508,7 +501,6 @@ tmux-intray is built with a modular architecture that separates concerns:
 
 **CLI not found after installation**
 - Ensure installation directory is in PATH
-- For Homebrew: `brew link tmux-intray`
 - For npm: May require `npm bin -g` to be in PATH
 
 **Tmux plugin not loading**

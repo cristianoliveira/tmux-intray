@@ -24,7 +24,6 @@ Runs on every push to `main` and `develop` branches, and on pull requests target
    - Runs on Ubuntu latest
 
 3. **install** - Tests installation methods on macOS:
-   - Homebrew formula audit
    - npm installation
    - Go binary build
    - Source installation
@@ -49,7 +48,6 @@ Triggered when a tag matching `v[0-9]*.[0-9]*.[0-9]*` is pushed.
    - Builds Go binaries for multiple platforms (linux/amd64, linux/arm64, darwin/amd64, darwin/arm64)
    - Generates release notes from git history
    - Creates source tarball
-   - Updates Homebrew formula with new version and SHA256
    - Creates GitHub Release with binaries and source tarball
 
 ## How to Release
@@ -64,13 +62,11 @@ Triggered when a tag matching `v[0-9]*.[0-9]*.[0-9]*` is pushed.
 
 3. **Automated Process**:
    - The release workflow will:
-     - Build binaries for all platforms
-     - Update the Homebrew formula in the repository
-     - Create a GitHub Release with changelog
+      - Build binaries for all platforms
+      - Create a GitHub Release with changelog
 
 4. **Verify**:
    - Check the GitHub Releases page
-   - Verify Homebrew installation: `brew install cristianoliveira/tmux-intray/tmux-intray`
 
 ## Dependencies
 
@@ -107,7 +103,6 @@ pre-commit install
 - Use `make fmt` to auto-format shell scripts
 
 #### Installation Failures
-- Homebrew audit failures: check formula syntax
 - npm installation: ensure package.json is valid
 - Go build: check Go version compatibility
 
@@ -119,10 +114,7 @@ pre-commit install
 Error: "Version mismatch between bin/tmux-intray and git tag"
 - Ensure the `VERSION` variable in `bin/tmux-intray` matches the git tag (without leading 'v')
 
-#### Homebrew Formula Update
-- Formula update requires write permissions to the repository
-- The workflow automatically commits changes to `Formula/tmux-intray.rb`
-- If commit fails, check GitHub token permissions
+
 
 ## Extending the Pipeline
 

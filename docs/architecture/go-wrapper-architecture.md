@@ -1959,7 +1959,7 @@ jobs:
     
     - name: Install tmux (macOS)
       if: runner.os == 'macOS'
-      run: brew install tmux
+      run: brew install tmux  # for development environment
     
     - name: Run tests
       run: go test ./... -race -v -coverprofile=coverage.txt
@@ -1980,9 +1980,8 @@ jobs:
 ### Deployment Automation Suggestions
 1. **Release Automation**: Semantic versioning with `goreleaser`
 2. **Binary Distribution**: Cross-compile for all platforms
-3. **Homebrew Tap**: Automated formula updates for macOS users
-4. **Docker Images**: Multi-arch Docker images for container deployment
-5. **Documentation**: Auto-generate man pages and shell completions
+3. **Docker Images**: Multi-arch Docker images for container deployment
+4. **Documentation**: Auto-generate man pages and shell completions
 
 ```yaml
 # .goreleaser.yml
