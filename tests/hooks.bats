@@ -36,8 +36,8 @@ EOF
 }
 
 @test "hooks_run with no hooks directory returns success" {
-    # shellcheck source=../lib/hooks.sh
-    source "$BATS_TEST_DIRNAME/../lib/hooks.sh"
+    # shellcheck source=../legacy/hooks.sh
+    source "$BATS_TEST_DIRNAME/../legacy/hooks.sh"
 
     run hooks_run "pre-add"
     [ "$status" -eq 0 ]
@@ -46,8 +46,8 @@ EOF
 
 @test "hooks_run with empty hooks directory returns success" {
     mkdir -p "$TMUX_INTRAY_CONFIG_DIR/hooks/pre-add"
-    # shellcheck source=../lib/hooks.sh
-    source "$BATS_TEST_DIRNAME/../lib/hooks.sh"
+    # shellcheck source=../legacy/hooks.sh
+    source "$BATS_TEST_DIRNAME/../legacy/hooks.sh"
 
     run hooks_run "pre-add"
     [ "$status" -eq 0 ]
@@ -57,8 +57,8 @@ EOF
 @test "hooks_run executes a single hook script" {
     _create_hook_script "pre-add" "01-test.sh" "echo 'Hello from hook'"
 
-    # shellcheck source=../lib/hooks.sh
-    source "$BATS_TEST_DIRNAME/../lib/hooks.sh"
+    # shellcheck source=../legacy/hooks.sh
+    source "$BATS_TEST_DIRNAME/../legacy/hooks.sh"
 
     run hooks_run "pre-add"
     [ "$status" -eq 0 ]
@@ -70,8 +70,8 @@ EOF
     # shellcheck disable=SC2016
     _create_hook_script "pre-add" "env.sh" 'echo "MESSAGE=$MESSAGE"'
 
-    # shellcheck source=../lib/hooks.sh
-    source "$BATS_TEST_DIRNAME/../lib/hooks.sh"
+    # shellcheck source=../legacy/hooks.sh
+    source "$BATS_TEST_DIRNAME/../legacy/hooks.sh"
 
     run hooks_run "pre-add" "MESSAGE=test value"
     [ "$status" -eq 0 ]
@@ -82,8 +82,8 @@ EOF
     _create_hook_script "pre-add" "fail.sh" "exit 1"
     export TMUX_INTRAY_HOOKS_FAILURE_MODE="ignore"
 
-    # shellcheck source=../lib/hooks.sh
-    source "$BATS_TEST_DIRNAME/../lib/hooks.sh"
+    # shellcheck source=../legacy/hooks.sh
+    source "$BATS_TEST_DIRNAME/../legacy/hooks.sh"
 
     run hooks_run "pre-add"
     [ "$status" -eq 0 ]
@@ -96,8 +96,8 @@ EOF
     _create_hook_script "pre-add" "fail.sh" "exit 1"
     export TMUX_INTRAY_HOOKS_FAILURE_MODE="warn"
 
-    # shellcheck source=../lib/hooks.sh
-    source "$BATS_TEST_DIRNAME/../lib/hooks.sh"
+    # shellcheck source=../legacy/hooks.sh
+    source "$BATS_TEST_DIRNAME/../legacy/hooks.sh"
 
     run hooks_run "pre-add"
     [ "$status" -eq 0 ]
@@ -109,8 +109,8 @@ EOF
     _create_hook_script "pre-add" "fail.sh" "exit 1"
     export TMUX_INTRAY_HOOKS_FAILURE_MODE="abort"
 
-    # shellcheck source=../lib/hooks.sh
-    source "$BATS_TEST_DIRNAME/../lib/hooks.sh"
+    # shellcheck source=../legacy/hooks.sh
+    source "$BATS_TEST_DIRNAME/../legacy/hooks.sh"
 
     run hooks_run "pre-add"
     [ "$status" -eq 1 ]
@@ -122,8 +122,8 @@ EOF
     _create_hook_script "pre-add" "02-second.sh" "echo 'second'"
     _create_hook_script "pre-add" "01-first.sh" "echo 'first'"
 
-    # shellcheck source=../lib/hooks.sh
-    source "$BATS_TEST_DIRNAME/../lib/hooks.sh"
+    # shellcheck source=../legacy/hooks.sh
+    source "$BATS_TEST_DIRNAME/../legacy/hooks.sh"
 
     run hooks_run "pre-add"
     [ "$status" -eq 0 ]
@@ -141,8 +141,8 @@ EOF
     _create_hook_script "pre-add" "test.sh" "echo 'executed'"
     export TMUX_INTRAY_HOOKS_ENABLED_pre_add=0
 
-    # shellcheck source=../lib/hooks.sh
-    source "$BATS_TEST_DIRNAME/../lib/hooks.sh"
+    # shellcheck source=../legacy/hooks.sh
+    source "$BATS_TEST_DIRNAME/../legacy/hooks.sh"
 
     run hooks_run "pre-add"
     [ "$status" -eq 0 ]
@@ -153,8 +153,8 @@ EOF
     _create_hook_script "pre-add" "test.sh" "echo 'executed'"
     export TMUX_INTRAY_HOOKS_ENABLED=0
 
-    # shellcheck source=../lib/hooks.sh
-    source "$BATS_TEST_DIRNAME/../lib/hooks.sh"
+    # shellcheck source=../legacy/hooks.sh
+    source "$BATS_TEST_DIRNAME/../legacy/hooks.sh"
 
     run hooks_run "pre-add"
     [ "$status" -eq 0 ]
@@ -165,8 +165,8 @@ EOF
     _create_hook_script "pre-add" "sleep.sh" "sleep 0.1; echo 'done'"
     export TMUX_INTRAY_HOOKS_ASYNC=1
 
-    # shellcheck source=../lib/hooks.sh
-    source "$BATS_TEST_DIRNAME/../lib/hooks.sh"
+    # shellcheck source=../legacy/hooks.sh
+    source "$BATS_TEST_DIRNAME/../legacy/hooks.sh"
 
     run hooks_run "pre-add"
     [ "$status" -eq 0 ]

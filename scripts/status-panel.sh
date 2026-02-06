@@ -8,9 +8,9 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 # shellcheck source=../lib/colors.sh disable=SC1091
 # The sourced file exists at runtime but ShellCheck can't resolve it due to relative path/context.
 source "$PROJECT_ROOT/lib/colors.sh"
-# shellcheck source=../lib/core.sh disable=SC1091
+# shellcheck source=../lib/storage.sh disable=SC1091
 # The sourced file exists at runtime but ShellCheck can't resolve it due to relative path/context.
-source "$PROJECT_ROOT/lib/core.sh"
+source "$PROJECT_ROOT/lib/storage.sh"
 
 # Default configuration
 TMUX_INTRAY_STATUS_FORMAT="${TMUX_INTRAY_STATUS_FORMAT:-compact}"

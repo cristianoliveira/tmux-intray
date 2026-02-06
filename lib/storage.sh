@@ -8,8 +8,18 @@ _TMUX_INTRAY_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./colors.sh disable=SC1091
 # The sourced file exists at runtime but ShellCheck can't resolve it due to relative path/context.
 source "$_TMUX_INTRAY_LIB_DIR/colors.sh"
-# shellcheck source=./hooks.sh disable=SC1091
-source "$_TMUX_INTRAY_LIB_DIR/hooks.sh"
+
+# Stub functions for hooks (disabled in Go migration)
+hooks_init() {
+    # No-op - hooks system disabled in Go migration
+    debug "Hooks system disabled in Go migration"
+}
+
+hooks_run() {
+    # No-op - hooks system disabled in Go migration
+    debug "Hooks disabled: $1"
+    return 0
+}
 
 # Default directories
 TMUX_INTRAY_STATE_DIR="${TMUX_INTRAY_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/tmux-intray}"

@@ -17,7 +17,7 @@ The tmux-intray project has implemented **significant portions** of the planned 
 | Updated `add` command using new storage | ✅ **Implemented** | `commands/add.sh` with pane association options |
 | New `list` command with metadata display | ✅ **Implemented** | `commands/list.sh` with filters (`--active`, `--dismissed`, `--level`, `--pane`) |
 | New `dismiss` command for individual notifications | ✅ **Implemented** | `commands/dismiss.sh` supports individual and `--all` |
-| Configuration system with config.sh template | ✅ **Implemented** | `lib/config.sh` with sample config and `config_load()` |
+| Configuration system with config.sh template | ✅ **Implemented** | `legacy/config.sh` with sample config and `config_load()` |
 | Migration script from environment variables | ❌ **Missing** | No migration from `TMUX_INTRAY_ITEMS` to TSV storage |
 | Comprehensive test suite | ✅ **Implemented** | `tests/storage.bats`, `tests/commands/*.bats` |
 
@@ -111,7 +111,7 @@ The tmux-intray project has implemented **significant portions** of the planned 
 ### Core Libraries
 - `lib/storage.sh`: TSV storage with locking (Phase 1)
 - `lib/core.sh`: Context capture, pane validation, jump (Phase 2)
-- `lib/config.sh`: Configuration loading (Phase 1)
+- `legacy/config.sh`: Configuration loading (Phase 1)
 - `lib/colors.sh`: Color utilities
 
 ### Commands
@@ -150,7 +150,7 @@ The tmux-intray project has implemented **significant portions** of the planned 
    - Schedule via cron or run on command
 
 ### Medium-term Enhancements
-3. **Add hooks system** (`lib/hooks.sh`)
+3. **Add hooks system** (`legacy/hooks.sh`)
    - Pre/post notification hooks
    - Configuration for script paths
    - Environment variables for hook context
