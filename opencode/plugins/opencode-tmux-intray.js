@@ -258,3 +258,5 @@ async function opencodeTmuxIntrayPlugin({ client }) {
 export { opencodeTmuxIntrayPlugin };
 // Default export for compatibility
 export default opencodeTmuxIntrayPlugin;
+// Export context capture functions for unit testing
+export { getTmuxSessionID, getTmuxWindowID, getTmuxPaneID };
