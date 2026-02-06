@@ -2,6 +2,11 @@
 
 # tmux-intray is a pure Go implementation
 
+# Version and commit for build injection
+VERSION ?= 1.0.0
+COMMIT ?= $(shell git rev-parse --short HEAD)
+LDFLAGS = -ldflags "-X github.com/cristianoliveira/tmux-intray/internal/version.Version=$(VERSION) -X github.com/cristianoliveira/tmux-intray/internal/version.Commit=$(COMMIT)"
+
 all: tests
 	@echo "✓ Build and test complete" lint
 
@@ -66,7 +71,9 @@ go-cover-html: go-cover
 
 go-build:
 	@echo "Building Go binary..."
-	go build -o tmux-intray ./cmd/tmux-intray
+	@echo "  Version: $(VERSION)"
+	@echo "  Commit: $(COMMIT)"
+	go build $(LDFLAGS) -o tmux-intray ./cmd/tmux-intray
 
 lint: check-fmt go-lint
 	@echo "Running linter..."
@@ -91,7 +98,9 @@ clean:
 
 install:
 	@echo "Installing tmux-intray..."
-	go install ./cmd/tmux-intray
+	@echo "  Version: $(VERSION)"
+	@echo "  Commit: $(COMMIT)"
+	go install $(LDFLAGS) ./cmd/tmux-intray
 	chmod +x scripts/lint.sh
 	chmod +x scripts/security-check.sh
 	chmod +x tmux-intray.tmux
@@ -103,13 +112,17 @@ install:
 install-npm:
 	@echo "Installing via npm..."
 	@echo "Building Go binary for npm package..."
+	@echo "  Version: $(VERSION)"
+	@echo "  Commit: $(COMMIT)"
 	@mkdir -p bin
-	@go build -o bin/tmux-intray ./cmd/tmux-intray
+	@go build $(LDFLAGS) -o bin/tmux-intray ./cmd/tmux-intray
 	npm install -g .
 
 install-go:
 	@echo "Building and installing Go binary..."
-	go build -o tmux-intray ./cmd/tmux-intray
+	@echo "  Version: $(VERSION)"
+	@echo "  Commit: $(COMMIT)"
+	go build $(LDFLAGS) -o tmux-intray ./cmd/tmux-intray
 	@echo "✓ Go binary built: ./tmux-intray"
 	@echo "  You can run it with: ./tmux-intray --help"
 
