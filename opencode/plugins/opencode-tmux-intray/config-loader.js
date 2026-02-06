@@ -75,22 +75,20 @@ export const DEFAULT_CONFIG = {
 };
 
 /**
- * Path to the configuration file
- */
-const CONFIG_PATH = process.env.OPENCODE_TMUX_INTRAY_CONFIG_PATH 
-  ? process.env.OPENCODE_TMUX_INTRAY_CONFIG_PATH
-  : join(homedir(), '.config', 'opencode-tmux-intray', 'opencode-config.json');
-
-/**
  * Load configuration from file, falling back to defaults if file doesn't exist or is invalid
  * @param {string} [path] - Optional custom path to config file
  * @returns {Promise<object>} Configuration object
  */
-export async function loadConfig(path = CONFIG_PATH) {
+export async function loadConfig(path) {
+  // Calculate config path dynamically if not provided
+  const configPath = path ?? (process.env.OPENCODE_TMUX_INTRAY_CONFIG_PATH
+    ? process.env.OPENCODE_TMUX_INTRAY_CONFIG_PATH
+    : join(homedir(), '.config', 'opencode-tmux-intray', 'opencode-config.json'));
+
   try {
-    const content = await readFile(path, 'utf8');
+    const content = await readFile(configPath, 'utf8');
      const config = JSON.parse(content);
-      return validateConfig(config);
+       return validateConfig(config);
   } catch (error) {
      if (error.code === 'ENOENT') {
        // File doesn't exist - return defaults
@@ -98,9 +96,9 @@ export async function loadConfig(path = CONFIG_PATH) {
      }
     // Parse error or other error - log warning and return defaults
     if (error instanceof SyntaxError) {
-      console.warn(`[opencode-tmux-intray] Invalid JSON in config file ${path}: ${error.message}`);
+      console.warn(`[opencode-tmux-intray] Invalid JSON in config file ${configPath}: ${error.message}`);
     } else {
-      console.warn(`[opencode-tmux-intray] Failed to load config from ${path}: ${error.message}`);
+      console.warn(`[opencode-tmux-intray] Failed to load config from ${configPath}: ${error.message}`);
     }
     return DEFAULT_CONFIG;
   }
