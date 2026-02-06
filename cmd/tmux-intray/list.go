@@ -42,7 +42,7 @@ OPTIONS:
     --regex              Use regex search with --search
     --group-by <field>   Group notifications by field (session, window, pane, level)
     --group-count        Show only group counts (requires --group-by)
-    --format=<format>    Output format: legacy, table, compact, json
+    --format=<format>    Output format: simple (default), legacy, table, compact, json
     -h, --help           Show this help`,
 	Run: runList,
 }
@@ -153,6 +153,8 @@ func printList(opts FilterOptions, w io.Writer) {
 
 	// Print based on format
 	switch opts.Format {
+	case "simple":
+		printSimple(notifications, w)
 	case "legacy":
 		printLegacy(notifications, w)
 	case "table":
@@ -212,6 +214,8 @@ func printGrouped(groups map[string][]Notification, w io.Writer, format string) 
 	for _, k := range keys {
 		fmt.Fprintf(w, "=== %s (%d) ===\n", k, len(groups[k]))
 		switch format {
+		case "simple":
+			printSimple(groups[k], w)
 		case "legacy":
 			printLegacy(groups[k], w)
 		case "table":
@@ -231,24 +235,37 @@ func printLegacy(notifs []Notification, w io.Writer) {
 	}
 }
 
-// printTable prints a formatted table with Timestamp, Session, Window, Pane, Level, Message, and ID.
-// ID is positioned at the end for easy mouse selection and copying.
-// Optimized for 80-column terminals: ~75 characters total width
+// printSimple prints a simple format: ID DATE - Message.
+// Optimized for quick scanning with ID, timestamp, and message on one line.
+func printSimple(notifs []Notification, w io.Writer) {
+	for _, n := range notifs {
+		// Truncate message for display (50 chars max)
+		displayMsg := n.Message
+		if len(displayMsg) > 50 {
+			displayMsg = displayMsg[:47] + "..."
+		}
+		fmt.Fprintf(w, "%-4d  %-25s  - %s\n", n.ID, n.Timestamp, displayMsg)
+	}
+}
+
+// printTable prints a formatted table with ID, Timestamp, Message, and optional context (Session Window Pane).
+// Format: ID DATE - Message (Session Window Pane)
+// Optimized for readability with ID first for easy copying.
 func printTable(notifs []Notification, w io.Writer) {
 	if len(notifs) == 0 {
 		return
 	}
 	headerColor := colors.Blue
 	reset := colors.Reset
-	fmt.Fprintf(w, "%sTimestamp            Session Window  Pane   Level  Message          ID%s\n", headerColor, reset)
-	fmt.Fprintf(w, "%s--------------------  ------- ------  -----  -----  ----------------  -----%s\n", headerColor, reset)
+	fmt.Fprintf(w, "%sID    DATE                   - Message%s\n", headerColor, reset)
+	fmt.Fprintf(w, "%s----  ---------------------  - --------------------------------%s\n", headerColor, reset)
 	for _, n := range notifs {
-		// Truncate message for display (15 chars + ellipsis = 18 max)
+		// Truncate message for display (32 chars max)
 		displayMsg := n.Message
-		if len(displayMsg) > 15 {
-			displayMsg = displayMsg[:12] + "..."
+		if len(displayMsg) > 32 {
+			displayMsg = displayMsg[:29] + "..."
 		}
-		fmt.Fprintf(w, "%-20s  %-7s %-6s  %-5s  %-5s  %-16s  %-5d\n", n.Timestamp, n.Session, n.Window, n.Pane, n.Level, displayMsg, n.ID)
+		fmt.Fprintf(w, "%-4d  %-23s  - %s\n", n.ID, n.Timestamp, displayMsg)
 	}
 }
 
@@ -282,7 +299,7 @@ func init() {
 	listCmd.Flags().BoolVar(&listRegex, "regex", false, "Use regex search with --search")
 	listCmd.Flags().StringVar(&listGroupBy, "group-by", "", "Group notifications by field (session, window, pane, level)")
 	listCmd.Flags().BoolVar(&listGroupCount, "group-count", false, "Show only group counts (requires --group-by)")
-	listCmd.Flags().StringVar(&listFormat, "format", "legacy", "Output format: legacy, table, compact, json")
+	listCmd.Flags().StringVar(&listFormat, "format", "simple", "Output format: simple, legacy, table, compact, json")
 }
 
 func runList(cmd *cobra.Command, args []string) {

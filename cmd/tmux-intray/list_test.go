@@ -72,6 +72,37 @@ func TestPrintListLegacyFormat(t *testing.T) {
 	}
 }
 
+func TestPrintListSimpleFormat(t *testing.T) {
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+		return mockLines()
+	}
+	defer restoreMock()
+
+	var buf bytes.Buffer
+	listOutputWriter = &buf
+	defer func() { listOutputWriter = nil }()
+
+	PrintList(FilterOptions{Format: "simple"})
+	output := buf.String()
+	// Should contain ID, DATE, and message separator dash
+	if !strings.Contains(output, "1") || !strings.Contains(output, "2025-01-01") {
+		t.Error("Simple format missing ID or timestamp")
+	}
+	// Should contain separator dash
+	if !strings.Contains(output, "-") {
+		t.Error("Simple format missing separator dash")
+	}
+	// Should contain messages
+	if !strings.Contains(output, "message one") || !strings.Contains(output, "message two") {
+		t.Error("Simple format missing messages")
+	}
+	// Check line structure: should have one per notification
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	if len(lines) != 5 {
+		t.Errorf("Expected 5 lines, got %d", len(lines))
+	}
+}
+
 func TestPrintListTableFormat(t *testing.T) {
 	listListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
 		return mockLines()
@@ -84,24 +115,22 @@ func TestPrintListTableFormat(t *testing.T) {
 
 	PrintList(FilterOptions{Format: "table"})
 	output := buf.String()
-	// Should contain header
-	if !strings.Contains(output, "ID") || !strings.Contains(output, "Timestamp") {
+	// Should contain header with ID and DATE
+	if !strings.Contains(output, "ID") || !strings.Contains(output, "DATE") {
 		t.Error("Table missing header")
 	}
-	// Should contain IDs at the end (right-aligned)
+	// Should contain messages separator dash
+	if !strings.Contains(output, "-") {
+		t.Error("Table missing separator dash")
+	}
+	// Should contain IDs at the beginning of each row
 	lines := strings.Split(strings.TrimSpace(output), "\n")
 	if len(lines) < 3 {
 		t.Errorf("Expected at least 3 lines, got %d", len(lines))
 	}
-	// Check that IDs appear in output (should be at end of each row)
-	for _, line := range lines[2:] { // Skip header and separator
-		if !strings.Contains(line, "1") && !strings.Contains(line, "2") && !strings.Contains(line, "3") && !strings.Contains(line, "4") && !strings.Contains(line, "5") {
-			// At least one line should have an ID
-		}
-	}
-	// Should contain pane IDs
-	if !strings.Contains(output, "pane1") || !strings.Contains(output, "pane2") {
-		t.Error("Table missing pane IDs")
+	// Check that messages appear in output
+	if !strings.Contains(output, "message one") || !strings.Contains(output, "message two") {
+		t.Error("Table missing messages")
 	}
 }
 
@@ -175,6 +204,34 @@ func TestPrintListRegexSearch(t *testing.T) {
 	}
 	if strings.Contains(output, "message two") {
 		t.Error("Regex incorrectly included message two")
+	}
+}
+
+func TestPrintListGroupByLevelSimple(t *testing.T) {
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+		return mockLines()
+	}
+	defer restoreMock()
+
+	var buf bytes.Buffer
+	listOutputWriter = &buf
+	defer func() { listOutputWriter = nil }()
+
+	PrintList(FilterOptions{GroupBy: "level", Format: "simple"})
+	output := buf.String()
+	// Should contain group headers
+	if !strings.Contains(output, "=== info (3) ===") {
+		t.Error("Missing info group header")
+	}
+	if !strings.Contains(output, "=== warning (1) ===") {
+		t.Error("Missing warning group header")
+	}
+	if !strings.Contains(output, "=== error (1) ===") {
+		t.Error("Missing error group header")
+	}
+	// Should contain ID and timestamps in simple format
+	if !strings.Contains(output, "-") {
+		t.Error("Simple format missing separator dash")
 	}
 }
 
