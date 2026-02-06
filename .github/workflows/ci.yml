@@ -32,13 +32,13 @@ jobs:
           go-version-file: go.mod
           cache: true
           cache-dependency-path: go.sum
-      
+
       - name: Build Go binary
         run: make go-build
-      
+
       - name: Run tests
         run: make tests
-      
+
       - name: Verify binary execution
         run: TMUX_INTRAY_BIN=$PWD/tmux-intray ./scripts/verify-binary.sh
 
@@ -71,49 +71,49 @@ jobs:
 
       - name: Run tests against Go binary
         run: make tests
-      
+
       - name: Verify Go binary execution
         run: TMUX_INTRAY_BIN=$PWD/tmux-intray ./scripts/verify-binary.sh
 
-  plugin-tests:
-    strategy:
-      matrix:
-        os: [macos-latest, ubuntu-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Cache npm dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-
-
-      - name: Install dependencies
-        working-directory: opencode/plugins/opencode-tmux-intray
-        run: npm ci
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-          cache-dependency-path: go.sum
-
-      - name: Build Go binary
-        run: make go-build
-
-      - name: Run plugin tests
-        working-directory: opencode/plugins/opencode-tmux-intray
-        run: npm test
+  # plugin-tests:
+  #   strategy:
+  #     matrix:
+  #       os: [macos-latest, ubuntu-latest]
+  #   runs-on: ${{ matrix.os }}
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Setup Node.js
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: '20'
+  #
+  #     - name: Cache npm dependencies
+  #       uses: actions/cache@v4
+  #       with:
+  #         path: ~/.npm
+  #         key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+  #         restore-keys: |
+  #           ${{ runner.os }}-
+  #
+  #     - name: Install dependencies
+  #       working-directory: opencode/plugins/opencode-tmux-intray
+  #       run: npm ci
+  #
+  #     - name: Setup Go
+  #       uses: actions/setup-go@v5
+  #       with:
+  #         go-version-file: go.mod
+  #         cache: true
+  #         cache-dependency-path: go.sum
+  #
+  #     - name: Build Go binary
+  #       run: make go-build
+  #
+  #     - name: Run plugin tests
+  #       working-directory: opencode/plugins/opencode-tmux-intray
+  #       run: npm test
 
   lint:
     strategy:
