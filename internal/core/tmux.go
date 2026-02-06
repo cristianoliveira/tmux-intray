@@ -2,6 +2,7 @@
 package core
 
 import (
+	"fmt"
 	"os/exec"
 	"strings"
 
@@ -54,7 +55,8 @@ func GetCurrentTmuxContext() TmuxContext {
 	// Trim whitespace from the output
 	stdout = strings.TrimSpace(stdout)
 
-	// Split by space - tmux output should be exactly 3 parts
+	// Split by space - tmux format string produces 4 parts
+	// Format: #{session_id} #{window_id} #{pane_id} #{pane_pid}
 	parts := strings.Split(stdout, " ")
 
 	// Filter out empty strings that might result from multiple spaces
@@ -65,21 +67,25 @@ func GetCurrentTmuxContext() TmuxContext {
 		}
 	}
 
-	// Check if we have exactly 3 parts (session, window, pane)
-	if len(filteredParts) != 3 {
-		// The tmux output should always have 3 parts
-		// If not, something is wrong
+	// ASSERTION: Check if we have exactly 4 parts (session_id, window_id, pane_id, pane_pid)
+	// All 4 should always be present in tmux (Power of 10 Rule 5)
+	if len(filteredParts) != 4 {
+		colors.Error(fmt.Sprintf("GetCurrentTmuxContext: unexpected format - expected 4 parts, got %d", len(filteredParts)))
+		return TmuxContext{}
+	}
+
+	// ASSERTION: Validate that captured context values are non-empty
+	if filteredParts[0] == "" || filteredParts[1] == "" || filteredParts[2] == "" {
+		colors.Error("GetCurrentTmuxContext: invalid context - session_id, window_id, or pane_id is empty")
 		return TmuxContext{}
 	}
 
 	ctx := TmuxContext{
-		SessionID: filteredParts[0],
-		WindowID:  filteredParts[1],
-		PaneID:    filteredParts[2],
+		SessionID:   filteredParts[0], // e.g., "$3"
+		WindowID:    filteredParts[1], // e.g., "@16"
+		PaneID:      filteredParts[2], // e.g., "%21"
+		PaneCreated: filteredParts[3], // e.g., "8443" (pane PID)
 	}
-	// Try to get pane creation time (pane_created is not a standard tmux format variable)
-	// We'll use an empty string since pane_created is not available in tmux format variables
-	ctx.PaneCreated = ""
 	return ctx
 }
 
