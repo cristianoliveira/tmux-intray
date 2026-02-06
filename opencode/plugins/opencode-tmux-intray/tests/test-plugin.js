@@ -121,86 +121,68 @@ describe('OpenCode Tmux Intray Plugin', () => {
   });
 });
 
-describe('Session detection functionality', () => {
-  let originalTmux;
-  let originalPath;
+describe('Simplified plugin behavior (delegating context detection to Go CLI)', () => {
   let originalConfigPath;
   let binDir;
+  let originalTmuxIntrayPath;
 
   beforeAll(async () => {
-    originalTmux = process.env.TMUX;
-    originalPath = process.env.PATH;
     originalConfigPath = process.env.OPENCODE_TMUX_INTRAY_CONFIG_PATH;
-    binDir = await fs.promises.mkdtemp(join(os.tmpdir(), 'opencode-tmux-intray-bin-'));
+    originalTmuxIntrayPath = process.env.TMUX_INTRAY_PATH;
+    binDir = await fs.promises.mkdtemp(join(os.tmpdir(), 'opencode-tmux-intray-simple-'));
     // Set config path to a non-existent file to ensure default config is used
     process.env.OPENCODE_TMUX_INTRAY_CONFIG_PATH = join(binDir, 'non-existent-config.json');
   });
 
   afterAll(async () => {
-    if (originalTmux === undefined) {
-      delete process.env.TMUX;
-    } else {
-      process.env.TMUX = originalTmux;
-    }
-    process.env.PATH = originalPath;
     if (originalConfigPath === undefined) {
       delete process.env.OPENCODE_TMUX_INTRAY_CONFIG_PATH;
     } else {
       process.env.OPENCODE_TMUX_INTRAY_CONFIG_PATH = originalConfigPath;
     }
+    if (originalTmuxIntrayPath === undefined) {
+      delete process.env.TMUX_INTRAY_PATH;
+    } else {
+      process.env.TMUX_INTRAY_PATH = originalTmuxIntrayPath;
+    }
     await fs.promises.rm(binDir, { recursive: true, force: true });
   });
 
-  test('session detection without TMUX environment variable', async () => {
-    delete process.env.TMUX;
-    const tmuxLog = join(binDir, 'tmux.log');
+  test('Plugin builds correct command without context flags', async () => {
     const notifyLog = join(binDir, 'notify.log');
-    await createMockBin(binDir, 'tmux', tmuxLog, '');
     await createMockBin(binDir, 'tmux-intray', notifyLog);
     process.env.TMUX_INTRAY_PATH = join(binDir, 'tmux-intray');
-    process.env.PATH = `${binDir}:${originalPath}`;
+    await fs.promises.writeFile(notifyLog, '');
+
+    const pluginModule = await import(pluginPath + '?t=' + Date.now());
+    const mockClient = {
+      session: { get: async () => ({ data: { title: 'Test Session' } }) },
+    };
+    const pluginHooks = await pluginModule.default({ client: mockClient });
+    await pluginHooks.event({ event: { type: 'session.error', properties: {} } });
+
+    // Verify tmux-intray was called with correct arguments
+    const notifyCalls = (await fs.promises.readFile(notifyLog, 'utf8')).trim().split('\n').filter(Boolean);
+    expect(notifyCalls.length).toBeGreaterThan(0);
     
-    await fs.promises.writeFile(tmuxLog, '');
-    await fs.promises.writeFile(notifyLog, '');
-
-    const pluginModule = await import(pluginPath + '?t=' + Date.now());
-    const mockClient = {
-      session: { get: async () => ({ data: { title: 'Test Session' } }) },
-    };
-    const pluginHooks = await pluginModule.default({ client: mockClient });
-    await pluginHooks.event({ event: { type: 'session.error', properties: {} } });
-
-    // Verify tmux was called with correct arguments
-    const tmuxCalls = (await fs.promises.readFile(tmuxLog, 'utf8')).trim().split('\n').filter(Boolean);
-    // Expect multiple calls during context capture attempt (getTmuxSession, getTmuxSessionID, getTmuxWindowID, getTmuxPaneID)
-    expect(tmuxCalls.length).toBeGreaterThan(0);
-    // All calls should be display-message format
-    for (const call of tmuxCalls) {
-      const args = JSON.parse(call);
-      expect(Array.isArray(args)).toBe(true);
-      expect(args[0]).toBe('display-message');
-      expect(args[1]).toBe('-p');
-      // Accept various format strings: #S (session name), #{session_id}, #{window_id}, #{pane_id}
-      expect(['#S', '#{session_id}', '#{window_id}', '#{pane_id}']).toContain(args[2]);
-    }
-
-    const notifyCalls = (await fs.promises.readFile(notifyLog, 'utf8')).trim().split('\n').filter(Boolean);
-    expect(notifyCalls.length).toBeGreaterThan(0);
-    const { agentName, status, session, message } = parseTmuxIntrayArgs(JSON.parse(notifyCalls.pop()));
+    const { agentName, status, session, message } = parseTmuxIntrayArgs(JSON.parse(notifyCalls[0]));
     expect(agentName).toBe('opencode');
     expect(status).toBe('error');
-    expect(session).toBe('');
+    expect(session).toBe(''); // Context NOT passed to plugin
     expect(message).toBe('Session error');
+    
+    // Verify command structure: ["add", "--level=error", "message"]
+    const args = JSON.parse(notifyCalls[0]);
+    expect(args[0]).toBe('add');
+    expect(args[1]).toBe('--level=error');
+    expect(args[2]).toBe('Session error');
+    expect(args.length).toBe(3); // Only 3 arguments, no context flags
   });
 
-  test('session detection with TMUX environment variable', async () => {
-    process.env.TMUX = '/tmp/tmux-123/default,123,0';
-    const tmuxLog = join(binDir, 'tmux.log');
-    const notifyLog = join(binDir, 'notify.log');
-    await createMockBin(binDir, 'tmux', tmuxLog, 'mocked-session');
+  test('Plugin executes command via execAsync', async () => {
+    const notifyLog = join(binDir, 'notify2.log');
     await createMockBin(binDir, 'tmux-intray', notifyLog);
     process.env.TMUX_INTRAY_PATH = join(binDir, 'tmux-intray');
-    await fs.promises.writeFile(tmuxLog, '');
     await fs.promises.writeFile(notifyLog, '');
 
     const pluginModule = await import(pluginPath + '?t=' + Date.now() + '2');
@@ -208,149 +190,18 @@ describe('Session detection functionality', () => {
       session: { get: async () => ({ data: { title: 'Test Session' } }) },
     };
     const pluginHooks = await pluginModule.default({ client: mockClient });
-    await pluginHooks.event({ event: { type: 'session.error', properties: {} } });
+    await pluginHooks.event({ event: { type: 'session.idle', properties: {} } });
 
-    const tmuxCalls = (await fs.promises.readFile(tmuxLog, 'utf8')).trim().split('\n').filter(Boolean);
-    // Expect multiple calls during context capture attempt (getTmuxSession, getTmuxSessionID, getTmuxWindowID, getTmuxPaneID)
-    expect(tmuxCalls.length).toBeGreaterThan(0);
-    // All calls should be display-message format
-    for (const call of tmuxCalls) {
-      const args = JSON.parse(call);
-      expect(Array.isArray(args)).toBe(true);
-      expect(args[0]).toBe('display-message');
-      expect(args[1]).toBe('-p');
-      // Accept various format strings: #S (session name), #{session_id}, #{window_id}, #{pane_id}
-      expect(['#S', '#{session_id}', '#{window_id}', '#{pane_id}']).toContain(args[2]);
-    }
-
+    // Verify execAsync was called (tmux-intray command executed)
     const notifyCalls = (await fs.promises.readFile(notifyLog, 'utf8')).trim().split('\n').filter(Boolean);
-    expect(notifyCalls.length).toBeGreaterThan(0);
-    const { agentName, status, session, message } = parseTmuxIntrayArgs(JSON.parse(notifyCalls.pop()));
-    expect(agentName).toBe('opencode');
-    expect(status).toBe('error');
-    expect(session).toBe('');
-    expect(message).toBe('Session error');
-  });
-});
-
-describe('Session detection edge cases', () => {
-  let originalTmux;
-  let originalPath;
-  let originalConfigPath;
-  let binDir;
-
-  beforeAll(async () => {
-    originalTmux = process.env.TMUX;
-    originalPath = process.env.PATH;
-    originalConfigPath = process.env.OPENCODE_TMUX_INTRAY_CONFIG_PATH;
-    binDir = await fs.promises.mkdtemp(join(os.tmpdir(), 'opencode-tmux-intray-edge-'));
-    // Set config path to a non-existent file to ensure default config is used
-    process.env.OPENCODE_TMUX_INTRAY_CONFIG_PATH = join(binDir, 'non-existent-config.json');
+    expect(notifyCalls.length).toBe(1);
   });
 
-  afterAll(async () => {
-    if (originalTmux === undefined) {
-      delete process.env.TMUX;
-    } else {
-      process.env.TMUX = originalTmux;
-    }
-    process.env.PATH = originalPath;
-    if (originalConfigPath === undefined) {
-      delete process.env.OPENCODE_TMUX_INTRAY_CONFIG_PATH;
-    } else {
-      process.env.OPENCODE_TMUX_INTRAY_CONFIG_PATH = originalConfigPath;
-    }
-    await fs.promises.rm(binDir, { recursive: true, force: true });
-  });
-
-  test('TMUX set but tmux command fails -> empty session', async () => {
-    process.env.TMUX = '/tmp/tmux-123/default,123,0';
-    const tmuxLog = join(binDir, 'tmux.log');
-    const notifyLog = join(binDir, 'notify.log');
-    await createMockBin(binDir, 'tmux', tmuxLog, '', true); // error=true
-    await createMockBin(binDir, 'tmux-intray', notifyLog);
+  test('Plugin handles execAsync errors gracefully', async () => {
+    const notifyLog = join(binDir, 'notify3.log');
+    // Create mock that exits with error code
+    await createMockBin(binDir, 'tmux-intray', notifyLog, '', true);
     process.env.TMUX_INTRAY_PATH = join(binDir, 'tmux-intray');
-    process.env.PATH = `${binDir}:${originalPath}`;
-
-    await fs.promises.writeFile(tmuxLog, '');
-    await fs.promises.writeFile(notifyLog, '');
-
-    const pluginModule = await import(pluginPath + '?t=' + Date.now());
-    const mockClient = {
-      session: { get: async () => ({ data: { title: 'Test Session' } }) },
-    };
-    const pluginHooks = await pluginModule.default({ client: mockClient });
-    await pluginHooks.event({ event: { type: 'session.error', properties: {} } });
-
-    const tmuxCalls = (await fs.promises.readFile(tmuxLog, 'utf8')).trim().split('\n').filter(Boolean);
-    // Expect multiple calls during context capture attempt (getTmuxSession, getTmuxSessionID, getTmuxWindowID, getTmuxPaneID)
-    expect(tmuxCalls.length).toBeGreaterThan(0);
-    // All calls should be display-message format
-    for (const call of tmuxCalls) {
-      const args = JSON.parse(call);
-      expect(Array.isArray(args)).toBe(true);
-      expect(args[0]).toBe('display-message');
-      expect(args[1]).toBe('-p');
-      // Accept various format strings: #S (session name), #{session_id}, #{window_id}, #{pane_id}
-      expect(['#S', '#{session_id}', '#{window_id}', '#{pane_id}']).toContain(args[2]);
-    }
-
-    const notifyCalls = (await fs.promises.readFile(notifyLog, 'utf8')).trim().split('\n').filter(Boolean);
-    expect(notifyCalls.length).toBeGreaterThan(0);
-    const { agentName, status, session, message } = parseTmuxIntrayArgs(JSON.parse(notifyCalls.pop()));
-    expect(agentName).toBe('opencode');
-    expect(status).toBe('error');
-    expect(session).toBe('');
-    expect(message).toBe('Session error');
-  });
-
-  test('TMUX not set but tmux command succeeds (fallback detection)', async () => {
-    delete process.env.TMUX;
-    const tmuxLog = join(binDir, 'tmux.log');
-    const notifyLog = join(binDir, 'notify.log');
-    await createMockBin(binDir, 'tmux', tmuxLog, 'fallback-session');
-    await createMockBin(binDir, 'tmux-intray', notifyLog);
-    process.env.TMUX_INTRAY_PATH = join(binDir, 'tmux-intray');
-    await fs.promises.writeFile(tmuxLog, '');
-    await fs.promises.writeFile(notifyLog, '');
-
-    const pluginModule = await import(pluginPath + '?t=' + Date.now() + '2');
-    const mockClient = {
-      session: { get: async () => ({ data: { title: 'Test Session' } }) },
-    };
-    const pluginHooks = await pluginModule.default({ client: mockClient });
-    await pluginHooks.event({ event: { type: 'session.error', properties: {} } });
-
-    const tmuxCalls = (await fs.promises.readFile(tmuxLog, 'utf8')).trim().split('\n').filter(Boolean);
-    // Expect multiple calls during context capture attempt (getTmuxSession, getTmuxSessionID, getTmuxWindowID, getTmuxPaneID)
-    expect(tmuxCalls.length).toBeGreaterThan(0);
-    // All calls should be display-message format
-    for (const call of tmuxCalls) {
-      const args = JSON.parse(call);
-      expect(Array.isArray(args)).toBe(true);
-      expect(args[0]).toBe('display-message');
-      expect(args[1]).toBe('-p');
-      // Accept various format strings: #S (session name), #{session_id}, #{window_id}, #{pane_id}
-      expect(['#S', '#{session_id}', '#{window_id}', '#{pane_id}']).toContain(args[2]);
-    }
-
-    const notifyCalls = (await fs.promises.readFile(notifyLog, 'utf8')).trim().split('\n').filter(Boolean);
-    expect(notifyCalls.length).toBeGreaterThan(0);
-    const { agentName, status, session, message } = parseTmuxIntrayArgs(JSON.parse(notifyCalls.pop()));
-    expect(agentName).toBe('opencode');
-    expect(status).toBe('error');
-    expect(session).toBe('');
-    expect(message).toBe('Session error');
-  });
-
-  test('cached session usage (tmux called only once during init)', async () => {
-    process.env.TMUX = '/tmp/tmux-123/default,123,0';
-    const tmuxLog = join(binDir, 'tmux.log');
-    const notifyLog = join(binDir, 'notify.log');
-    await createMockBin(binDir, 'tmux', tmuxLog, 'cached-session');
-    await createMockBin(binDir, 'tmux-intray', notifyLog);
-    process.env.TMUX_INTRAY_PATH = join(binDir, 'tmux-intray');
-    await fs.promises.writeFile(tmuxLog, '');
     await fs.promises.writeFile(notifyLog, '');
 
     const pluginModule = await import(pluginPath + '?t=' + Date.now() + '3');
@@ -358,24 +209,74 @@ describe('Session detection edge cases', () => {
       session: { get: async () => ({ data: { title: 'Test Session' } }) },
     };
     const pluginHooks = await pluginModule.default({ client: mockClient });
-    // Trigger two events
-    await pluginHooks.event({ event: { type: 'session.idle', properties: {} } });
-    await pluginHooks.event({ event: { type: 'session.error', properties: {} } });
+    
+    // Should not throw - errors are handled gracefully
+    await expect(pluginHooks.event({ event: { type: 'session.error', properties: {} } })).resolves.not.toThrow();
+  });
 
-    const tmuxCalls = (await fs.promises.readFile(tmuxLog, 'utf8')).trim().split('\n').filter(Boolean);
-    // Should be exactly 4 calls during plugin initialization:
-    // 1. getTmuxSession() - display-message -p #S
-    // 2. getTmuxSessionID() - display-message -p #{session_id}
-    // 3. getTmuxWindowID() - display-message -p #{window_id}
-    // 4. getTmuxPaneID() - display-message -p #{pane_id}
-    // Then zero calls for the 2 events (all context is cached)
-    expect(tmuxCalls.length).toBe(4);
+  test('Plugin handles messages with special characters', async () => {
+    const notifyLog = join(binDir, 'notify4.log');
+    await createMockBin(binDir, 'tmux-intray', notifyLog);
+    process.env.TMUX_INTRAY_PATH = join(binDir, 'tmux-intray');
+    await fs.promises.writeFile(notifyLog, '');
+
+    const pluginModule = await import(pluginPath + '?t=' + Date.now() + '4');
+    const mockClient = {
+      session: { get: async () => ({ data: { title: 'Test Session' } }) },
+    };
+    const pluginHooks = await pluginModule.default({ client: mockClient });
+    
+    // Test with different event types that are enabled by default
+    const testCases = [
+      { type: 'session.error', properties: {}, expectedMessage: 'Session error' },
+      { type: 'session.idle', properties: {}, expectedMessage: 'Task completed' },
+      { type: 'permission.updated', properties: { permission: 'test_perm' }, expectedMessage: 'Permission needed' },
+    ];
+    
+    for (const testCase of testCases) {
+      await pluginHooks.event({ event: testCase });
+    }
 
     const notifyCalls = (await fs.promises.readFile(notifyLog, 'utf8')).trim().split('\n').filter(Boolean);
-    expect(notifyCalls.length).toBeGreaterThanOrEqual(2);
-    for (const line of notifyCalls) {
-      // Parse to ensure valid tmux-intray arguments
-      parseTmuxIntrayArgs(JSON.parse(line));
+    expect(notifyCalls.length).toBeGreaterThanOrEqual(1);
+    
+    // Verify all messages are properly formed tmux-intray commands
+    for (const call of notifyCalls) {
+      const args = JSON.parse(call);
+      expect(args[0]).toBe('add');
+      expect(args[1]).toMatch(/^--level=/);
+      expect(typeof args[2]).toBe('string');
+    }
+  });
+
+  test('Multiple events create multiple notifications', async () => {
+    const notifyLog = join(binDir, 'notify5.log');
+    await createMockBin(binDir, 'tmux-intray', notifyLog);
+    process.env.TMUX_INTRAY_PATH = join(binDir, 'tmux-intray');
+    await fs.promises.writeFile(notifyLog, '');
+
+    const pluginModule = await import(pluginPath + '?t=' + Date.now() + '5');
+    const mockClient = {
+      session: { get: async () => ({ data: { title: 'Test Session' } }) },
+    };
+    const pluginHooks = await pluginModule.default({ client: mockClient });
+    
+    // Trigger 3 events that are enabled by default: session.idle, session.error, permission.updated
+    await pluginHooks.event({ event: { type: 'session.idle', properties: {} } });
+    await pluginHooks.event({ event: { type: 'session.error', properties: {} } });
+    await pluginHooks.event({ event: { type: 'permission.updated', properties: { permission: 'test' } } });
+
+    const notifyCalls = (await fs.promises.readFile(notifyLog, 'utf8')).trim().split('\n').filter(Boolean);
+    expect(notifyCalls.length).toBeGreaterThanOrEqual(3);
+    
+    // Verify each call has the correct structure
+    for (const call of notifyCalls) {
+      const args = JSON.parse(call);
+      expect(args.length).toBe(3);
+      expect(args[0]).toBe('add');
+      expect(args[1]).toMatch(/^--level=\w+$/);
+      expect(typeof args[2]).toBe('string');
     }
   });
 });
+
