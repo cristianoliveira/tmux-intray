@@ -117,7 +117,7 @@ func ValidatePaneExists(sessionID, windowID, paneID string) bool {
 // (either to the pane or fallback to window), false if the jump completely failed.
 // INVARIANTS:
 //   - SessionID, windowID, and paneID must be non-empty (Power of 10 Rule 5)
-//   - Pane reference format must be "sessionID:paneID" (tmux global pane syntax)
+//   - Pane reference format must be "sessionID:windowID.paneID" (tmux pane target syntax)
 //   - If select-window fails, return false immediately (fail-fast)
 //   - If select-pane fails, return false (don't swallow errors)
 func JumpToPane(sessionID, windowID, paneID string) bool {
@@ -150,9 +150,9 @@ func JumpToPane(sessionID, windowID, paneID string) bool {
 		return true
 	}
 
-	// Pane exists, select it using the correct tmux global pane syntax: "sessionID:paneID"
+	// Pane exists, select it using the correct tmux pane syntax: "sessionID:windowID.paneID"
 	// ASSERTION: targetPane must follow tmux pane reference format
-	targetPane := sessionID + ":" + paneID
+	targetPane := sessionID + ":" + windowID + "." + paneID
 	colors.Debug(fmt.Sprintf("JumpToPane: selecting pane %s", targetPane))
 	_, stderr, err = tmuxRunner("select-pane", "-t", targetPane)
 	if err != nil {
