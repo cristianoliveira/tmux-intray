@@ -311,7 +311,6 @@
 - [ ] Validate cross-compilation for all platforms
 
 **Installation Methods**
-- [ ] Update Homebrew formula for Go binary
 - [ ] Update npm package distribution
 - [ ] Update GitHub Releases automation
 - [ ] Update Docker container build
