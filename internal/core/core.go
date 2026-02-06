@@ -51,6 +51,12 @@ func GetTrayItems(stateFilter string) string {
 // If session, window, pane are empty and noAuto is false, current tmux context is used.
 // Returns the notification ID.
 func AddTrayItem(item, session, window, pane, paneCreated string, noAuto bool, level string) string {
+	// Treat empty/whitespace context same as not provided for resilience
+	// This handles cases where plugin passes empty strings as flags
+	session = strings.TrimSpace(session)
+	window = strings.TrimSpace(window)
+	pane = strings.TrimSpace(pane)
+
 	// If auto context allowed and session/window/pane empty, get current tmux context
 	if !noAuto && session == "" && window == "" && pane == "" {
 		ctx := GetCurrentTmuxContext()

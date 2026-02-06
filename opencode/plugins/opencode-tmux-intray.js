@@ -7,13 +7,13 @@
  * error, require permissions, or ask questions.
  */
 
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { loadConfig, isEventEnabled, getEventConfig, substituteTemplate } from './opencode-tmux-intray/config-loader.js';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /**
  * Check if plugin is running in test mode.
@@ -161,50 +161,54 @@ async function getTmuxPaneID() {
  * Captures tmux context (session/window/pane IDs) and passes them as flags
  * to the CLI. The CLI uses these values as primary context, with auto-detection
  * as fallback when flags are not provided.
+ * Uses execFile() with array arguments to avoid shell interpolation.
  * @param {string} status - Notification status (success, error, pending)
  * @param {string} message - Notification message
  * @returns {Promise<void>}
  */
 async function notify(status, message) {
-     // Map status to tmux-intray level
-     const levelMap = {
-       'error': 'error',
-       'pending': 'warning',
-       'success': 'info'
-     };
-     const level = levelMap[status] || 'info';
+      // Map status to tmux-intray level
+      const levelMap = {
+        'error': 'error',
+        'pending': 'warning',
+        'success': 'info'
+      };
+      const level = levelMap[status] || 'info';
 
-     try {
-       const tmuxIntrayCmd = await getTmuxIntrayCommand();
-       
-       // Capture context from tmux
-       const sessionID = await getTmuxSessionID();
-       const windowID = await getTmuxWindowID();
-       const paneID = await getTmuxPaneID();
-       
-       // Build command with context flags (if available)
-       let addCmd = `${tmuxIntrayCmd} add --level="${level}" "${message}"`;
-       if (sessionID) {
-         addCmd += ` --session="${sessionID}"`;
-       }
-       if (windowID) {
-         addCmd += ` --window="${windowID}"`;
-       }
-       if (paneID) {
-         addCmd += ` --pane="${paneID}"`;
-       }
-       
-       await logDebug('notify', `executing command: ${addCmd}`);
-       
-       // Call tmux-intray with context flags
-       await execAsync(addCmd);
-       
-       await logDebug('notify', `success - notification created with message: "${message}"`);
-     } catch (error) {
-       // Log error but don't crash the plugin
-       console.error(`[opencode-tmux-intray] Failed to send notification: ${error.message}`);
-       await logError('notify', error);
-     }
+      try {
+        const tmuxIntrayCmd = await getTmuxIntrayCommand();
+        
+        // Capture context from tmux
+        const sessionID = await getTmuxSessionID();
+        const windowID = await getTmuxWindowID();
+        const paneID = await getTmuxPaneID();
+        
+        // Build command with context flags (if available)
+        // Use array format instead of string to avoid shell interpolation
+        const args = ['add', `--level=${level}`];
+        if (sessionID) {
+          args.push(`--session=${sessionID}`);
+        }
+        if (windowID) {
+          args.push(`--window=${windowID}`);
+        }
+        if (paneID) {
+          args.push(`--pane=${paneID}`);
+        }
+        args.push(message);
+        
+        const commandStr = `${tmuxIntrayCmd} ${args.join(' ')}`;
+        await logDebug('notify', `executing command: ${commandStr}`);
+        
+        // Call tmux-intray with context flags using execFile (no shell)
+        await execFileAsync(tmuxIntrayCmd, args);
+        
+        await logDebug('notify', `success - notification created with message: "${message}"`);
+      } catch (error) {
+        // Log error but don't crash the plugin
+        console.error(`[opencode-tmux-intray] Failed to send notification: ${error.message}`);
+        await logError('notify', error);
+      }
 }
 
 /**
