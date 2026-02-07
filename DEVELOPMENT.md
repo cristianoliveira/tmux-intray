@@ -184,6 +184,149 @@ var addCmd = &cobra.Command{
 - Use `GetCurrentTmuxContext()` for auto context detection
 - Escape special characters in messages
 
+#### Using the Tmux Abstraction Layer
+
+The `internal/core` package provides a clean abstraction over tmux commands. **Never call `exec.Command("tmux", ...)` directly** from command implementations. Always use the core package functions.
+
+##### Core Functions Available
+
+**Tmux Context & Navigation:**
+```go
+import "github.com/cristianoliveira/tmux-intray/internal/core"
+
+// Check if tmux is running
+if !core.EnsureTmuxRunning() {
+    colors.Error("tmux not running")
+    return fmt.Errorf("tmux not available")
+}
+
+// Get current tmux context (auto-detection)
+ctx := core.GetCurrentTmuxContext()
+// ctx.SessionID   // e.g., "$3"
+// ctx.WindowID    // e.g., "@16"
+// ctx.PaneID      // e.g., "%21"
+// ctx.PaneCreated // e.g., "8443"
+
+// Validate a pane exists
+if core.ValidatePaneExists(sessionID, windowID, paneID) {
+    // Pane exists
+}
+
+// Jump to a specific pane
+if core.JumpToPane(sessionID, windowID, paneID) {
+    colors.Success("Jumped to pane")
+} else {
+    colors.Error("Failed to jump to pane")
+}
+```
+
+**Visibility Management:**
+```go
+// Get current visibility (returns "0" or "1")
+visible := core.GetVisibility()
+if visible == "1" {
+    // Tray is visible
+}
+
+// Set visibility
+if err := core.SetVisibility(true); err != nil {
+    colors.Error("Failed to set visibility: " + err.Error())
+}
+```
+
+**Tray Management:**
+```go
+// Get tray items
+items := core.GetTrayItems("active") // "active" or "dismissed"
+
+// Add a tray item with auto-context detection
+id, err := core.AddTrayItem("My notification", "", "", "", "", false, "info")
+if err != nil {
+    colors.Error("Failed to add: " + err.Error())
+}
+
+// Clear all active tray items
+if err := core.ClearTrayItems(); err != nil {
+    colors.Error("Failed to clear: " + err.Error())
+}
+```
+
+##### Example: Complete Command Using Core Abstraction
+
+```go
+package cmd
+
+import (
+    "fmt"
+    "github.com/spf13/cobra"
+    "github.com/cristianoliveira/tmux-intray/internal/core"
+    "github.com/cristianoliveira/tmux-intray/internal/colors"
+)
+
+var jumpCmd = &cobra.Command{
+    Use:   "jump <id>",
+    Short: "Jump to notification source pane",
+    RunE: func(cmd *cobra.Command, args []string) error {
+        // Validate tmux is running first
+        if !core.EnsureTmuxRunning() {
+            return fmt.Errorf("tmux not running")
+        }
+
+        // Get notification details from storage
+        id := args[0]
+        notif, err := storage.GetNotificationByID(id)
+        if err != nil {
+            return fmt.Errorf("notification not found: %w", err)
+        }
+
+        // Parse notification fields
+        fields := strings.Split(notif, "\t")
+        sessionID := fields[3] // session
+        windowID := fields[4]  // window
+        paneID := fields[5]    // pane
+
+        // Jump to the pane using core abstraction
+        if !core.JumpToPane(sessionID, windowID, paneID) {
+            return fmt.Errorf("failed to jump to pane")
+        }
+
+        colors.Success("Jumped to notification " + id)
+        return nil
+    },
+}
+```
+
+##### Testing with Tmux Abstraction
+
+The `tmuxRunner` variable in `internal/core/tmux.go` can be replaced for testing:
+
+```go
+func TestJumpToPane(t *testing.T) {
+    // Save original runner
+    origRunner := core.tmuxRunner
+    defer func() { core.tmuxRunner = origRunner }()
+
+    // Replace with mock
+    core.tmuxRunner = func(args ...string) (string, string, error) {
+        switch args[0] {
+        case "list-panes":
+            // Mock panes list
+            return "%21", "", nil
+        case "select-window":
+            return "", "", nil
+        case "select-pane":
+            return "", "", nil
+        default:
+            return "", "", fmt.Errorf("unexpected command: %v", args)
+        }
+    }
+
+    // Test the function
+    result := core.JumpToPane("$3", "@16", "%21")
+    require.True(t, result)
+}
+```
+
 ### Colors Output (internal/colors)
 - `Error(msg)` - Output to stderr in red
 - `Success(msg)` - Output to stdout in green
