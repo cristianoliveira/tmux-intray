@@ -7,6 +7,7 @@ import (
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
+	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,10 +20,6 @@ func TestCore(t *testing.T) {
 	// Initialize storage once
 	storage.Init()
 
-	// Backup original tmuxRunner
-	origRunner := tmuxRunner
-	defer func() { tmuxRunner = origRunner }()
-
 	// Helper to clear all notifications before each subtest
 	clearNotifications := func() {
 		_ = storage.DismissAll()
@@ -30,16 +27,14 @@ func TestCore(t *testing.T) {
 
 	t.Run("GetTrayItems", func(t *testing.T) {
 		clearNotifications()
-		// Mock tmuxRunner to simulate tmux not running
-		tmuxRunner = func(args ...string) (string, string, error) {
-			return "", "tmux not running", os.ErrNotExist
-		}
+		// Use default core (tmux not needed for this test)
+		c := NewCore(nil)
 
 		// Add notifications with explicit session/window/pane
-		id1, err := AddTrayItem("message 1", "$1", "%1", "@1", "123456", true, "info")
+		id1, err := c.AddTrayItem("message 1", "$1", "%1", "@1", "123456", true, "info")
 		require.NoError(t, err)
 		require.NotEmpty(t, id1)
-		id2, err := AddTrayItem("message 2", "$2", "%2", "@2", "123457", true, "warning")
+		id2, err := c.AddTrayItem("message 2", "$2", "%2", "@2", "123457", true, "warning")
 		require.NoError(t, err)
 		require.NotEmpty(t, id2)
 
@@ -64,30 +59,32 @@ func TestCore(t *testing.T) {
 
 	t.Run("AddTrayItemAutoContext", func(t *testing.T) {
 		clearNotifications()
-		// Mock tmuxRunner to return a known context
-		tmuxRunner = func(args ...string) (string, string, error) {
-			if len(args) >= 3 && args[0] == "display" && args[1] == "-p" {
-				return "$session %window @pane 1748987643", "", nil
-			}
-			return "", "", os.ErrNotExist
-		}
+		// Mock tmux client to return a known context
+		mockClient := new(tmux.MockClient)
+		mockClient.On("GetCurrentContext").Return(tmux.TmuxContext{
+			SessionID: "$session",
+			WindowID:  "%window",
+			PaneID:    "@pane",
+			PanePID:   "1748987643",
+		}, nil).Once()
+		c := NewCore(mockClient)
 
-		id, err := AddTrayItem("auto message", "", "", "", "", false, "info")
+		id, err := c.AddTrayItem("auto message", "", "", "", "", false, "info")
 		require.NoError(t, err)
 		require.NotEmpty(t, id)
 		// Verify item added (message appears)
 		items, err := GetTrayItems("active")
 		require.NoError(t, err)
 		require.Contains(t, items, "auto message")
+		mockClient.AssertExpectations(t)
 	})
 
 	t.Run("AddTrayItemNoAuto", func(t *testing.T) {
 		clearNotifications()
-		// tmuxRunner will fail, but noAuto true means we don't call it
-		tmuxRunner = func(args ...string) (string, string, error) {
-			return "", "tmux not running", os.ErrNotExist
-		}
-		id, err := AddTrayItem("manual message", "$s", "%w", "@p", "123", true, "error")
+		// tmux client will fail, but noAuto true means we don't call it
+		mockClient := new(tmux.MockClient)
+		c := NewCore(mockClient)
+		id, err := c.AddTrayItem("manual message", "$s", "%w", "@p", "123", true, "error")
 		require.NoError(t, err)
 		require.NotEmpty(t, id)
 		items, err := GetTrayItems("active")
@@ -97,13 +94,12 @@ func TestCore(t *testing.T) {
 
 	t.Run("ClearTrayItems", func(t *testing.T) {
 		clearNotifications()
-		tmuxRunner = func(args ...string) (string, string, error) {
-			return "", "tmux not running", os.ErrNotExist
-		}
+		// Use default core
+		c := NewCore(nil)
 
-		_, err := AddTrayItem("msg1", "$1", "%1", "@1", "123", true, "info")
+		_, err := c.AddTrayItem("msg1", "$1", "%1", "@1", "123", true, "info")
 		require.NoError(t, err)
-		_, err = AddTrayItem("msg2", "$2", "%2", "@2", "456", true, "warning")
+		_, err = c.AddTrayItem("msg2", "$2", "%2", "@2", "456", true, "warning")
 		require.NoError(t, err)
 
 		err = ClearTrayItems()
@@ -116,46 +112,39 @@ func TestCore(t *testing.T) {
 
 	t.Run("Visibility", func(t *testing.T) {
 		clearNotifications()
-		// Mock tmuxRunner for visibility operations
-		var lastArgs []string
-		tmuxRunner = func(args ...string) (string, string, error) {
-			lastArgs = args
-			if args[0] == "show-environment" && len(args) >= 3 && args[2] == "TMUX_INTRAY_VISIBLE" {
-				return "TMUX_INTRAY_VISIBLE=1", "", nil
-			}
-			return "", "", nil
-		}
+		// Mock tmux client for visibility operations
+		mockClient := new(tmux.MockClient)
+		mockClient.On("GetEnvironment", "TMUX_INTRAY_VISIBLE").Return("1", nil).Once()
+		c := NewCore(mockClient)
 
-		visible := GetVisibility()
+		visible := c.GetVisibility()
 		require.Equal(t, "1", visible)
+		mockClient.AssertExpectations(t)
 
 		// SetVisibility with true should call set-environment with "1"
-		lastArgs = nil
-		tmuxRunner = func(args ...string) (string, string, error) {
-			lastArgs = args
-			return "", "", nil
-		}
-		err := SetVisibility(true)
+		mockClient = new(tmux.MockClient)
+		mockClient.On("SetEnvironment", "TMUX_INTRAY_VISIBLE", "1").Return(nil).Once()
+		c = NewCore(mockClient)
+		err := c.SetVisibility(true)
 		require.NoError(t, err)
-		require.Equal(t, []string{"set-environment", "-g", "TMUX_INTRAY_VISIBLE", "1"}, lastArgs)
+		mockClient.AssertExpectations(t)
 
 		// SetVisibility with false should set "0"
-		lastArgs = nil
-		tmuxRunner = func(args ...string) (string, string, error) {
-			lastArgs = args
-			return "", "", nil
-		}
-		err = SetVisibility(false)
+		mockClient = new(tmux.MockClient)
+		mockClient.On("SetEnvironment", "TMUX_INTRAY_VISIBLE", "0").Return(nil).Once()
+		c = NewCore(mockClient)
+		err = c.SetVisibility(false)
 		require.NoError(t, err)
-		require.Equal(t, []string{"set-environment", "-g", "TMUX_INTRAY_VISIBLE", "0"}, lastArgs)
+		mockClient.AssertExpectations(t)
 
 		// Simulate tmux failure
-		tmuxRunner = func(args ...string) (string, string, error) {
-			return "", "error", os.ErrInvalid
-		}
-		err = SetVisibility(true)
+		mockClient = new(tmux.MockClient)
+		mockClient.On("SetEnvironment", "TMUX_INTRAY_VISIBLE", "1").Return(tmux.ErrTmuxNotRunning).Once()
+		c = NewCore(mockClient)
+		err = c.SetVisibility(true)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "Failed to set tmux visibility")
+		require.Equal(t, ErrTmuxOperationFailed, err)
+		mockClient.AssertExpectations(t)
 	})
 
 	t.Run("escapeMessage", func(t *testing.T) {

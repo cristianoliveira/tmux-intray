@@ -42,11 +42,20 @@ TMUX_INTRAY_HOOKS_ENABLED_post_add=1
 ### 01-log.sh
 Logs notification events to a file. Configure log location with `HOOK_LOG_FILE` environment variable.
 
-### 02-notify.sh (optional)
-Sends desktop notifications using `notify-send` for certain notification levels.
+### 02-macos-notification.sh
+Triggers macOS notifications (visual only) using osascript. No sound is played.
 
-### 03-webhook.sh (optional)
-Sends HTTP POST requests to a webhook URL for integration with external systems.
+### 03-tmux-status-bar.sh
+Displays a yellow status notification bar at the bottom of tmux using `tmux display-message`. Configure duration with `TMUX_NOTIFICATION_DURATION` in milliseconds (default: 3000).
+
+### 04-linux-notification.sh
+Triggers Linux desktop notifications (visual only) using `notify-send`. No sound is played.
+
+### 05-macos-sound.sh
+Plays a sound on macOS without displaying any UI notification. Uses `afplay` to play system sounds or custom audio files. Configure sound with `MACOS_SOUND_FILE` environment variable (default: /System/Library/Sounds/Ping.aiff).
+
+### 06-linux-sound.sh
+Plays a sound on Linux without displaying any UI notification. Uses `paplay` (PulseAudio) or `aplay` (ALSA) to play audio. Configure sound with `LINUX_SOUND_FILE` environment variable (default: /usr/share/sounds/freedesktop/stereo/message.oga).
 
 ## Installation
 

@@ -1,11 +1,13 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/pelletier/go-toml/v2"
 	"github.com/stretchr/testify/require"
 )
@@ -243,7 +245,7 @@ func TestGetWithMissingKey(t *testing.T) {
 	require.Equal(t, "mydefault", Get("nonexistent_key", "mydefault"))
 }
 
-// Test that environment overrides are overridden by config file.
+// Test that environment overrides take precedence over config file.
 func TestPriority(t *testing.T) {
 	reset()
 	tmpDir := t.TempDir()
@@ -253,10 +255,10 @@ func TestPriority(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Setenv("TMUX_INTRAY_CONFIG_PATH", configPath)
-	t.Setenv("TMUX_INTRAY_MAX_NOTIFICATIONS", "500") // should be ignored because config file overrides
+	t.Setenv("TMUX_INTRAY_MAX_NOTIFICATIONS", "500") // should override config file
 	Load()
 
-	require.Equal(t, "800", Get("max_notifications", ""))
+	require.Equal(t, "500", Get("max_notifications", ""))
 }
 
 // Test XDG directory defaults.
@@ -275,4 +277,213 @@ func TestXdgDefaults(t *testing.T) {
 	require.Equal(t, expectedStateDir, Get("state_dir", ""))
 	// hooks_dir should be config_dir/hooks
 	require.Equal(t, filepath.Join(expectedConfigDir, "hooks"), Get("hooks_dir", ""))
+}
+
+// Test that a non-existent config file is handled gracefully and logged at debug level.
+func TestConfigFileNotFound(t *testing.T) {
+	reset()
+	tmpDir := t.TempDir()
+	nonExistentPath := filepath.Join(tmpDir, "does_not_exist.toml")
+
+	t.Setenv("TMUX_INTRAY_CONFIG_PATH", nonExistentPath)
+	// Enable debug output to capture debug messages.
+	colors.SetDebug(true)
+	defer colors.SetDebug(false)
+
+	// Capture stderr to verify debug logging.
+	oldStderr := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+
+	Load()
+
+	// Close writer and restore stderr.
+	w.Close()
+	os.Stderr = oldStderr
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	// Should contain debug message about file not found.
+	require.Contains(t, output, "Debug:")
+	require.Contains(t, output, "unable to read config file")
+	require.Contains(t, output, nonExistentPath)
+
+	// Defaults should still be loaded.
+	require.Equal(t, "1000", Get("max_notifications", ""))
+}
+
+// Test that a malformed config file is handled gracefully and logged at warning level.
+func TestConfigFileMalformed(t *testing.T) {
+	reset()
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.toml")
+
+	// Write malformed TOML.
+	err := os.WriteFile(configPath, []byte("invalid toml content [unclosed"), 0644)
+	require.NoError(t, err)
+
+	t.Setenv("TMUX_INTRAY_CONFIG_PATH", configPath)
+
+	// Capture stderr to verify warning logging.
+	oldStderr := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+
+	Load()
+
+	// Close writer and restore stderr.
+	w.Close()
+	os.Stderr = oldStderr
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	// Should contain warning message about parse error.
+	require.Contains(t, output, "Warning:")
+	require.Contains(t, output, "unable to parse config file")
+	require.Contains(t, output, configPath)
+
+	// Defaults should still be loaded.
+	require.Equal(t, "1000", Get("max_notifications", ""))
+}
+
+// Test that malformed JSON is logged at warning level.
+func TestConfigFileMalformedJSON(t *testing.T) {
+	reset()
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.json")
+
+	// Write malformed JSON.
+	err := os.WriteFile(configPath, []byte(`{"invalid": json}`), 0644)
+	require.NoError(t, err)
+
+	t.Setenv("TMUX_INTRAY_CONFIG_PATH", configPath)
+
+	// Capture stderr to verify warning logging.
+	oldStderr := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+
+	Load()
+
+	// Close writer and restore stderr.
+	w.Close()
+	os.Stderr = oldStderr
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	// Should contain warning message about parse error.
+	require.Contains(t, output, "Warning:")
+	require.Contains(t, output, "unable to parse config file")
+	require.Contains(t, output, configPath)
+}
+
+// Test that malformed YAML is logged at warning level.
+func TestConfigFileMalformedYAML(t *testing.T) {
+	reset()
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	// Write malformed YAML (invalid indentation).
+	err := os.WriteFile(configPath, []byte("invalid:\n  - item1\n item2"), 0644)
+	require.NoError(t, err)
+
+	t.Setenv("TMUX_INTRAY_CONFIG_PATH", configPath)
+
+	// Capture stderr to verify warning logging.
+	oldStderr := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+
+	Load()
+
+	// Close writer and restore stderr.
+	w.Close()
+	os.Stderr = oldStderr
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	// Should contain warning message about parse error.
+	require.Contains(t, output, "Warning:")
+	require.Contains(t, output, "unable to parse config file")
+	require.Contains(t, output, configPath)
+}
+
+// Test that read errors (permission denied) are logged at debug level.
+func TestConfigFileReadError(t *testing.T) {
+	reset()
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.toml")
+
+	// Create file with no read permissions.
+	err := os.WriteFile(configPath, []byte("max_notifications = 200"), 0000)
+	require.NoError(t, err)
+
+	t.Setenv("TMUX_INTRAY_CONFIG_PATH", configPath)
+	// Enable debug output to capture debug messages.
+	colors.SetDebug(true)
+	defer colors.SetDebug(false)
+
+	// Capture stderr to verify debug logging.
+	oldStderr := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+
+	Load()
+
+	// Close writer and restore stderr.
+	w.Close()
+	os.Stderr = oldStderr
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	// Should contain debug message about read error.
+	require.Contains(t, output, "Debug:")
+	require.Contains(t, output, "unable to read config file")
+	require.Contains(t, output, configPath)
+
+	// Defaults should still be loaded.
+	require.Equal(t, "1000", Get("max_notifications", ""))
+}
+
+// Test that debug messages are not shown when TMUX_INTRAY_DEBUG is not set.
+func TestConfigFileNotFoundNoDebug(t *testing.T) {
+	reset()
+	tmpDir := t.TempDir()
+	nonExistentPath := filepath.Join(tmpDir, "does_not_exist.toml")
+
+	t.Setenv("TMUX_INTRAY_CONFIG_PATH", nonExistentPath)
+	// Ensure debug is not enabled.
+	t.Setenv("TMUX_INTRAY_DEBUG", "")
+
+	// Capture stderr to verify no debug logging.
+	oldStderr := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+
+	Load()
+
+	// Close writer and restore stderr.
+	w.Close()
+	os.Stderr = oldStderr
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	// Should NOT contain debug message.
+	require.NotContains(t, output, "Debug:")
+	require.NotContains(t, output, "unable to read config file")
+
+	// Defaults should still be loaded.
+	require.Equal(t, "1000", Get("max_notifications", ""))
 }
