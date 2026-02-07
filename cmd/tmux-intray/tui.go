@@ -12,6 +12,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
+	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/state"
 	"github.com/spf13/cobra"
 )
@@ -45,6 +46,9 @@ func runTUI(cmd *cobra.Command, args []string) {
 	// Initialize storage
 	storage.Init()
 
+	// Create TmuxClient
+	client := tmux.NewDefaultClient()
+
 	// Load settings from disk (use defaults if missing/corrupted)
 	loadedSettings, err := settings.Load()
 	if err != nil {
@@ -54,7 +58,7 @@ func runTUI(cmd *cobra.Command, args []string) {
 	colors.Debug("Loaded settings for TUI")
 
 	// Create TUI model
-	model, err := state.NewModel()
+	model, err := state.NewModel(client)
 	if err != nil {
 		colors.Error(fmt.Sprintf("Failed to create TUI model: %v", err))
 		os.Exit(1)

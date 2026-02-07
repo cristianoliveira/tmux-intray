@@ -2,7 +2,6 @@ package state
 
 import (
 	"fmt"
-	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
@@ -16,46 +15,9 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
+	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/render"
 )
-
-// sessionNameFetcher fetches session name from tmux for a given session ID.
-// Can be replaced for testing.
-var sessionNameFetcher = func(sessionID string) string {
-	if sessionID == "" {
-		return ""
-	}
-	cmd := exec.Command("tmux", "display-message", "-t", sessionID, "-p", "#S")
-	stdout, err := cmd.Output()
-	if err != nil {
-		return sessionID // fallback to session ID on error
-	}
-	return strings.TrimSpace(string(stdout))
-}
-
-// fetchAllSessionNames fetches all session IDs and names from tmux with a single call.
-// Returns a map from session ID to session name.
-// Can be replaced for testing.
-var fetchAllSessionNames = func() map[string]string {
-	names := make(map[string]string)
-	cmd := exec.Command("tmux", "list-sessions", "-F", "#{session_id}\t#{session_name}")
-	stdout, err := cmd.Output()
-	if err != nil {
-		return names // empty map on error
-	}
-
-	lines := strings.Split(string(stdout), "\n")
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
-		parts := strings.SplitN(line, "\t", 2)
-		if len(parts) == 2 {
-			names[parts[0]] = parts[1]
-		}
-	}
-	return names
-}
 
 // Model represents the TUI model for bubbletea.
 type Model struct {
@@ -70,6 +32,7 @@ type Model struct {
 	width         int
 	height        int
 	sessionNames  map[string]string
+	client        tmux.TmuxClient // TmuxClient for tmux operations
 
 	// Settings fields
 	sortBy         string
@@ -320,12 +283,24 @@ func (m *Model) FromState(state settings.TUIState) error {
 }
 
 // NewModel creates a new TUI model.
-func NewModel() (*Model, error) {
+// If client is nil, a new DefaultClient is created.
+func NewModel(client tmux.TmuxClient) (*Model, error) {
+	if client == nil {
+		client = tmux.NewDefaultClient()
+	}
+
+	// Fetch all session names from tmux
+	sessionNames, err := client.ListSessions()
+	if err != nil {
+		sessionNames = make(map[string]string)
+	}
+
 	m := Model{
 		viewport:     viewport.New(80, 22), // Default dimensions, will be updated on WindowSizeMsg
-		sessionNames: fetchAllSessionNames(),
+		sessionNames: sessionNames,
+		client:       client,
 	}
-	err := m.loadNotifications()
+	err = m.loadNotifications()
 	if err != nil {
 		return &Model{}, err
 	}
@@ -546,18 +521,17 @@ func (m *Model) loadNotifications() error {
 	return nil
 }
 
-// getSessionName returns the session name for a session ID, fetching from tmux if not cached.
+// getSessionName returns the session name for a session ID.
+// Uses cached session names from initial fetch.
 func (m *Model) getSessionName(sessionID string) string {
 	if sessionID == "" {
 		return ""
 	}
 	if m.sessionNames == nil {
-		m.sessionNames = make(map[string]string)
+		return sessionID
 	}
 	if name, ok := m.sessionNames[sessionID]; ok {
 		return name
 	}
-	name := sessionNameFetcher(sessionID)
-	m.sessionNames[sessionID] = name
-	return name
+	return sessionID // fallback to session ID if not found
 }

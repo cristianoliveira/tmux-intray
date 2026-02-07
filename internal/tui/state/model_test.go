@@ -10,6 +10,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
+	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,26 +32,21 @@ func setupConfig(t *testing.T, dir string) {
 	t.Setenv("TMUX_INTRAY_CONFIG_DIR", dir)
 }
 
-func stubSessionFetchers(t *testing.T) {
+func stubSessionFetchers(t *testing.T) *tmux.MockClient {
 	t.Helper()
 
-	originalSessionNameFetcher := sessionNameFetcher
-	originalFetchAllSessionNames := fetchAllSessionNames
+	mockClient := new(tmux.MockClient)
+	// Mock ListSessions to return empty map
+	mockClient.On("ListSessions").Return(map[string]string{}, nil)
 
-	sessionNameFetcher = func(sessionID string) string { return sessionID }
-	fetchAllSessionNames = func() map[string]string { return map[string]string{} }
-
-	t.Cleanup(func() {
-		sessionNameFetcher = originalSessionNameFetcher
-		fetchAllSessionNames = originalFetchAllSessionNames
-	})
+	return mockClient
 }
 
 func TestNewModelInitialState(t *testing.T) {
 	setupStorage(t)
-	stubSessionFetchers(t)
+	mockClient := stubSessionFetchers(t)
 
-	model, err := NewModel()
+	model, err := NewModel(mockClient)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, model.width)
@@ -302,13 +298,13 @@ func TestModelViewWithNoNotifications(t *testing.T) {
 
 func TestHandleDismiss(t *testing.T) {
 	setupStorage(t)
-	stubSessionFetchers(t)
+	mockClient := stubSessionFetchers(t)
 
 	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "", "", "", "1234", "info")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 
-	model, err := NewModel()
+	model, err := NewModel(mockClient)
 	require.NoError(t, err)
 	require.Len(t, model.filtered, 1)
 
@@ -316,7 +312,7 @@ func TestHandleDismiss(t *testing.T) {
 
 	assert.Nil(t, cmd)
 
-	model, err = NewModel()
+	model, err = NewModel(mockClient)
 	require.NoError(t, err)
 	assert.Empty(t, model.filtered)
 }
@@ -396,22 +392,18 @@ func TestModelUpdateHandlesEnterKey(t *testing.T) {
 }
 
 func TestGetSessionNameCachesFetcher(t *testing.T) {
-	calls := 0
-	original := sessionNameFetcher
-	sessionNameFetcher = func(sessionID string) string {
-		calls++
-		return sessionID + "-name"
+	model := &Model{
+		sessionNames: map[string]string{
+			"$1": "$1-name",
+		},
 	}
-	t.Cleanup(func() { sessionNameFetcher = original })
-
-	model := &Model{}
 
 	name := model.getSessionName("$1")
 	assert.Equal(t, "$1-name", name)
-	name = model.getSessionName("$1")
 
+	// Call again - should return cached value
+	name = model.getSessionName("$1")
 	assert.Equal(t, "$1-name", name)
-	assert.Equal(t, 1, calls)
 }
 
 func TestToState(t *testing.T) {
@@ -763,13 +755,13 @@ func TestModelMissingSettingsFile(t *testing.T) {
 	setupConfig(t, tmpDir)
 
 	setupStorage(t)
-	stubSessionFetchers(t)
+	mockClient := stubSessionFetchers(t)
 
 	settingsPath := tmpDir + "/settings.json"
 	_, err := os.Stat(settingsPath)
 	assert.True(t, os.IsNotExist(err))
 
-	model, err := NewModel()
+	model, err := NewModel(mockClient)
 	require.NoError(t, err)
 	assert.NotNil(t, model)
 }
