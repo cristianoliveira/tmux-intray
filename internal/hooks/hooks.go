@@ -317,9 +317,14 @@ func Run(hookPoint string, envVars ...string) error {
 }
 
 // ResetForTesting resets internal state for testing.
+// Precondition: All async hooks must have completed before calling this.
+// Violating this precondition will cause a panic (fail-fast).
 func ResetForTesting() {
 	asyncPendingMu.Lock()
 	defer asyncPendingMu.Unlock()
+	if asyncPendingCount > 0 {
+		panic(fmt.Sprintf("ResetForTesting called with %d pending hooks. Call WaitForPendingHooks() first.", asyncPendingCount))
+	}
 	asyncPendingCount = 0
 	asyncPending = sync.WaitGroup{}
 }
