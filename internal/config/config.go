@@ -36,6 +36,8 @@ func Load() {
 	loadFromEnv()
 	// Load from configuration file
 	loadFromFile()
+	// Re-apply environment variable overrides so env wins
+	loadFromEnv()
 	// Validate and normalize values
 	validate()
 	// Compute derived directories

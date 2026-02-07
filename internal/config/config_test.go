@@ -243,7 +243,7 @@ func TestGetWithMissingKey(t *testing.T) {
 	require.Equal(t, "mydefault", Get("nonexistent_key", "mydefault"))
 }
 
-// Test that environment overrides are overridden by config file.
+// Test that environment overrides take precedence over config file.
 func TestPriority(t *testing.T) {
 	reset()
 	tmpDir := t.TempDir()
@@ -253,10 +253,10 @@ func TestPriority(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Setenv("TMUX_INTRAY_CONFIG_PATH", configPath)
-	t.Setenv("TMUX_INTRAY_MAX_NOTIFICATIONS", "500") // should be ignored because config file overrides
+	t.Setenv("TMUX_INTRAY_MAX_NOTIFICATIONS", "500") // should override config file
 	Load()
 
-	require.Equal(t, "800", Get("max_notifications", ""))
+	require.Equal(t, "500", Get("max_notifications", ""))
 }
 
 // Test XDG directory defaults.
