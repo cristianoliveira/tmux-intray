@@ -93,11 +93,12 @@ type tuiModel struct {
 	sessionNames  map[string]string
 
 	// Settings fields
-	sortBy    string
-	sortOrder string
-	columns   []string
-	filters   settings.Filter
-	viewMode  string
+	sortBy         string
+	sortOrder      string
+	columns        []string
+	filters        settings.Filter
+	viewMode       string
+	loadedSettings *settings.Settings // Track loaded settings for comparison
 }
 
 // Init initializes the TUI model.
@@ -111,6 +112,10 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyCtrlC:
+			// Save settings before exiting
+			if err := m.saveSettings(); err != nil {
+				colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+			}
 			// Exit
 			return m, tea.Quit
 		case tea.KeyEsc:
@@ -208,9 +213,21 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// In search mode, 'i' is handled by KeyRunes
 			// This is a no-op but kept for documentation
 		case "q":
+			// Save settings before quitting
+			if err := m.saveSettings(); err != nil {
+				colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+			}
 			// Quit
 			return m, tea.Quit
 		}
+
+	case saveSettingsSuccessMsg:
+		// Settings saved successfully - already displayed info message in saveSettings
+		return m, nil
+
+	case saveSettingsFailedMsg:
+		// Settings save failed - already displayed warning message in saveSettings
+		return m, nil
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -253,11 +270,43 @@ func (m *tuiModel) executeCommand() tea.Cmd {
 	cmd := strings.TrimSpace(m.commandQuery)
 	switch cmd {
 	case "q":
+		// Save settings before quitting
+		if err := m.saveSettings(); err != nil {
+			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+		}
 		return tea.Quit
+	case "w":
+		// Save settings and continue TUI
+		return func() tea.Msg {
+			if err := m.saveSettings(); err != nil {
+				return saveSettingsFailedMsg{err: err}
+			}
+			return saveSettingsSuccessMsg{}
+		}
 	default:
 		// Unknown command - ignore
 		return nil
 	}
+}
+
+// saveSettings extracts current settings from model and saves to disk.
+func (m *tuiModel) saveSettings() error {
+	// Extract current settings state
+	state := m.ToState()
+	colors.Debug("Saving settings from TUI state")
+	if err := settings.Save(state.ToSettings()); err != nil {
+		return fmt.Errorf("failed to save settings: %w", err)
+	}
+	colors.Info("Settings saved")
+	return nil
+}
+
+// saveSettingsSuccessMsg is sent when settings are saved successfully.
+type saveSettingsSuccessMsg struct{}
+
+// saveSettingsFailedMsg is sent when settings save fails.
+type saveSettingsFailedMsg struct {
+	err error
 }
 
 // View renders the TUI.
@@ -509,6 +558,7 @@ func (m tuiModel) renderFooter() string {
 	}
 	help = append(help, enterHelp)
 	help = append(help, "q: quit")
+	help = append(help, ":w: save")
 
 	return helpStyle.Render(strings.Join(help, "  |  "))
 }
@@ -713,6 +763,7 @@ KEY BINDINGS:
     ESC         Exit search/command mode, or quit TUI
     d           Dismiss selected notification
     Enter       Jump to pane (or execute command in command mode)
+    :w          Save settings
     q           Quit TUI`,
 	Run: runTUI,
 }
@@ -725,12 +776,31 @@ func runTUI(cmd *cobra.Command, args []string) {
 	// Initialize storage
 	storage.Init()
 
+	// Load settings from disk (use defaults if missing/corrupted)
+	loadedSettings, err := settings.Load()
+	if err != nil {
+		colors.Warning(fmt.Sprintf("Failed to load settings, using defaults: %v", err))
+		loadedSettings = settings.DefaultSettings()
+	}
+	colors.Debug("Loaded settings for TUI")
+
 	// Create TUI model
 	model, err := NewTUIModel()
 	if err != nil {
 		colors.Error(fmt.Sprintf("Failed to create TUI model: %v", err))
 		os.Exit(1)
 	}
+
+	// Store loaded settings reference
+	model.loadedSettings = loadedSettings
+
+	// Apply loaded settings to model
+	state := settings.FromSettings(loadedSettings)
+	if err := model.FromState(state); err != nil {
+		colors.Warning(fmt.Sprintf("Failed to apply settings to TUI model: %v", err))
+		// Continue with default settings
+	}
+	colors.Debug("Applied settings to TUI model")
 
 	// Create and run the bubbletea program
 	p := tea.NewProgram(

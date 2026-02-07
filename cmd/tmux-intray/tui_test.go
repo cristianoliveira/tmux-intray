@@ -884,3 +884,319 @@ func TestRoundTripSettings(t *testing.T) {
 		})
 	}
 }
+
+// TestSaveSettings verifies saveSettings method works correctly.
+func TestSaveSettings(t *testing.T) {
+	// Create a temp directory for testing
+	tmpDir := t.TempDir()
+
+	// Set up state directory
+	os.Setenv("TMUX_INTRAY_STATE_DIR", tmpDir)
+	defer os.Unsetenv("TMUX_INTRAY_STATE_DIR")
+
+	// Set up config directory
+	os.Setenv("TMUX_INTRAY_CONFIG_DIR", tmpDir)
+	defer os.Unsetenv("TMUX_INTRAY_CONFIG_DIR")
+
+	// Initialize storage
+	storage.Reset()
+	storage.Init()
+
+	// Create a model with custom settings
+	model := &tuiModel{
+		sortBy:    settings.SortByLevel,
+		sortOrder: settings.SortOrderAsc,
+		columns:   []string{settings.ColumnID, settings.ColumnMessage},
+		viewMode:  settings.ViewModeDetailed,
+	}
+
+	// Save settings
+	err := model.saveSettings()
+	require.NoError(t, err)
+
+	// Load settings and verify
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.SortByLevel, loaded.SortBy)
+	assert.Equal(t, settings.SortOrderAsc, loaded.SortOrder)
+	assert.Equal(t, []string{settings.ColumnID, settings.ColumnMessage}, loaded.Columns)
+	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
+}
+
+// TestTUIModelSaveOnQuit verifies settings are saved when quitting with 'q'.
+func TestTUIModelSaveOnQuit(t *testing.T) {
+	// Create a temp directory for testing
+	tmpDir := t.TempDir()
+
+	// Set up state directory
+	os.Setenv("TMUX_INTRAY_STATE_DIR", tmpDir)
+	defer os.Unsetenv("TMUX_INTRAY_STATE_DIR")
+
+	// Set up config directory
+	os.Setenv("TMUX_INTRAY_CONFIG_DIR", tmpDir)
+	defer os.Unsetenv("TMUX_INTRAY_CONFIG_DIR")
+
+	// Initialize storage
+	storage.Reset()
+	storage.Init()
+
+	// Create a model with custom settings
+	model := &tuiModel{
+		sortBy:    settings.SortByLevel,
+		sortOrder: settings.SortOrderAsc,
+		viewMode:  settings.ViewModeDetailed,
+	}
+
+	// Simulate 'q' key press
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}}
+	_, cmd := model.Update(msg)
+
+	// Verify quit command is returned
+	assert.NotNil(t, cmd)
+
+	// Load settings and verify they were saved
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.SortByLevel, loaded.SortBy)
+	assert.Equal(t, settings.SortOrderAsc, loaded.SortOrder)
+	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
+}
+
+// TestTUIModelSaveOnCtrlC verifies settings are saved when quitting with Ctrl+C.
+func TestTUIModelSaveOnCtrlC(t *testing.T) {
+	// Create a temp directory for testing
+	tmpDir := t.TempDir()
+
+	// Set up state directory
+	os.Setenv("TMUX_INTRAY_STATE_DIR", tmpDir)
+	defer os.Unsetenv("TMUX_INTRAY_STATE_DIR")
+
+	// Set up config directory
+	os.Setenv("TMUX_INTRAY_CONFIG_DIR", tmpDir)
+	defer os.Unsetenv("TMUX_INTRAY_CONFIG_DIR")
+
+	// Initialize storage
+	storage.Reset()
+	storage.Init()
+
+	// Create a model with custom settings
+	model := &tuiModel{
+		sortBy:   settings.SortByTimestamp,
+		viewMode: settings.ViewModeDetailed,
+	}
+
+	// Simulate Ctrl+C key press
+	msg := tea.KeyMsg{Type: tea.KeyCtrlC}
+	_, cmd := model.Update(msg)
+
+	// Verify quit command is returned
+	assert.NotNil(t, cmd)
+
+	// Load settings and verify they were saved
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.SortByTimestamp, loaded.SortBy)
+	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
+}
+
+// TestTUIModelSaveOnCommandQ verifies settings are saved when quitting with ':q'.
+func TestTUIModelSaveOnCommandQ(t *testing.T) {
+	// Create a temp directory for testing
+	tmpDir := t.TempDir()
+
+	// Set up state directory
+	os.Setenv("TMUX_INTRAY_STATE_DIR", tmpDir)
+	defer os.Unsetenv("TMUX_INTRAY_STATE_DIR")
+
+	// Set up config directory
+	os.Setenv("TMUX_INTRAY_CONFIG_DIR", tmpDir)
+	defer os.Unsetenv("TMUX_INTRAY_CONFIG_DIR")
+
+	// Initialize storage
+	storage.Reset()
+	storage.Init()
+
+	// Create a model with custom settings
+	model := &tuiModel{
+		sortBy:   settings.SortByLevel,
+		viewMode: settings.ViewModeDetailed,
+	}
+
+	// Enter command mode and type 'q'
+	model.commandMode = true
+	model.commandQuery = "q"
+	msg := tea.KeyMsg{Type: tea.KeyEnter}
+	_, cmd := model.Update(msg)
+
+	// Verify quit command is returned
+	assert.NotNil(t, cmd)
+
+	// Load settings and verify they were saved
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.SortByLevel, loaded.SortBy)
+	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
+}
+
+// TestTUIModelSaveCommandW verifies ':w' command saves settings without quitting.
+func TestTUIModelSaveCommandW(t *testing.T) {
+	// Create a temp directory for testing
+	tmpDir := t.TempDir()
+
+	// Set up state directory
+	os.Setenv("TMUX_INTRAY_STATE_DIR", tmpDir)
+	defer os.Unsetenv("TMUX_INTRAY_STATE_DIR")
+
+	// Set up config directory
+	os.Setenv("TMUX_INTRAY_CONFIG_DIR", tmpDir)
+	defer os.Unsetenv("TMUX_INTRAY_CONFIG_DIR")
+
+	// Initialize storage
+	storage.Reset()
+	storage.Init()
+
+	// Create a model with custom settings
+	model := &tuiModel{
+		sortBy:   settings.SortByLevel,
+		viewMode: settings.ViewModeDetailed,
+	}
+
+	// Enter command mode and type 'w'
+	model.commandMode = true
+	model.commandQuery = "w"
+	msg := tea.KeyMsg{Type: tea.KeyEnter}
+	newModel, cmd := model.Update(msg)
+
+	// Verify a command is returned (save command)
+	assert.NotNil(t, cmd)
+
+	// Verify command mode was reset (TUI continues)
+	model = newModel.(*tuiModel)
+	assert.False(t, model.commandMode)
+	assert.Equal(t, "", model.commandQuery)
+
+	// Load settings and verify they were saved
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.SortByLevel, loaded.SortBy)
+	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
+}
+
+// TestTUIModelMissingSettingsFile verifies TUI works when settings file doesn't exist.
+func TestTUIModelMissingSettingsFile(t *testing.T) {
+	// Create a temp directory for testing
+	tmpDir := t.TempDir()
+
+	// Set up state directory
+	os.Setenv("TMUX_INTRAY_STATE_DIR", tmpDir)
+	defer os.Unsetenv("TMUX_INTRAY_STATE_DIR")
+
+	// Set up config directory to a non-existent path
+	os.Setenv("TMUX_INTRAY_CONFIG_DIR", tmpDir)
+	defer os.Unsetenv("TMUX_INTRAY_CONFIG_DIR")
+
+	// Initialize storage
+	storage.Reset()
+	storage.Init()
+
+	// Ensure no settings file exists
+	settingsPath := tmpDir + "/settings.json"
+	_, err := os.Stat(settingsPath)
+	assert.True(t, os.IsNotExist(err), "Settings file should not exist initially")
+
+	// Create TUI model - should not fail
+	model, err := NewTUIModel()
+	require.NoError(t, err)
+	assert.NotNil(t, model)
+
+	// Model should have default settings (empty or defaults)
+	// The important thing is that it doesn't crash
+}
+
+// TestTUIModelCorruptedSettingsFile verifies TUI works when settings file is corrupted.
+func TestTUIModelCorruptedSettingsFile(t *testing.T) {
+	// Create a temp directory for testing
+	tmpDir := t.TempDir()
+
+	// Set up state directory
+	os.Setenv("TMUX_INTRAY_STATE_DIR", tmpDir)
+	defer os.Unsetenv("TMUX_INTRAY_STATE_DIR")
+
+	// Set up config directory
+	os.Setenv("TMUX_INTRAY_CONFIG_DIR", tmpDir)
+	defer os.Unsetenv("TMUX_INTRAY_CONFIG_DIR")
+
+	// Initialize storage
+	storage.Reset()
+	storage.Init()
+
+	// Create a corrupted settings file
+	settingsPath := tmpDir + "/settings.json"
+	err := os.WriteFile(settingsPath, []byte("invalid json {{{"), 0644)
+	require.NoError(t, err)
+
+	// Load settings - should return defaults with warning
+	loaded, err := settings.Load()
+	require.NoError(t, err, "Load should not fail on corrupted JSON")
+	assert.NotNil(t, loaded, "Should return default settings")
+
+	// The settings should be defaults (not the corrupted values)
+	// We just verify it loaded successfully without crashing
+	// The actual values will be defaults, but we don't assert specific values
+	// to avoid test flakiness from package-level state
+	assert.NotEmpty(t, loaded.SortBy, "SortBy should have a default value")
+}
+
+// TestTUIModelSettingsLifecycle verifies full settings lifecycle: load -> modify -> save.
+func TestTUIModelSettingsLifecycle(t *testing.T) {
+	// Create a temp directory for testing
+	tmpDir := t.TempDir()
+
+	// Set up state directory
+	os.Setenv("TMUX_INTRAY_STATE_DIR", tmpDir)
+	defer os.Unsetenv("TMUX_INTRAY_STATE_DIR")
+
+	// Set up config directory
+	os.Setenv("TMUX_INTRAY_CONFIG_DIR", tmpDir)
+	defer os.Unsetenv("TMUX_INTRAY_CONFIG_DIR")
+
+	// Initialize storage
+	storage.Reset()
+	storage.Init()
+
+	// Step 1: Load initial settings (should be defaults since file doesn't exist)
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.NotNil(t, loaded)
+
+	// Step 2: Create a model and apply loaded settings
+	model := &tuiModel{}
+	state := settings.FromSettings(loaded)
+	err = model.FromState(state)
+	require.NoError(t, err)
+
+	// Step 3: Modify model settings
+	model.sortBy = settings.SortByLevel
+	model.sortOrder = settings.SortOrderAsc
+	model.viewMode = settings.ViewModeDetailed
+
+	// Step 4: Save settings
+	err = model.saveSettings()
+	require.NoError(t, err)
+
+	// Step 5: Reload settings and verify persistence
+	reloaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.SortByLevel, reloaded.SortBy)
+	assert.Equal(t, settings.SortOrderAsc, reloaded.SortOrder)
+	assert.Equal(t, settings.ViewModeDetailed, reloaded.ViewMode)
+
+	// Step 6: Apply reloaded settings to a new model and verify
+	newModel := &tuiModel{}
+	newState := settings.FromSettings(reloaded)
+	err = newModel.FromState(newState)
+	require.NoError(t, err)
+	assert.Equal(t, settings.SortByLevel, newModel.sortBy)
+	assert.Equal(t, settings.SortOrderAsc, newModel.sortOrder)
+	assert.Equal(t, settings.ViewModeDetailed, newModel.viewMode)
+}
