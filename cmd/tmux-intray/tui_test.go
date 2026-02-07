@@ -454,9 +454,9 @@ func TestHandleDismiss(t *testing.T) {
 	storage.Init()
 
 	// Add a test notification
-	id := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "$1", "@2", "%3", "1234", "info")
-	if id == "" {
-		t.Fatal("Failed to add test notification")
+	_, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "$1", "@2", "%3", "1234", "info")
+	if err != nil {
+		t.Fatalf("Failed to add test notification: %v", err)
 	}
 
 	// Create TUI model and load notifications

@@ -36,9 +36,11 @@ func TestCore(t *testing.T) {
 		}
 
 		// Add notifications with explicit session/window/pane
-		id1 := AddTrayItem("message 1", "$1", "%1", "@1", "123456", true, "info")
+		id1, err := AddTrayItem("message 1", "$1", "%1", "@1", "123456", true, "info")
+		require.NoError(t, err)
 		require.NotEmpty(t, id1)
-		id2 := AddTrayItem("message 2", "$2", "%2", "@2", "123457", true, "warning")
+		id2, err := AddTrayItem("message 2", "$2", "%2", "@2", "123457", true, "warning")
+		require.NoError(t, err)
 		require.NotEmpty(t, id2)
 
 		// Get active items
@@ -63,7 +65,8 @@ func TestCore(t *testing.T) {
 			return "", "", os.ErrNotExist
 		}
 
-		id := AddTrayItem("auto message", "", "", "", "", false, "info")
+		id, err := AddTrayItem("auto message", "", "", "", "", false, "info")
+		require.NoError(t, err)
 		require.NotEmpty(t, id)
 		// Verify item added (message appears)
 		items := GetTrayItems("active")
@@ -76,7 +79,8 @@ func TestCore(t *testing.T) {
 		tmuxRunner = func(args ...string) (string, string, error) {
 			return "", "tmux not running", os.ErrNotExist
 		}
-		id := AddTrayItem("manual message", "$s", "%w", "@p", "123", true, "error")
+		id, err := AddTrayItem("manual message", "$s", "%w", "@p", "123", true, "error")
+		require.NoError(t, err)
 		require.NotEmpty(t, id)
 		items := GetTrayItems("active")
 		require.Contains(t, items, "manual message")
@@ -88,10 +92,12 @@ func TestCore(t *testing.T) {
 			return "", "tmux not running", os.ErrNotExist
 		}
 
-		AddTrayItem("msg1", "$1", "%1", "@1", "123", true, "info")
-		AddTrayItem("msg2", "$2", "%2", "@2", "456", true, "warning")
+		_, err := AddTrayItem("msg1", "$1", "%1", "@1", "123", true, "info")
+		require.NoError(t, err)
+		_, err = AddTrayItem("msg2", "$2", "%2", "@2", "456", true, "warning")
+		require.NoError(t, err)
 
-		err := ClearTrayItems()
+		err = ClearTrayItems()
 		require.NoError(t, err)
 
 		items := GetTrayItems("active")

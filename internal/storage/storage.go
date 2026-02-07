@@ -31,6 +31,16 @@ const (
 	numFields        = 9
 )
 
+// Valid notification levels
+var (
+	validLevels = map[string]bool{
+		"info":     true,
+		"warning":  true,
+		"error":    true,
+		"critical": true,
+	}
+)
+
 var (
 	notificationsFile string
 	lockDir           string
@@ -97,22 +107,70 @@ func Init() error {
 	return err
 }
 
-// AddNotification adds a notification and returns its ID.
-func AddNotification(message, timestamp, session, window, pane, paneCreated, level string) string {
-	if err := Init(); err != nil {
-		colors.Error(fmt.Sprintf("failed to initialize storage: %v", err))
-		return ""
+// validateNotificationInputs validates all parameters for AddNotification.
+// Returns an error if validation fails, nil otherwise.
+func validateNotificationInputs(message, timestamp, session, window, pane, paneCreated, level string) error {
+	// Validate message is non-empty
+	if strings.TrimSpace(message) == "" {
+		return fmt.Errorf("message cannot be empty")
 	}
+
+	// Validate level (must be non-empty and one of valid levels)
+	if level == "" {
+		return fmt.Errorf("level cannot be empty")
+	}
+	if !validLevels[level] {
+		return fmt.Errorf("invalid level '%s', must be one of: info, warning, error, critical", level)
+	}
+
+	// Validate timestamp format if provided
+	if timestamp != "" {
+		// Try to parse timestamp with RFC3339 format
+		_, err := time.Parse(time.RFC3339, timestamp)
+		if err != nil {
+			return fmt.Errorf("invalid timestamp format '%s', expected RFC3339 format (e.g., 2006-01-02T15:04:05Z or 2006-01-02T15:04:05.123Z)", timestamp)
+		}
+	}
+
+	// Validate session, window, pane are non-empty if provided (not just whitespace)
+	// These are optional fields, but if provided they should contain actual content
+	if session != "" && strings.TrimSpace(session) == "" {
+		return fmt.Errorf("session cannot be whitespace only")
+	}
+	if window != "" && strings.TrimSpace(window) == "" {
+		return fmt.Errorf("window cannot be whitespace only")
+	}
+	if pane != "" && strings.TrimSpace(pane) == "" {
+		return fmt.Errorf("pane cannot be whitespace only")
+	}
+
+	return nil
+}
+
+// AddNotification adds a notification and returns its ID.
+// Returns an error if validation fails or initialization fails.
+func AddNotification(message, timestamp, session, window, pane, paneCreated, level string) (string, error) {
+	// Validate inputs first (Fail-Fast)
+	if err := validateNotificationInputs(message, timestamp, session, window, pane, paneCreated, level); err != nil {
+		return "", err
+	}
+
+	// Initialize storage
+	if err := Init(); err != nil {
+		return "", fmt.Errorf("failed to initialize storage: %w", err)
+	}
+
 	// Generate ID
 	id, err := getNextID()
 	if err != nil {
-		colors.Error(fmt.Sprintf("failed to generate ID: %v", err))
-		return ""
+		return "", fmt.Errorf("failed to generate ID: %w", err)
 	}
+
 	// Use provided timestamp or generate current UTC
 	if timestamp == "" {
 		timestamp = time.Now().UTC().Format("2006-01-02T15:04:05Z")
 	}
+
 	// Escape message
 	escapedMessage := escapeMessage(message)
 
@@ -130,17 +188,17 @@ func AddNotification(message, timestamp, session, window, pane, paneCreated, lev
 	}
 	if err := hooks.Run("pre-add", envVars...); err != nil {
 		colors.Error(fmt.Sprintf("pre-add hook aborted: %v", err))
-		return ""
+		return "", fmt.Errorf("pre-add hook aborted: %w", err)
 	}
 
 	// Append line with lock
-	err = WithLock(lockDir, func() error {
+	if err := WithLock(lockDir, func() error {
 		return appendLine(id, timestamp, "active", session, window, pane, escapedMessage, paneCreated, level)
-	})
-	if err != nil {
+	}); err != nil {
 		colors.Error(fmt.Sprintf("failed to add notification: %v", err))
-		return ""
+		return "", fmt.Errorf("failed to add notification: %w", err)
 	}
+
 	// Update tmux status option outside lock to avoid deadlock (updateTmuxStatusOption also acquires a lock) and keep lock duration short
 	// Calculate active count after adding (this notification is now active)
 	activeCount := 0
@@ -160,11 +218,11 @@ func AddNotification(message, timestamp, session, window, pane, paneCreated, lev
 	// Run post-add hooks
 	if err := hooks.Run("post-add", envVars...); err != nil {
 		colors.Error(fmt.Sprintf("post-add hook aborted: %v", err))
-		// Still return ID because notification was added
+		// Still return ID because notification was added, but log the error
 	}
 
 	// Return ID as string
-	return strconv.Itoa(id)
+	return strconv.Itoa(id), nil
 }
 
 // ListNotifications returns TSV lines for notifications.
@@ -260,39 +318,75 @@ func DismissNotification(id string) error {
 		}
 		fields := strings.Split(targetLine, "\t")
 		if len(fields) < numFields {
-			return fmt.Errorf("invalid line format")
+			return fmt.Errorf("invalid line format: expected %d fields, got %d", numFields, len(fields))
 		}
-		if fields[fieldState] == "dismissed" {
+		state, err := getField(fields, fieldState)
+		if err != nil {
+			return fmt.Errorf("failed to get state field: %w", err)
+		}
+		if state == "dismissed" {
 			return fmt.Errorf("notification %s is already dismissed", id)
+		}
+		level, err := getField(fields, fieldLevel)
+		if err != nil {
+			return fmt.Errorf("failed to get level field: %w", err)
+		}
+		message, err := getField(fields, fieldMessage)
+		if err != nil {
+			return fmt.Errorf("failed to get message field: %w", err)
+		}
+		timestamp, err := getField(fields, fieldTimestamp)
+		if err != nil {
+			return fmt.Errorf("failed to get timestamp field: %w", err)
+		}
+		session, err := getField(fields, fieldSession)
+		if err != nil {
+			return fmt.Errorf("failed to get session field: %w", err)
+		}
+		window, err := getField(fields, fieldWindow)
+		if err != nil {
+			return fmt.Errorf("failed to get window field: %w", err)
+		}
+		pane, err := getField(fields, fieldPane)
+		if err != nil {
+			return fmt.Errorf("failed to get pane field: %w", err)
+		}
+		paneCreated, err := getField(fields, fieldPaneCreated)
+		if err != nil {
+			return fmt.Errorf("failed to get pane created field: %w", err)
+		}
+		idField, err := getField(fields, fieldID)
+		if err != nil {
+			return fmt.Errorf("failed to get id field: %w", err)
 		}
 		envVars := []string{
 			fmt.Sprintf("NOTIFICATION_ID=%s", id),
-			fmt.Sprintf("LEVEL=%s", fields[fieldLevel]),
-			fmt.Sprintf("MESSAGE=%s", fields[fieldMessage]),
-			fmt.Sprintf("ESCAPED_MESSAGE=%s", fields[fieldMessage]),
-			fmt.Sprintf("TIMESTAMP=%s", fields[fieldTimestamp]),
-			fmt.Sprintf("SESSION=%s", fields[fieldSession]),
-			fmt.Sprintf("WINDOW=%s", fields[fieldWindow]),
-			fmt.Sprintf("PANE=%s", fields[fieldPane]),
-			fmt.Sprintf("PANE_CREATED=%s", fields[fieldPaneCreated]),
+			fmt.Sprintf("LEVEL=%s", level),
+			fmt.Sprintf("MESSAGE=%s", message),
+			fmt.Sprintf("ESCAPED_MESSAGE=%s", message),
+			fmt.Sprintf("TIMESTAMP=%s", timestamp),
+			fmt.Sprintf("SESSION=%s", session),
+			fmt.Sprintf("WINDOW=%s", window),
+			fmt.Sprintf("PANE=%s", pane),
+			fmt.Sprintf("PANE_CREATED=%s", paneCreated),
 		}
 		if err := hooks.Run("pre-dismiss", envVars...); err != nil {
 			return err
 		}
-		idInt, err := strToInt(fields[fieldID])
+		idInt, err := strToInt(idField)
 		if err != nil {
-			return fmt.Errorf("invalid ID %s: %w", fields[fieldID], err)
+			return fmt.Errorf("invalid ID %s: %w", idField, err)
 		}
 		if err := appendLine(
 			idInt,
-			fields[fieldTimestamp],
+			timestamp,
 			"dismissed",
-			fields[fieldSession],
-			fields[fieldWindow],
-			fields[fieldPane],
-			fields[fieldMessage],
-			fields[fieldPaneCreated],
-			fields[fieldLevel],
+			session,
+			window,
+			pane,
+			message,
+			paneCreated,
+			level,
 		); err != nil {
 			return err
 		}
@@ -342,38 +436,73 @@ func DismissAll() error {
 					fields = append(fields, "")
 				}
 			}
-			if fields[fieldState] != "active" {
+			state, err := getField(fields, fieldState)
+			if err != nil {
+				return fmt.Errorf("failed to get state field: %w", err)
+			}
+			if state != "active" {
 				continue
 			}
-			id := fields[fieldID]
+			id, err := getField(fields, fieldID)
+			if err != nil {
+				return fmt.Errorf("failed to get id field: %w", err)
+			}
+			level, err := getField(fields, fieldLevel)
+			if err != nil {
+				return fmt.Errorf("failed to get level field: %w", err)
+			}
+			message, err := getField(fields, fieldMessage)
+			if err != nil {
+				return fmt.Errorf("failed to get message field: %w", err)
+			}
+			timestamp, err := getField(fields, fieldTimestamp)
+			if err != nil {
+				return fmt.Errorf("failed to get timestamp field: %w", err)
+			}
+			session, err := getField(fields, fieldSession)
+			if err != nil {
+				return fmt.Errorf("failed to get session field: %w", err)
+			}
+			window, err := getField(fields, fieldWindow)
+			if err != nil {
+				return fmt.Errorf("failed to get window field: %w", err)
+			}
+			pane, err := getField(fields, fieldPane)
+			if err != nil {
+				return fmt.Errorf("failed to get pane field: %w", err)
+			}
+			paneCreated, err := getField(fields, fieldPaneCreated)
+			if err != nil {
+				return fmt.Errorf("failed to get pane created field: %w", err)
+			}
 			envVars := []string{
 				fmt.Sprintf("NOTIFICATION_ID=%s", id),
-				fmt.Sprintf("LEVEL=%s", fields[fieldLevel]),
-				fmt.Sprintf("MESSAGE=%s", fields[fieldMessage]),
-				fmt.Sprintf("ESCAPED_MESSAGE=%s", fields[fieldMessage]),
-				fmt.Sprintf("TIMESTAMP=%s", fields[fieldTimestamp]),
-				fmt.Sprintf("SESSION=%s", fields[fieldSession]),
-				fmt.Sprintf("WINDOW=%s", fields[fieldWindow]),
-				fmt.Sprintf("PANE=%s", fields[fieldPane]),
-				fmt.Sprintf("PANE_CREATED=%s", fields[fieldPaneCreated]),
+				fmt.Sprintf("LEVEL=%s", level),
+				fmt.Sprintf("MESSAGE=%s", message),
+				fmt.Sprintf("ESCAPED_MESSAGE=%s", message),
+				fmt.Sprintf("TIMESTAMP=%s", timestamp),
+				fmt.Sprintf("SESSION=%s", session),
+				fmt.Sprintf("WINDOW=%s", window),
+				fmt.Sprintf("PANE=%s", pane),
+				fmt.Sprintf("PANE_CREATED=%s", paneCreated),
 			}
 			if err := hooks.Run("pre-dismiss", envVars...); err != nil {
 				return err
 			}
-			idInt, err := strToInt(fields[fieldID])
+			idInt, err := strToInt(id)
 			if err != nil {
-				return fmt.Errorf("invalid ID %s: %w", fields[fieldID], err)
+				return fmt.Errorf("invalid ID %s: %w", id, err)
 			}
 			if err := appendLine(
 				idInt,
-				fields[fieldTimestamp],
+				timestamp,
 				"dismissed",
-				fields[fieldSession],
-				fields[fieldWindow],
-				fields[fieldPane],
-				fields[fieldMessage],
-				fields[fieldPaneCreated],
-				fields[fieldLevel],
+				session,
+				window,
+				pane,
+				message,
+				paneCreated,
+				level,
 			); err != nil {
 				return err
 			}
@@ -454,7 +583,17 @@ func GetActiveCount() int {
 	return count
 }
 
-// Helper functions
+// getField safely retrieves a field from a TSV line with bounds checking.
+// Returns an error if the field index is out of bounds or fields is nil.
+func getField(fields []string, index int) (string, error) {
+	if fields == nil {
+		return "", fmt.Errorf("fields array is nil")
+	}
+	if index < 0 || index >= len(fields) {
+		return "", fmt.Errorf("field index %d out of bounds (len=%d)", index, len(fields))
+	}
+	return fields[index], nil
+}
 
 func getNextID() (int, error) {
 	latest, err := getLatestNotifications()
@@ -581,33 +720,73 @@ func filterNotifications(lines []string, stateFilter, levelFilter, sessionFilter
 		}
 		// State filter
 		if stateFilter != "" && stateFilter != "all" {
-			if fields[fieldState] != stateFilter {
+			state, err := getField(fields, fieldState)
+			if err != nil {
+				continue
+			}
+			if state != stateFilter {
 				continue
 			}
 		}
 		// Level filter
-		if levelFilter != "" && fields[fieldLevel] != levelFilter {
-			continue
+		if levelFilter != "" {
+			level, err := getField(fields, fieldLevel)
+			if err != nil {
+				continue
+			}
+			if level != levelFilter {
+				continue
+			}
 		}
 		// Session filter
-		if sessionFilter != "" && fields[fieldSession] != sessionFilter {
-			continue
+		if sessionFilter != "" {
+			session, err := getField(fields, fieldSession)
+			if err != nil {
+				continue
+			}
+			if session != sessionFilter {
+				continue
+			}
 		}
 		// Window filter
-		if windowFilter != "" && fields[fieldWindow] != windowFilter {
-			continue
+		if windowFilter != "" {
+			window, err := getField(fields, fieldWindow)
+			if err != nil {
+				continue
+			}
+			if window != windowFilter {
+				continue
+			}
 		}
 		// Pane filter
-		if paneFilter != "" && fields[fieldPane] != paneFilter {
-			continue
+		if paneFilter != "" {
+			pane, err := getField(fields, fieldPane)
+			if err != nil {
+				continue
+			}
+			if pane != paneFilter {
+				continue
+			}
 		}
 		// Older than cutoff
-		if olderThanCutoff != "" && fields[fieldTimestamp] >= olderThanCutoff {
-			continue
+		if olderThanCutoff != "" {
+			timestamp, err := getField(fields, fieldTimestamp)
+			if err != nil {
+				continue
+			}
+			if timestamp >= olderThanCutoff {
+				continue
+			}
 		}
 		// Newer than cutoff
-		if newerThanCutoff != "" && fields[fieldTimestamp] <= newerThanCutoff {
-			continue
+		if newerThanCutoff != "" {
+			timestamp, err := getField(fields, fieldTimestamp)
+			if err != nil {
+				continue
+			}
+			if timestamp <= newerThanCutoff {
+				continue
+			}
 		}
 		filtered = append(filtered, line)
 	}
@@ -632,27 +811,63 @@ func dismissByID(id string) error {
 	}
 	fields := strings.Split(targetLine, "\t")
 	if len(fields) < numFields {
-		return fmt.Errorf("invalid line format")
+		return fmt.Errorf("invalid line format: expected %d fields, got %d", numFields, len(fields))
 	}
 	// Ensure state is active
-	if fields[fieldState] == "dismissed" {
+	state, err := getField(fields, fieldState)
+	if err != nil {
+		return fmt.Errorf("failed to get state field: %w", err)
+	}
+	if state == "dismissed" {
 		return fmt.Errorf("already dismissed")
 	}
-	idInt, err := strToInt(fields[fieldID])
+	idField, err := getField(fields, fieldID)
 	if err != nil {
-		return fmt.Errorf("invalid ID %s: %w", fields[fieldID], err)
+		return fmt.Errorf("failed to get id field: %w", err)
+	}
+	timestamp, err := getField(fields, fieldTimestamp)
+	if err != nil {
+		return fmt.Errorf("failed to get timestamp field: %w", err)
+	}
+	session, err := getField(fields, fieldSession)
+	if err != nil {
+		return fmt.Errorf("failed to get session field: %w", err)
+	}
+	window, err := getField(fields, fieldWindow)
+	if err != nil {
+		return fmt.Errorf("failed to get window field: %w", err)
+	}
+	pane, err := getField(fields, fieldPane)
+	if err != nil {
+		return fmt.Errorf("failed to get pane field: %w", err)
+	}
+	message, err := getField(fields, fieldMessage)
+	if err != nil {
+		return fmt.Errorf("failed to get message field: %w", err)
+	}
+	paneCreated, err := getField(fields, fieldPaneCreated)
+	if err != nil {
+		return fmt.Errorf("failed to get pane created field: %w", err)
+	}
+	level, err := getField(fields, fieldLevel)
+	if err != nil {
+		return fmt.Errorf("failed to get level field: %w", err)
+	}
+	idInt, err := strToInt(idField)
+	if err != nil {
+		return fmt.Errorf("invalid ID %s: %w", idField, err)
 	}
 	// Write new line with state dismissed, preserving other fields
 	return appendLine(
 		idInt,
-		fields[fieldTimestamp],
+		timestamp,
 		"dismissed",
-		fields[fieldSession],
-		fields[fieldWindow],
-		fields[fieldPane],
-		fields[fieldMessage],
-		fields[fieldPaneCreated],
-		fields[fieldLevel],
+		session,
+		window,
+		pane,
+		message,
+		paneCreated,
+		level,
 	)
 }
 
@@ -666,24 +881,60 @@ func dismissAllActive() error {
 		if len(fields) <= fieldState {
 			continue
 		}
-		if fields[fieldState] != "active" {
+		state, err := getField(fields, fieldState)
+		if err != nil {
+			return fmt.Errorf("failed to get state field: %w", err)
+		}
+		if state != "active" {
 			continue
 		}
-		idInt, err := strToInt(fields[fieldID])
+		idField, err := getField(fields, fieldID)
 		if err != nil {
-			return fmt.Errorf("invalid ID %s: %w", fields[fieldID], err)
+			return fmt.Errorf("failed to get id field: %w", err)
+		}
+		timestamp, err := getField(fields, fieldTimestamp)
+		if err != nil {
+			return fmt.Errorf("failed to get timestamp field: %w", err)
+		}
+		session, err := getField(fields, fieldSession)
+		if err != nil {
+			return fmt.Errorf("failed to get session field: %w", err)
+		}
+		window, err := getField(fields, fieldWindow)
+		if err != nil {
+			return fmt.Errorf("failed to get window field: %w", err)
+		}
+		pane, err := getField(fields, fieldPane)
+		if err != nil {
+			return fmt.Errorf("failed to get pane field: %w", err)
+		}
+		message, err := getField(fields, fieldMessage)
+		if err != nil {
+			return fmt.Errorf("failed to get message field: %w", err)
+		}
+		paneCreated, err := getField(fields, fieldPaneCreated)
+		if err != nil {
+			return fmt.Errorf("failed to get pane created field: %w", err)
+		}
+		level, err := getField(fields, fieldLevel)
+		if err != nil {
+			return fmt.Errorf("failed to get level field: %w", err)
+		}
+		idInt, err := strToInt(idField)
+		if err != nil {
+			return fmt.Errorf("invalid ID %s: %w", idField, err)
 		}
 		// Write dismissed line
 		err = appendLine(
 			idInt,
-			fields[fieldTimestamp],
+			timestamp,
 			"dismissed",
-			fields[fieldSession],
-			fields[fieldWindow],
-			fields[fieldPane],
-			fields[fieldMessage],
-			fields[fieldPaneCreated],
-			fields[fieldLevel],
+			session,
+			window,
+			pane,
+			message,
+			paneCreated,
+			level,
 		)
 		if err != nil {
 			return err
@@ -726,13 +977,25 @@ func cleanupOld(daysThreshold int, dryRun bool) error {
 		if len(fields) <= fieldState {
 			continue
 		}
-		if fields[fieldState] != "dismissed" {
+		state, err := getField(fields, fieldState)
+		if err != nil {
 			continue
 		}
-		if !allDismissed && fields[fieldTimestamp] >= cutoffStr {
+		if state != "dismissed" {
 			continue
 		}
-		id, err := strconv.Atoi(fields[fieldID])
+		timestamp, err := getField(fields, fieldTimestamp)
+		if err != nil {
+			continue
+		}
+		if !allDismissed && timestamp >= cutoffStr {
+			continue
+		}
+		idField, err := getField(fields, fieldID)
+		if err != nil {
+			continue
+		}
+		id, err := strconv.Atoi(idField)
 		if err != nil {
 			continue
 		}
