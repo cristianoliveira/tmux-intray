@@ -119,6 +119,12 @@ func loadFromFile() {
 
 	data, err := os.ReadFile(configPath)
 	if err != nil {
+		// Use debug for expected failures (file not found), warning for others
+		if os.IsNotExist(err) {
+			colors.Debug("Config file not found: " + configPath)
+		} else {
+			colors.Warning("Failed to read config file: " + configPath + ": " + err.Error())
+		}
 		return
 	}
 
@@ -135,6 +141,7 @@ func loadFromFile() {
 		return
 	}
 	if err != nil {
+		colors.Warning("Failed to parse config file " + configPath + ": " + err.Error())
 		return
 	}
 

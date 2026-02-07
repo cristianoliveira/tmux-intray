@@ -206,7 +206,8 @@ func AddNotification(message, timestamp, session, window, pane, paneCreated, lev
 	if err2 == nil {
 		for _, line := range latest {
 			fields := strings.Split(line, "\t")
-			if len(fields) > fieldState && fields[fieldState] == "active" {
+			state, err := getField(fields, fieldState)
+			if err == nil && state == "active" {
 				activeCount++
 			}
 		}
@@ -570,7 +571,8 @@ func GetActiveCount() int {
 		}
 		for _, line := range latest {
 			fields := strings.Split(line, "\t")
-			if len(fields) > fieldState && fields[fieldState] == "active" {
+			state, err := getField(fields, fieldState)
+			if err == nil && state == "active" {
 				count++
 			}
 		}
@@ -686,10 +688,11 @@ func getLatestNotifications() ([]string, error) {
 	latestMap := make(map[int]string)
 	for _, line := range lines {
 		fields := strings.Split(line, "\t")
-		if len(fields) <= fieldID {
+		idField, err := getField(fields, fieldID)
+		if err != nil {
 			continue
 		}
-		id, err := strconv.Atoi(fields[fieldID])
+		id, err := strconv.Atoi(idField)
 		if err != nil {
 			continue
 		}
@@ -878,12 +881,9 @@ func dismissAllActive() error {
 	}
 	for _, line := range latest {
 		fields := strings.Split(line, "\t")
-		if len(fields) <= fieldState {
-			continue
-		}
 		state, err := getField(fields, fieldState)
 		if err != nil {
-			return fmt.Errorf("failed to get state field: %w", err)
+			continue
 		}
 		if state != "active" {
 			continue
@@ -974,9 +974,6 @@ func cleanupOld(daysThreshold int, dryRun bool) error {
 	var idsToDelete []int
 	for _, line := range latestLines {
 		fields := strings.Split(line, "\t")
-		if len(fields) <= fieldState {
-			continue
-		}
 		state, err := getField(fields, fieldState)
 		if err != nil {
 			continue
@@ -1033,10 +1030,11 @@ func cleanupOld(daysThreshold int, dryRun bool) error {
 	var filtered []string
 	for _, line := range lines {
 		fields := strings.Split(line, "\t")
-		if len(fields) <= fieldID {
+		idField, err := getField(fields, fieldID)
+		if err != nil {
 			continue
 		}
-		id, err := strconv.Atoi(fields[fieldID])
+		id, err := strconv.Atoi(idField)
 		if err != nil {
 			continue
 		}

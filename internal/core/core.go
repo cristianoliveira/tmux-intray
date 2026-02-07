@@ -25,11 +25,17 @@ const (
 
 // GetTrayItems returns tray items for a given state filter.
 // Returns newline-separated messages (unescaped).
-func GetTrayItems(stateFilter string) string {
+// Valid stateFilter values: "", "active", "dismissed", "all"
+func GetTrayItems(stateFilter string) (string, error) {
+	// Validate stateFilter parameter
+	if stateFilter != "" && stateFilter != "active" && stateFilter != "dismissed" && stateFilter != "all" {
+		return "", fmt.Errorf("invalid stateFilter '%s': must be one of: (empty), active, dismissed, all", stateFilter)
+	}
+
 	// Use storage.ListNotifications with only state filter
 	lines := storage.ListNotifications(stateFilter, "", "", "", "", "", "")
 	if lines == "" {
-		return ""
+		return "", nil
 	}
 	var messages []string
 	for _, line := range strings.Split(lines, "\n") {
@@ -37,6 +43,7 @@ func GetTrayItems(stateFilter string) string {
 			continue
 		}
 		fields := strings.Split(line, "\t")
+		// Bounds check for fieldMessage
 		if len(fields) <= fieldMessage {
 			continue
 		}
@@ -45,7 +52,7 @@ func GetTrayItems(stateFilter string) string {
 		message = unescapeMessage(message)
 		messages = append(messages, message)
 	}
-	return strings.Join(messages, "\n")
+	return strings.Join(messages, "\n"), nil
 }
 
 // AddTrayItem adds a tray item.
@@ -96,9 +103,8 @@ func SetVisibility(visible bool) error {
 	if visible {
 		value = "1"
 	}
-	success := SetTmuxVisibility(value)
-	if !success {
-		return ErrTmuxOperationFailed
+	if err := SetTmuxVisibility(value); err != nil {
+		return err
 	}
 	return nil
 }

@@ -190,14 +190,15 @@ func GetTmuxVisibility() string {
 }
 
 // SetTmuxVisibility sets the TMUX_INTRAY_VISIBLE global tmux variable.
-func SetTmuxVisibility(value string) bool {
+func SetTmuxVisibility(value string) error {
 	_, stderr, err := tmuxRunner("set-environment", "-g", "TMUX_INTRAY_VISIBLE", value)
 	if err != nil {
-		colors.Error("Failed to set tmux visibility: " + err.Error())
+		errMsg := "Failed to set tmux visibility: " + err.Error()
+		colors.Error(errMsg)
 		if stderr != "" {
 			colors.Debug("stderr: " + stderr)
 		}
-		return false
+		return fmt.Errorf("%s: %w", errMsg, err)
 	}
-	return true
+	return nil
 }

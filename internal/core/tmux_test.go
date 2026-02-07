@@ -238,18 +238,18 @@ func TestTmuxFunctions(t *testing.T) {
 		tmuxRunner = func(args ...string) (string, string, error) {
 			return "", "", nil
 		}
-		result := SetTmuxVisibility("1")
-		if !result {
-			t.Error("Expected true when set succeeds")
+		err := SetTmuxVisibility("1")
+		if err != nil {
+			t.Errorf("Expected no error when set succeeds, got: %v", err)
 		}
 
 		// Test failed set
 		tmuxRunner = func(args ...string) (string, string, error) {
 			return "", "invalid option", errors.New("invalid option")
 		}
-		result = SetTmuxVisibility("1")
-		if result {
-			t.Error("Expected false when set fails")
+		err = SetTmuxVisibility("1")
+		if err == nil {
+			t.Error("Expected error when set fails")
 		}
 	})
 

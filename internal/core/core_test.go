@@ -44,15 +44,22 @@ func TestCore(t *testing.T) {
 		require.NotEmpty(t, id2)
 
 		// Get active items
-		items := GetTrayItems("active")
+		items, err := GetTrayItems("active")
+		require.NoError(t, err)
 		require.Contains(t, items, "message 1")
 		require.Contains(t, items, "message 2")
 		lines := strings.Split(strings.TrimSpace(items), "\n")
 		require.Len(t, lines, 2)
 
 		// Filter by dismissed state returns empty
-		items = GetTrayItems("dismissed")
+		items, err = GetTrayItems("dismissed")
+		require.NoError(t, err)
 		require.Empty(t, strings.TrimSpace(items))
+
+		// Test invalid stateFilter
+		_, err = GetTrayItems("invalid")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid stateFilter")
 	})
 
 	t.Run("AddTrayItemAutoContext", func(t *testing.T) {
@@ -69,7 +76,8 @@ func TestCore(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, id)
 		// Verify item added (message appears)
-		items := GetTrayItems("active")
+		items, err := GetTrayItems("active")
+		require.NoError(t, err)
 		require.Contains(t, items, "auto message")
 	})
 
@@ -82,7 +90,8 @@ func TestCore(t *testing.T) {
 		id, err := AddTrayItem("manual message", "$s", "%w", "@p", "123", true, "error")
 		require.NoError(t, err)
 		require.NotEmpty(t, id)
-		items := GetTrayItems("active")
+		items, err := GetTrayItems("active")
+		require.NoError(t, err)
 		require.Contains(t, items, "manual message")
 	})
 
@@ -100,7 +109,8 @@ func TestCore(t *testing.T) {
 		err = ClearTrayItems()
 		require.NoError(t, err)
 
-		items := GetTrayItems("active")
+		items, err := GetTrayItems("active")
+		require.NoError(t, err)
 		require.Empty(t, strings.TrimSpace(items))
 	})
 
@@ -145,7 +155,7 @@ func TestCore(t *testing.T) {
 		}
 		err = SetVisibility(true)
 		require.Error(t, err)
-		require.Equal(t, ErrTmuxOperationFailed, err)
+		require.Contains(t, err.Error(), "Failed to set tmux visibility")
 	})
 
 	t.Run("escapeMessage", func(t *testing.T) {
