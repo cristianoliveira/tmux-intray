@@ -133,7 +133,8 @@ func TestCore(t *testing.T) {
 		c = NewCore(mockClient)
 		err = c.SetVisibility(true)
 		require.Error(t, err)
-		require.Equal(t, ErrTmuxOperationFailed, err)
+		require.Contains(t, err.Error(), "set visibility")
+		require.Contains(t, err.Error(), "tmux server is not running")
 		mockClient.AssertExpectations(t)
 	})
 

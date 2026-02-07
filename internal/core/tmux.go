@@ -173,16 +173,18 @@ func GetTmuxVisibility() string {
 }
 
 // SetTmuxVisibility sets the TMUX_INTRAY_VISIBLE global tmux variable.
-func (c *Core) SetTmuxVisibility(value string) bool {
+// Returns (true, nil) on success, (false, error) on failure.
+func (c *Core) SetTmuxVisibility(value string) (bool, error) {
 	err := c.client.SetEnvironment("TMUX_INTRAY_VISIBLE", value)
 	if err != nil {
 		colors.Error(fmt.Sprintf("SetTmuxVisibility: failed to set TMUX_INTRAY_VISIBLE to '%s': %v", value, err))
 		return false
 	}
-	return true
+	return true, nil
 }
 
 // SetTmuxVisibility sets the TMUX_INTRAY_VISIBLE global tmux variable using the default client.
-func SetTmuxVisibility(value string) bool {
+// Returns (true, nil) on success, (false, error) on failure.
+func SetTmuxVisibility(value string) (bool, error) {
 	return defaultCore.SetTmuxVisibility(value)
 }
