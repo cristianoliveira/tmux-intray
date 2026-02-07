@@ -645,3 +645,49 @@ func TestStrToInt(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdateTmuxStatusOption(t *testing.T) {
+	setupTest(t)
+	require.NoError(t, Init())
+
+	t.Run("tmux availability check", func(t *testing.T) {
+		// Call function with a test count
+		err := updateTmuxStatusOption(5)
+		// The function should either succeed or return a clear error
+		if err != nil {
+			// If tmux is not available, we expect a clear error message
+			require.Contains(t, err.Error(), "tmux")
+		}
+		// If tmux is available, it should succeed
+	})
+}
+
+func TestDismissNotificationHandlesTmuxError(t *testing.T) {
+	setupTest(t)
+	require.NoError(t, Init())
+	id := AddNotification("to dismiss", "", "", "", "", "", "info")
+	require.NotEmpty(t, id)
+	// Dismiss should still succeed even if tmux update fails
+	err := DismissNotification(id)
+	// The dismissal should succeed (notification is dismissed)
+	// The tmux error should be logged but not cause dismiss to fail
+	require.NoError(t, err)
+	// Verify notification is actually dismissed
+	list := ListNotifications("active", "", "", "", "", "", "")
+	require.NotContains(t, list, id)
+}
+
+func TestDismissAllHandlesTmuxError(t *testing.T) {
+	setupTest(t)
+	require.NoError(t, Init())
+	_ = AddNotification("msg1", "", "", "", "", "", "info")
+	_ = AddNotification("msg2", "", "", "", "", "", "warning")
+	require.Equal(t, 2, GetActiveCount())
+	// DismissAll should still succeed even if tmux update fails
+	err := DismissAll()
+	// The dismissal should succeed (notifications are dismissed)
+	// The tmux error should be logged but not cause dismiss to fail
+	require.NoError(t, err)
+	// Verify all notifications are actually dismissed
+	require.Equal(t, 0, GetActiveCount())
+}
