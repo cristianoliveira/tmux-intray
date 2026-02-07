@@ -9,7 +9,10 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // originalSessionNameFetcher stores the original function to restore after tests.
@@ -641,5 +644,243 @@ func TestRenderRowSessionColumn(t *testing.T) {
 	// Should NOT contain window in pane column
 	if strings.Contains(row, "@2:%3") {
 		t.Error("Pane column should not contain window prefix")
+	}
+}
+
+// TestToState verifies conversion from tuiModel to TUIState.
+func TestToState(t *testing.T) {
+	tests := []struct {
+		name  string
+		model *tuiModel
+		want  settings.TUIState
+	}{
+		{
+			name:  "empty model",
+			model: &tuiModel{},
+			want:  settings.TUIState{},
+		},
+		{
+			name: "model with settings",
+			model: &tuiModel{
+				sortBy:    settings.SortByLevel,
+				sortOrder: settings.SortOrderAsc,
+				columns:   []string{settings.ColumnID, settings.ColumnMessage, settings.ColumnLevel},
+				filters: settings.Filter{
+					Level:   settings.LevelFilterWarning,
+					State:   settings.StateFilterActive,
+					Session: "my-session",
+					Window:  "@1",
+					Pane:    "%1",
+				},
+				viewMode: settings.ViewModeDetailed,
+			},
+			want: settings.TUIState{
+				SortBy:    settings.SortByLevel,
+				SortOrder: settings.SortOrderAsc,
+				Columns:   []string{settings.ColumnID, settings.ColumnMessage, settings.ColumnLevel},
+				Filters: settings.Filter{
+					Level:   settings.LevelFilterWarning,
+					State:   settings.StateFilterActive,
+					Session: "my-session",
+					Window:  "@1",
+					Pane:    "%1",
+				},
+				ViewMode: settings.ViewModeDetailed,
+			},
+		},
+		{
+			name: "model with only some settings",
+			model: &tuiModel{
+				sortBy:   settings.SortByTimestamp,
+				viewMode: settings.ViewModeCompact,
+			},
+			want: settings.TUIState{
+				SortBy:   settings.SortByTimestamp,
+				ViewMode: settings.ViewModeCompact,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.model.ToState()
+			assert.Equal(t, tt.want.SortBy, got.SortBy)
+			assert.Equal(t, tt.want.SortOrder, got.SortOrder)
+			assert.Equal(t, tt.want.Columns, got.Columns)
+			assert.Equal(t, tt.want.Filters, got.Filters)
+			assert.Equal(t, tt.want.ViewMode, got.ViewMode)
+		})
+	}
+}
+
+// TestFromState verifies applying TUIState to tuiModel.
+func TestFromState(t *testing.T) {
+	tests := []struct {
+		name     string
+		model    *tuiModel
+		state    settings.TUIState
+		wantErr  bool
+		verifyFn func(*testing.T, *tuiModel)
+	}{
+		{
+			name:    "empty state - no changes",
+			model:   &tuiModel{},
+			state:   settings.TUIState{},
+			wantErr: false,
+			verifyFn: func(t *testing.T, m *tuiModel) {
+				assert.Equal(t, "", m.sortBy)
+				assert.Equal(t, "", m.sortOrder)
+				assert.Empty(t, m.columns)
+				assert.Equal(t, "", m.viewMode)
+				assert.Equal(t, settings.Filter{}, m.filters)
+			},
+		},
+		{
+			name:  "full state - all fields set",
+			model: &tuiModel{},
+			state: settings.TUIState{
+				SortBy:    settings.SortByLevel,
+				SortOrder: settings.SortOrderAsc,
+				Columns:   []string{settings.ColumnID, settings.ColumnMessage, settings.ColumnLevel},
+				Filters: settings.Filter{
+					Level:   settings.LevelFilterWarning,
+					State:   settings.StateFilterActive,
+					Session: "my-session",
+					Window:  "@1",
+					Pane:    "%1",
+				},
+				ViewMode: settings.ViewModeDetailed,
+			},
+			wantErr: false,
+			verifyFn: func(t *testing.T, m *tuiModel) {
+				assert.Equal(t, settings.SortByLevel, m.sortBy)
+				assert.Equal(t, settings.SortOrderAsc, m.sortOrder)
+				assert.Equal(t, []string{settings.ColumnID, settings.ColumnMessage, settings.ColumnLevel}, m.columns)
+				assert.Equal(t, settings.ViewModeDetailed, m.viewMode)
+				assert.Equal(t, settings.LevelFilterWarning, m.filters.Level)
+				assert.Equal(t, settings.StateFilterActive, m.filters.State)
+				assert.Equal(t, "my-session", m.filters.Session)
+				assert.Equal(t, "@1", m.filters.Window)
+				assert.Equal(t, "%1", m.filters.Pane)
+			},
+		},
+		{
+			name: "partial state - only some fields set",
+			model: &tuiModel{
+				sortBy:    settings.SortByTimestamp,
+				sortOrder: settings.SortOrderDesc,
+				columns:   []string{settings.ColumnID},
+				filters: settings.Filter{
+					Level: settings.LevelFilterError,
+				},
+				viewMode: settings.ViewModeCompact,
+			},
+			state: settings.TUIState{
+				SortBy:  settings.SortByLevel,
+				Columns: []string{settings.ColumnID, settings.ColumnMessage},
+				// sortOrder and viewMode are not set - should be preserved
+			},
+			wantErr: false,
+			verifyFn: func(t *testing.T, m *tuiModel) {
+				assert.Equal(t, settings.SortByLevel, m.sortBy, "sortBy should be updated")
+				assert.Equal(t, settings.SortOrderDesc, m.sortOrder, "sortOrder should be preserved")
+				assert.Equal(t, []string{settings.ColumnID, settings.ColumnMessage}, m.columns, "columns should be updated")
+				assert.Equal(t, settings.LevelFilterError, m.filters.Level, "existing filter level should be preserved")
+				assert.Equal(t, settings.ViewModeCompact, m.viewMode, "viewMode should be preserved")
+			},
+		},
+		{
+			name: "partial filters - only some filter fields set",
+			model: &tuiModel{
+				filters: settings.Filter{
+					Level:   settings.LevelFilterError,
+					State:   settings.StateFilterActive,
+					Session: "old-session",
+				},
+			},
+			state: settings.TUIState{
+				Filters: settings.Filter{
+					Level:   settings.LevelFilterWarning,
+					Session: "new-session",
+					// State, Window, Pane not set - should be preserved
+				},
+			},
+			wantErr: false,
+			verifyFn: func(t *testing.T, m *tuiModel) {
+				assert.Equal(t, settings.LevelFilterWarning, m.filters.Level, "level should be updated")
+				assert.Equal(t, settings.StateFilterActive, m.filters.State, "state should be preserved")
+				assert.Equal(t, "new-session", m.filters.Session, "session should be updated")
+				assert.Empty(t, m.filters.Window, "window should be empty (never set)")
+				assert.Empty(t, m.filters.Pane, "pane should be empty (never set)")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.model.FromState(tt.state)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("FromState() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if tt.verifyFn != nil {
+				tt.verifyFn(t, tt.model)
+			}
+		})
+	}
+}
+
+// TestRoundTripSettings verifies round-trip conversion preserves settings.
+func TestRoundTripSettings(t *testing.T) {
+	tests := []struct {
+		name  string
+		model *tuiModel
+	}{
+		{
+			name:  "empty model",
+			model: &tuiModel{},
+		},
+		{
+			name: "model with all settings",
+			model: &tuiModel{
+				sortBy:    settings.SortByLevel,
+				sortOrder: settings.SortOrderAsc,
+				columns:   []string{settings.ColumnID, settings.ColumnMessage, settings.ColumnLevel},
+				filters: settings.Filter{
+					Level:   settings.LevelFilterWarning,
+					State:   settings.StateFilterActive,
+					Session: "my-session",
+					Window:  "@1",
+					Pane:    "%1",
+				},
+				viewMode: settings.ViewModeDetailed,
+			},
+		},
+		{
+			name: "model with partial settings",
+			model: &tuiModel{
+				sortBy:   settings.SortByTimestamp,
+				viewMode: settings.ViewModeCompact,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Convert to state
+			state := tt.model.ToState()
+
+			// Create new model and apply state
+			newModel := &tuiModel{}
+			err := newModel.FromState(state)
+			require.NoError(t, err)
+
+			// Verify all settings were preserved
+			assert.Equal(t, tt.model.sortBy, newModel.sortBy)
+			assert.Equal(t, tt.model.sortOrder, newModel.sortOrder)
+			assert.Equal(t, tt.model.columns, newModel.columns)
+			assert.Equal(t, tt.model.filters, newModel.filters)
+			assert.Equal(t, tt.model.viewMode, newModel.viewMode)
+		})
 	}
 }
