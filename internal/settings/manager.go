@@ -25,6 +25,9 @@ type TUIState struct {
 	// DefaultExpandLevel controls the default grouping expansion level (0-3).
 	DefaultExpandLevel int `json:"defaultExpandLevel"`
 
+	// DefaultExpandLevelSet indicates DefaultExpandLevel was explicitly provided.
+	DefaultExpandLevelSet bool `json:"-"`
+
 	// ExpansionState stores explicit expansion overrides by node path.
 	ExpansionState map[string]bool `json:"expansionState"`
 }
@@ -35,14 +38,15 @@ func FromSettings(s *Settings) TUIState {
 		return TUIState{}
 	}
 	return TUIState{
-		Columns:            s.Columns,
-		SortBy:             s.SortBy,
-		SortOrder:          s.SortOrder,
-		Filters:            s.Filters,
-		ViewMode:           s.ViewMode,
-		GroupBy:            s.GroupBy,
-		DefaultExpandLevel: s.DefaultExpandLevel,
-		ExpansionState:     s.ExpansionState,
+		Columns:               s.Columns,
+		SortBy:                s.SortBy,
+		SortOrder:             s.SortOrder,
+		Filters:               s.Filters,
+		ViewMode:              s.ViewMode,
+		GroupBy:               s.GroupBy,
+		DefaultExpandLevel:    s.DefaultExpandLevel,
+		DefaultExpandLevelSet: true,
+		ExpansionState:        s.ExpansionState,
 	}
 }
 
@@ -50,6 +54,10 @@ func FromSettings(s *Settings) TUIState {
 // Returns a Settings struct with the values from TUIState.
 // If values are empty, they will use defaults when loaded/saved.
 func (t TUIState) ToSettings() *Settings {
+	defaultExpandLevel := 0
+	if t.DefaultExpandLevelSet {
+		defaultExpandLevel = t.DefaultExpandLevel
+	}
 	return &Settings{
 		Columns:            t.Columns,
 		SortBy:             t.SortBy,
@@ -57,7 +65,7 @@ func (t TUIState) ToSettings() *Settings {
 		Filters:            t.Filters,
 		ViewMode:           t.ViewMode,
 		GroupBy:            t.GroupBy,
-		DefaultExpandLevel: t.DefaultExpandLevel,
+		DefaultExpandLevel: defaultExpandLevel,
 		ExpansionState:     t.ExpansionState,
 	}
 }
@@ -69,7 +77,7 @@ func (t TUIState) IsEmpty() bool {
 		t.SortOrder == "" &&
 		t.ViewMode == "" &&
 		t.GroupBy == "" &&
-		t.DefaultExpandLevel == 0 &&
+		!t.DefaultExpandLevelSet &&
 		len(t.ExpansionState) == 0 &&
 		t.Filters.Level == "" &&
 		t.Filters.State == "" &&

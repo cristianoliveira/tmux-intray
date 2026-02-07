@@ -56,6 +56,8 @@ func TestNewModelInitialState(t *testing.T) {
 	assert.Equal(t, "", model.searchQuery)
 	assert.Empty(t, model.notifications)
 	assert.Empty(t, model.filtered)
+	assert.NotNil(t, model.expansionState)
+	assert.Empty(t, model.expansionState)
 }
 
 func TestModelInitReturnsNil(t *testing.T) {
@@ -415,7 +417,9 @@ func TestToState(t *testing.T) {
 		{
 			name:  "empty model",
 			model: &Model{},
-			want:  settings.TUIState{},
+			want: settings.TUIState{
+				DefaultExpandLevelSet: true,
+			},
 		},
 		{
 			name: "model with settings",
@@ -448,9 +452,10 @@ func TestToState(t *testing.T) {
 					Window:  "@1",
 					Pane:    "%1",
 				},
-				ViewMode:           settings.ViewModeDetailed,
-				GroupBy:            settings.GroupBySession,
-				DefaultExpandLevel: 2,
+				ViewMode:              settings.ViewModeDetailed,
+				GroupBy:               settings.GroupBySession,
+				DefaultExpandLevel:    2,
+				DefaultExpandLevelSet: true,
 				ExpansionState: map[string]bool{
 					"session:$1": true,
 				},
@@ -464,9 +469,10 @@ func TestToState(t *testing.T) {
 				groupBy:  settings.GroupByNone,
 			},
 			want: settings.TUIState{
-				SortBy:   settings.SortByTimestamp,
-				ViewMode: settings.ViewModeCompact,
-				GroupBy:  settings.GroupByNone,
+				SortBy:                settings.SortByTimestamp,
+				ViewMode:              settings.ViewModeCompact,
+				GroupBy:               settings.GroupByNone,
+				DefaultExpandLevelSet: true,
 			},
 		},
 	}
@@ -482,6 +488,7 @@ func TestToState(t *testing.T) {
 			assert.Equal(t, tt.want.ViewMode, got.ViewMode)
 			assert.Equal(t, tt.want.GroupBy, got.GroupBy)
 			assert.Equal(t, tt.want.DefaultExpandLevel, got.DefaultExpandLevel)
+			assert.Equal(t, tt.want.DefaultExpandLevelSet, got.DefaultExpandLevelSet)
 			assert.Equal(t, tt.want.ExpansionState, got.ExpansionState)
 		})
 	}
@@ -525,9 +532,10 @@ func TestFromState(t *testing.T) {
 					Window:  "@1",
 					Pane:    "%1",
 				},
-				ViewMode:           settings.ViewModeDetailed,
-				GroupBy:            settings.GroupByWindow,
-				DefaultExpandLevel: 2,
+				ViewMode:              settings.ViewModeDetailed,
+				GroupBy:               settings.GroupByWindow,
+				DefaultExpandLevel:    2,
+				DefaultExpandLevelSet: true,
 				ExpansionState: map[string]bool{
 					"window:@1": true,
 				},
@@ -562,9 +570,10 @@ func TestFromState(t *testing.T) {
 				defaultExpandLevel: 3,
 			},
 			state: settings.TUIState{
-				SortBy:             settings.SortByLevel,
-				Columns:            []string{settings.ColumnID, settings.ColumnMessage},
-				DefaultExpandLevel: 0,
+				SortBy:                settings.SortByLevel,
+				Columns:               []string{settings.ColumnID, settings.ColumnMessage},
+				DefaultExpandLevel:    0,
+				DefaultExpandLevelSet: true,
 			},
 			wantErr: false,
 			verifyFn: func(t *testing.T, m *Model) {
@@ -574,7 +583,7 @@ func TestFromState(t *testing.T) {
 				assert.Equal(t, settings.LevelFilterError, m.filters.Level)
 				assert.Equal(t, settings.ViewModeCompact, m.viewMode)
 				assert.Equal(t, settings.GroupBySession, m.groupBy)
-				assert.Equal(t, 3, m.defaultExpandLevel)
+				assert.Equal(t, 0, m.defaultExpandLevel)
 			},
 		},
 		{
@@ -619,7 +628,7 @@ func TestFromState(t *testing.T) {
 		{
 			name:    "invalid defaultExpandLevel",
 			model:   &Model{},
-			state:   settings.TUIState{DefaultExpandLevel: 4},
+			state:   settings.TUIState{DefaultExpandLevel: 4, DefaultExpandLevelSet: true},
 			wantErr: true,
 		},
 	}

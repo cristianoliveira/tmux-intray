@@ -233,14 +233,15 @@ func (m *Model) SetLoadedSettings(loaded *settings.Settings) {
 // Only persists user-configurable settings (columns, sort, filters, view mode).
 func (m *Model) ToState() settings.TUIState {
 	return settings.TUIState{
-		Columns:            m.columns,
-		SortBy:             m.sortBy,
-		SortOrder:          m.sortOrder,
-		Filters:            m.filters,
-		ViewMode:           m.viewMode,
-		GroupBy:            m.groupBy,
-		DefaultExpandLevel: m.defaultExpandLevel,
-		ExpansionState:     m.expansionState,
+		Columns:               m.columns,
+		SortBy:                m.sortBy,
+		SortOrder:             m.sortOrder,
+		Filters:               m.filters,
+		ViewMode:              m.viewMode,
+		GroupBy:               m.groupBy,
+		DefaultExpandLevel:    m.defaultExpandLevel,
+		DefaultExpandLevelSet: true,
+		ExpansionState:        m.expansionState,
 	}
 }
 
@@ -251,8 +252,10 @@ func (m *Model) FromState(state settings.TUIState) error {
 	if state.GroupBy != "" && !settings.IsValidGroupBy(state.GroupBy) {
 		return fmt.Errorf("invalid groupBy value: %s", state.GroupBy)
 	}
-	if state.DefaultExpandLevel < settings.MinExpandLevel || state.DefaultExpandLevel > settings.MaxExpandLevel {
-		return fmt.Errorf("invalid defaultExpandLevel value: %d", state.DefaultExpandLevel)
+	if state.DefaultExpandLevelSet {
+		if state.DefaultExpandLevel < settings.MinExpandLevel || state.DefaultExpandLevel > settings.MaxExpandLevel {
+			return fmt.Errorf("invalid defaultExpandLevel value: %d", state.DefaultExpandLevel)
+		}
 	}
 
 	// Apply non-empty fields only (support partial updates)
@@ -271,7 +274,7 @@ func (m *Model) FromState(state settings.TUIState) error {
 	if state.GroupBy != "" {
 		m.groupBy = state.GroupBy
 	}
-	if state.DefaultExpandLevel != 0 {
+	if state.DefaultExpandLevelSet {
 		m.defaultExpandLevel = state.DefaultExpandLevel
 	}
 	if state.ExpansionState != nil {
@@ -318,9 +321,10 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 	}
 
 	m := Model{
-		viewport:     viewport.New(80, 22), // Default dimensions, will be updated on WindowSizeMsg
-		sessionNames: sessionNames,
-		client:       client,
+		viewport:       viewport.New(80, 22), // Default dimensions, will be updated on WindowSizeMsg
+		sessionNames:   fetchAllSessionNames(),
+		client:         client,
+		expansionState: map[string]bool{},
 	}
 	err = m.loadNotifications()
 	if err != nil {

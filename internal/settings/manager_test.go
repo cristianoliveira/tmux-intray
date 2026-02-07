@@ -22,14 +22,15 @@ func TestFromSettings(t *testing.T) {
 			name:     "default settings",
 			settings: DefaultSettings(),
 			want: TUIState{
-				Columns:            DefaultColumns,
-				SortBy:             SortByTimestamp,
-				SortOrder:          SortOrderDesc,
-				Filters:            Filter{},
-				ViewMode:           ViewModeCompact,
-				GroupBy:            GroupByNone,
-				DefaultExpandLevel: 1,
-				ExpansionState:     map[string]bool{},
+				Columns:               DefaultColumns,
+				SortBy:                SortByTimestamp,
+				SortOrder:             SortOrderDesc,
+				Filters:               Filter{},
+				ViewMode:              ViewModeCompact,
+				GroupBy:               GroupByNone,
+				DefaultExpandLevel:    1,
+				DefaultExpandLevelSet: true,
+				ExpansionState:        map[string]bool{},
 			},
 		},
 		{
@@ -63,9 +64,10 @@ func TestFromSettings(t *testing.T) {
 					Window:  "@1",
 					Pane:    "%1",
 				},
-				ViewMode:           ViewModeDetailed,
-				GroupBy:            GroupBySession,
-				DefaultExpandLevel: 2,
+				ViewMode:              ViewModeDetailed,
+				GroupBy:               GroupBySession,
+				DefaultExpandLevel:    2,
+				DefaultExpandLevelSet: true,
 				ExpansionState: map[string]bool{
 					"session:$1": true,
 				},
@@ -82,12 +84,13 @@ func TestFromSettings(t *testing.T) {
 				GroupBy:   "",
 			},
 			want: TUIState{
-				Columns:   []string{},
-				SortBy:    "",
-				SortOrder: "",
-				Filters:   Filter{},
-				ViewMode:  "",
-				GroupBy:   "",
+				Columns:               []string{},
+				SortBy:                "",
+				SortOrder:             "",
+				Filters:               Filter{},
+				ViewMode:              "",
+				GroupBy:               "",
+				DefaultExpandLevelSet: true,
 			},
 		},
 	}
@@ -102,6 +105,7 @@ func TestFromSettings(t *testing.T) {
 			assert.Equal(t, tt.want.ViewMode, got.ViewMode)
 			assert.Equal(t, tt.want.GroupBy, got.GroupBy)
 			assert.Equal(t, tt.want.DefaultExpandLevel, got.DefaultExpandLevel)
+			assert.Equal(t, tt.want.DefaultExpandLevelSet, got.DefaultExpandLevelSet)
 			assert.Equal(t, tt.want.ExpansionState, got.ExpansionState)
 		})
 	}
@@ -140,9 +144,10 @@ func TestToSettings(t *testing.T) {
 					Window:  "@1",
 					Pane:    "%1",
 				},
-				ViewMode:           ViewModeDetailed,
-				GroupBy:            GroupByWindow,
-				DefaultExpandLevel: 3,
+				ViewMode:              ViewModeDetailed,
+				GroupBy:               GroupByWindow,
+				DefaultExpandLevel:    3,
+				DefaultExpandLevelSet: true,
 				ExpansionState: map[string]bool{
 					"window:@1": true,
 				},
@@ -232,7 +237,8 @@ func TestIsEmpty(t *testing.T) {
 		{
 			name: "has defaultExpandLevel",
 			state: TUIState{
-				DefaultExpandLevel: 2,
+				DefaultExpandLevel:    2,
+				DefaultExpandLevelSet: true,
 			},
 			want: false,
 		},
@@ -281,13 +287,14 @@ func TestIsEmpty(t *testing.T) {
 		{
 			name: "all fields populated",
 			state: TUIState{
-				Columns:            []string{ColumnID, ColumnMessage},
-				SortBy:             SortByLevel,
-				SortOrder:          SortOrderAsc,
-				ViewMode:           ViewModeDetailed,
-				GroupBy:            GroupByPane,
-				DefaultExpandLevel: 3,
-				ExpansionState:     map[string]bool{"pane:%1": true},
+				Columns:               []string{ColumnID, ColumnMessage},
+				SortBy:                SortByLevel,
+				SortOrder:             SortOrderAsc,
+				ViewMode:              ViewModeDetailed,
+				GroupBy:               GroupByPane,
+				DefaultExpandLevel:    3,
+				DefaultExpandLevelSet: true,
+				ExpansionState:        map[string]bool{"pane:%1": true},
 				Filters: Filter{
 					Level:   LevelFilterWarning,
 					State:   StateFilterActive,
