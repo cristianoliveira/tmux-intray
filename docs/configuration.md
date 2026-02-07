@@ -114,9 +114,166 @@ tmux-intray list
 
 This is useful for temporary debugging or for per‑session customization.
 
-## Notes
+## TUI Settings Persistence
 
-- All paths support `~` expansion and environment variables.
-- If `XDG_STATE_HOME` or `XDG_CONFIG_HOME` are not set, the default `~/.local/state` and `~/.config` are used.
-- The hook system is extensible; see [hooks documentation](hooks.md) for details.
-- For troubleshooting, enable `TMUX_INTRAY_DEBUG` and check the output on stderr.
+The TUI (Terminal User Interface) automatically saves your preferences when you exit. These settings include column order, sort preferences, active filters, and view mode.
+
+### Settings File Location
+
+Settings are stored at `~/.config/tmux-intray/settings.json` (or `$XDG_CONFIG_HOME/tmux-intray/settings.json` if XDG_CONFIG_HOME is set).
+
+### Available Settings
+
+The settings file uses the following JSON schema:
+
+```json
+{
+  "columns": ["id", "timestamp", "state", "level", "session", "window", "pane", "message"],
+  "sortBy": "timestamp",
+  "sortOrder": "desc",
+  "filters": {
+    "level": "",
+    "state": "",
+    "session": "",
+    "window": "",
+    "pane": ""
+  },
+  "viewMode": "compact"
+}
+```
+
+#### Settings Fields
+
+| Field | Type | Description | Default | Valid Values |
+|-------|------|-------------|---------|--------------|
+| `columns` | array | Column display order | All columns in default order | `["id", "timestamp", "state", "level", "session", "window", "pane", "message", "pane_created"]` |
+| `sortBy` | string | Column to sort by | `"timestamp"` | `"id"`, `"timestamp"`, `"state"`, `"level"`, `"session"` |
+| `sortOrder` | string | Sort direction | `"desc"` | `"asc"`, `"desc"` |
+| `filters.level` | string | Filter by severity level | `""` (no filter) | `"info"`, `"warning"`, `"error"`, `"critical"`, `""` |
+| `filters.state` | string | Filter by state | `""` (no filter) | `"active"`, `"dismissed"`, `""` |
+| `filters.session` | string | Filter by tmux session | `""` (no filter) | Session name or `""` |
+| `filters.window` | string | Filter by tmux window | `""` (no filter) | Window ID or `""` |
+| `filters.pane` | string | Filter by tmux pane | `""` (no filter) | Pane ID or `""` |
+| `viewMode` | string | Display layout | `"compact"` | `"compact"`, `"detailed"` |
+
+### Default Settings
+
+If the settings file doesn't exist or is corrupted, the TUI uses these defaults:
+
+```json
+{
+  "columns": ["id", "timestamp", "state", "level", "session", "window", "pane", "message"],
+  "sortBy": "timestamp",
+  "sortOrder": "desc",
+  "filters": {
+    "level": "",
+    "state": "",
+    "session": "",
+    "window": "",
+    "pane": ""
+  },
+  "viewMode": "compact"
+}
+```
+
+### How Settings Are Saved
+
+Settings are saved automatically in these situations:
+
+1. **On TUI exit** (pressing `q`, `:q`, or `Ctrl+C`)
+2. **Manual save** (pressing `:w` in command mode)
+
+The save operation uses atomic writes to prevent file corruption.
+
+### Managing Settings
+
+#### View Current Settings
+
+Display your current settings in JSON format:
+
+```bash
+tmux-intray settings show
+```
+
+#### Reset Settings to Defaults
+
+Reset all TUI settings to their default values:
+
+```bash
+# Reset with confirmation prompt
+tmux-intray settings reset
+
+# Reset without confirmation (use with caution)
+tmux-intray settings reset --force
+```
+
+This command deletes the `settings.json` file. The TUI will use defaults on the next launch.
+
+#### Manually Edit Settings
+
+You can edit the settings file directly with any text editor:
+
+```bash
+# Open settings file
+vim ~/.config/tmux-intray/settings.json
+```
+
+After editing, the TUI will load the new settings on the next launch.
+
+### Example Settings
+
+Here are some example settings configurations:
+
+**Show only active errors, sorted by timestamp ascending:**
+
+```json
+{
+  "columns": ["level", "message", "session", "timestamp"],
+  "sortBy": "timestamp",
+  "sortOrder": "asc",
+  "filters": {
+    "level": "error",
+    "state": "active",
+    "session": "",
+    "window": "",
+    "pane": ""
+  },
+  "viewMode": "compact"
+}
+```
+
+**Show warnings and critical messages from specific session:**
+
+```json
+{
+  "columns": ["level", "message", "window", "pane", "timestamp"],
+  "sortBy": "level",
+  "sortOrder": "desc",
+  "filters": {
+    "level": "critical",
+    "state": "",
+    "session": "work",
+    "window": "",
+    "pane": ""
+  },
+  "viewMode": "detailed"
+}
+```
+
+### Error Handling
+
+If the settings file is corrupted (invalid JSON), the TUI will:
+1. Log a warning message to stderr
+2. Fall back to default settings
+3. Continue operating normally
+
+This ensures that a corrupted settings file doesn't prevent the TUI from running.
+
+### Notes
+
+- Settings are stored in JSON format with 2-space indentation for readability
+- The settings directory (`~/.config/tmux-intray`) is created automatically if it doesn't exist
+- File locking is used to prevent concurrent writes when multiple TUI instances are running
+- Empty string values for filters mean "no filter" (show all)
+- Empty or missing `columns` array uses the default column order
+- For XDG Base Directory compliance, the file location is `$XDG_CONFIG_HOME/tmux-intray/settings.json`
