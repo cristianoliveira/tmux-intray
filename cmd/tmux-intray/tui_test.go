@@ -323,11 +323,11 @@ func TestTUIModelView(t *testing.T) {
 	if !strings.Contains(view, "SESSION") {
 		t.Error("Expected View to contain 'SESSION' header")
 	}
-	if !strings.Contains(view, "SUMMARY") {
-		t.Error("Expected View to contain 'SUMMARY' header")
+	if !strings.Contains(view, "MESSAGE") {
+		t.Error("Expected View to contain 'MESSAGE' header")
 	}
-	if !strings.Contains(view, "SOURCE") {
-		t.Error("Expected View to contain 'SOURCE' header")
+	if !strings.Contains(view, "PANE") {
+		t.Error("Expected View to contain 'PANE' header")
 	}
 	if !strings.Contains(view, "AGE") {
 		t.Error("Expected View to contain 'AGE' header")
@@ -634,12 +634,12 @@ func TestRenderRowSessionColumn(t *testing.T) {
 	if !strings.Contains(row, "$1-name") {
 		t.Error("Expected row to contain session name")
 	}
-	// Should contain source window:pane (without session)
-	if !strings.Contains(row, "@2:%3") {
-		t.Error("Expected row to contain window:pane in source column")
+	// Should contain pane ID
+	if !strings.Contains(row, "%3") {
+		t.Error("Expected row to contain pane ID in pane column")
 	}
-	// Should NOT contain session in source column
-	if strings.Contains(row, "$1:@2:%3") {
-		t.Error("Source column should not contain session prefix")
+	// Should NOT contain window in pane column
+	if strings.Contains(row, "@2:%3") {
+		t.Error("Pane column should not contain window prefix")
 	}
 }

@@ -331,22 +331,22 @@ func (m tuiModel) renderHeader() string {
 		Bold(true).
 		Foreground(lipgloss.Color(ansiColorNumber(colors.Blue))) // Use ANSI color number
 
-	// Column widths: TYPE=6, STATUS=7, SESSION=12, SUMMARY=variable, SOURCE=15, AGE=8
-	typeWidth := 6
-	statusWidth := 7
-	sessionWidth := 12
-	sourceWidth := 15
-	ageWidth := 8
-	totalFixedWidth := typeWidth + statusWidth + sessionWidth + sourceWidth + ageWidth
+	// Column widths: TYPE=8, STATUS=8, SESSION=25, MESSAGE=variable, PANE=7, AGE=5
+	typeWidth := 8
+	statusWidth := 8
+	sessionWidth := 25
+	paneWidth := 7
+	ageWidth := 5
+	totalFixedWidth := typeWidth + statusWidth + sessionWidth + paneWidth + ageWidth
 	spacesBetweenColumns := 10 // (6 columns - 1) * 2 spaces
-	summaryWidth := m.width - totalFixedWidth - spacesBetweenColumns
+	messageWidth := m.width - totalFixedWidth - spacesBetweenColumns
 
 	header := fmt.Sprintf("%-*s  %-*s  %-*s  %-*s  %-*s  %-*s",
 		typeWidth, "TYPE",
 		statusWidth, "STATUS",
 		sessionWidth, "SESSION",
-		summaryWidth, "SUMMARY",
-		sourceWidth, "SOURCE",
+		messageWidth, "MESSAGE",
+		paneWidth, "PANE",
 		ageWidth, "AGE",
 	)
 
@@ -366,10 +366,10 @@ func (m tuiModel) renderRow(notif Notification, isSelected bool) string {
 	// Get status icon
 	statusIcon := getStatusIcon(notif.State)
 
-	// Truncate summary
-	summary := notif.Message
-	if len(summary) > 50 {
-		summary = summary[:47] + "..."
+	// Truncate message
+	message := notif.Message
+	if len(message) > 50 {
+		message = message[:47] + "..."
 	}
 
 	// Calculate age
@@ -377,22 +377,22 @@ func (m tuiModel) renderRow(notif Notification, isSelected bool) string {
 
 	// Session column
 	session := m.getSessionName(notif.Session)
-	// Format source as Window:Pane (session is separate column)
-	source := fmt.Sprintf("%s:%s", notif.Window, notif.Pane)
+	// Pane column (just pane ID)
+	pane := notif.Pane
 
 	// Column widths
-	typeWidth := 6
-	statusWidth := 7
-	sessionWidth := 12
-	sourceWidth := 15
-	ageWidth := 8
-	totalFixedWidth := typeWidth + statusWidth + sessionWidth + sourceWidth + ageWidth
+	typeWidth := 8
+	statusWidth := 8
+	sessionWidth := 25
+	paneWidth := 7
+	ageWidth := 5
+	totalFixedWidth := typeWidth + statusWidth + sessionWidth + paneWidth + ageWidth
 	spacesBetweenColumns := 10 // (6 columns - 1) * 2 spaces
-	summaryWidth := m.width - totalFixedWidth - spacesBetweenColumns
+	messageWidth := m.width - totalFixedWidth - spacesBetweenColumns
 
 	// Use default width if not set or too small
-	if m.width == 0 || summaryWidth < 10 {
-		summaryWidth = 50
+	if m.width == 0 || messageWidth < 10 {
+		messageWidth = 50
 	}
 
 	// Truncate session if needed
@@ -400,22 +400,23 @@ func (m tuiModel) renderRow(notif Notification, isSelected bool) string {
 		session = session[:sessionWidth-3] + "..."
 	}
 
-	// Truncate source if needed
-	if len(source) > sourceWidth {
-		source = source[:sourceWidth-3] + "..."
+	// Truncate pane if needed
+	if len(pane) > paneWidth {
+		pane = pane[:paneWidth-3] + "..."
 	}
 
-	// Truncate summary to fit
-	if len(summary) > summaryWidth {
-		summary = summary[:summaryWidth-3] + "..."
+	// Truncate message to fit
+
+	if len(message) > messageWidth {
+		message = message[:messageWidth-3] + "..."
 	}
 
 	row := fmt.Sprintf("%-*s  %-*s  %-*s  %-*s  %-*s  %-*s",
 		typeWidth, levelIcon,
 		statusWidth, statusIcon,
 		sessionWidth, session,
-		summaryWidth, summary,
-		sourceWidth, source,
+		messageWidth, message,
+		paneWidth, pane,
 		ageWidth, age,
 	)
 
