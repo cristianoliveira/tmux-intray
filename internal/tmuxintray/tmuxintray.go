@@ -2,6 +2,7 @@
 package tmuxintray
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
@@ -41,7 +42,9 @@ func Init() error {
 	storage.Init()
 
 	// Initialize hooks subsystem
-	hooks.Init()
+	if err := hooks.Init(); err != nil {
+		return fmt.Errorf("hooks initialization failed: %w", err)
+	}
 
 	// TODO: verify initialization
 	return nil

@@ -53,18 +53,22 @@ func getManager() *hookManager {
 }
 
 // Init initializes the hooks subsystem.
-func Init() {
+func Init() error {
 	config.Load()
 	m := getManager()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.initialized {
-		return
+		return nil
 	}
 	// Ensure hooks directory exists
 	dir := getHooksDir()
-	os.MkdirAll(dir, 0755)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		colors.Error(fmt.Sprintf("failed to create hooks directory %s: %v", dir, err))
+		return fmt.Errorf("failed to create hooks directory %s: %w", dir, err)
+	}
 	m.initialized = true
+	return nil
 }
 
 // getHooksDir returns the hooks directory path.
