@@ -16,6 +16,16 @@ import (
 	"time"
 )
 
+// File permission constants
+const (
+	// FileModeDir is the permission for directories (rwxr-xr-x)
+	// Owner: read/write/execute, Group/others: read/execute
+	FileModeDir os.FileMode = 0755
+	// FileModeScript is the permission for executable scripts (rwxr-xr-x)
+	// Owner: read/write/execute, Group/others: read/execute
+	FileModeScript os.FileMode = 0755
+)
+
 var (
 	// async tracking
 	asyncPending      sync.WaitGroup
@@ -53,18 +63,22 @@ func getManager() *hookManager {
 }
 
 // Init initializes the hooks subsystem.
-func Init() {
+func Init() error {
 	config.Load()
 	m := getManager()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.initialized {
-		return
+		return nil
 	}
 	// Ensure hooks directory exists
 	dir := getHooksDir()
-	os.MkdirAll(dir, 0755)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		colors.Error(fmt.Sprintf("hooks.Init: failed to create hooks directory %s: %v", dir, err))
+		return fmt.Errorf("hooks.Init: failed to create hooks directory %s: %w", dir, err)
+	}
 	m.initialized = true
+	return nil
 }
 
 // getHooksDir returns the hooks directory path.
@@ -141,9 +155,9 @@ func runSyncHook(scriptPath, scriptName string, envMap map[string]string, failur
 	if err != nil {
 		switch failureMode {
 		case "abort":
-			return fmt.Errorf("hook %s failed: %v, output: %s", scriptName, err, output)
+			return fmt.Errorf("hooks.Run: hook '%s' failed after %.2fs: %v, output: %s", scriptName, duration.Seconds(), err, output)
 		case "warn":
-			fmt.Fprintf(os.Stderr, "warning: hook %s failed: %v, output: %s\n", scriptName, err, output)
+			fmt.Fprintf(os.Stderr, "warning: hook %s failed after %.2fs: %v, output: %s\n", scriptName, duration.Seconds(), err, output)
 		case "ignore":
 			// do nothing
 		}
@@ -346,7 +360,7 @@ func ResetForTesting() {
 	asyncPendingMu.Lock()
 	defer asyncPendingMu.Unlock()
 	if asyncPendingCount > 0 {
-		panic(fmt.Sprintf("ResetForTesting called with %d pending hooks. Call WaitForPendingHooks() first.", asyncPendingCount))
+		panic(fmt.Sprintf("hooks.ResetForTesting: called with %d pending hooks. Call hooks.WaitForPendingHooks() first.", asyncPendingCount))
 	}
 	asyncPendingCount = 0
 	asyncPending = sync.WaitGroup{}

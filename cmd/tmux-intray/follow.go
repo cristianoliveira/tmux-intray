@@ -16,6 +16,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/cmd"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/spf13/cobra"
 )
@@ -61,55 +62,8 @@ type FollowOptions struct {
 
 // listFunc is the function used to retrieve notifications. Can be changed for testing.
 var listFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
-	return storage.ListNotifications(state, level, session, window, pane, olderThan, newerThan)
-}
-
-// Notification represents a single notification record.
-type Notification struct {
-	ID          int
-	Timestamp   string
-	State       string
-	Session     string
-	Window      string
-	Pane        string
-	Message     string
-	PaneCreated string
-	Level       string
-}
-
-// parseNotification parses a TSV line into a Notification.
-func parseNotification(line string) (Notification, error) {
-	fields := strings.Split(line, "\t")
-	// Ensure at least 9 fields
-	for len(fields) < 9 {
-		fields = append(fields, "")
-	}
-	id := 0
-	if fields[0] != "" {
-		fmt.Sscanf(fields[0], "%d", &id)
-	}
-	return Notification{
-		ID:          id,
-		Timestamp:   fields[1],
-		State:       fields[2],
-		Session:     fields[3],
-		Window:      fields[4],
-		Pane:        fields[5],
-		Message:     unescapeMessage(fields[6]),
-		PaneCreated: fields[7],
-		Level:       fields[8],
-	}, nil
-}
-
-// unescapeMessage reverses the escaping done by storage.escapeMessage.
-func unescapeMessage(msg string) string {
-	// Unescape newlines first
-	msg = strings.ReplaceAll(msg, "\\n", "\n")
-	// Unescape tabs
-	msg = strings.ReplaceAll(msg, "\\t", "\t")
-	// Unescape backslashes
-	msg = strings.ReplaceAll(msg, "\\\\", "\\")
-	return msg
+	result, _ := storage.ListNotifications(state, level, session, window, pane, olderThan, newerThan)
+	return result
 }
 
 // formatTimestamp converts ISO timestamp to display format.
@@ -135,7 +89,7 @@ func colorForLevel(level string) string {
 }
 
 // printNotification prints a single notification to the writer with formatting.
-func printNotification(n Notification, w io.Writer) {
+func printNotification(n notification.Notification, w io.Writer) {
 	timeStr := formatTimestamp(n.Timestamp)
 	msg := fmt.Sprintf("[%s] [%s] %s", timeStr, n.Level, n.Message)
 	color := colorForLevel(n.Level)
@@ -198,12 +152,12 @@ func Follow(ctx context.Context, opts FollowOptions) error {
 				continue
 			}
 			// Parse lines
-			var notifications []Notification
+			var notifications []notification.Notification
 			for _, line := range strings.Split(lines, "\n") {
 				if line == "" {
 					continue
 				}
-				notif, err := parseNotification(line)
+				notif, err := notification.ParseNotification(line)
 				if err != nil {
 					continue
 				}

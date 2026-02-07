@@ -27,13 +27,16 @@ func (l *Lock) Acquire() error {
 	start := time.Now()
 	for time.Since(start) <= lockTimeout {
 		// Use MkdirAll to ensure parent directories exist
-		err := os.MkdirAll(l.dir, 0755)
+		err := os.MkdirAll(l.dir, FileModeDir)
 		if err == nil {
 			return nil
 		}
 		// If directory already exists, that's fine
 		if os.IsExist(err) {
 			return nil
+		}
+		if time.Since(start) > lockTimeout {
+			return fmt.Errorf("failed to acquire lock for %s after timeout: %w", l.dir, err)
 		}
 		// Retry after a short delay
 		time.Sleep(lockRetry)
@@ -52,7 +55,7 @@ func (l *Lock) Release() error {
 func WithLock(dir string, fn func() error) error {
 	lock := NewLock(dir)
 	if err := lock.Acquire(); err != nil {
-		return fmt.Errorf("acquire lock: %w", err)
+		return fmt.Errorf("WithLock: failed to acquire lock for %s: %w", dir, err)
 	}
 	defer lock.Release()
 	return fn()

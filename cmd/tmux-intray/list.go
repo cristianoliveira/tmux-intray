@@ -15,6 +15,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/cmd"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/spf13/cobra"
 )
@@ -67,7 +68,8 @@ var listOutputWriter io.Writer = os.Stdout
 
 // listListFunc is the function used to retrieve notifications. Can be changed for testing.
 var listListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
-	return storage.ListNotifications(state, level, session, window, pane, olderThan, newerThan)
+	result, _ := storage.ListNotifications(state, level, session, window, pane, olderThan, newerThan)
+	return result
 }
 
 // FilterOptions holds all filter parameters for listing notifications.
@@ -103,12 +105,12 @@ func printList(opts FilterOptions, w io.Writer) {
 	}
 
 	// Parse lines into notifications
-	var notifications []Notification
+	var notifications []notification.Notification
 	for _, line := range strings.Split(lines, "\n") {
 		if line == "" {
 			continue
 		}
-		notif, err := parseNotification(line)
+		notif, err := notification.ParseNotification(line)
 		if err != nil {
 			continue
 		}
@@ -169,8 +171,8 @@ func printList(opts FilterOptions, w io.Writer) {
 }
 
 // groupNotifications groups notifications by field.
-func groupNotifications(notifs []Notification, field string) map[string][]Notification {
-	groups := make(map[string][]Notification)
+func groupNotifications(notifs []notification.Notification, field string) map[string][]notification.Notification {
+	groups := make(map[string][]notification.Notification)
 	for _, n := range notifs {
 		var key string
 		switch field {
@@ -191,7 +193,7 @@ func groupNotifications(notifs []Notification, field string) map[string][]Notifi
 }
 
 // printGroupCounts prints only group counts.
-func printGroupCounts(groups map[string][]Notification, w io.Writer, format string) {
+func printGroupCounts(groups map[string][]notification.Notification, w io.Writer, format string) {
 	// Sort keys for consistent output
 	var keys []string
 	for k := range groups {
@@ -204,7 +206,7 @@ func printGroupCounts(groups map[string][]Notification, w io.Writer, format stri
 }
 
 // printGrouped prints grouped notifications with headers.
-func printGrouped(groups map[string][]Notification, w io.Writer, format string) {
+func printGrouped(groups map[string][]notification.Notification, w io.Writer, format string) {
 	// Sort keys for consistent output
 	var keys []string
 	for k := range groups {
@@ -229,7 +231,7 @@ func printGrouped(groups map[string][]Notification, w io.Writer, format string) 
 }
 
 // printLegacy prints only messages (one per line).
-func printLegacy(notifs []Notification, w io.Writer) {
+func printLegacy(notifs []notification.Notification, w io.Writer) {
 	for _, n := range notifs {
 		fmt.Fprintln(w, n.Message)
 	}
@@ -237,7 +239,7 @@ func printLegacy(notifs []Notification, w io.Writer) {
 
 // printSimple prints a simple format: ID DATE - Message.
 // Optimized for quick scanning with ID, timestamp, and message on one line.
-func printSimple(notifs []Notification, w io.Writer) {
+func printSimple(notifs []notification.Notification, w io.Writer) {
 	for _, n := range notifs {
 		// Truncate message for display (50 chars max)
 		displayMsg := n.Message
@@ -251,7 +253,7 @@ func printSimple(notifs []Notification, w io.Writer) {
 // printTable prints a formatted table with ID, Timestamp, Message, and optional context (Session Window Pane).
 // Format: ID DATE - Message (Session Window Pane)
 // Optimized for readability with ID first for easy copying.
-func printTable(notifs []Notification, w io.Writer) {
+func printTable(notifs []notification.Notification, w io.Writer) {
 	if len(notifs) == 0 {
 		return
 	}
@@ -270,7 +272,7 @@ func printTable(notifs []Notification, w io.Writer) {
 }
 
 // printCompact prints a compact format with Message only.
-func printCompact(notifs []Notification, w io.Writer) {
+func printCompact(notifs []notification.Notification, w io.Writer) {
 	for _, n := range notifs {
 		// Truncate message for display
 		displayMsg := n.Message

@@ -52,7 +52,9 @@ func handleCommandError(cmd *cobra.Command, args []string) error {
 // This is called by main.main(). It only needs to happen once to the RootCmd.
 func ExecuteOriginal() error {
 	defer hooks.WaitForPendingHooks()
-	hooks.Init()
+	if err := hooks.Init(); err != nil {
+		return err
+	}
 	return RootCmd.Execute()
 }
 
@@ -80,7 +82,9 @@ func init() {
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() error {
 	defer hooks.WaitForPendingHooks()
-	hooks.Init()
+	if err := hooks.Init(); err != nil {
+		return err
+	}
 
 	args := os.Args[1:]
 
