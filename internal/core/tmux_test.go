@@ -150,7 +150,7 @@ func TestTmuxFunctions(t *testing.T) {
 		success, err = c.SetTmuxVisibility("1")
 		require.False(t, success)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "failed to set tmux visibility")
+		require.Contains(t, err.Error(), "tmux server is not running")
 		mockClient.AssertExpectations(t)
 	})
 

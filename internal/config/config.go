@@ -15,6 +15,16 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// File permission constants
+const (
+	// FileModeDir is the permission for directories (rwxr-xr-x)
+	// Owner: read/write/execute, Group/others: read/execute
+	FileModeDir os.FileMode = 0755
+	// FileModeFile is the permission for data files (rw-r--r--)
+	// Owner: read/write, Group/others: read only
+	FileModeFile os.FileMode = 0644
+)
+
 var (
 	config    map[string]string
 	configMap map[string]string
@@ -196,6 +206,7 @@ func validate() {
 	// max_notifications must be positive integer
 	if val, ok := config["max_notifications"]; ok {
 		if n, err := strconv.Atoi(val); err != nil || n <= 0 {
+			colors.Warning(fmt.Sprintf("invalid max_notifications value '%s': must be a positive integer, using default: %s", val, configMap["max_notifications"]))
 			config["max_notifications"] = configMap["max_notifications"]
 		}
 	}
@@ -203,6 +214,7 @@ func validate() {
 	// auto_cleanup_days must be positive integer
 	if val, ok := config["auto_cleanup_days"]; ok {
 		if n, err := strconv.Atoi(val); err != nil || n <= 0 {
+			colors.Warning(fmt.Sprintf("invalid auto_cleanup_days value '%s': must be a positive integer, using default: %s", val, configMap["auto_cleanup_days"]))
 			config["auto_cleanup_days"] = configMap["auto_cleanup_days"]
 		}
 	}
@@ -210,6 +222,7 @@ func validate() {
 	// hooks_async_timeout must be positive integer
 	if val, ok := config["hooks_async_timeout"]; ok {
 		if n, err := strconv.Atoi(val); err != nil || n <= 0 {
+			colors.Warning(fmt.Sprintf("invalid hooks_async_timeout value '%s': must be a positive integer, using default: %s", val, configMap["hooks_async_timeout"]))
 			config["hooks_async_timeout"] = configMap["hooks_async_timeout"]
 		}
 	}
@@ -217,6 +230,7 @@ func validate() {
 	// max_hooks must be positive integer
 	if val, ok := config["max_hooks"]; ok {
 		if n, err := strconv.Atoi(val); err != nil || n <= 0 {
+			colors.Warning(fmt.Sprintf("invalid max_hooks value '%s': must be a positive integer, using default: %s", val, configMap["max_hooks"]))
 			config["max_hooks"] = configMap["max_hooks"]
 		}
 	}
@@ -226,6 +240,7 @@ func validate() {
 		valLower := strings.ToLower(val)
 		allowed := map[string]bool{"default": true, "minimal": true, "fancy": true}
 		if !allowed[valLower] {
+			colors.Warning(fmt.Sprintf("invalid table_format value '%s': must be one of: default, minimal, fancy; using default: %s", val, configMap["table_format"]))
 			config["table_format"] = configMap["table_format"]
 		} else if valLower != val {
 			config["table_format"] = valLower
@@ -237,6 +252,7 @@ func validate() {
 		valLower := strings.ToLower(val)
 		allowed := map[string]bool{"compact": true, "detailed": true, "count-only": true}
 		if !allowed[valLower] {
+			colors.Warning(fmt.Sprintf("invalid status_format value '%s': must be one of: compact, detailed, count-only; using default: %s", val, configMap["status_format"]))
 			config["status_format"] = configMap["status_format"]
 		} else if valLower != val {
 			config["status_format"] = valLower
@@ -248,6 +264,7 @@ func validate() {
 		valLower := strings.ToLower(val)
 		allowed := map[string]bool{"ignore": true, "warn": true, "abort": true}
 		if !allowed[valLower] {
+			colors.Warning(fmt.Sprintf("invalid hooks_failure_mode value '%s': must be one of: ignore, warn, abort; using default: %s", val, configMap["hooks_failure_mode"]))
 			config["hooks_failure_mode"] = configMap["hooks_failure_mode"]
 		} else if valLower != val {
 			config["hooks_failure_mode"] = valLower
@@ -262,6 +279,7 @@ func validate() {
 			if normalized != "true" && normalized != "false" {
 				// Invalid boolean, revert to default
 				if def, ok := configMap[key]; ok {
+					colors.Warning(fmt.Sprintf("invalid boolean value for %s: '%s', must be one of: 1, true, yes, on, 0, false, no, off; using default: %s", key, val, def))
 					config[key] = def
 				}
 			}
@@ -340,7 +358,7 @@ func createSampleConfig() {
 		return // file exists
 	}
 	// Ensure directory exists
-	os.MkdirAll(configDir, 0755)
+	os.MkdirAll(configDir, FileModeDir)
 
 	// Build typed map from configMap (defaults)
 	typed := make(map[string]interface{})

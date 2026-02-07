@@ -178,7 +178,7 @@ func (c *Core) SetTmuxVisibility(value string) (bool, error) {
 	err := c.client.SetEnvironment("TMUX_INTRAY_VISIBLE", value)
 	if err != nil {
 		colors.Error(fmt.Sprintf("SetTmuxVisibility: failed to set TMUX_INTRAY_VISIBLE to '%s': %v", value, err))
-		return false
+		return false, err
 	}
 	return true, nil
 }
