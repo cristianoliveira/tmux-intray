@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
@@ -33,51 +34,73 @@ const (
 var (
 	notificationsFile string
 	lockDir           string
+	initOnce          = &sync.Once{}
 	initialized       bool
+	initMu            sync.RWMutex
+	initErr           error
 )
 
 // Init initializes storage directories and files.
-func Init() {
-	if initialized {
-		return
-	}
-	// Load configuration
-	config.Load()
-	// Prefer environment variable directly (should match config.Load but ensure it works)
-	stateDir := os.Getenv("TMUX_INTRAY_STATE_DIR")
-	if stateDir == "" {
-		stateDir = config.Get("state_dir", "")
-	}
-	colors.Debug("state_dir: " + stateDir)
-	if stateDir == "" {
-		colors.Error("state_dir not configured")
-		return
-	}
-	notificationsFile = filepath.Join(stateDir, "notifications.tsv")
-	lockDir = filepath.Join(stateDir, "lock")
+// Returns an error if initialization fails. Safe for concurrent calls.
+func Init() error {
+	var err error
+	initOnce.Do(func() {
+		// Load configuration
+		config.Load()
 
-	// Ensure directories exist
-	if err := os.MkdirAll(stateDir, 0755); err != nil {
-		colors.Error(fmt.Sprintf("failed to create state directory: %v", err))
-		return
-	}
+		// Prefer environment variable directly (should match config.Load but ensure it works)
+		stateDir := os.Getenv("TMUX_INTRAY_STATE_DIR")
+		if stateDir == "" {
+			stateDir = config.Get("state_dir", "")
+		}
+		colors.Debug("state_dir: " + stateDir)
+		if stateDir == "" {
+			err = fmt.Errorf("state_dir not configured")
+			return
+		}
+		notificationsFile = filepath.Join(stateDir, "notifications.tsv")
+		lockDir = filepath.Join(stateDir, "lock")
 
-	// Ensure notifications file exists
-	f, err := os.OpenFile(notificationsFile, os.O_RDONLY|os.O_CREATE, 0644)
+		// Ensure directories exist
+		if err = os.MkdirAll(stateDir, 0755); err != nil {
+			err = fmt.Errorf("failed to create state directory: %w", err)
+			return
+		}
+
+		// Ensure notifications file exists
+		var f *os.File
+		f, err = os.OpenFile(notificationsFile, os.O_RDONLY|os.O_CREATE, 0644)
+		if err != nil {
+			err = fmt.Errorf("failed to create notifications file: %w", err)
+			return
+		}
+		f.Close()
+
+		// Mark initialized only if all steps succeeded
+		initMu.Lock()
+		initialized = true
+		initErr = nil
+		initMu.Unlock()
+
+		colors.Debug("storage initialized")
+	})
+
+	// Return any initialization error from first call
 	if err != nil {
-		colors.Error(fmt.Sprintf("failed to create notifications file: %v", err))
-		return
+		return err
 	}
-	f.Close()
 
-	initialized = true
-	colors.Debug("storage initialized")
+	// Check if there was an error from a previous initialization attempt
+	initMu.RLock()
+	err = initErr
+	initMu.RUnlock()
+	return err
 }
 
 // AddNotification adds a notification and returns its ID.
 func AddNotification(message, timestamp, session, window, pane, paneCreated, level string) string {
-	Init()
-	if !initialized {
+	if err := Init(); err != nil {
+		colors.Error(fmt.Sprintf("failed to initialize storage: %v", err))
 		return ""
 	}
 	// Generate ID
@@ -133,8 +156,8 @@ func AddNotification(message, timestamp, session, window, pane, paneCreated, lev
 
 // ListNotifications returns TSV lines for notifications.
 func ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff string) string {
-	Init()
-	if !initialized {
+	if err := Init(); err != nil {
+		colors.Error(fmt.Sprintf("failed to initialize storage: %v", err))
 		return ""
 	}
 	var lines []string
@@ -159,9 +182,8 @@ func ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, pa
 // This is an optimized version that avoids reading all notifications when possible.
 // Returns the notification line as a TSV string or an error if not found.
 func GetNotificationByID(id string) (string, error) {
-	Init()
-	if !initialized {
-		return "", errors.New("storage not initialized")
+	if err := Init(); err != nil {
+		return "", fmt.Errorf("storage not initialized: %w", err)
 	}
 
 	// Validate ID format
@@ -203,9 +225,8 @@ func GetNotificationByID(id string) (string, error) {
 
 // DismissNotification dismisses a notification by ID.
 func DismissNotification(id string) error {
-	Init()
-	if !initialized {
-		return errors.New("storage not initialized")
+	if err := Init(); err != nil {
+		return fmt.Errorf("storage not initialized: %w", err)
 	}
 	colors.Debug("DismissNotification called for ID:", id)
 	err := WithLock(lockDir, func() error {
@@ -245,8 +266,12 @@ func DismissNotification(id string) error {
 		if err := hooks.Run("pre-dismiss", envVars...); err != nil {
 			return err
 		}
+		idInt, err := strToInt(fields[fieldID])
+		if err != nil {
+			return fmt.Errorf("invalid ID %s: %w", fields[fieldID], err)
+		}
 		if err := appendLine(
-			strToInt(fields[fieldID]),
+			idInt,
 			fields[fieldTimestamp],
 			"dismissed",
 			fields[fieldSession],
@@ -272,9 +297,8 @@ func DismissNotification(id string) error {
 
 // DismissAll dismisses all active notifications.
 func DismissAll() error {
-	Init()
-	if !initialized {
-		return errors.New("storage not initialized")
+	if err := Init(); err != nil {
+		return fmt.Errorf("storage not initialized: %w", err)
 	}
 	colors.Debug("DismissAll called")
 	if err := hooks.Run("pre-clear"); err != nil {
@@ -310,8 +334,12 @@ func DismissAll() error {
 			if err := hooks.Run("pre-dismiss", envVars...); err != nil {
 				return err
 			}
+			idInt, err := strToInt(fields[fieldID])
+			if err != nil {
+				return fmt.Errorf("invalid ID %s: %w", fields[fieldID], err)
+			}
 			if err := appendLine(
-				strToInt(fields[fieldID]),
+				idInt,
 				fields[fieldTimestamp],
 				"dismissed",
 				fields[fieldSession],
@@ -338,9 +366,8 @@ func DismissAll() error {
 
 // CleanupOldNotifications cleans up notifications older than the threshold.
 func CleanupOldNotifications(daysThreshold int, dryRun bool) error {
-	Init()
-	if !initialized {
-		return errors.New("storage not initialized")
+	if err := Init(); err != nil {
+		return fmt.Errorf("storage not initialized: %w", err)
 	}
 	return WithLock(lockDir, func() error {
 		return cleanupOld(daysThreshold, dryRun)
@@ -362,8 +389,8 @@ func updateTmuxStatusOption() {
 
 // GetActiveCount returns the active notification count.
 func GetActiveCount() int {
-	Init()
-	if !initialized {
+	if err := Init(); err != nil {
+		colors.Error(fmt.Sprintf("failed to initialize storage: %v", err))
 		return 0
 	}
 	var count int
@@ -438,9 +465,21 @@ func appendLine(id int, timestamp, state, session, window, pane, message, paneCr
 	if err != nil {
 		return fmt.Errorf("open file: %w", err)
 	}
-	defer f.Close()
-	_, err = f.WriteString(line)
-	return err
+	defer func() {
+		if cerr := f.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("close file: %w", cerr)
+		}
+	}()
+
+	if _, err = f.WriteString(line); err != nil {
+		return fmt.Errorf("write line: %w", err)
+	}
+
+	if err = f.Sync(); err != nil {
+		return fmt.Errorf("sync file: %w", err)
+	}
+
+	return nil
 }
 
 func readAllLines() ([]string, error) {
@@ -559,9 +598,13 @@ func dismissByID(id string) error {
 	if fields[fieldState] == "dismissed" {
 		return fmt.Errorf("already dismissed")
 	}
+	idInt, err := strToInt(fields[fieldID])
+	if err != nil {
+		return fmt.Errorf("invalid ID %s: %w", fields[fieldID], err)
+	}
 	// Write new line with state dismissed, preserving other fields
 	return appendLine(
-		strToInt(fields[fieldID]),
+		idInt,
 		fields[fieldTimestamp],
 		"dismissed",
 		fields[fieldSession],
@@ -586,9 +629,13 @@ func dismissAllActive() error {
 		if fields[fieldState] != "active" {
 			continue
 		}
+		idInt, err := strToInt(fields[fieldID])
+		if err != nil {
+			return fmt.Errorf("invalid ID %s: %w", fields[fieldID], err)
+		}
 		// Write dismissed line
 		err = appendLine(
-			strToInt(fields[fieldID]),
+			idInt,
 			fields[fieldTimestamp],
 			"dismissed",
 			fields[fieldSession],
@@ -720,14 +767,28 @@ func cleanupOld(daysThreshold int, dryRun bool) error {
 	return nil
 }
 
-func strToInt(s string) int {
-	n, _ := strconv.Atoi(s)
-	return n
+func strToInt(s string) (int, error) {
+	if strings.HasPrefix(s, "-") {
+		return 0, fmt.Errorf("negative value not allowed: %s", s)
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, fmt.Errorf("convert string to int: %w", err)
+	}
+	return n, nil
 }
 
 // Reset resets the storage package state for testing.
 func Reset() {
+	initMu.Lock()
+	defer initMu.Unlock()
+
 	notificationsFile = ""
 	lockDir = ""
 	initialized = false
+	initErr = nil
+
+	// Reset sync.Once by creating a new one
+	// This is safe because Reset() should only be called in tests
+	initOnce = &sync.Once{}
 }
