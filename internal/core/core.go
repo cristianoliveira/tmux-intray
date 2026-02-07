@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 )
 
@@ -25,11 +24,14 @@ const (
 
 // GetTrayItems returns tray items for a given state filter.
 // Returns newline-separated messages (unescaped).
-func GetTrayItems(stateFilter string) string {
+func GetTrayItems(stateFilter string) (string, error) {
 	// Use storage.ListNotifications with only state filter
-	lines := storage.ListNotifications(stateFilter, "", "", "", "", "", "")
+	lines, err := storage.ListNotifications(stateFilter, "", "", "", "", "", "")
+	if err != nil {
+		return "", err
+	}
 	if lines == "" {
-		return ""
+		return "", nil
 	}
 	var messages []string
 	for _, line := range strings.Split(lines, "\n") {
@@ -45,7 +47,7 @@ func GetTrayItems(stateFilter string) string {
 		message = unescapeMessage(message)
 		messages = append(messages, message)
 	}
-	return strings.Join(messages, "\n")
+	return strings.Join(messages, "\n"), nil
 }
 
 // AddTrayItem adds a tray item.
@@ -74,8 +76,7 @@ func (c *Core) AddTrayItem(item, session, window, pane, paneCreated string, noAu
 	// Add notification with empty timestamp (auto-generated)
 	id, err := storage.AddNotification(item, "", session, window, pane, paneCreated, level)
 	if err != nil {
-		colors.Error(fmt.Sprintf("Failed to add tray item: %v", err))
-		return "", err
+		return "", fmt.Errorf("AddTrayItem: failed to add notification: %w", err)
 	}
 	return id, nil
 }

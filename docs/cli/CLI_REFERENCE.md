@@ -68,6 +68,22 @@ If no pane association options are provided, automatically associates with
 the current tmux pane (if inside tmux). Use --no-associate to skip.
 ```
 
+#### How It Works
+
+The `add` command uses the Tmux Abstraction Layer to automatically detect the current tmux context:
+
+```go
+// From cmd/tmux-intray/add.go
+// Get tmux context (auto-detection via core package)
+ctx := core.GetCurrentTmuxContext()
+// Returns: TmuxContext{SessionID: "$3", WindowID: "@16", PaneID: "%21", ...}
+
+// Add notification with auto-detected context
+id, err := core.AddTrayItem(message, "", "", "", "", false, level)
+```
+
+The `core.GetCurrentTmuxContext()` function uses tmux format strings to extract the session, window, and pane IDs of the active pane where the command is running.
+
 ### list
 
 List notifications with filters and formats
@@ -168,6 +184,29 @@ EXAMPLES:
     tmux-intray toggle
 ```
 
+#### How It Works
+
+The `toggle` command uses Tmux Abstraction Layer to manage visibility:
+
+```go
+// From cmd/tmux-intray/toggle.go
+// Validate tmux is running
+if !core.EnsureTmuxRunning() {
+    return fmt.Errorf("tmux not running")
+}
+
+// Get current visibility
+oldVisible := core.GetVisibility() // Returns "0" or "1"
+
+// Set new visibility
+newVisible := !isVisible
+if err := core.SetVisibility(newVisible); err != nil {
+    return fmt.Errorf("failed to set visibility: %w", err)
+}
+```
+
+The `core.SetVisibility()` function sets the global tmux environment variable `TMUX_INTRAY_VISIBLE` to "1" (visible) or "0" (hidden), which can be referenced in tmux configuration.
+
 ### jump <id>
 
 Jump to the pane of a notification
@@ -189,6 +228,29 @@ EXAMPLES:
     # Jump to pane of notification with ID 42
     tmux-intray jump 42
 ```
+
+#### How It Works
+
+The `jump` command uses the Tmux Abstraction Layer to navigate to panes:
+
+```go
+// From cmd/tmux-intray/jump.go
+// First, validate tmux is running
+if !core.EnsureTmuxRunning() {
+    return fmt.Errorf("tmux not running")
+}
+
+// Then jump to the specific pane using core.JumpToPane()
+if !core.JumpToPane(sessionID, windowID, paneID) {
+    return fmt.Errorf("failed to jump to pane")
+}
+```
+
+The `core.JumpToPane()` function:
+1. Validates that the pane exists using `ValidatePaneExists()`
+2. Selects the window using tmux
+3. Selects the pane using tmux
+4. Handles the case where the pane no longer exists (falls back to window)
 
 ### status
 

@@ -62,7 +62,8 @@ type FollowOptions struct {
 
 // listFunc is the function used to retrieve notifications. Can be changed for testing.
 var listFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
-	return storage.ListNotifications(state, level, session, window, pane, olderThan, newerThan)
+	result, _ := storage.ListNotifications(state, level, session, window, pane, olderThan, newerThan)
+	return result
 }
 
 // formatTimestamp converts ISO timestamp to display format.

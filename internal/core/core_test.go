@@ -39,14 +39,14 @@ func TestCore(t *testing.T) {
 		require.NotEmpty(t, id2)
 
 		// Get active items
-		items := GetTrayItems("active")
+		items, _ := GetTrayItems("active")
 		require.Contains(t, items, "message 1")
 		require.Contains(t, items, "message 2")
 		lines := strings.Split(strings.TrimSpace(items), "\n")
 		require.Len(t, lines, 2)
 
 		// Filter by dismissed state returns empty
-		items = GetTrayItems("dismissed")
+		items, _ = GetTrayItems("dismissed")
 		require.Empty(t, strings.TrimSpace(items))
 	})
 
@@ -66,7 +66,7 @@ func TestCore(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, id)
 		// Verify item added (message appears)
-		items := GetTrayItems("active")
+		items, _ := GetTrayItems("active")
 		require.Contains(t, items, "auto message")
 		mockClient.AssertExpectations(t)
 	})
@@ -79,7 +79,7 @@ func TestCore(t *testing.T) {
 		id, err := c.AddTrayItem("manual message", "$s", "%w", "@p", "123", true, "error")
 		require.NoError(t, err)
 		require.NotEmpty(t, id)
-		items := GetTrayItems("active")
+		items, _ := GetTrayItems("active")
 		require.Contains(t, items, "manual message")
 	})
 
@@ -96,7 +96,7 @@ func TestCore(t *testing.T) {
 		err = ClearTrayItems()
 		require.NoError(t, err)
 
-		items := GetTrayItems("active")
+		items, _ := GetTrayItems("active")
 		require.Empty(t, strings.TrimSpace(items))
 	})
 

@@ -521,10 +521,15 @@ func TestDefaultClientJumpToPane(t *testing.T) {
 	assert.NoError(t, err, "JumpToPane should succeed for non-existent pane (fallback to window)")
 	assert.True(t, success, "jump to non-existent pane should succeed with fallback")
 
-	// Test with invalid target (empty parameters)
+	// Test window-only jump with empty paneID (should succeed)
+	success, err = client.JumpToPane(ctx.SessionID, ctx.WindowID, "")
+	assert.NoError(t, err, "JumpToPane should succeed for window-only jump")
+	assert.True(t, success, "window-only jump should succeed")
+
+	// Test with invalid target (all empty parameters)
 	success, err = client.JumpToPane("", "", "")
-	assert.Error(t, err, "JumpToPane should fail with empty parameters")
-	assert.False(t, success, "jump with empty parameters should fail")
+	assert.Error(t, err, "JumpToPane should fail with all empty parameters")
+	assert.False(t, success, "jump with all empty parameters should fail")
 
 	// Test with invalid session
 	success, err = client.JumpToPane("$999999", "@999999", "%999999")
@@ -883,13 +888,6 @@ func TestDefaultClientJumpToPaneInvalidTarget(t *testing.T) {
 			description: "should fail with empty window ID",
 		},
 		{
-			name:        "empty pane",
-			sessionID:   "$0",
-			windowID:    "@0",
-			paneID:      "",
-			description: "should fail with empty pane ID",
-		},
-		{
 			name:        "all empty",
 			sessionID:   "",
 			windowID:    "",
@@ -904,6 +902,74 @@ func TestDefaultClientJumpToPaneInvalidTarget(t *testing.T) {
 			assert.Error(t, err, tt.description)
 			assert.False(t, success, tt.description)
 			assert.Equal(t, ErrInvalidTarget, err, "should return ErrInvalidTarget")
+			t.Logf("Error: %v", err)
+		})
+	}
+}
+
+// TestDefaultClientJumpToPaneWindowOnly tests window-only jumps (empty paneID).
+func TestDefaultClientJumpToPaneWindowOnly(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Skip if tmux not running
+	_, err := exec.Command("tmux", "has-session").CombinedOutput()
+	if err != nil {
+		t.Skip("tmux not running, skipping integration test")
+	}
+
+	client := NewDefaultClient()
+
+	// Get current context to test with real values
+	ctx, err := client.GetCurrentContext()
+	require.NoError(t, err, "should get current context")
+
+	tests := []struct {
+		name        string
+		sessionID   string
+		windowID    string
+		paneID      string
+		expectError bool
+		description string
+	}{
+		{
+			name:        "window-only jump succeeds",
+			sessionID:   ctx.SessionID,
+			windowID:    ctx.WindowID,
+			paneID:      "",
+			expectError: false,
+			description: "should succeed with valid session and window",
+		},
+		{
+			name:        "window-only jump fails with invalid window",
+			sessionID:   ctx.SessionID,
+			windowID:    "@999999",
+			paneID:      "",
+			expectError: true,
+			description: "should fail with invalid window ID",
+		},
+		{
+			name:        "window-only jump fails with invalid session",
+			sessionID:   "$999999",
+			windowID:    ctx.WindowID,
+			paneID:      "",
+			expectError: true,
+			description: "should fail with invalid session ID",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			success, err := client.JumpToPane(tt.sessionID, tt.windowID, tt.paneID)
+
+			if tt.expectError {
+				assert.Error(t, err, tt.description)
+				assert.False(t, success, tt.description)
+			} else {
+				assert.NoError(t, err, tt.description)
+				assert.True(t, success, tt.description)
+			}
 			t.Logf("Error: %v", err)
 		})
 	}

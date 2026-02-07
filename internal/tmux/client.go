@@ -29,7 +29,9 @@ type TmuxClient interface {
 	// ValidatePaneExists checks if a pane exists in a given session and window.
 	ValidatePaneExists(sessionID, windowID, paneID string) (bool, error)
 
-	// JumpToPane jumps to a specific pane. Returns true if successful.
+	// JumpToPane jumps to the specified pane or window.
+	// If paneID is empty, jumps to the window only.
+	// Returns true if jump succeeded, false if failed.
 	JumpToPane(sessionID, windowID, paneID string) (bool, error)
 
 	// SetEnvironment sets a tmux environment variable.
@@ -167,22 +169,40 @@ func (c *DefaultClient) ValidatePaneExists(sessionID, windowID, paneID string) (
 	return false, nil
 }
 
-// JumpToPane jumps to a specific pane. Returns true if successful.
+// JumpToPane jumps to the specified pane or window.
+// If paneID is empty, jumps to the window only.
+// Returns true if jump succeeded, false if failed.
 func (c *DefaultClient) JumpToPane(sessionID, windowID, paneID string) (bool, error) {
-	// Validate input parameters are non-empty
-	if sessionID == "" || windowID == "" || paneID == "" {
+	// Validate required fields (sessionID and windowID)
+	if sessionID == "" || windowID == "" {
 		return false, ErrInvalidTarget
 	}
 
-	// First validate if the pane exists
+	// paneID is optional - if empty, jump to window only
+	if paneID == "" {
+		// Window-only jump: select-window
+		targetWindow := sessionID + ":" + windowID
+		colors.Debug(fmt.Sprintf("JumpToPane: selecting window %s (window-only jump)", targetWindow))
+		_, stderr, err := c.Run("select-window", "-t", targetWindow)
+		if err != nil {
+			if stderr != "" {
+				colors.Debug("stderr: " + stderr)
+			}
+			return false, fmt.Errorf("window %s does not exist: %w", targetWindow, err)
+		}
+		colors.Debug(fmt.Sprintf("JumpToPane: successfully selected window %s", targetWindow))
+		return true, nil
+	}
+
+	// Validate if the pane exists
 	paneExists, err := c.ValidatePaneExists(sessionID, windowID, paneID)
 	if err != nil {
 		return false, fmt.Errorf("pane validation failed: %w", err)
 	}
 
-	colors.Debug(fmt.Sprintf("JumpToPane: pane validation for %s:%s - exists: %v", sessionID, paneID, paneExists))
+	colors.Debug(fmt.Sprintf("JumpToPane: pane validation for %s:%s - exists: %v", sessionID, windowID, paneExists))
 
-	// Select the window (this happens regardless of whether the pane exists)
+	// Select the window first
 	targetWindow := sessionID + ":" + windowID
 	colors.Debug(fmt.Sprintf("JumpToPane: selecting window %s", targetWindow))
 	_, stderr, err := c.Run("select-window", "-t", targetWindow)
