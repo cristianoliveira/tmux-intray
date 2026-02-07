@@ -322,7 +322,7 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 
 	m := Model{
 		viewport:       viewport.New(80, 22), // Default dimensions, will be updated on WindowSizeMsg
-		sessionNames:   fetchAllSessionNames(),
+		sessionNames:   sessionNames,
 		client:         client,
 		expansionState: map[string]bool{},
 	}
