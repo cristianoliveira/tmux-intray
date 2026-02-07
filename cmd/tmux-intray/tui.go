@@ -18,6 +18,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/cmd"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
+	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/spf13/cobra"
 )
@@ -90,6 +91,13 @@ type tuiModel struct {
 	width         int
 	height        int
 	sessionNames  map[string]string
+
+	// Settings fields
+	sortBy    string
+	sortOrder string
+	columns   []string
+	filters   settings.Filter
+	viewMode  string
 }
 
 // Init initializes the TUI model.
@@ -618,6 +626,62 @@ func (m *tuiModel) getSessionName(sessionID string) string {
 	name := sessionNameFetcher(sessionID)
 	m.sessionNames[sessionID] = name
 	return name
+}
+
+// ToState converts the tuiModel to a TUIState DTO for settings persistence.
+// Only persists user-configurable settings (columns, sort, filters, view mode).
+func (m *tuiModel) ToState() settings.TUIState {
+	return settings.TUIState{
+		Columns:   m.columns,
+		SortBy:    m.sortBy,
+		SortOrder: m.sortOrder,
+		Filters:   m.filters,
+		ViewMode:  m.viewMode,
+	}
+}
+
+// FromState applies settings from TUIState to the tuiModel.
+// Supports partial updates - only updates non-empty fields.
+// Returns an error if the settings are invalid.
+func (m *tuiModel) FromState(state settings.TUIState) error {
+	// Apply non-empty fields only (support partial updates)
+	if len(state.Columns) > 0 {
+		m.columns = state.Columns
+	}
+	if state.SortBy != "" {
+		m.sortBy = state.SortBy
+	}
+	if state.SortOrder != "" {
+		m.sortOrder = state.SortOrder
+	}
+	if state.ViewMode != "" {
+		m.viewMode = state.ViewMode
+	}
+
+	// Apply filters - only update non-empty fields
+	if state.Filters.Level != "" ||
+		state.Filters.State != "" ||
+		state.Filters.Session != "" ||
+		state.Filters.Window != "" ||
+		state.Filters.Pane != "" {
+		if state.Filters.Level != "" {
+			m.filters.Level = state.Filters.Level
+		}
+		if state.Filters.State != "" {
+			m.filters.State = state.Filters.State
+		}
+		if state.Filters.Session != "" {
+			m.filters.Session = state.Filters.Session
+		}
+		if state.Filters.Window != "" {
+			m.filters.Window = state.Filters.Window
+		}
+		if state.Filters.Pane != "" {
+			m.filters.Pane = state.Filters.Pane
+		}
+	}
+
+	return nil
 }
 
 // NewTUIModel creates a new TUI model.
