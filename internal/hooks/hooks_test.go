@@ -104,6 +104,7 @@ func TestRunSyncHookOrdering(t *testing.T) {
 }
 
 func TestRunAsyncHook(t *testing.T) {
+	ResetForTesting()
 	tmpDir := t.TempDir()
 	hookDir := filepath.Join(tmpDir, "pre-add")
 	require.NoError(t, os.MkdirAll(hookDir, 0755))
@@ -121,11 +122,12 @@ func TestRunAsyncHook(t *testing.T) {
 	require.NoError(t, Run("pre-add"))
 	// Async should return quickly (not wait for sleep)
 	require.Less(t, time.Since(start), 50*time.Millisecond)
-	// Wait a bit for async hook to complete
-	time.Sleep(200 * time.Millisecond)
+	// Wait for async hook to complete
+	WaitForPendingHooks()
 }
 
 func TestRunAsyncHookMaxLimit(t *testing.T) {
+	ResetForTesting()
 	tmpDir := t.TempDir()
 	hookDir := filepath.Join(tmpDir, "pre-add")
 	require.NoError(t, os.MkdirAll(hookDir, 0755))
@@ -146,7 +148,7 @@ func TestRunAsyncHookMaxLimit(t *testing.T) {
 	// Should skip the third hook due to max limit (warning printed)
 	require.NoError(t, Run("pre-add"))
 	// Wait for pending hooks
-	time.Sleep(600 * time.Millisecond)
+	WaitForPendingHooks()
 }
 
 func TestAsyncHookPanicRecovery(t *testing.T) {
