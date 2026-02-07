@@ -3,6 +3,7 @@ package core
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
@@ -37,7 +38,7 @@ var defaultCore = NewCore(nil)
 func (c *Core) EnsureTmuxRunning() bool {
 	running, err := c.client.HasSession()
 	if err != nil {
-		colors.Debug("tmux has-session failed: " + err.Error())
+		colors.Debug("EnsureTmuxRunning: tmux has-session failed: " + err.Error())
 		return false
 	}
 	return running
@@ -52,7 +53,7 @@ func EnsureTmuxRunning() bool {
 func (c *Core) GetCurrentTmuxContext() TmuxContext {
 	ctx, err := c.client.GetCurrentContext()
 	if err != nil {
-		colors.Error("Failed to get tmux context: " + err.Error())
+		colors.Error("GetCurrentTmuxContext: failed to get tmux context: " + err.Error())
 		return TmuxContext{}
 	}
 
@@ -74,7 +75,7 @@ func GetCurrentTmuxContext() TmuxContext {
 func (c *Core) ValidatePaneExists(sessionID, windowID, paneID string) bool {
 	exists, err := c.client.ValidatePaneExists(sessionID, windowID, paneID)
 	if err != nil {
-		colors.Debug("tmux list-panes failed: " + err.Error())
+		colors.Debug(fmt.Sprintf("ValidatePaneExists: tmux list-panes failed for %s:%s.%s: %v", sessionID, windowID, paneID, err))
 		return false
 	}
 	return exists
@@ -95,7 +96,17 @@ func ValidatePaneExists(sessionID, windowID, paneID string) bool {
 func (c *Core) JumpToPane(sessionID, windowID, paneID string) bool {
 	// ASSERTION: Validate input parameters are non-empty
 	if sessionID == "" || windowID == "" || paneID == "" {
-		colors.Error("JumpToPane: invalid parameters (empty sessionID, windowID, or paneID)")
+		var missing []string
+		if sessionID == "" {
+			missing = append(missing, "sessionID")
+		}
+		if windowID == "" {
+			missing = append(missing, "windowID")
+		}
+		if paneID == "" {
+			missing = append(missing, "paneID")
+		}
+		colors.Error(fmt.Sprintf("JumpToPane: invalid parameters (empty %s)", strings.Join(missing, ", ")))
 		return false
 	}
 
@@ -108,9 +119,9 @@ func (c *Core) JumpToPane(sessionID, windowID, paneID string) bool {
 	colors.Debug(fmt.Sprintf("JumpToPane: selecting window %s", targetWindow))
 	_, stderr, err := c.client.Run("select-window", "-t", targetWindow)
 	if err != nil {
-		colors.Error("Window " + targetWindow + " does not exist: " + err.Error())
+		colors.Error(fmt.Sprintf("JumpToPane: failed to select window %s: %v", targetWindow, err))
 		if stderr != "" {
-			colors.Debug("stderr: " + stderr)
+			colors.Debug("JumpToPane: stderr: " + stderr)
 		}
 		return false
 	}
@@ -129,9 +140,9 @@ func (c *Core) JumpToPane(sessionID, windowID, paneID string) bool {
 	_, stderr, err = c.client.Run("select-pane", "-t", targetPane)
 	if err != nil {
 		// Fail-fast: don't swallow errors, return false to indicate failure
-		colors.Error("Failed to select pane " + targetPane + ": " + err.Error())
+		colors.Error(fmt.Sprintf("JumpToPane: failed to select pane %s: %v", targetPane, err))
 		if stderr != "" {
-			colors.Debug("stderr: " + stderr)
+			colors.Debug("JumpToPane: stderr: " + stderr)
 		}
 		return false
 	}
@@ -150,7 +161,7 @@ func JumpToPane(sessionID, windowID, paneID string) bool {
 func (c *Core) GetTmuxVisibility() string {
 	value, err := c.client.GetEnvironment("TMUX_INTRAY_VISIBLE")
 	if err != nil {
-		colors.Debug("tmux show-environment failed: " + err.Error())
+		colors.Debug("GetTmuxVisibility: tmux show-environment failed: " + err.Error())
 		return "0"
 	}
 	return value
@@ -165,7 +176,7 @@ func GetTmuxVisibility() string {
 func (c *Core) SetTmuxVisibility(value string) bool {
 	err := c.client.SetEnvironment("TMUX_INTRAY_VISIBLE", value)
 	if err != nil {
-		colors.Error("Failed to set tmux visibility: " + err.Error())
+		colors.Error(fmt.Sprintf("SetTmuxVisibility: failed to set TMUX_INTRAY_VISIBLE to '%s': %v", value, err))
 		return false
 	}
 	return true

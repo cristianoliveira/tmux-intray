@@ -64,8 +64,8 @@ func Init() error {
 	// Ensure hooks directory exists
 	dir := getHooksDir()
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		colors.Error(fmt.Sprintf("failed to create hooks directory %s: %v", dir, err))
-		return fmt.Errorf("failed to create hooks directory %s: %w", dir, err)
+		colors.Error(fmt.Sprintf("hooks.Init: failed to create hooks directory %s: %v", dir, err))
+		return fmt.Errorf("hooks.Init: failed to create hooks directory %s: %w", dir, err)
 	}
 	m.initialized = true
 	return nil
@@ -145,9 +145,9 @@ func runSyncHook(scriptPath, scriptName string, envMap map[string]string, failur
 	if err != nil {
 		switch failureMode {
 		case "abort":
-			return fmt.Errorf("hook %s failed: %v, output: %s", scriptName, err, output)
+			return fmt.Errorf("hooks.Run: hook '%s' failed after %.2fs: %v, output: %s", scriptName, duration.Seconds(), err, output)
 		case "warn":
-			fmt.Fprintf(os.Stderr, "warning: hook %s failed: %v, output: %s\n", scriptName, err, output)
+			fmt.Fprintf(os.Stderr, "warning: hook %s failed after %.2fs: %v, output: %s\n", scriptName, duration.Seconds(), err, output)
 		case "ignore":
 			// do nothing
 		}
@@ -350,7 +350,7 @@ func ResetForTesting() {
 	asyncPendingMu.Lock()
 	defer asyncPendingMu.Unlock()
 	if asyncPendingCount > 0 {
-		panic(fmt.Sprintf("ResetForTesting called with %d pending hooks. Call WaitForPendingHooks() first.", asyncPendingCount))
+		panic(fmt.Sprintf("hooks.ResetForTesting: called with %d pending hooks. Call hooks.WaitForPendingHooks() first.", asyncPendingCount))
 	}
 	asyncPendingCount = 0
 	asyncPending = sync.WaitGroup{}

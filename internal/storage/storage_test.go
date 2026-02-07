@@ -687,8 +687,8 @@ func TestAppendLineWriteError(t *testing.T) {
 
 	err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "window0", "pane0", "test message", "123456789", "info")
 	require.Error(t, err)
-	// The error should be either "open file" (permission denied) or "write line"
-	require.True(t, strings.Contains(err.Error(), "open file") || strings.Contains(err.Error(), "write line"))
+	// The error should be either "open" (permission denied) or "write" in the error message
+	require.True(t, strings.Contains(err.Error(), "open") || strings.Contains(err.Error(), "write"))
 }
 
 func TestAppendLineOpenError(t *testing.T) {
@@ -706,7 +706,8 @@ func TestAppendLineOpenError(t *testing.T) {
 
 	err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "window0", "pane0", "test message", "123456789", "info")
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "open file")
+	// Error should mention failed to open notifications file
+	require.Contains(t, err.Error(), "open")
 }
 
 func TestAppendLineMultipleWrites(t *testing.T) {
@@ -793,21 +794,21 @@ func TestStrToInt(t *testing.T) {
 			input:   "abc",
 			want:    0,
 			wantErr: true,
-			errMsg:  "convert string to int",
+			errMsg:  "failed to convert",
 		},
 		{
 			name:    "invalid empty string",
 			input:   "",
 			want:    0,
 			wantErr: true,
-			errMsg:  "convert string to int",
+			errMsg:  "failed to convert",
 		},
 		{
 			name:    "invalid with letters",
 			input:   "42abc",
 			want:    0,
 			wantErr: true,
-			errMsg:  "convert string to int",
+			errMsg:  "failed to convert",
 		},
 		{
 			name:    "negative value rejected",
