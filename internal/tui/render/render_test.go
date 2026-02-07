@@ -4,7 +4,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/stretchr/testify/assert"
 )
@@ -78,4 +80,59 @@ func TestRowSessionAndPaneColumns(t *testing.T) {
 	assert.True(t, strings.Contains(row, "main-session"))
 	assert.True(t, strings.Contains(row, "%3"))
 	assert.False(t, strings.Contains(row, "@2:%3"))
+}
+
+func TestRenderGroupRowIndentationAndSymbol(t *testing.T) {
+	styles := GroupRowStyles{
+		Base:     lipgloss.NewStyle(),
+		Selected: lipgloss.NewStyle(),
+	}
+
+	row := RenderGroupRow(GroupRow{
+		Node: &GroupNode{
+			Title:    "session-one",
+			Display:  "session-one",
+			Expanded: true,
+			Count:    3,
+		},
+		Level:  1,
+		Width:  80,
+		Styles: &styles,
+	})
+
+	assert.True(t, strings.HasPrefix(row, "  ▾ session-one (3)"))
+
+	row = RenderGroupRow(GroupRow{
+		Node: &GroupNode{
+			Title:    "win-1",
+			Expanded: false,
+			Count:    2,
+		},
+		Level:  2,
+		Width:  80,
+		Styles: &styles,
+	})
+
+	assert.True(t, strings.HasPrefix(row, "    ▸ win-1 (2)"))
+}
+
+func TestRenderGroupRowTruncatesToWidth(t *testing.T) {
+	styles := GroupRowStyles{
+		Base:     lipgloss.NewStyle(),
+		Selected: lipgloss.NewStyle(),
+	}
+
+	row := RenderGroupRow(GroupRow{
+		Node: &GroupNode{
+			Title:    "session-long-title",
+			Display:  "session-long-title",
+			Expanded: true,
+			Count:    12,
+		},
+		Level:  0,
+		Width:  10,
+		Styles: &styles,
+	})
+
+	assert.Equal(t, 10, utf8.RuneCountInString(row))
 }
