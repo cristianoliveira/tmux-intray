@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/hooks"
 	"github.com/stretchr/testify/require"
 )
 
@@ -885,4 +886,139 @@ func TestDismissAllHandlesTmuxError(t *testing.T) {
 	require.NoError(t, err)
 	// Verify all notifications are actually dismissed
 	require.Equal(t, 0, GetActiveCount())
+}
+
+func TestAddNotificationPostAddHookFailureModes(t *testing.T) {
+	// Save original environment variables
+	oldHooksDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
+	oldFailureMode := os.Getenv("TMUX_INTRAY_HOOKS_FAILURE_MODE")
+	defer func() {
+		os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldHooksDir)
+		os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", oldFailureMode)
+	}()
+
+	// Test 1: abort mode - post-add hook failure should return error
+	t.Run("abort mode returns error", func(t *testing.T) {
+		setupTest(t)
+		tmpDir := t.TempDir()
+		hookDir := filepath.Join(tmpDir, "post-add")
+		require.NoError(t, os.MkdirAll(hookDir, 0755))
+
+		// Set hooks directory
+		os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
+
+		Reset()
+		require.NoError(t, Init())
+		hooks.Init()
+
+		// Create a failing post-add hook
+		script := filepath.Join(hookDir, "fail.sh")
+		require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nexit 1"), 0755))
+
+		// Set failure mode to abort
+		os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "abort")
+
+		// AddNotification should fail
+		id, err := AddNotification("test message", "", "", "", "", "", "info")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "post-add hook failed")
+		// ID should still be returned (notification was added)
+		require.NotEmpty(t, id)
+		// Verify notification was added to storage despite hook failure
+		list := ListNotifications("active", "", "", "", "", "", "")
+		require.Contains(t, list, id)
+	})
+
+	// Test 2: warn mode - post-add hook failure should log warning but return ID
+	t.Run("warn mode returns ID", func(t *testing.T) {
+		setupTest(t)
+		tmpDir := t.TempDir()
+		hookDir := filepath.Join(tmpDir, "post-add")
+		require.NoError(t, os.MkdirAll(hookDir, 0755))
+
+		// Set hooks directory
+		os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
+
+		Reset()
+		require.NoError(t, Init())
+		hooks.Init()
+
+		// Create a failing post-add hook
+		script := filepath.Join(hookDir, "warn-fail.sh")
+		require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nexit 1"), 0755))
+
+		// Set failure mode to warn
+		os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "warn")
+
+		// AddNotification should succeed
+		id, err := AddNotification("warn test", "", "", "", "", "", "info")
+		require.NoError(t, err)
+		require.NotEmpty(t, id)
+		// Verify notification was added
+		list := ListNotifications("active", "", "", "", "", "", "")
+		require.Contains(t, list, id)
+	})
+
+	// Test 3: ignore mode - post-add hook failure should silently return ID
+	t.Run("ignore mode returns ID", func(t *testing.T) {
+		setupTest(t)
+		tmpDir := t.TempDir()
+		hookDir := filepath.Join(tmpDir, "post-add")
+		require.NoError(t, os.MkdirAll(hookDir, 0755))
+
+		// Set hooks directory
+		os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
+
+		Reset()
+		require.NoError(t, Init())
+		hooks.Init()
+
+		// Create a failing post-add hook
+		script := filepath.Join(hookDir, "ignore-fail.sh")
+		require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nexit 1"), 0755))
+
+		// Set failure mode to ignore
+		os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
+
+		// AddNotification should succeed
+		id, err := AddNotification("ignore test", "", "", "", "", "", "info")
+		require.NoError(t, err)
+		require.NotEmpty(t, id)
+		// Verify notification was added
+		list := ListNotifications("active", "", "", "", "", "", "")
+		require.Contains(t, list, id)
+	})
+
+	// Test 4: successful hook - should return ID in all modes
+	t.Run("successful hook returns ID", func(t *testing.T) {
+		// Test all failure modes
+		for _, mode := range []string{"abort", "warn", "ignore"} {
+			t.Run(mode, func(t *testing.T) {
+				setupTest(t)
+				tmpDir := t.TempDir()
+				hookDir := filepath.Join(tmpDir, "post-add")
+				require.NoError(t, os.MkdirAll(hookDir, 0755))
+
+				// Set hooks directory
+				os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
+
+				Reset()
+				require.NoError(t, Init())
+				hooks.Init()
+
+				// Create a successful post-add hook
+				script := filepath.Join(hookDir, "success.sh")
+				require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\necho post-add success"), 0755))
+
+				os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", mode)
+
+				id, err := AddNotification("success test", "", "", "", "", "", "info")
+				require.NoError(t, err)
+				require.NotEmpty(t, id)
+				// Verify notification was added
+				list := ListNotifications("active", "", "", "", "", "", "")
+				require.Contains(t, list, id)
+			})
+		}
+	})
 }
