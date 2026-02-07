@@ -217,8 +217,10 @@ func AddNotification(message, timestamp, session, window, pane, paneCreated, lev
 
 	// Run post-add hooks
 	if err := hooks.Run("post-add", envVars...); err != nil {
-		colors.Error(fmt.Sprintf("post-add hook aborted: %v", err))
-		// Still return ID because notification was added, but log the error
+		colors.Error(fmt.Sprintf("post-add hook failed: %v", err))
+		// Return error because post-processing failed in abort mode
+		// The notification was added but post-add hooks are critical for cleanup/state
+		return strconv.Itoa(id), fmt.Errorf("post-add hook failed: %w", err)
 	}
 
 	// Return ID as string
