@@ -47,6 +47,15 @@ type TmuxClient interface {
 	// ListSessions returns all tmux sessions as a map of session ID to name.
 	ListSessions() (map[string]string, error)
 
+	// GetSessionName returns the name of a session by its ID.
+	GetSessionName(sessionID string) (string, error)
+
+	// GetTmuxVisibility gets the tmux visibility state from environment variable.
+	GetTmuxVisibility() (bool, error)
+
+	// SetTmuxVisibility sets the tmux visibility state via environment variable.
+	SetTmuxVisibility(visible bool) error
+
 	// Run executes a tmux command with the given arguments.
 	Run(args ...string) (string, string, error)
 }
@@ -293,6 +302,58 @@ func (c *DefaultClient) ListSessions() (map[string]string, error) {
 		}
 	}
 	return sessions, nil
+}
+
+// GetSessionName returns the name of a session by its ID.
+func (c *DefaultClient) GetSessionName(sessionID string) (string, error) {
+	stdout, stderr, err := c.Run("display-message", "-t", sessionID, "-p", "#S")
+	if err != nil {
+		if stderr != "" {
+			colors.Debug("stderr: " + stderr)
+		}
+		return "", fmt.Errorf("get session name: %w", err)
+	}
+
+	// Trim whitespace from the output
+	sessionName := strings.TrimSpace(stdout)
+
+	// Validate that session name is non-empty
+	if sessionName == "" {
+		return "", ErrSessionNotFound
+	}
+
+	return sessionName, nil
+}
+
+// GetTmuxVisibility gets the tmux visibility state from environment variable.
+func (c *DefaultClient) GetTmuxVisibility() (bool, error) {
+	value, err := c.GetEnvironment("TMUX_INTRAY_VISIBLE")
+	if err != nil {
+		// Environment variable not set is not an error - return false
+		if strings.Contains(err.Error(), "not found") {
+			return false, nil
+		}
+		return false, fmt.Errorf("get tmux visibility: %w", err)
+	}
+
+	// Parse boolean value from string
+	return value == "true", nil
+}
+
+// SetTmuxVisibility sets the tmux visibility state via environment variable.
+func (c *DefaultClient) SetTmuxVisibility(visible bool) error {
+	var value string
+	if visible {
+		value = "true"
+	} else {
+		value = "false"
+	}
+
+	if err := c.SetEnvironment("TMUX_INTRAY_VISIBLE", value); err != nil {
+		return fmt.Errorf("set tmux visibility: %w", err)
+	}
+
+	return nil
 }
 
 // Run executes a tmux command with the given arguments.
