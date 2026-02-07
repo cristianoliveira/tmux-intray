@@ -121,6 +121,7 @@ func loadFromFile() {
 
 	data, err := os.ReadFile(configPath)
 	if err != nil {
+		colors.Debug(fmt.Sprintf("unable to read config file %s: %v", configPath, err))
 		return
 	}
 
@@ -137,6 +138,7 @@ func loadFromFile() {
 		return
 	}
 	if err != nil {
+		colors.Warning(fmt.Sprintf("unable to parse config file %s: %v", configPath, err))
 		return
 	}
 
@@ -348,11 +350,14 @@ func createSampleConfig() {
 
 	data, err := toml.Marshal(typed)
 	if err != nil {
+		colors.Warning(fmt.Sprintf("unable to marshal sample config: %v", err))
 		return
 	}
 	// Add a header comment
 	header := "# tmux-intray configuration\n# This file is in TOML format.\n# Uncomment and edit values as needed.\n\n"
-	os.WriteFile(samplePath, append([]byte(header), data...), 0644)
+	if err := os.WriteFile(samplePath, append([]byte(header), data...), 0644); err != nil {
+		colors.Warning(fmt.Sprintf("unable to write sample config to %s: %v", samplePath, err))
+	}
 }
 
 // Get returns a configuration value or default.
