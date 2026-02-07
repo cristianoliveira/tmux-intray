@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/pelletier/go-toml/v2"
 	"gopkg.in/yaml.v3"
 )
@@ -140,7 +141,33 @@ func loadFromFile() {
 	// Merge into config, converting values to strings
 	for k, v := range raw {
 		key := strings.ToLower(k)
-		config[key] = fmt.Sprint(v)
+		converted, ok := coerceConfigValue(v)
+		if !ok {
+			colors.Warning(fmt.Sprintf("unsupported config value type for %s: %T", key, v))
+			continue
+		}
+		config[key] = converted
+	}
+}
+
+// coerceConfigValue converts a configuration value to its string representation.
+// Supported types are string, int, int64, float64, and bool.
+// Returns the string representation and true if conversion succeeded,
+// otherwise returns empty string and false.
+func coerceConfigValue(value interface{}) (string, bool) {
+	switch typed := value.(type) {
+	case string:
+		return typed, true
+	case int:
+		return strconv.Itoa(typed), true
+	case int64:
+		return strconv.FormatInt(typed, 10), true
+	case float64:
+		return strconv.FormatFloat(typed, 'f', -1, 64), true
+	case bool:
+		return strconv.FormatBool(typed), true
+	default:
+		return "", false
 	}
 }
 
