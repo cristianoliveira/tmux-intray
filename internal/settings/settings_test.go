@@ -137,10 +137,18 @@ func TestLoadInvalidJSON(t *testing.T) {
 	require.NoError(t, os.WriteFile(settingsPath, []byte("invalid json"), 0644))
 	defer os.Remove(settingsPath)
 
-	// Load should fail
-	_, err := Load()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to parse settings file")
+	// Load should succeed with defaults (not error) - corrupted JSON is handled gracefully
+	settings, err := Load()
+	require.NoError(t, err)
+	require.NotNil(t, settings)
+
+	// Verify we got default settings
+	expected := DefaultSettings()
+	assert.Equal(t, expected.Columns, settings.Columns)
+	assert.Equal(t, expected.SortBy, settings.SortBy)
+	assert.Equal(t, expected.SortOrder, settings.SortOrder)
+	assert.Equal(t, expected.Filters, settings.Filters)
+	assert.Equal(t, expected.ViewMode, settings.ViewMode)
 }
 
 func TestLoadInvalidColumn(t *testing.T) {
@@ -426,4 +434,141 @@ func TestSettingsJSONMarshaling(t *testing.T) {
 	assert.Contains(t, filters, "session")
 	assert.Contains(t, filters, "window")
 	assert.Contains(t, filters, "pane")
+}
+
+func TestInit(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+	t.Setenv("HOME", tmpDir)
+
+	// Initialize settings
+	settings, err := Init()
+	require.NoError(t, err)
+	require.NotNil(t, settings)
+
+	// Verify config directory was created
+	configDir := filepath.Join(tmpDir, "tmux-intray")
+	_, err = os.Stat(configDir)
+	require.NoError(t, err)
+
+	// Verify settings are valid
+	assert.Equal(t, DefaultColumns, settings.Columns)
+	assert.Equal(t, SortByTimestamp, settings.SortBy)
+}
+
+func TestInitCreatesDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+	t.Setenv("HOME", tmpDir)
+
+	// Ensure directory doesn't exist
+	configDir := filepath.Join(tmpDir, "tmux-intray")
+	_, err := os.Stat(configDir)
+	require.True(t, os.IsNotExist(err))
+
+	// Initialize settings (should create directory)
+	_, err = Init()
+	require.NoError(t, err)
+
+	// Verify directory was created
+	_, err = os.Stat(configDir)
+	require.NoError(t, err)
+}
+
+func TestInitWithExistingFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+	t.Setenv("HOME", tmpDir)
+
+	// Create settings file with custom values
+	configDir := filepath.Join(tmpDir, "tmux-intray")
+	require.NoError(t, os.MkdirAll(configDir, 0755))
+
+	settingsPath := filepath.Join(configDir, "settings.json")
+	customSettings := &Settings{
+		SortBy:    SortByLevel,
+		SortOrder: SortOrderAsc,
+		ViewMode:  ViewModeDetailed,
+	}
+
+	data, err := json.MarshalIndent(customSettings, "", "  ")
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(settingsPath, data, 0644))
+
+	// Initialize settings (should load existing file)
+	settings, err := Init()
+	require.NoError(t, err)
+	require.NotNil(t, settings)
+
+	// Verify loaded values
+	assert.Equal(t, SortByLevel, settings.SortBy)
+	assert.Equal(t, SortOrderAsc, settings.SortOrder)
+	assert.Equal(t, ViewModeDetailed, settings.ViewMode)
+}
+
+func TestReset(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+	t.Setenv("HOME", tmpDir)
+
+	// Create and save custom settings
+	settingsPath := filepath.Join(tmpDir, "tmux-intray", "settings.json")
+	customSettings := &Settings{
+		SortBy:    SortByLevel,
+		SortOrder: SortOrderAsc,
+		ViewMode:  ViewModeDetailed,
+	}
+	err := Save(customSettings)
+	require.NoError(t, err)
+
+	// Verify file exists
+	_, err = os.Stat(settingsPath)
+	require.NoError(t, err)
+
+	// Reset settings
+	defaults, err := Reset()
+	require.NoError(t, err)
+	require.NotNil(t, defaults)
+
+	// Verify file was deleted
+	_, err = os.Stat(settingsPath)
+	require.True(t, os.IsNotExist(err))
+
+	// Verify returned settings are defaults
+	assert.Equal(t, DefaultColumns, defaults.Columns)
+	assert.Equal(t, SortByTimestamp, defaults.SortBy)
+	assert.Equal(t, SortOrderDesc, defaults.SortOrder)
+	assert.Equal(t, ViewModeCompact, defaults.ViewMode)
+}
+
+func TestResetWhenFileDoesNotExist(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+	t.Setenv("HOME", tmpDir)
+
+	// Reset without creating settings file
+	defaults, err := Reset()
+	require.NoError(t, err)
+	require.NotNil(t, defaults)
+
+	// Verify returned settings are defaults
+	assert.Equal(t, DefaultColumns, defaults.Columns)
+	assert.Equal(t, SortByTimestamp, defaults.SortBy)
+	assert.Equal(t, SortOrderDesc, defaults.SortOrder)
+	assert.Equal(t, ViewModeCompact, defaults.ViewMode)
+}
+
+func TestValidateExported(t *testing.T) {
+	// Test that Validate function is exported and works
+	settings := DefaultSettings()
+	err := Validate(settings)
+	assert.NoError(t, err)
+
+	// Test with invalid settings
+	invalidSettings := &Settings{
+		Columns: []string{"invalid"},
+	}
+	err = Validate(invalidSettings)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid column name")
 }

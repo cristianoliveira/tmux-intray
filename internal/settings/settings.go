@@ -4,10 +4,14 @@ package settings
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
+	"strconv"
 
+	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/config"
+	"github.com/cristianoliveira/tmux-intray/internal/storage"
 )
 
 // Default column values.
@@ -156,36 +160,63 @@ func DefaultSettings() *Settings {
 
 // Load reads settings from the config directory.
 // If the settings file does not exist, returns default settings.
+// If the settings file is corrupted, returns default settings with a warning.
 func Load() (*Settings, error) {
 	config.Load()
 	settingsPath := getSettingsPath()
 
+	colors.Debug("Loading settings from:", settingsPath)
+
 	// If file doesn't exist, return defaults
 	if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
+		colors.Debug("Settings file does not exist, using defaults")
 		return DefaultSettings(), nil
 	}
 
-	// Read and parse settings file
-	data, err := os.ReadFile(settingsPath)
+	var settings *Settings
+	var loadErr error
+
+	// Use file locking to prevent concurrent access
+	// Lock the directory containing the settings file, not the file itself
+	settingsDir := filepath.Dir(settingsPath)
+	err := storage.WithLock(settingsDir+".lock", func() error {
+		// Read and parse settings file
+		data, err := os.ReadFile(settingsPath)
+		if err != nil {
+			loadErr = fmt.Errorf("failed to read settings file: %w", err)
+			return loadErr
+		}
+
+		settings = DefaultSettings()
+		if err := json.Unmarshal(data, settings); err != nil {
+			// Handle corrupted JSON gracefully - return defaults with warning
+			colors.Warning("Failed to parse settings file:", err.Error(), "- using defaults")
+			colors.Debug("JSON parse error:", err.Error())
+			loadErr = nil // Don't return an error, just use defaults
+			settings = DefaultSettings()
+			return nil
+		}
+
+		// Validate settings
+		if err := validate(settings); err != nil {
+			loadErr = fmt.Errorf("invalid settings: %w", err)
+			return loadErr
+		}
+
+		colors.Debug("Settings loaded successfully")
+		return nil
+	})
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to read settings file: %w", err)
+		return nil, err
 	}
 
-	settings := DefaultSettings()
-	if err := json.Unmarshal(data, settings); err != nil {
-		return nil, fmt.Errorf("failed to parse settings file: %w", err)
-	}
-
-	// Validate settings
-	if err := validate(settings); err != nil {
-		return nil, fmt.Errorf("invalid settings: %w", err)
-	}
-
-	return settings, nil
+	return settings, loadErr
 }
 
 // Save writes settings to the config directory.
 // Creates the config directory if it doesn't exist.
+// Uses atomic writes to prevent corruption.
 func Save(settings *Settings) error {
 	// Load config to ensure config_dir is set
 	config.Load()
@@ -210,17 +241,104 @@ func Save(settings *Settings) error {
 		return fmt.Errorf("failed to marshal settings: %w", err)
 	}
 
-	// Write to settings file
 	settingsPath := getSettingsPath()
-	if err := os.WriteFile(settingsPath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write settings file: %w", err)
-	}
+	colors.Debug("Saving settings to:", settingsPath)
 
-	return nil
+	// Use file locking to prevent concurrent access
+	// Lock the directory containing the settings file, not the file itself
+	settingsDir := filepath.Dir(settingsPath)
+	return storage.WithLock(settingsDir+".lock", func() error {
+		// Write to temporary file first for atomic operation
+		tempPath := settingsPath + ".tmp." + strconv.Itoa(rand.Intn(1000000))
+		if err := os.WriteFile(tempPath, data, 0644); err != nil {
+			return fmt.Errorf("failed to write temporary settings file: %w", err)
+		}
+
+		// Atomically rename temp file to final destination
+		if err := os.Rename(tempPath, settingsPath); err != nil {
+			// Clean up temp file if rename fails
+			_ = os.Remove(tempPath)
+			return fmt.Errorf("failed to rename settings file: %w", err)
+		}
+
+		colors.Debug("Settings saved successfully")
+		return nil
+	})
 }
 
-// validate checks that settings values are valid.
-func validate(settings *Settings) error {
+// Init initializes the settings package.
+// Creates the settings directory if needed and loads default settings.
+// Returns the loaded settings.
+func Init() (*Settings, error) {
+	config.Load()
+	colors.Debug("Initializing settings package")
+
+	// Ensure config directory exists
+	configDir := config.Get("config_dir", "")
+	if configDir == "" {
+		// Use default path
+		home, _ := os.UserHomeDir()
+		xdgConfigHome := os.Getenv("XDG_CONFIG_HOME")
+		if xdgConfigHome == "" {
+			xdgConfigHome = filepath.Join(home, ".config")
+		}
+		configDir = filepath.Join(xdgConfigHome, "tmux-intray")
+	}
+
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	// Load settings (will use defaults if file doesn't exist)
+	settings, err := Load()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load settings: %w", err)
+	}
+
+	colors.Debug("Settings package initialized successfully")
+	return settings, nil
+}
+
+// Reset resets settings to defaults by deleting the settings file.
+// Returns default settings after deletion.
+func Reset() (*Settings, error) {
+	config.Load()
+	settingsPath := getSettingsPath()
+
+	colors.Debug("Resetting settings to defaults")
+
+	// Use file locking to prevent concurrent access
+	// Lock the directory containing the settings file, not the file itself
+	settingsDir := filepath.Dir(settingsPath)
+	err := storage.WithLock(settingsDir+".lock", func() error {
+		// Check if file exists
+		if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
+			// File doesn't exist, nothing to do
+			colors.Debug("Settings file does not exist, nothing to reset")
+			return nil
+		}
+
+		// Delete settings file
+		if err := os.Remove(settingsPath); err != nil {
+			return fmt.Errorf("failed to delete settings file: %w", err)
+		}
+
+		colors.Debug("Settings file deleted successfully")
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Return default settings
+	defaults := DefaultSettings()
+	colors.Debug("Settings reset to defaults")
+	return defaults, nil
+}
+
+// Validate checks that settings values are valid.
+func Validate(settings *Settings) error {
 	// Validate columns
 	validColumns := map[string]bool{
 		ColumnID: true, ColumnTimestamp: true, ColumnState: true,
@@ -271,6 +389,11 @@ func validate(settings *Settings) error {
 	}
 
 	return nil
+}
+
+// validate is an alias for Validate for internal use.
+func validate(settings *Settings) error {
+	return Validate(settings)
 }
 
 // getSettingsPath returns the path to the settings.json file.
