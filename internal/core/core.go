@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 )
 
@@ -74,8 +73,7 @@ func (c *Core) AddTrayItem(item, session, window, pane, paneCreated string, noAu
 	// Add notification with empty timestamp (auto-generated)
 	id, err := storage.AddNotification(item, "", session, window, pane, paneCreated, level)
 	if err != nil {
-		colors.Error(fmt.Sprintf("Failed to add tray item: %v", err))
-		return "", err
+		return "", fmt.Errorf("AddTrayItem: failed to add notification: %w", err)
 	}
 	return id, nil
 }

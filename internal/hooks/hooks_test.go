@@ -51,7 +51,8 @@ func TestRunSyncHookFailureModes(t *testing.T) {
 	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "abort")
 	err := Run("pre-add")
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "hook fail.sh failed")
+	// Error should mention the hook name and that it failed
+	require.Contains(t, err.Error(), "hook 'fail.sh' failed")
 
 	// warn mode should not error but print warning (we can't capture stderr easily)
 	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "warn")
