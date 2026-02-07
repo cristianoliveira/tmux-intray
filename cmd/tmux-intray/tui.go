@@ -6,6 +6,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/cmd"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
+	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/spf13/cobra"
 )
@@ -38,6 +40,44 @@ func ansiColorNumber(ansi string) string {
 	return color
 }
 
+// sessionNameFetcher fetches session name from tmux for a given session ID.
+// Can be replaced for testing.
+var sessionNameFetcher = func(sessionID string) string {
+	if sessionID == "" {
+		return ""
+	}
+	cmd := exec.Command("tmux", "display-message", "-t", sessionID, "-p", "#S")
+	stdout, err := cmd.Output()
+	if err != nil {
+		return sessionID // fallback to session ID on error
+	}
+	return strings.TrimSpace(string(stdout))
+}
+
+// fetchAllSessionNames fetches all session IDs and names from tmux with a single call.
+// Returns a map from session ID to session name.
+// Can be replaced for testing.
+var fetchAllSessionNames = func() map[string]string {
+	names := make(map[string]string)
+	cmd := exec.Command("tmux", "list-sessions", "-F", "#{session_id}\t#{session_name}")
+	stdout, err := cmd.Output()
+	if err != nil {
+		return names // empty map on error
+	}
+
+	lines := strings.Split(string(stdout), "\n")
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 2)
+		if len(parts) == 2 {
+			names[parts[0]] = parts[1]
+		}
+	}
+	return names
+}
+
 // tuiModel represents the TUI model for bubbletea.
 type tuiModel struct {
 	notifications []Notification
@@ -50,6 +90,15 @@ type tuiModel struct {
 	viewport      viewport.Model
 	width         int
 	height        int
+	sessionNames  map[string]string
+
+	// Settings fields
+	sortBy         string
+	sortOrder      string
+	columns        []string
+	filters        settings.Filter
+	viewMode       string
+	loadedSettings *settings.Settings // Track loaded settings for comparison
 }
 
 // Init initializes the TUI model.
@@ -63,6 +112,10 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyCtrlC:
+			// Save settings before exiting
+			if err := m.saveSettings(); err != nil {
+				colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+			}
 			// Exit
 			return m, tea.Quit
 		case tea.KeyEsc:
@@ -160,9 +213,21 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// In search mode, 'i' is handled by KeyRunes
 			// This is a no-op but kept for documentation
 		case "q":
+			// Save settings before quitting
+			if err := m.saveSettings(); err != nil {
+				colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+			}
 			// Quit
 			return m, tea.Quit
 		}
+
+	case saveSettingsSuccessMsg:
+		// Settings saved successfully - already displayed info message in saveSettings
+		return m, nil
+
+	case saveSettingsFailedMsg:
+		// Settings save failed - already displayed warning message in saveSettings
+		return m, nil
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -205,11 +270,43 @@ func (m *tuiModel) executeCommand() tea.Cmd {
 	cmd := strings.TrimSpace(m.commandQuery)
 	switch cmd {
 	case "q":
+		// Save settings before quitting
+		if err := m.saveSettings(); err != nil {
+			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+		}
 		return tea.Quit
+	case "w":
+		// Save settings and continue TUI
+		return func() tea.Msg {
+			if err := m.saveSettings(); err != nil {
+				return saveSettingsFailedMsg{err: err}
+			}
+			return saveSettingsSuccessMsg{}
+		}
 	default:
 		// Unknown command - ignore
 		return nil
 	}
+}
+
+// saveSettings extracts current settings from model and saves to disk.
+func (m *tuiModel) saveSettings() error {
+	// Extract current settings state
+	state := m.ToState()
+	colors.Debug("Saving settings from TUI state")
+	if err := settings.Save(state.ToSettings()); err != nil {
+		return fmt.Errorf("failed to save settings: %w", err)
+	}
+	colors.Info("Settings saved")
+	return nil
+}
+
+// saveSettingsSuccessMsg is sent when settings are saved successfully.
+type saveSettingsSuccessMsg struct{}
+
+// saveSettingsFailedMsg is sent when settings save fails.
+type saveSettingsFailedMsg struct {
+	err error
 }
 
 // View renders the TUI.
@@ -291,18 +388,22 @@ func (m tuiModel) renderHeader() string {
 		Bold(true).
 		Foreground(lipgloss.Color(ansiColorNumber(colors.Blue))) // Use ANSI color number
 
-	// Column widths: TYPE=6, STATUS=7, SUMMARY=variable, SOURCE=15, AGE=8
-	typeWidth := 6
-	statusWidth := 7
-	sourceWidth := 15
-	ageWidth := 8
-	summaryWidth := m.width - typeWidth - statusWidth - sourceWidth - ageWidth - 13 // 13 = spaces between columns
+	// Column widths: TYPE=8, STATUS=8, SESSION=25, MESSAGE=variable, PANE=7, AGE=5
+	typeWidth := 8
+	statusWidth := 8
+	sessionWidth := 25
+	paneWidth := 7
+	ageWidth := 5
+	totalFixedWidth := typeWidth + statusWidth + sessionWidth + paneWidth + ageWidth
+	spacesBetweenColumns := 10 // (6 columns - 1) * 2 spaces
+	messageWidth := m.width - totalFixedWidth - spacesBetweenColumns
 
-	header := fmt.Sprintf("%-*s  %-*s  %-*s  %-*s  %-*s",
+	header := fmt.Sprintf("%-*s  %-*s  %-*s  %-*s  %-*s  %-*s",
 		typeWidth, "TYPE",
 		statusWidth, "STATUS",
-		summaryWidth, "SUMMARY",
-		sourceWidth, "SOURCE",
+		sessionWidth, "SESSION",
+		messageWidth, "MESSAGE",
+		paneWidth, "PANE",
 		ageWidth, "AGE",
 	)
 
@@ -322,45 +423,57 @@ func (m tuiModel) renderRow(notif Notification, isSelected bool) string {
 	// Get status icon
 	statusIcon := getStatusIcon(notif.State)
 
-	// Truncate summary
-	summary := notif.Message
-	if len(summary) > 50 {
-		summary = summary[:47] + "..."
+	// Truncate message
+	message := notif.Message
+	if len(message) > 50 {
+		message = message[:47] + "..."
 	}
 
 	// Calculate age
 	age := calculateAge(notif.Timestamp)
 
-	// Format source as Session:Window:Pane
-	source := fmt.Sprintf("%s:%s:%s", notif.Session, notif.Window, notif.Pane)
+	// Session column
+	session := m.getSessionName(notif.Session)
+	// Pane column (just pane ID)
+	pane := notif.Pane
 
 	// Column widths
-	typeWidth := 6
-	statusWidth := 7
-	sourceWidth := 15
-	ageWidth := 8
-	summaryWidth := m.width - typeWidth - statusWidth - sourceWidth - ageWidth - 13
+	typeWidth := 8
+	statusWidth := 8
+	sessionWidth := 25
+	paneWidth := 7
+	ageWidth := 5
+	totalFixedWidth := typeWidth + statusWidth + sessionWidth + paneWidth + ageWidth
+	spacesBetweenColumns := 10 // (6 columns - 1) * 2 spaces
+	messageWidth := m.width - totalFixedWidth - spacesBetweenColumns
 
 	// Use default width if not set or too small
-	if m.width == 0 || summaryWidth < 10 {
-		summaryWidth = 50
+	if m.width == 0 || messageWidth < 10 {
+		messageWidth = 50
 	}
 
-	// Truncate source if needed
-	if len(source) > sourceWidth {
-		source = source[:sourceWidth-3] + "..."
+	// Truncate session if needed
+	if len(session) > sessionWidth {
+		session = session[:sessionWidth-3] + "..."
 	}
 
-	// Truncate summary to fit
-	if len(summary) > summaryWidth {
-		summary = summary[:summaryWidth-3] + "..."
+	// Truncate pane if needed
+	if len(pane) > paneWidth {
+		pane = pane[:paneWidth-3] + "..."
 	}
 
-	row := fmt.Sprintf("%-*s  %-*s  %-*s  %-*s  %-*s",
+	// Truncate message to fit
+
+	if len(message) > messageWidth {
+		message = message[:messageWidth-3] + "..."
+	}
+
+	row := fmt.Sprintf("%-*s  %-*s  %-*s  %-*s  %-*s  %-*s",
 		typeWidth, levelIcon,
 		statusWidth, statusIcon,
-		summaryWidth, summary,
-		sourceWidth, source,
+		sessionWidth, session,
+		messageWidth, message,
+		paneWidth, pane,
 		ageWidth, age,
 	)
 
@@ -445,6 +558,7 @@ func (m tuiModel) renderFooter() string {
 	}
 	help = append(help, enterHelp)
 	help = append(help, "q: quit")
+	help = append(help, ":w: save")
 
 	return helpStyle.Render(strings.Join(help, "  |  "))
 }
@@ -548,10 +662,83 @@ func (m *tuiModel) loadNotifications() error {
 	return nil
 }
 
+// getSessionName returns the session name for a session ID, fetching from tmux if not cached.
+func (m *tuiModel) getSessionName(sessionID string) string {
+	if sessionID == "" {
+		return ""
+	}
+	if m.sessionNames == nil {
+		m.sessionNames = make(map[string]string)
+	}
+	if name, ok := m.sessionNames[sessionID]; ok {
+		return name
+	}
+	name := sessionNameFetcher(sessionID)
+	m.sessionNames[sessionID] = name
+	return name
+}
+
+// ToState converts the tuiModel to a TUIState DTO for settings persistence.
+// Only persists user-configurable settings (columns, sort, filters, view mode).
+func (m *tuiModel) ToState() settings.TUIState {
+	return settings.TUIState{
+		Columns:   m.columns,
+		SortBy:    m.sortBy,
+		SortOrder: m.sortOrder,
+		Filters:   m.filters,
+		ViewMode:  m.viewMode,
+	}
+}
+
+// FromState applies settings from TUIState to the tuiModel.
+// Supports partial updates - only updates non-empty fields.
+// Returns an error if the settings are invalid.
+func (m *tuiModel) FromState(state settings.TUIState) error {
+	// Apply non-empty fields only (support partial updates)
+	if len(state.Columns) > 0 {
+		m.columns = state.Columns
+	}
+	if state.SortBy != "" {
+		m.sortBy = state.SortBy
+	}
+	if state.SortOrder != "" {
+		m.sortOrder = state.SortOrder
+	}
+	if state.ViewMode != "" {
+		m.viewMode = state.ViewMode
+	}
+
+	// Apply filters - only update non-empty fields
+	if state.Filters.Level != "" ||
+		state.Filters.State != "" ||
+		state.Filters.Session != "" ||
+		state.Filters.Window != "" ||
+		state.Filters.Pane != "" {
+		if state.Filters.Level != "" {
+			m.filters.Level = state.Filters.Level
+		}
+		if state.Filters.State != "" {
+			m.filters.State = state.Filters.State
+		}
+		if state.Filters.Session != "" {
+			m.filters.Session = state.Filters.Session
+		}
+		if state.Filters.Window != "" {
+			m.filters.Window = state.Filters.Window
+		}
+		if state.Filters.Pane != "" {
+			m.filters.Pane = state.Filters.Pane
+		}
+	}
+
+	return nil
+}
+
 // NewTUIModel creates a new TUI model.
 func NewTUIModel() (*tuiModel, error) {
 	m := tuiModel{
-		viewport: viewport.New(80, 22), // Default dimensions, will be updated on WindowSizeMsg
+		viewport:     viewport.New(80, 22), // Default dimensions, will be updated on WindowSizeMsg
+		sessionNames: fetchAllSessionNames(),
 	}
 	err := m.loadNotifications()
 	if err != nil {
@@ -576,6 +763,7 @@ KEY BINDINGS:
     ESC         Exit search/command mode, or quit TUI
     d           Dismiss selected notification
     Enter       Jump to pane (or execute command in command mode)
+    :w          Save settings
     q           Quit TUI`,
 	Run: runTUI,
 }
@@ -588,12 +776,31 @@ func runTUI(cmd *cobra.Command, args []string) {
 	// Initialize storage
 	storage.Init()
 
+	// Load settings from disk (use defaults if missing/corrupted)
+	loadedSettings, err := settings.Load()
+	if err != nil {
+		colors.Warning(fmt.Sprintf("Failed to load settings, using defaults: %v", err))
+		loadedSettings = settings.DefaultSettings()
+	}
+	colors.Debug("Loaded settings for TUI")
+
 	// Create TUI model
 	model, err := NewTUIModel()
 	if err != nil {
 		colors.Error(fmt.Sprintf("Failed to create TUI model: %v", err))
 		os.Exit(1)
 	}
+
+	// Store loaded settings reference
+	model.loadedSettings = loadedSettings
+
+	// Apply loaded settings to model
+	state := settings.FromSettings(loadedSettings)
+	if err := model.FromState(state); err != nil {
+		colors.Warning(fmt.Sprintf("Failed to apply settings to TUI model: %v", err))
+		// Continue with default settings
+	}
+	colors.Debug("Applied settings to TUI model")
 
 	// Create and run the bubbletea program
 	p := tea.NewProgram(

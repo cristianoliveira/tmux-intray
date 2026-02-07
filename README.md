@@ -204,12 +204,23 @@ $ tmux-intray --help
 Comprehensive documentation is available:
 
 - [CLI Reference](docs/cli/CLI_REFERENCE.md) - Complete command reference
-- [Configuration Guide](docs/configuration.md) - All environment variables and settings
+- [Configuration Guide](docs/configuration.md) - All environment variables and settings (including TUI settings persistence)
 - [Troubleshooting Guide](docs/troubleshooting.md) - Common issues and solutions
 - [Advanced Filtering Example](examples/advanced-filtering.sh) - Complex filter combinations
 - [Man page](man/man1/tmux-intray.1) - Traditional manual page (view with `man -l man/man1/tmux-intray.1`)
 
 Documentation is automatically generated from the command-line help texts.
+
+### TUI Settings Persistence
+
+The TUI automatically saves your preferences on exit:
+- **Settings file**: `~/.config/tmux-intray/settings.json`
+- **Manual save**: Press `:w` in TUI command mode
+- **Auto-save**: Settings are saved when you quit (q, :q, Ctrl+C)
+- **Reset settings**: Run `tmux-intray settings reset`
+- **View settings**: Run `tmux-intray settings show`
+
+See [Configuration Guide](docs/configuration.md) for details on available settings.
 
 ### Notification Levels
 
@@ -304,6 +315,7 @@ The `tmux-intray tui` command provides an interactive terminal user interface fo
 | d            | Dismiss selected notification              |
 | Enter        | Jump to pane (or execute command in command mode) |
 | q            | Quit TUI                                   |
+| :w           | Save settings manually                     |
 | i            | Edit search query (when in search mode)    |
 
 **Features:**
@@ -313,6 +325,8 @@ The `tmux-intray tui` command provides an interactive terminal user interface fo
 - Dismiss notifications directly
 - Jump to source panes
 - Notifications sorted by most recent first
+- **Settings persistence**: TUI preferences (column order, sort order, filters, view mode) are automatically saved on exit and restored on startup
+- Settings file location: `~/.config/tmux-intray/settings.json`
 
 ### Status Bar Integration
 

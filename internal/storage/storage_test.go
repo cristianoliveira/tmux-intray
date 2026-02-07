@@ -19,23 +19,21 @@ func setupTest(t *testing.T) string {
 	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "0")
 	colors.SetDebug(true)
 	// Reset package state
-	notificationsFile = ""
-	lockDir = ""
-	initialized = false
+	Reset()
 	return tmpDir
 }
 
 func TestStorageInit(t *testing.T) {
 	tmpDir := setupTest(t)
-	Init()
-	require.True(t, initialized)
+	err := Init()
+	require.NoError(t, err)
 	// Check notifications file exists
 	require.FileExists(t, filepath.Join(tmpDir, "notifications.tsv"))
 }
 
 func TestAddNotification(t *testing.T) {
 	setupTest(t)
-	Init()
+	require.NoError(t, Init())
 	id := AddNotification("test message", "", "session1", "window0", "pane0", "", "info")
 	require.NotEmpty(t, id)
 	// Should be numeric
@@ -48,7 +46,7 @@ func TestAddNotification(t *testing.T) {
 
 func TestAddNotificationWithTimestamp(t *testing.T) {
 	setupTest(t)
-	Init()
+	require.NoError(t, Init())
 	id := AddNotification("msg", "2025-01-01T12:00:00Z", "", "", "", "", "warning")
 	require.NotEmpty(t, id)
 	list := ListNotifications("all", "", "", "", "", "", "")
@@ -58,7 +56,7 @@ func TestAddNotificationWithTimestamp(t *testing.T) {
 
 func TestListNotificationsFilters(t *testing.T) {
 	setupTest(t)
-	Init()
+	require.NoError(t, Init())
 	// Add multiple notifications with different attributes
 	id1 := AddNotification("error msg", "", "session1", "window1", "pane1", "", "error")
 	id2 := AddNotification("info msg", "", "session2", "window2", "pane2", "", "info")
@@ -119,7 +117,7 @@ func TestListNotificationsFilters(t *testing.T) {
 
 func TestDismissNotification(t *testing.T) {
 	setupTest(t)
-	Init()
+	require.NoError(t, Init())
 	id := AddNotification("to dismiss", "", "", "", "", "", "info")
 	require.NotEmpty(t, id)
 	// Should be active
@@ -141,7 +139,7 @@ func TestDismissNotification(t *testing.T) {
 
 func TestDismissAllFromStorage(t *testing.T) {
 	setupTest(t)
-	Init()
+	require.NoError(t, Init())
 	id1 := AddNotification("msg1", "", "", "", "", "", "info")
 	id2 := AddNotification("msg2", "", "", "", "", "", "warning")
 	require.Equal(t, 2, GetActiveCount())
@@ -155,7 +153,7 @@ func TestDismissAllFromStorage(t *testing.T) {
 
 func TestCleanupOldNotifications(t *testing.T) {
 	setupTest(t)
-	Init()
+	require.NoError(t, Init())
 	// Add a notification with old timestamp
 	id := AddNotification("old", "2000-01-01T00:00:00Z", "", "", "", "", "info")
 	_ = DismissNotification(id)
@@ -174,7 +172,7 @@ func TestCleanupOldNotifications(t *testing.T) {
 
 func TestGetActiveCount(t *testing.T) {
 	setupTest(t)
-	Init()
+	require.NoError(t, Init())
 	require.Equal(t, 0, GetActiveCount())
 	id1 := AddNotification("msg1", "", "", "", "", "", "info")
 	require.Equal(t, 1, GetActiveCount())
@@ -412,9 +410,7 @@ func TestAddNotificationWithHooks(t *testing.T) {
 	os.Setenv("TMUX_INTRAY_STATE_DIR", stateDir)
 
 	// Reset storage state
-	notificationsFile = ""
-	lockDir = ""
-	initialized = false
+	Reset()
 
 	// Add notification
 	id := AddNotification("test message", "", "", "", "", "", "info")
@@ -448,9 +444,7 @@ func TestAddNotificationHookAbort(t *testing.T) {
 	os.Setenv("TMUX_INTRAY_STATE_DIR", stateDir)
 
 	// Reset storage state
-	notificationsFile = ""
-	lockDir = ""
-	initialized = false
+	Reset()
 
 	// Add notification should fail
 	id := AddNotification("test message", "", "", "", "", "", "info")
@@ -460,12 +454,204 @@ func TestAddNotificationHookAbort(t *testing.T) {
 	require.NotContains(t, list, "test message")
 }
 
-func TestUpdateTmuxStatusOption(t *testing.T) {
+func TestAppendLine(t *testing.T) {
 	setupTest(t)
 	Init()
 
+	// Test successful append
+	err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "window0", "pane0", "test message", "123456789", "info")
+	require.NoError(t, err)
+
+	// Verify line was written
+	lines, err := readAllLines()
+	require.NoError(t, err)
+	require.Len(t, lines, 1)
+	require.Contains(t, lines[0], "test message")
+}
+
+func TestAppendLineWriteError(t *testing.T) {
+	setupTest(t)
+	Init()
+
+	// Save original notifications file
+	originalFile := notificationsFile
+	defer func() {
+		notificationsFile = originalFile
+	}()
+
+	// Create a read-only file to force write error
+	readOnlyFile := filepath.Join(t.TempDir(), "readonly.txt")
+	require.NoError(t, os.WriteFile(readOnlyFile, []byte("initial"), 0444))
+	notificationsFile = readOnlyFile
+
+	err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "window0", "pane0", "test message", "123456789", "info")
+	require.Error(t, err)
+	// The error should be either "open file" (permission denied) or "write line"
+	require.True(t, strings.Contains(err.Error(), "open file") || strings.Contains(err.Error(), "write line"))
+}
+
+func TestAppendLineOpenError(t *testing.T) {
+	setupTest(t)
+	Init()
+
+	// Save original notifications file
+	originalFile := notificationsFile
+	defer func() {
+		notificationsFile = originalFile
+	}()
+
+	// Set to an invalid path (directory that doesn't exist)
+	notificationsFile = filepath.Join(t.TempDir(), "nonexistent", "file.txt")
+
+	err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "window0", "pane0", "test message", "123456789", "info")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "open file")
+}
+
+func TestAppendLineMultipleWrites(t *testing.T) {
+	setupTest(t)
+	Init()
+
+	// Test multiple successful writes
+	for i := 1; i <= 5; i++ {
+		err := appendLine(i, "2025-01-01T12:00:00Z", "active", "session1", "window0", "pane0",
+			fmt.Sprintf("message %d", i), "123456789", "info")
+		require.NoError(t, err)
+	}
+
+	// Verify all lines were written
+	lines, err := readAllLines()
+	require.NoError(t, err)
+	require.Len(t, lines, 5)
+
+	// Verify content
+	for i, line := range lines {
+		require.Contains(t, line, fmt.Sprintf("message %d", i+1))
+	}
+}
+
+func TestAppendLineWithSpecialCharacters(t *testing.T) {
+	testMessages := []struct {
+		name    string
+		message string
+	}{
+		{"newline", "line1\nline2"},
+		{"tab", "col1\tcol2"},
+		{"backslash", "path\\to\\file"},
+		{"mixed", "test\\nwith\ttabs"},
+	}
+
+	for _, tc := range testMessages {
+		t.Run(tc.name, func(t *testing.T) {
+			// Use separate state for each subtest
+			setupTest(t)
+			Init()
+
+			escaped := escapeMessage(tc.message)
+			err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "window0", "pane0",
+				escaped, "123456789", "info")
+			require.NoError(t, err)
+
+			// Verify line was written
+			lines, err := readAllLines()
+			require.NoError(t, err)
+			require.Len(t, lines, 1)
+			require.Contains(t, lines[0], escaped)
+		})
+	}
+}
+func TestStrToInt(t *testing.T) {
+	// Valid conversions
+	tests := []struct {
+		name    string
+		input   string
+		want    int
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "valid zero",
+			input:   "0",
+			want:    0,
+			wantErr: false,
+		},
+		{
+			name:    "valid positive",
+			input:   "42",
+			want:    42,
+			wantErr: false,
+		},
+		{
+			name:    "valid large number",
+			input:   "999999",
+			want:    999999,
+			wantErr: false,
+		},
+		{
+			name:    "invalid non-numeric",
+			input:   "abc",
+			want:    0,
+			wantErr: true,
+			errMsg:  "convert string to int",
+		},
+		{
+			name:    "invalid empty string",
+			input:   "",
+			want:    0,
+			wantErr: true,
+			errMsg:  "convert string to int",
+		},
+		{
+			name:    "invalid with letters",
+			input:   "42abc",
+			want:    0,
+			wantErr: true,
+			errMsg:  "convert string to int",
+		},
+		{
+			name:    "negative value rejected",
+			input:   "-1",
+			want:    0,
+			wantErr: true,
+			errMsg:  "negative value not allowed",
+		},
+		{
+			name:    "negative zero rejected",
+			input:   "-0",
+			want:    0,
+			wantErr: true,
+			errMsg:  "negative value not allowed",
+		},
+		{
+			name:    "negative large value rejected",
+			input:   "-999",
+			want:    0,
+			wantErr: true,
+			errMsg:  "negative value not allowed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := strToInt(tt.input)
+			if tt.wantErr {
+				require.Error(t, err, "expected error but got none")
+				require.Contains(t, err.Error(), tt.errMsg, "error message should contain expected text")
+				require.Equal(t, tt.want, got, "on error, should return zero value")
+			} else {
+				require.NoError(t, err, "expected no error but got: %v", err)
+				require.Equal(t, tt.want, got, "unexpected result")
+			}
+		})
+	}
+}
+
+func TestUpdateTmuxStatusOption(t *testing.T) {
+	setupTest(t)
+	require.NoError(t, Init())
+
 	t.Run("tmux availability check", func(t *testing.T) {
-		// Call the function with a test count
+		// Call function with a test count
 		err := updateTmuxStatusOption(5)
 		// The function should either succeed or return a clear error
 		if err != nil {
@@ -478,13 +664,13 @@ func TestUpdateTmuxStatusOption(t *testing.T) {
 
 func TestDismissNotificationHandlesTmuxError(t *testing.T) {
 	setupTest(t)
-	Init()
+	require.NoError(t, Init())
 	id := AddNotification("to dismiss", "", "", "", "", "", "info")
 	require.NotEmpty(t, id)
 	// Dismiss should still succeed even if tmux update fails
 	err := DismissNotification(id)
 	// The dismissal should succeed (notification is dismissed)
-	// The tmux error should be logged but not cause the dismiss to fail
+	// The tmux error should be logged but not cause dismiss to fail
 	require.NoError(t, err)
 	// Verify notification is actually dismissed
 	list := ListNotifications("active", "", "", "", "", "", "")
@@ -493,14 +679,14 @@ func TestDismissNotificationHandlesTmuxError(t *testing.T) {
 
 func TestDismissAllHandlesTmuxError(t *testing.T) {
 	setupTest(t)
-	Init()
+	require.NoError(t, Init())
 	_ = AddNotification("msg1", "", "", "", "", "", "info")
 	_ = AddNotification("msg2", "", "", "", "", "", "warning")
 	require.Equal(t, 2, GetActiveCount())
 	// DismissAll should still succeed even if tmux update fails
 	err := DismissAll()
 	// The dismissal should succeed (notifications are dismissed)
-	// The tmux error should be logged but not cause the dismiss to fail
+	// The tmux error should be logged but not cause dismiss to fail
 	require.NoError(t, err)
 	// Verify all notifications are actually dismissed
 	require.Equal(t, 0, GetActiveCount())

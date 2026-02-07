@@ -29,6 +29,7 @@ COMMANDS:
     status-panel    Status bar indicator script (for tmux status-right)
     follow          Monitor notifications in real-time
     tui             Interactive terminal UI for notifications
+    settings        Manage TUI settings
     help            Show this help message
     version         Show version information
 
@@ -232,6 +233,111 @@ DESCRIPTION:
     When clicked, it can trigger the list command (via tmux bindings).
 ```
 
+### settings
+
+Manage TUI settings
+
+```
+tmux-intray settings - Manage TUI settings
+
+USAGE:
+    tmux-intray settings <subcommand>
+
+SUBCOMMANDS:
+    reset    Reset TUI settings to defaults
+    show     Display current settings in JSON format
+
+DESCRIPTION:
+    The settings command manages TUI user preferences that are persisted
+    to disk. Settings include column order, sort preferences, active filters,
+    and view mode.
+
+    Settings are stored at ~/.config/tmux-intray/settings.json
+    (or $XDG_CONFIG_HOME/tmux-intray/settings.json if XDG_CONFIG_HOME is set).
+
+EXAMPLES:
+    # Show current settings
+    tmux-intray settings show
+
+    # Reset settings with confirmation
+    tmux-intray settings reset
+
+    # Reset settings without confirmation
+    tmux-intray settings reset --force
+```
+
+#### settings reset
+
+Reset TUI settings to defaults by deleting the settings file.
+
+```
+tmux-intray settings reset - Reset TUI settings to defaults
+
+USAGE:
+    tmux-intray settings reset [OPTIONS]
+
+OPTIONS:
+    --force       Reset without confirmation prompt
+    -h, --help    Show this help
+
+DESCRIPTION:
+    Deletes the settings file (~/.config/tmux-intray/settings.json).
+    The TUI will use default settings on the next launch.
+
+    By default, this command prompts for confirmation before deleting.
+    Use the --force flag to skip the confirmation prompt (use with caution).
+
+    The confirmation prompt is automatically skipped in CI/test environments
+    (when CI or BATS_TMPDIR environment variables are set).
+
+EXAMPLES:
+    # Reset with confirmation prompt
+    tmux-intray settings reset
+    > Are you sure you want to reset all settings to defaults? (y/N): y
+    Settings reset to defaults
+
+    # Reset without confirmation
+    tmux-intray settings reset --force
+    Settings reset to defaults
+```
+
+#### settings show
+
+Display current TUI settings in JSON format.
+
+```
+tmux-intray settings show - Display current settings
+
+USAGE:
+    tmux-intray settings show
+
+DESCRIPTION:
+    Outputs the current TUI settings in formatted JSON.
+    This is useful for inspecting your current configuration or for
+    scripting purposes.
+
+EXAMPLES:
+    # Show current settings
+    tmux-intray settings show
+    {
+      "columns": ["id", "timestamp", "state", "level", "session", "window", "pane", "message"],
+      "sortBy": "timestamp",
+      "sortOrder": "desc",
+      "filters": {
+        "level": "",
+        "state": "",
+        "session": "",
+        "window": "",
+        "pane": ""
+      },
+      "viewMode": "compact"
+    }
+
+    # Pipe to jq for filtering
+    tmux-intray settings show | jq '.sortBy'
+    "timestamp"
+```
+
 ### follow
 
 Monitor notifications in real-time
@@ -268,7 +374,17 @@ KEY BINDINGS:
     ESC         Exit search/command mode, or quit TUI
     d           Dismiss selected notification
     Enter       Jump to pane (or execute command in command mode)
+    :w          Save settings manually
     q           Quit TUI
+
+SETTINGS:
+    Settings are automatically saved on TUI exit and loaded on startup.
+    Settings include column order, sort preferences, active filters,
+    and view mode. Use the :w command to save manually without exiting.
+    Settings file: ~/.config/tmux-intray/settings.json
+
+    To view current settings: tmux-intray settings show
+    To reset to defaults: tmux-intray settings reset
 ```
 
 ### help

@@ -3,6 +3,8 @@ package storage
 import (
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetNotificationByID(t *testing.T) {
@@ -27,7 +29,7 @@ func TestGetNotificationByID(t *testing.T) {
 				// Reset and init storage for each test case
 				Reset()
 				os.Setenv("TMUX_INTRAY_STATE_DIR", tempDir)
-				Init()
+				require.NoError(t, Init())
 				AddNotification("test message", "2025-02-04T10:00:00Z", "session1", "window1", "pane1", "123456", "info")
 			},
 			id:        "1",
@@ -40,7 +42,7 @@ func TestGetNotificationByID(t *testing.T) {
 				// Reset and init storage for each test case
 				Reset()
 				os.Setenv("TMUX_INTRAY_STATE_DIR", tempDir)
-				Init()
+				require.NoError(t, Init())
 				AddNotification("test message", "2025-02-04T10:00:00Z", "session1", "window1", "pane1", "123456", "info")
 				DismissNotification("1")
 			},
@@ -54,7 +56,7 @@ func TestGetNotificationByID(t *testing.T) {
 				// Reset and init storage for each test case
 				Reset()
 				os.Setenv("TMUX_INTRAY_STATE_DIR", tempDir)
-				Init()
+				require.NoError(t, Init())
 				// No notifications added
 			},
 			id:        "999",
@@ -66,7 +68,7 @@ func TestGetNotificationByID(t *testing.T) {
 				// Reset and init storage for each test case
 				Reset()
 				os.Setenv("TMUX_INTRAY_STATE_DIR", tempDir)
-				Init()
+				require.NoError(t, Init())
 				AddNotification("test message", "2025-02-04T10:00:00Z", "session1", "window1", "pane1", "123456", "info")
 			},
 			id:        "",
@@ -78,7 +80,7 @@ func TestGetNotificationByID(t *testing.T) {
 				// Reset and init storage for each test case
 				Reset()
 				os.Setenv("TMUX_INTRAY_STATE_DIR", tempDir)
-				Init()
+				require.NoError(t, Init())
 				// Add first notification
 				AddNotification("test message", "2025-02-04T10:00:00Z", "session1", "window1", "pane1", "123456", "info")
 				// Add another notification
@@ -133,10 +135,8 @@ func TestGetNotificationByIDWithLock(t *testing.T) {
 
 	// Set up test environment
 	os.Setenv("TMUX_INTRAY_STATE_DIR", tempDir)
-	Init()
-
-	if !initialized {
-		t.Fatal("Storage not initialized")
+	if err := Init(); err != nil {
+		t.Fatalf("Failed to initialize storage: %v", err)
 	}
 
 	// Add a notification
