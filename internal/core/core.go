@@ -106,9 +106,9 @@ func (c *Core) SetVisibility(visible bool) error {
 	if visible {
 		value = "1"
 	}
-	success := c.SetTmuxVisibility(value)
-	if !success {
-		return ErrTmuxOperationFailed
+	_, err := c.SetTmuxVisibility(value)
+	if err != nil {
+		return fmt.Errorf("set visibility: %w", err)
 	}
 	return nil
 }
