@@ -230,9 +230,9 @@ func TestJumpOptimizedRetrieval(t *testing.T) {
 	storage.Init()
 
 	// Add a test notification
-	id := storage.AddNotification("test message", "2025-02-04T10:00:00Z", "session1", "window1", "pane1", "123456", "info")
-	if id == "" {
-		t.Fatal("Failed to add notification")
+	id, err := storage.AddNotification("test message", "2025-02-04T10:00:00Z", "session1", "window1", "pane1", "123456", "info")
+	if err != nil {
+		t.Fatalf("Failed to add notification: %v", err)
 	}
 
 	// Jump to the notification

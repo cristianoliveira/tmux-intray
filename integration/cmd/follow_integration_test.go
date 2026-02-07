@@ -26,9 +26,9 @@ func TestFollowIntegration(t *testing.T) {
 	storage.Init()
 
 	// Add a notification
-	id := storage.AddNotification("integration test", "", "", "", "", "", "info")
-	if id == "" {
-		t.Fatal("Failed to add notification")
+	_, err := storage.AddNotification("integration test", "", "", "", "", "", "info")
+	if err != nil {
+		t.Fatalf("Failed to add notification: %v", err)
 	}
 
 	// Create tick channel
@@ -82,9 +82,9 @@ func TestFollowIntegrationWithPane(t *testing.T) {
 	storage.Init()
 
 	// Add notification with pane
-	id := storage.AddNotification("pane test", "", "sess", "win", "%123", "", "warning")
-	if id == "" {
-		t.Fatal("Failed to add notification")
+	_, err := storage.AddNotification("pane test", "", "sess", "win", "%123", "", "warning")
+	if err != nil {
+		t.Fatalf("Failed to add notification: %v", err)
 	}
 
 	tickChan := make(chan time.Time)

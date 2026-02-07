@@ -304,7 +304,8 @@ func TestHandleDismiss(t *testing.T) {
 	setupStorage(t)
 	stubSessionFetchers(t)
 
-	id := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "", "", "", "1234", "info")
+	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "", "", "", "1234", "info")
+	require.NoError(t, err)
 	require.NotEmpty(t, id)
 
 	model, err := NewModel()

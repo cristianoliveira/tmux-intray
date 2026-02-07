@@ -3,6 +3,7 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
@@ -49,8 +50,8 @@ func GetTrayItems(stateFilter string) string {
 
 // AddTrayItem adds a tray item.
 // If session, window, pane are empty and noAuto is false, current tmux context is used.
-// Returns the notification ID.
-func AddTrayItem(item, session, window, pane, paneCreated string, noAuto bool, level string) string {
+// Returns the notification ID or an error if validation fails.
+func AddTrayItem(item, session, window, pane, paneCreated string, noAuto bool, level string) (string, error) {
 	// Treat empty/whitespace context same as not provided for resilience
 	// This handles cases where plugin passes empty strings as flags
 	session = strings.TrimSpace(session)
@@ -69,12 +70,14 @@ func AddTrayItem(item, session, window, pane, paneCreated string, noAuto bool, l
 			}
 		}
 	}
+
 	// Add notification with empty timestamp (auto-generated)
-	id := storage.AddNotification(item, "", session, window, pane, paneCreated, level)
-	if id == "" {
-		colors.Error("Failed to add tray item")
+	id, err := storage.AddNotification(item, "", session, window, pane, paneCreated, level)
+	if err != nil {
+		colors.Error(fmt.Sprintf("Failed to add tray item: %v", err))
+		return "", err
 	}
-	return id
+	return id, nil
 }
 
 // ClearTrayItems dismisses all active tray items.
