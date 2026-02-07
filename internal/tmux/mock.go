@@ -102,6 +102,33 @@ func (m *MockClient) ListSessions() (map[string]string, error) {
 	return args.Get(0).(map[string]string), args.Error(1)
 }
 
+// GetSessionName returns a mocked session name for a given session ID.
+// Configure the return value using:
+//
+//	mock.On("GetSessionName", "$1").Return("my-session", nil)
+func (m *MockClient) GetSessionName(sessionID string) (string, error) {
+	args := m.Called(sessionID)
+	return args.String(0), args.Error(1)
+}
+
+// GetTmuxVisibility returns a mocked visibility state.
+// Configure the return value using:
+//
+//	mock.On("GetTmuxVisibility").Return(true, nil)
+func (m *MockClient) GetTmuxVisibility() (bool, error) {
+	args := m.Called()
+	return args.Bool(0), args.Error(1)
+}
+
+// SetTmuxVisibility returns a mocked error when setting visibility.
+// Configure the return value using:
+//
+//	mock.On("SetTmuxVisibility", true).Return(nil)
+func (m *MockClient) SetTmuxVisibility(visible bool) error {
+	args := m.Called(visible)
+	return args.Error(0)
+}
+
 // Run returns mocked stdout, stderr, and error for a tmux command.
 // Configure the return value using:
 //

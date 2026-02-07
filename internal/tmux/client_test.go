@@ -964,3 +964,299 @@ func TestDefaultClientListSessionsEmptyOutput(t *testing.T) {
 	assert.Nil(t, sessions, "sessions should be nil on error")
 	t.Logf("Error: %v", err)
 }
+
+// TestDefaultClientGetSessionName tests GetSessionName method.
+func TestDefaultClientGetSessionName(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Skip if tmux not running
+	_, err := exec.Command("tmux", "has-session").CombinedOutput()
+	if err != nil {
+		t.Skip("tmux not running, skipping integration test")
+	}
+
+	client := NewDefaultClient()
+
+	// Get current context to test with real session
+	ctx, err := client.GetCurrentContext()
+	require.NoError(t, err, "should get current context")
+
+	// Test getting current session name
+	sessionName, err := client.GetSessionName(ctx.SessionID)
+	assert.NoError(t, err, "GetSessionName should succeed for current session")
+	assert.NotEmpty(t, sessionName, "session name should not be empty")
+
+	t.Logf("Session ID: %s, Session Name: %s", ctx.SessionID, sessionName)
+
+	// Test with non-existent session
+	_, err = client.GetSessionName("$999999")
+	assert.Error(t, err, "GetSessionName should fail for non-existent session")
+
+	// Test with invalid session ID format
+	clientWithSocket := NewDefaultClient(WithSocketPath("nonexistent-socket"))
+	_, err = clientWithSocket.GetSessionName("invalid")
+	assert.Error(t, err, "GetSessionName should fail with invalid session ID")
+	assert.Contains(t, err.Error(), "get session name", "error should contain context message")
+}
+
+// TestDefaultClientGetSessionNameErrorWrapping tests error wrapping in GetSessionName.
+func TestDefaultClientGetSessionNameErrorWrapping(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	client := NewDefaultClient(WithSocketPath("nonexistent-socket"))
+
+	_, err := client.GetSessionName("$0")
+	assert.Error(t, err, "GetSessionName should fail with non-existent socket")
+	assert.Contains(t, err.Error(), "get session name", "error should contain context message")
+	t.Logf("Error: %v", err)
+}
+
+// TestDefaultClientGetTmuxVisibility tests GetTmuxVisibility method.
+func TestDefaultClientGetTmuxVisibility(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Skip if tmux not running
+	_, err := exec.Command("tmux", "has-session").CombinedOutput()
+	if err != nil {
+		t.Skip("tmux not running, skipping integration test")
+	}
+
+	client := NewDefaultClient()
+
+	// Test default visibility (not set - should be false)
+	visible, err := client.GetTmuxVisibility()
+	assert.NoError(t, err, "GetTmuxVisibility should succeed")
+	assert.False(t, visible, "default visibility should be false")
+
+	// Set visibility to true
+	err = client.SetTmuxVisibility(true)
+	assert.NoError(t, err, "SetTmuxVisibility should succeed")
+
+	// Verify visibility is now true
+	visible, err = client.GetTmuxVisibility()
+	assert.NoError(t, err, "GetTmuxVisibility should succeed after setting")
+	assert.True(t, visible, "visibility should be true after setting to true")
+
+	// Set visibility to false
+	err = client.SetTmuxVisibility(false)
+	assert.NoError(t, err, "SetTmuxVisibility should succeed")
+
+	// Verify visibility is now false
+	visible, err = client.GetTmuxVisibility()
+	assert.NoError(t, err, "GetTmuxVisibility should succeed after setting to false")
+	assert.False(t, visible, "visibility should be false after setting to false")
+
+	// Clean up - unset the variable
+	err = client.SetEnvironment("TMUX_INTRAY_VISIBLE", "")
+	assert.NoError(t, err, "unsetting visibility should succeed")
+}
+
+// TestDefaultClientSetTmuxVisibility tests SetTmuxVisibility method.
+func TestDefaultClientSetTmuxVisibility(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Skip if tmux not running
+	_, err := exec.Command("tmux", "has-session").CombinedOutput()
+	if err != nil {
+		t.Skip("tmux not running, skipping integration test")
+	}
+
+	client := NewDefaultClient()
+
+	tests := []struct {
+		name        string
+		visible     bool
+		description string
+	}{
+		{
+			name:        "set visibility to true",
+			visible:     true,
+			description: "should set visibility to true",
+		},
+		{
+			name:        "set visibility to false",
+			visible:     false,
+			description: "should set visibility to false",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := client.SetTmuxVisibility(tt.visible)
+			assert.NoError(t, err, tt.description)
+
+			// Verify the value was set
+			visible, err := client.GetTmuxVisibility()
+			assert.NoError(t, err, "GetTmuxVisibility should succeed")
+			assert.Equal(t, tt.visible, visible, "visibility should match what was set")
+		})
+	}
+
+	// Clean up
+	err = client.SetEnvironment("TMUX_INTRAY_VISIBLE", "")
+	assert.NoError(t, err, "unsetting visibility should succeed")
+}
+
+// TestDefaultClientGetTmuxVisibilityTmuxNotRunning tests GetTmuxVisibility when tmux is not running.
+func TestDefaultClientGetTmuxVisibilityTmuxNotRunning(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	client := NewDefaultClient(WithSocketPath("nonexistent-socket"))
+
+	_, err := client.GetTmuxVisibility()
+	assert.Error(t, err, "GetTmuxVisibility should fail when tmux is not running")
+	assert.Contains(t, err.Error(), "get tmux visibility", "error should contain context message")
+	t.Logf("Error: %v", err)
+}
+
+// TestDefaultClientSetTmuxVisibilityTmuxNotRunning tests SetTmuxVisibility when tmux is not running.
+func TestDefaultClientSetTmuxVisibilityTmuxNotRunning(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	client := NewDefaultClient(WithSocketPath("nonexistent-socket"))
+
+	err := client.SetTmuxVisibility(true)
+	assert.Error(t, err, "SetTmuxVisibility should fail when tmux is not running")
+	assert.Contains(t, err.Error(), "set tmux visibility", "error should contain context message")
+	t.Logf("Error: %v", err)
+}
+
+// TestDefaultClientVisibilityRoundTrip tests round-trip of visibility state.
+func TestDefaultClientVisibilityRoundTrip(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Skip if tmux not running
+	_, err := exec.Command("tmux", "has-session").CombinedOutput()
+	if err != nil {
+		t.Skip("tmux not running, skipping integration test")
+	}
+
+	client := NewDefaultClient()
+
+	testCases := []bool{true, false, true, false, true}
+
+	for i, expectedVisible := range testCases {
+		t.Run(fmt.Sprintf("iteration_%d", i), func(t *testing.T) {
+			// Set visibility
+			err := client.SetTmuxVisibility(expectedVisible)
+			assert.NoError(t, err, "SetTmuxVisibility should succeed")
+
+			// Get visibility
+			visible, err := client.GetTmuxVisibility()
+			assert.NoError(t, err, "GetTmuxVisibility should succeed")
+			assert.Equal(t, expectedVisible, visible, "visibility should match expected value")
+
+			t.Logf("Iteration %d: Set=%v, Got=%v", i, expectedVisible, visible)
+		})
+	}
+
+	// Clean up
+	err = client.SetEnvironment("TMUX_INTRAY_VISIBLE", "")
+	assert.NoError(t, err, "unsetting visibility should succeed")
+}
+
+// TestDefaultClientGetSessionNameInvalidID tests GetSessionName with invalid session ID.
+func TestDefaultClientGetSessionNameInvalidID(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Skip if tmux not running
+	_, err := exec.Command("tmux", "has-session").CombinedOutput()
+	if err != nil {
+		t.Skip("tmux not running, skipping integration test")
+	}
+
+	client := NewDefaultClient()
+
+	tests := []struct {
+		name          string
+		sessionID     string
+		shouldFail    bool
+		description   string
+		expectedError string
+	}{
+		{
+			name:          "empty session ID",
+			sessionID:     "",
+			shouldFail:    false,
+			description:   "tmux returns current session name for empty ID",
+			expectedError: "",
+		},
+		{
+			name:          "non-existent session",
+			sessionID:     "$999999",
+			shouldFail:    true,
+			description:   "should fail for non-existent session",
+			expectedError: "not found",
+		},
+		{
+			name:          "invalid format",
+			sessionID:     "not-a-session",
+			shouldFail:    true,
+			description:   "should fail with invalid format",
+			expectedError: "not found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			name, err := client.GetSessionName(tt.sessionID)
+
+			if tt.shouldFail {
+				assert.Error(t, err, tt.description)
+				if tt.expectedError != "" {
+					assert.Contains(t, err.Error(), tt.expectedError, "error should contain expected message")
+				}
+			} else {
+				assert.NoError(t, err, tt.description)
+				assert.NotEmpty(t, name, "session name should not be empty")
+			}
+			t.Logf("Error: %v", err)
+		})
+	}
+}
+
+// TestDefaultClientGetSessionNameSuccess tests successful GetSessionName calls.
+func TestDefaultClientGetSessionNameSuccess(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Skip if tmux not running
+	_, err := exec.Command("tmux", "has-session").CombinedOutput()
+	if err != nil {
+		t.Skip("tmux not running, skipping integration test")
+	}
+
+	client := NewDefaultClient()
+
+	// Get all sessions to test with
+	sessions, err := client.ListSessions()
+	require.NoError(t, err, "should list sessions")
+	require.Greater(t, len(sessions), 0, "should have at least one session")
+
+	// Test getting names for all sessions
+	for sessionID, expectedName := range sessions {
+		t.Run(sessionID, func(t *testing.T) {
+			name, err := client.GetSessionName(sessionID)
+			assert.NoError(t, err, "GetSessionName should succeed")
+			assert.Equal(t, expectedName, name, "session name should match")
+			t.Logf("Session %s has name: %s", sessionID, name)
+		})
+	}
+}
