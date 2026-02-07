@@ -648,12 +648,12 @@ func TestAddNotificationValidation(t *testing.T) {
 		wantError bool
 		errorMsg  string
 	}{
-		{"valid", "test message", "", "info", false, ""},
-		{"empty message", "", "", "info", true, "message cannot be empty"},
-		{"empty level", "test", "", "", true, "level cannot be empty"},
-		{"invalid level", "test", "", "invalid", true, "invalid level 'invalid'"},
-		{"invalid timestamp", "test", "bad-timestamp", "info", true, "invalid timestamp format"},
-		{"valid RFC3339 timestamp", "test", "2025-01-01T12:00:00.123Z", "info", false, ""},
+		{"valid", "test message", "", "info", , ""false, ""},
+		{"empty message", "", "", "info", , ""true, "message cannot be empty"},
+		{"empty level", "test", "", "", , ""true, "level cannot be empty"},
+		{"invalid level", "test", "", "invalid", , ""true, "invalid level 'invalid'"},
+		{"invalid timestamp", "test", "bad-timestamp", "info", , ""true, "invalid timestamp format"},
+		{"valid RFC3339 timestamp", "test", "2025-01-01T12:00:00.123Z", "info", , ""false, ""},
 	}
 
 	for _, tc := range testCases {
@@ -982,8 +982,8 @@ func TestAddNotificationPostAddHookFailureModes(t *testing.T) {
 		// ID should still be returned (notification was added)
 		require.NotEmpty(t, id)
 		// Verify notification was added to storage despite hook failure
-		list, err := ListNotifications("active", "", "", "", "", "", "")
-		require.NoError(t, err)
+		list, listErr := ListNotifications("active", "", "", "", "", "", "")
+		require.NoError(t, listErr)
 		require.Contains(t, list, id)
 	})
 
@@ -1013,8 +1013,8 @@ func TestAddNotificationPostAddHookFailureModes(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, id)
 		// Verify notification was added
-		list, err := ListNotifications("active", "", "", "", "", "", "")
-		require.NoError(t, err)
+		list, listErr := ListNotifications("active", "", "", "", "", "")
+		require.NoError(t, listErr)
 		require.Contains(t, list, id)
 	})
 
@@ -1044,8 +1044,8 @@ func TestAddNotificationPostAddHookFailureModes(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, id)
 		// Verify notification was added
-		list, err := ListNotifications("active", "", "", "", "", "", "")
-		require.NoError(t, err)
+		list, listErr := ListNotifications("active", "", "", "", "", "")
+		require.NoError(t, listErr)
 		require.Contains(t, list, id)
 	})
 
@@ -1075,10 +1075,10 @@ func TestAddNotificationPostAddHookFailureModes(t *testing.T) {
 				id, err := AddNotification("success test", "", "", "", "", "", "info")
 				require.NoError(t, err)
 				require.NotEmpty(t, id)
-				// Verify notification was added
-				list, err := ListNotifications("active", "", "", "", "", "", "")
-				require.NoError(t, err)
-				require.Contains(t, list, id)
+			// Verify notification was added
+			list, listErr := ListNotifications("active", "", "", "", "", "", "")
+			require.NoError(t, listErr)
+			require.Contains(t, list, id)
 			})
 		}
 	})
@@ -1273,7 +1273,7 @@ func TestGetNextID(t *testing.T) {
 				require.Greater(t, nextID, existingID, "Next ID must be greater than all existing IDs")
 			}
 		}
-	})
+	}
 }
 
 func TestValidateListInputs(t *testing.T) {

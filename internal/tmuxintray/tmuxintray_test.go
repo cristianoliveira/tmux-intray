@@ -51,7 +51,8 @@ func TestListNotifications(t *testing.T) {
 	id, err := AddNotification("test message", "", "", "", "", false, "info")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
-	list := ListNotifications("active", "", "", "", "", "", "")
+	list, err := ListNotifications("active", "", "", "", "", "", "")
+	require.NoError(t, err)
 	require.Contains(t, list, id)
 	require.Contains(t, list, "test message")
 }
@@ -65,9 +66,11 @@ func TestDismissNotification(t *testing.T) {
 	err = DismissNotification(id)
 	require.NoError(t, err)
 	// Should be dismissed
-	list := ListNotifications("active", "", "", "", "", "", "")
+	list, err := ListNotifications("active", "", "", "", "", "", "")
+	require.NoError(t, err)
 	require.NotContains(t, list, id)
-	listDismissed := ListNotifications("dismissed", "", "", "", "", "", "")
+	listDismissed, err := ListNotifications("dismissed", "", "", "", "", "", "")
+	require.NoError(t, err)
 	require.Contains(t, listDismissed, id)
 }
 
@@ -80,7 +83,8 @@ func TestDismissAllNotifications(t *testing.T) {
 	require.NoError(t, err)
 	err = DismissAllNotifications()
 	require.NoError(t, err)
-	list := ListNotifications("active", "", "", "", "", "", "")
+	list, err := ListNotifications("active", "", "", "", "", "", "")
+	require.NoError(t, err)
 	require.Empty(t, strings.TrimSpace(list))
 }
 
@@ -96,7 +100,8 @@ func TestCleanupOldNotifications(t *testing.T) {
 	// Cleanup with 0 days threshold (should remove dismissed)
 	CleanupOldNotifications(0, false)
 	// Verify no dismissed notifications remain
-	list := ListNotifications("dismissed", "", "", "", "", "", "")
+	list, err := ListNotifications("dismissed", "", "", "", "", "", "")
+	require.NoError(t, err)
 	require.Empty(t, strings.TrimSpace(list))
 }
 

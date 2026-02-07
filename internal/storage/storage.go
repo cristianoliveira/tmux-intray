@@ -52,6 +52,13 @@ var (
 		"error":    true,
 		"critical": true,
 	}
+
+	// Valid notification states
+	validStates = map[string]bool{
+		"active":    true,
+		"dismissed": true,
+		"all":       true,
+	}
 )
 
 // Custom error types for storage operations.
@@ -185,6 +192,41 @@ func validateNotificationInputs(message, timestamp, session, window, pane, paneC
 	return nil
 }
 
+// validateListInputs validates all parameters for ListNotifications.
+// Empty string filters are ignored (except stateFilter which defaults to "all").
+// Returns an error if validation fails, nil otherwise.
+func validateListInputs(stateFilter, levelFilter, olderThanCutoff, newerThanCutoff string) error {
+	// Validate state filter (if provided)
+	// Valid values: "active", "dismissed", "all", or "" (defaults to "all" in filtering)
+	if stateFilter != "" && !validStates[stateFilter] {
+		return fmt.Errorf("invalid state '%s', must be one of: active, dismissed, all, or empty", stateFilter)
+	}
+
+	// Validate level filter (if provided)
+	// Valid values: "info", "warning", "error", "critical", or "" (no filter)
+	if levelFilter != "" && !validLevels[levelFilter] {
+		return fmt.Errorf("invalid level '%s', must be one of: info, warning, error, critical, or empty", levelFilter)
+	}
+
+	// Validate olderThanCutoff timestamp format if provided
+	if olderThanCutoff != "" {
+		_, err := time.Parse(time.RFC3339, olderThanCutoff)
+		if err != nil {
+			return fmt.Errorf("invalid olderThanCutoff format '%s', expected RFC3339 format (e.g., 2006-01-02T15:04:05Z)", olderThanCutoff)
+		}
+	}
+
+	// Validate newerThanCutoff timestamp format if provided
+	if newerThanCutoff != "" {
+		_, err := time.Parse(time.RFC3339, newerThanCutoff)
+		if err != nil {
+			return fmt.Errorf("invalid newerThanCutoff format '%s', expected RFC3339 format (e.g., 2006-01-02T15:04:05Z)", newerThanCutoff)
+		}
+	}
+
+	return nil
+}
+
 // AddNotification adds a notification and returns its ID.
 // Returns an error if validation fails or initialization fails.
 func AddNotification(message, timestamp, session, window, pane, paneCreated, level string) (string, error) {
@@ -265,11 +307,21 @@ func AddNotification(message, timestamp, session, window, pane, paneCreated, lev
 	return strconv.Itoa(id), nil
 }
 
-// ListNotifications returns TSV lines for notifications.
-func ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff string) string {
+// ListNotifications returns TSV lines for notifications matching the specified filters.
+// Filters that are empty strings are ignored (except stateFilter which defaults to "all").
+// Valid state values: "active", "dismissed", "all", or "" (defaults to "all")
+// Valid level values: "info", "warning", "error", "critical", or "" (no filter)
+// Valid timestamp formats for olderThanCutoff and newerThanCutoff: RFC3339 (e.g., "2006-01-02T15:04:05Z")
+// Returns TSV lines as a string and an error if validation fails.
+func ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff string) (string, error) {
+	// Validate inputs first (Fail-Fast)
+	if err := validateListInputs(stateFilter, levelFilter, olderThanCutoff, newerThanCutoff); err != nil {
+		return "", err
+	}
+
 	if err := Init(); err != nil {
 		colors.Error(fmt.Sprintf("failed to initialize storage: %v", err))
-		return ""
+		return "", fmt.Errorf("failed to initialize storage: %w", err)
 	}
 	var lines []string
 	err := WithLock(lockDir, func() error {
@@ -284,9 +336,9 @@ func ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, pa
 	})
 	if err != nil {
 		colors.Error(fmt.Sprintf("failed to list notifications: %v", err))
-		return ""
+		return "", fmt.Errorf("failed to list notifications: %w", err)
 	}
-	return strings.Join(lines, "\n")
+	return strings.Join(lines, "\n"), nil
 }
 
 // GetNotificationByID retrieves a single notification by its ID.

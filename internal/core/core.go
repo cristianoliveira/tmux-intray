@@ -24,11 +24,14 @@ const (
 
 // GetTrayItems returns tray items for a given state filter.
 // Returns newline-separated messages (unescaped).
-func GetTrayItems(stateFilter string) string {
+func GetTrayItems(stateFilter string) (string, error) {
 	// Use storage.ListNotifications with only state filter
-	lines := storage.ListNotifications(stateFilter, "", "", "", "", "", "")
+	lines, err := storage.ListNotifications(stateFilter, "", "", "", "", "", "")
+	if err != nil {
+		return "", err
+	}
 	if lines == "" {
-		return ""
+		return "", nil
 	}
 	var messages []string
 	for _, line := range strings.Split(lines, "\n") {
@@ -44,7 +47,7 @@ func GetTrayItems(stateFilter string) string {
 		message = unescapeMessage(message)
 		messages = append(messages, message)
 	}
-	return strings.Join(messages, "\n")
+	return strings.Join(messages, "\n"), nil
 }
 
 // AddTrayItem adds a tray item.
@@ -104,9 +107,9 @@ func (c *Core) SetVisibility(visible bool) error {
 	if visible {
 		value = "1"
 	}
-	success := c.SetTmuxVisibility(value)
-	if !success {
-		return ErrTmuxOperationFailed
+	_, err := c.SetTmuxVisibility(value)
+	if err != nil {
+		return fmt.Errorf("set visibility: %w", err)
 	}
 	return nil
 }
