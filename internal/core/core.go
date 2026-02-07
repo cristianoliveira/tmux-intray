@@ -39,6 +39,7 @@ func GetTrayItems(stateFilter string) (string, error) {
 			continue
 		}
 		fields := strings.Split(line, "\t")
+		// Bounds check for fieldMessage
 		if len(fields) <= fieldMessage {
 			continue
 		}
