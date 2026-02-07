@@ -11,6 +11,8 @@ import (
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/hooks"
+	"github.com/cristianoliveira/tmux-intray/internal/tmux"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,6 +24,11 @@ func setupTest(t *testing.T) string {
 	colors.SetDebug(true)
 	// Reset package state
 	Reset()
+	// Set up mock tmux client for testing
+	mockClient := new(tmux.MockClient)
+	mockClient.On("HasSession").Return(true, nil)
+	mockClient.On("SetStatusOption", "@tmux_intray_active_count", mock.Anything).Return(nil)
+	SetTmuxClient(mockClient)
 	return tmpDir
 }
 
@@ -845,14 +852,29 @@ func TestUpdateTmuxStatusOption(t *testing.T) {
 	require.NoError(t, Init())
 
 	t.Run("tmux availability check", func(t *testing.T) {
+		// Create a new mock client for this subtest
+		mockClient := new(tmux.MockClient)
+		mockClient.On("HasSession").Return(true, nil)
+		mockClient.On("SetStatusOption", "@tmux_intray_active_count", "5").Return(nil)
+		SetTmuxClient(mockClient)
+
 		// Call function with a test count
 		err := updateTmuxStatusOption(5)
-		// The function should either succeed or return a clear error
-		if err != nil {
-			// If tmux is not available, we expect a clear error message
-			require.Contains(t, err.Error(), "tmux")
-		}
-		// If tmux is available, it should succeed
+		require.NoError(t, err)
+		// Verify the mock was called
+		mockClient.AssertCalled(t, "HasSession")
+		mockClient.AssertCalled(t, "SetStatusOption", "@tmux_intray_active_count", "5")
+	})
+
+	t.Run("tmux not available", func(t *testing.T) {
+		// Create a mock client that returns error for HasSession
+		mockClient := new(tmux.MockClient)
+		mockClient.On("HasSession").Return(false, tmux.ErrTmuxNotRunning)
+		SetTmuxClient(mockClient)
+
+		err := updateTmuxStatusOption(5)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "tmux not")
 	})
 }
 
@@ -862,6 +884,13 @@ func TestDismissNotificationHandlesTmuxError(t *testing.T) {
 	id, err := AddNotification("to dismiss", "", "", "", "", "", "info")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
+
+	// Create a mock client that will fail on tmux calls
+	mockClient := new(tmux.MockClient)
+	mockClient.On("HasSession").Return(true, nil)
+	mockClient.On("SetStatusOption", mock.Anything, mock.Anything).Return(fmt.Errorf("tmux error"))
+	SetTmuxClient(mockClient)
+
 	// Dismiss should still succeed even if tmux update fails
 	err = DismissNotification(id)
 	// The dismissal should succeed (notification is dismissed)
@@ -880,6 +909,13 @@ func TestDismissAllHandlesTmuxError(t *testing.T) {
 	_, err = AddNotification("msg2", "", "", "", "", "", "warning")
 	require.NoError(t, err)
 	require.Equal(t, 2, GetActiveCount())
+
+	// Create a mock client that will fail on tmux calls
+	mockClient := new(tmux.MockClient)
+	mockClient.On("HasSession").Return(true, nil)
+	mockClient.On("SetStatusOption", mock.Anything, mock.Anything).Return(fmt.Errorf("tmux error"))
+	SetTmuxClient(mockClient)
+
 	// DismissAll should still succeed even if tmux update fails
 	err = DismissAll()
 	// The dismissal should succeed (notifications are dismissed)

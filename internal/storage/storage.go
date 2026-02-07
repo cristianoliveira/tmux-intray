@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -16,6 +15,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/cristianoliveira/tmux-intray/internal/hooks"
+	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 )
 
 const (
@@ -48,6 +48,7 @@ var (
 	initialized       bool
 	initMu            sync.RWMutex
 	initErr           error
+	tmuxClient        tmux.TmuxClient = tmux.NewDefaultClient()
 )
 
 // Init initializes storage directories and files.
@@ -105,6 +106,12 @@ func Init() error {
 	err = initErr
 	initMu.RUnlock()
 	return err
+}
+
+// SetTmuxClient sets the tmux client for the storage package.
+// This is primarily used for testing with mock implementations.
+func SetTmuxClient(client tmux.TmuxClient) {
+	tmuxClient = client
 }
 
 // validateNotificationInputs validates all parameters for AddNotification.
@@ -547,12 +554,14 @@ func CleanupOldNotifications(daysThreshold int, dryRun bool) error {
 // updateTmuxStatusOption updates the tmux status option with the given active count.
 func updateTmuxStatusOption(count int) error {
 	// Only update if tmux is running
-	cmd := exec.Command("tmux", "has-session")
-	if err := cmd.Run(); err != nil {
+	running, err := tmuxClient.HasSession()
+	if err != nil {
 		return fmt.Errorf("tmux not available: %w", err)
 	}
-	cmd = exec.Command("tmux", "set", "-g", "@tmux_intray_active_count", fmt.Sprintf("%d", count))
-	if err := cmd.Run(); err != nil {
+	if !running {
+		return fmt.Errorf("tmux not running")
+	}
+	if err := tmuxClient.SetStatusOption("@tmux_intray_active_count", fmt.Sprintf("%d", count)); err != nil {
 		return fmt.Errorf("failed to set tmux status option: %w", err)
 	}
 	return nil
