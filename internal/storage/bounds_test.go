@@ -55,7 +55,8 @@ func TestBoundsChecking(t *testing.T) {
 
 	t.Run("ListNotificationsDoesNotPanic", func(t *testing.T) {
 		// Should not panic on malformed data
-		list := ListNotifications("all", "", "", "", "", "", "")
+		list, err := ListNotifications("all", "", "", "", "", "", "")
+		require.NoError(t, err)
 		require.NotEmpty(t, list)
 		// Should contain valid notification
 		require.Contains(t, list, "9")
@@ -143,7 +144,8 @@ func TestBoundsChecking(t *testing.T) {
 		require.NotEmpty(t, id)
 
 		// Verify it was added
-		list := ListNotifications("all", "", "", "", "", "", "")
+		list, err := ListNotifications("all", "", "", "", "", "", "")
+		require.NoError(t, err)
 		require.Contains(t, list, id)
 		require.Contains(t, list, "valid after malformed")
 	})
@@ -170,7 +172,8 @@ func TestEmptyFieldsHandling(t *testing.T) {
 	require.NoError(t, Init())
 
 	t.Run("ListNotificationsWithEmptyFields", func(t *testing.T) {
-		list := ListNotifications("all", "", "", "", "", "", "")
+		list, err := ListNotifications("all", "", "", "", "", "", "")
+		require.NoError(t, err)
 		require.NotEmpty(t, list)
 	})
 
@@ -186,7 +189,8 @@ func TestEmptyFieldsHandling(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify it was dismissed
-		list := ListNotifications("dismissed", "", "", "", "", "", "")
+		list, err := ListNotifications("dismissed", "", "", "", "", "", "")
+		require.NoError(t, err)
 		require.Contains(t, list, "2")
 	})
 }
@@ -238,7 +242,8 @@ func TestDismissByIDInternal(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify dismissed
-	list := ListNotifications("dismissed", "", "", "", "", "", "")
+	list, err := ListNotifications("dismissed", "", "", "", "", "", "")
+	require.NoError(t, err)
 	require.Contains(t, list, "1")
 }
 

@@ -1279,13 +1279,13 @@ func TestGetNextID(t *testing.T) {
 func TestValidateListInputs(t *testing.T) {
 	// Test validateListInputs with various inputs
 	testCases := []struct {
-		name              string
-		stateFilter       string
-		levelFilter       string
-		olderThanCutoff   string
-		newerThanCutoff   string
-		wantError         bool
-		errorMsg          string
+		name            string
+		stateFilter     string
+		levelFilter     string
+		olderThanCutoff string
+		newerThanCutoff string
+		wantError       bool
+		errorMsg        string
 	}{
 		// Valid inputs (all empty filters are allowed)
 		{"valid empty filters", "", "", "", "", false, ""},
@@ -1345,13 +1345,13 @@ func TestListNotificationsValidation(t *testing.T) {
 
 	// Test that validation errors are properly returned from ListNotifications
 	testCases := []struct {
-		name              string
-		stateFilter       string
-		levelFilter       string
-		olderThanCutoff   string
-		newerThanCutoff   string
-		wantError         bool
-		errorMsg          string
+		name            string
+		stateFilter     string
+		levelFilter     string
+		olderThanCutoff string
+		newerThanCutoff string
+		wantError       bool
+		errorMsg        string
 	}{
 		{"valid empty filters", "", "", "", "", false, ""},
 		{"valid state", "active", "", "", "", false, ""},
