@@ -4,17 +4,12 @@
 # Get the plugin directory
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+TMUX_INTRAY_BIN=${TMUX_INTRAY_BIN:-"tmux-intray"}
+
 # Set up tmux key bindings
 set_tmux_bindings() {
-    # Use tmux-intray from PATH if available, otherwise use local build
-    if command -v tmux-intray >/dev/null 2>&1; then
-        TMUX_INTRAY="tmux-intray"
-    else
-        TMUX_INTRAY="go run ./cmd/tmux-intray"
-    fi
-
-    tmux bind-key -T prefix I run-shell "$TMUX_INTRAY follow"
-    tmux bind-key -T prefix J run-shell "tmux popup -E -h 80% -w 80% \"$TMUX_INTRAY tui\""
+    tmux bind-key -T prefix I run-shell "$TMUX_INTRAY_BIN follow"
+    tmux bind-key -T prefix J run-shell "tmux popup -E -h 50% -w 70% \"$TMUX_INTRAY_BIN tui\""
 }
 
 # Initialize the plugin
