@@ -30,7 +30,8 @@ func TestGetNotificationByID(t *testing.T) {
 				Reset()
 				os.Setenv("TMUX_INTRAY_STATE_DIR", tempDir)
 				require.NoError(t, Init())
-				AddNotification("test message", "2025-02-04T10:00:00Z", "session1", "window1", "pane1", "123456", "info")
+				_, err := AddNotification("test message", "2025-02-04T10:00:00Z", "session1", "window1", "pane1", "123456", "info")
+				require.NoError(t, err)
 			},
 			id:        "1",
 			wantLine:  "1\t2025-02-04T10:00:00Z\tactive\tsession1\twindow1\tpane1\ttest message\t123456\tinfo",
@@ -43,7 +44,8 @@ func TestGetNotificationByID(t *testing.T) {
 				Reset()
 				os.Setenv("TMUX_INTRAY_STATE_DIR", tempDir)
 				require.NoError(t, Init())
-				AddNotification("test message", "2025-02-04T10:00:00Z", "session1", "window1", "pane1", "123456", "info")
+				_, err := AddNotification("test message", "2025-02-04T10:00:00Z", "session1", "window1", "pane1", "123456", "info")
+				require.NoError(t, err)
 				DismissNotification("1")
 			},
 			id:        "1",
@@ -69,7 +71,8 @@ func TestGetNotificationByID(t *testing.T) {
 				Reset()
 				os.Setenv("TMUX_INTRAY_STATE_DIR", tempDir)
 				require.NoError(t, Init())
-				AddNotification("test message", "2025-02-04T10:00:00Z", "session1", "window1", "pane1", "123456", "info")
+				_, err := AddNotification("test message", "2025-02-04T10:00:00Z", "session1", "window1", "pane1", "123456", "info")
+				require.NoError(t, err)
 			},
 			id:        "",
 			wantError: true,
@@ -82,10 +85,10 @@ func TestGetNotificationByID(t *testing.T) {
 				os.Setenv("TMUX_INTRAY_STATE_DIR", tempDir)
 				require.NoError(t, Init())
 				// Add first notification
-				AddNotification("test message", "2025-02-04T10:00:00Z", "session1", "window1", "pane1", "123456", "info")
+				_, _ = AddNotification("test message", "2025-02-04T10:00:00Z", "session1", "window1", "pane1", "123456", "info")
 				// Add another notification
-				AddNotification("test message 2", "2025-02-04T10:01:00Z", "session2", "window2", "pane2", "123457", "info")
-				// Update the first notification (dismiss it)
+				_, _ = AddNotification("test message 2", "2025-02-04T10:01:00Z", "session2", "window2", "pane2", "123457", "info")
+				// Update first notification (dismiss it)
 				DismissNotification("1")
 			},
 			id:        "1",
@@ -140,7 +143,10 @@ func TestGetNotificationByIDWithLock(t *testing.T) {
 	}
 
 	// Add a notification
-	AddNotification("test message", "2025-02-04T10:00:00Z", "session1", "window1", "pane1", "123456", "info")
+	_, err = AddNotification("test message", "2025-02-04T10:00:00Z", "session1", "window1", "pane1", "123456", "info")
+	if err != nil {
+		t.Fatalf("Failed to add notification: %v", err)
+	}
 
 	// Test that the function properly acquires and releases the lock
 	// This is more of a smoke test - the actual lock testing would be complex

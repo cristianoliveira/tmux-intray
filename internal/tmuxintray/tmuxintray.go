@@ -55,8 +55,8 @@ func Shutdown() {
 
 // AddNotification adds a new notification to the tray.
 // It uses automatic tmux context detection unless noAuto is true.
-// Returns the notification ID or empty string on error.
-func AddNotification(message, session, window, pane, paneCreated string, noAuto bool, level string) string {
+// Returns the notification ID or an error if validation fails.
+func AddNotification(message, session, window, pane, paneCreated string, noAuto bool, level string) (string, error) {
 	return core.AddTrayItem(message, session, window, pane, paneCreated, noAuto, level)
 }
 

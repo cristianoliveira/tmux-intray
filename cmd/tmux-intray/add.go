@@ -89,9 +89,9 @@ the current tmux pane (if inside tmux). Use --no-associate to skip.`,
 		// We'll rely on storage hooks.
 
 		// Add tray item
-		id := core.AddTrayItem(formattedMessage, sessionFlag, windowFlag, paneFlag, paneCreatedFlag, noAssociateFlag, level)
-		if id == "" {
-			return fmt.Errorf("Failed to add tray item")
+		_, err := core.AddTrayItem(formattedMessage, sessionFlag, windowFlag, paneFlag, paneCreatedFlag, noAssociateFlag, level)
+		if err != nil {
+			return fmt.Errorf("Failed to add tray item: %w", err)
 		}
 
 		colors.Success("added")
