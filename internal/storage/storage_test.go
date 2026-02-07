@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -1019,6 +1020,198 @@ func TestAddNotificationPostAddHookFailureModes(t *testing.T) {
 				list := ListNotifications("active", "", "", "", "", "", "")
 				require.Contains(t, list, id)
 			})
+		}
+	})
+}
+
+func TestGetNextID(t *testing.T) {
+	t.Run("empty file returns 1", func(t *testing.T) {
+		setupTest(t)
+		require.NoError(t, Init())
+
+		// With empty file, getNextID should return 1
+		id, err := getNextID()
+		require.NoError(t, err)
+		require.Equal(t, 1, id)
+	})
+
+	t.Run("single entry returns next ID", func(t *testing.T) {
+		setupTest(t)
+		require.NoError(t, Init())
+
+		// Add one notification
+		_, err := AddNotification("first message", "", "", "", "", "", "info")
+		require.NoError(t, err)
+
+		// getNextID should return 2
+		id, err := getNextID()
+		require.NoError(t, err)
+		require.Equal(t, 2, id)
+	})
+
+	t.Run("multiple entries returns next ID", func(t *testing.T) {
+		setupTest(t)
+		require.NoError(t, Init())
+
+		// Add multiple notifications
+		id1, err := AddNotification("msg1", "", "", "", "", "", "info")
+		require.NoError(t, err)
+		id2, err := AddNotification("msg2", "", "", "", "", "", "info")
+		require.NoError(t, err)
+		id3, err := AddNotification("msg3", "", "", "", "", "", "info")
+		require.NoError(t, err)
+
+		// Verify IDs are sequential
+		require.Equal(t, "1", id1)
+		require.Equal(t, "2", id2)
+		require.Equal(t, "3", id3)
+
+		// getNextID should return 4
+		id, err := getNextID()
+		require.NoError(t, err)
+		require.Equal(t, 4, id)
+	})
+
+	t.Run("ID always greater than zero", func(t *testing.T) {
+		setupTest(t)
+		require.NoError(t, Init())
+
+		// First call should return 1
+		id, err := getNextID()
+		require.NoError(t, err)
+		require.Greater(t, id, 0, "ID must be greater than 0")
+
+		// Add notification and verify next ID is also > 0
+		_, err = AddNotification("test", "", "", "", "", "", "info")
+		require.NoError(t, err)
+
+		id, err = getNextID()
+		require.NoError(t, err)
+		require.Greater(t, id, 0, "ID must be greater than 0")
+	})
+
+	t.Run("ID is monotonically increasing", func(t *testing.T) {
+		setupTest(t)
+		require.NoError(t, Init())
+
+		// Track IDs across multiple calls
+		var ids []int
+		for i := 0; i < 10; i++ {
+			id, err := getNextID()
+			require.NoError(t, err)
+
+			// Each ID should be strictly greater than previous
+			for _, prevID := range ids {
+				require.Greater(t, id, prevID, "ID must be monotonically increasing")
+			}
+
+			ids = append(ids, id)
+
+			// Add a notification to increment the max ID
+			_, err = AddNotification(fmt.Sprintf("message %d", i), "", "", "", "", "", "info")
+			require.NoError(t, err)
+		}
+
+		// Verify all IDs are unique and increasing
+		for i := 1; i < len(ids); i++ {
+			require.Greater(t, ids[i], ids[i-1], "IDs must be strictly increasing")
+		}
+	})
+
+	t.Run("malformed entries are skipped", func(t *testing.T) {
+		tmpDir := setupTest(t)
+		notifFile := filepath.Join(tmpDir, "notifications.tsv")
+
+		// Write malformed TSV data with some valid entries
+		malformedData := "malformed\tline\twith\tbad\tid\n" + // Invalid ID (not numeric)
+			"5\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg5\tcreated\tinfo\n" + // Valid entry with ID 5
+			"invalid\n" + // Too few fields
+			"10\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg10\tcreated\tinfo\n" // Valid entry with ID 10
+		err := os.WriteFile(notifFile, []byte(malformedData), 0644)
+		require.NoError(t, err)
+
+		// Reset and reinitialize to load the malformed data
+		Reset()
+		os.Setenv("TMUX_INTRAY_STATE_DIR", tmpDir)
+		require.NoError(t, Init())
+
+		// getNextID should skip malformed entries and return maxID + 1
+		// Max valid ID is 10, so should return 11
+		id, err := getNextID()
+		require.NoError(t, err)
+		require.Equal(t, 11, id, "Should return 11 (max valid ID 10 + 1)")
+	})
+
+	t.Run("handles non-sequential IDs", func(t *testing.T) {
+		tmpDir := setupTest(t)
+		notifFile := filepath.Join(tmpDir, "notifications.tsv")
+
+		// Write entries with non-sequential IDs
+		nonSequentialData := "1\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg1\tcreated\tinfo\n" +
+			"5\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg5\tcreated\tinfo\n" +
+			"100\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg100\tcreated\tinfo\n"
+		err := os.WriteFile(notifFile, []byte(nonSequentialData), 0644)
+		require.NoError(t, err)
+
+		// Reset and reinitialize
+		Reset()
+		os.Setenv("TMUX_INTRAY_STATE_DIR", tmpDir)
+		require.NoError(t, Init())
+
+		// getNextID should return 101 (max ID 100 + 1)
+		id, err := getNextID()
+		require.NoError(t, err)
+		require.Equal(t, 101, id, "Should return 101 (max ID 100 + 1)")
+	})
+
+	t.Run("handles dismissed notifications", func(t *testing.T) {
+		setupTest(t)
+		require.NoError(t, Init())
+
+		// Add and dismiss some notifications
+		id1, err := AddNotification("msg1", "", "", "", "", "", "info")
+		require.NoError(t, err)
+		err = DismissNotification(id1)
+		require.NoError(t, err)
+
+		_, err = AddNotification("msg2", "", "", "", "", "", "info")
+		require.NoError(t, err)
+
+		_, err = AddNotification("msg3", "", "", "", "", "", "info")
+		require.NoError(t, err)
+
+		// getNextID should return 4 (max ID 3 + 1)
+		// Even though ID 1 is dismissed, it still exists in the file
+		id, err := getNextID()
+		require.NoError(t, err)
+		require.Equal(t, 4, id)
+	})
+
+	t.Run("ID greater than all existing", func(t *testing.T) {
+		setupTest(t)
+		require.NoError(t, Init())
+
+		// Add multiple notifications
+		for i := 0; i < 5; i++ {
+			_, err := AddNotification(fmt.Sprintf("msg%d", i), "", "", "", "", "", "info")
+			require.NoError(t, err)
+		}
+
+		// Get next ID
+		nextID, err := getNextID()
+		require.NoError(t, err)
+
+		// Verify it's greater than all existing IDs
+		latest, err := getLatestNotifications()
+		require.NoError(t, err)
+
+		for _, line := range latest {
+			fields := strings.Split(line, "\t")
+			if len(fields) > fieldID {
+				existingID, err := strconv.Atoi(fields[fieldID])
+				require.NoError(t, err)
+				require.Greater(t, nextID, existingID, "Next ID must be greater than all existing IDs")
+			}
 		}
 	})
 }

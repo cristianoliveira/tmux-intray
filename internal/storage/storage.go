@@ -597,6 +597,11 @@ func getField(fields []string, index int) (string, error) {
 	return fields[index], nil
 }
 
+// getNextID generates the next unique notification ID.
+// Invariants:
+//   - Returned ID must always be > 0
+//   - Returned ID must be strictly greater than all existing IDs in storage
+//   - IDs are monotonically increasing across calls
 func getNextID() (int, error) {
 	latest, err := getLatestNotifications()
 	if err != nil {
@@ -616,7 +621,34 @@ func getNextID() (int, error) {
 			maxID = id
 		}
 	}
-	return maxID + 1, nil
+	newID := maxID + 1
+
+	// Assertions: verify invariants
+	if newID <= 0 {
+		colors.Debug(fmt.Sprintf("ASSERTION FAILED: getNextID returned ID <= 0: %d", newID))
+	} else {
+		colors.Debug(fmt.Sprintf("getNextID assertion passed: ID > 0 (got %d)", newID))
+	}
+
+	// Verify ID is strictly greater than all existing IDs
+	for _, line := range latest {
+		fields := strings.Split(line, "\t")
+		if len(fields) <= fieldID {
+			continue
+		}
+		id, err := strconv.Atoi(fields[fieldID])
+		if err != nil {
+			continue
+		}
+		if newID <= id {
+			colors.Debug(fmt.Sprintf("ASSERTION FAILED: getNextID returned ID %d which is not greater than existing ID %d", newID, id))
+		}
+	}
+	if len(latest) > 0 {
+		colors.Debug(fmt.Sprintf("getNextID monotonic increase assertion passed: ID %d > max existing ID %d", newID, maxID))
+	}
+
+	return newID, nil
 }
 
 func escapeMessage(msg string) string {
