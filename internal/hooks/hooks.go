@@ -179,17 +179,40 @@ func runAsyncHook(scriptPath, scriptName string, envMap map[string]string, failu
 		asyncPending.Done()
 		return
 	}
+	// Track start time for hung hook detection
+	startTime := time.Now()
+
 	// Wait for completion in goroutine, then decrement count
 	go func() {
-		defer cancel() // ensure cancel is called after wait returns
+		// Ensure we always clean up, even on panic
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Fprintf(os.Stderr, "error: async hook %s panicked: %v\n", scriptName, r)
+			}
+			// Always decrement count, even on panic
+			asyncPendingMu.Lock()
+			asyncPendingCount--
+			asyncPendingMu.Unlock()
+			// Always signal completion, even on panic
+			asyncPending.Done()
+			cancel() // ensure cancel is called after wait returns
+		}()
+
+		// Wait for command completion
 		err := cmd.Wait()
-		if err != nil && failureMode != "ignore" {
-			fmt.Fprintf(os.Stderr, "warning: async hook %s failed: %v\n", scriptName, err)
+		duration := time.Since(startTime)
+
+		// Check if hook exceeded timeout (context was canceled)
+		if ctx.Err() == context.DeadlineExceeded {
+			fmt.Fprintf(os.Stderr, "warning: async hook %s timed out after %.2fs\n", scriptName, duration.Seconds())
 		}
-		asyncPendingMu.Lock()
-		asyncPendingCount--
-		asyncPendingMu.Unlock()
-		asyncPending.Done()
+
+		// Log hook execution result
+		if err != nil && failureMode != "ignore" {
+			fmt.Fprintf(os.Stderr, "warning: async hook %s failed: %v (duration: %.2fs)\n", scriptName, err, duration.Seconds())
+		} else if err == nil {
+			fmt.Fprintf(os.Stderr, "  async hook %s completed in %.2fs\n", scriptName, duration.Seconds())
+		}
 	}()
 }
 
