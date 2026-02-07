@@ -3,10 +3,10 @@ package core
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 )
 
 // TmuxContext captures the current tmux session/window/pane context.
@@ -17,100 +17,73 @@ type TmuxContext struct {
 	PaneCreated string
 }
 
-// tmuxRunner is a variable that can be replaced for testing.
-var tmuxRunner = func(args ...string) (string, string, error) {
-	cmd := exec.Command("tmux", args...)
-	var stdout, stderr strings.Builder
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-	return stdout.String(), stderr.String(), err
+// Core provides core tmux interaction functionality with injected TmuxClient.
+type Core struct {
+	client tmux.TmuxClient
 }
 
+// NewCore creates a new Core instance with the given TmuxClient.
+// If client is nil, a default client will be created.
+func NewCore(client tmux.TmuxClient) *Core {
+	if client == nil {
+		client = tmux.NewDefaultClient()
+	}
+	return &Core{client: client}
+}
+
+// defaultCore is the default instance for backward compatibility.
+var defaultCore = NewCore(nil)
+
 // EnsureTmuxRunning verifies that tmux is running.
-func EnsureTmuxRunning() bool {
-	_, stderr, err := tmuxRunner("has-session")
+func (c *Core) EnsureTmuxRunning() bool {
+	running, err := c.client.HasSession()
 	if err != nil {
-		colors.Debug("tmux has-session failed: " + err.Error())
-		if stderr != "" {
-			colors.Debug("stderr: " + stderr)
-		}
+		colors.Debug("EnsureTmuxRunning: tmux has-session failed: " + err.Error())
 		return false
 	}
-	return true
+	return running
+}
+
+// EnsureTmuxRunning verifies that tmux is running using the default client.
+func EnsureTmuxRunning() bool {
+	return defaultCore.EnsureTmuxRunning()
 }
 
 // GetCurrentTmuxContext returns the current tmux context.
-func GetCurrentTmuxContext() TmuxContext {
-	format := "#{session_id} #{window_id} #{pane_id} #{pane_pid}"
-	stdout, stderr, err := tmuxRunner("display", "-p", format)
+func (c *Core) GetCurrentTmuxContext() TmuxContext {
+	ctx, err := c.client.GetCurrentContext()
 	if err != nil {
-		colors.Error("Failed to get tmux context: " + err.Error())
-		if stderr != "" {
-			colors.Debug("stderr: " + stderr)
-		}
+		colors.Error("GetCurrentTmuxContext: failed to get tmux context: " + err.Error())
 		return TmuxContext{}
 	}
 
-	// Trim whitespace from the output
-	stdout = strings.TrimSpace(stdout)
-
-	// Split by space - tmux format string produces 4 parts
-	// Format: #{session_id} #{window_id} #{pane_id} #{pane_pid}
-	parts := strings.Split(stdout, " ")
-
-	// Filter out empty strings that might result from multiple spaces
-	var filteredParts []string
-	for _, part := range parts {
-		if part != "" {
-			filteredParts = append(filteredParts, part)
-		}
+	// Convert tmux.TmuxContext to core.TmuxContext
+	return TmuxContext{
+		SessionID:   ctx.SessionID,
+		WindowID:    ctx.WindowID,
+		PaneID:      ctx.PaneID,
+		PaneCreated: ctx.PanePID,
 	}
+}
 
-	// ASSERTION: Check if we have exactly 4 parts (session_id, window_id, pane_id, pane_pid)
-	// All 4 should always be present in tmux (Power of 10 Rule 5)
-	if len(filteredParts) != 4 {
-		colors.Error(fmt.Sprintf("GetCurrentTmuxContext: unexpected format - expected 4 parts, got %d", len(filteredParts)))
-		return TmuxContext{}
-	}
-
-	// ASSERTION: Validate that captured context values are non-empty
-	if filteredParts[0] == "" || filteredParts[1] == "" || filteredParts[2] == "" {
-		colors.Error("GetCurrentTmuxContext: invalid context - session_id, window_id, or pane_id is empty")
-		return TmuxContext{}
-	}
-
-	ctx := TmuxContext{
-		SessionID:   filteredParts[0], // e.g., "$3"
-		WindowID:    filteredParts[1], // e.g., "@16"
-		PaneID:      filteredParts[2], // e.g., "%21"
-		PaneCreated: filteredParts[3], // e.g., "8443" (pane PID)
-	}
-	return ctx
+// GetCurrentTmuxContext returns the current tmux context using the default client.
+func GetCurrentTmuxContext() TmuxContext {
+	return defaultCore.GetCurrentTmuxContext()
 }
 
 // ValidatePaneExists checks if a pane exists.
-func ValidatePaneExists(sessionID, windowID, paneID string) bool {
-	target := sessionID + ":" + windowID
-	stdout, stderr, err := tmuxRunner("list-panes", "-t", target, "-F", "#{pane_id}")
+func (c *Core) ValidatePaneExists(sessionID, windowID, paneID string) bool {
+	exists, err := c.client.ValidatePaneExists(sessionID, windowID, paneID)
 	if err != nil {
-		colors.Debug("tmux list-panes failed: " + err.Error())
-		if stderr != "" {
-			colors.Debug("stderr: " + stderr)
-		}
+		colors.Debug(fmt.Sprintf("ValidatePaneExists: tmux list-panes failed for %s:%s.%s: %v", sessionID, windowID, paneID, err))
 		return false
 	}
-	// Each pane ID is on a separate line
-	lines := strings.Split(strings.TrimSpace(stdout), "\n")
-	// Trim paneID input in case it has whitespace
-	paneID = strings.TrimSpace(paneID)
-	for _, line := range lines {
-		// Trim each pane ID from output in case of trailing whitespace
-		if strings.TrimSpace(line) == paneID {
-			return true
-		}
-	}
-	return false
+	return exists
+}
+
+// ValidatePaneExists checks if a pane exists using the default client.
+func ValidatePaneExists(sessionID, windowID, paneID string) bool {
+	return defaultCore.ValidatePaneExists(sessionID, windowID, paneID)
 }
 
 // JumpToPane jumps to a specific pane. It returns true if the jump succeeded
@@ -120,25 +93,35 @@ func ValidatePaneExists(sessionID, windowID, paneID string) bool {
 //   - Pane reference format must be "sessionID:windowID.paneID" (tmux pane target syntax)
 //   - If select-window fails, return false immediately (fail-fast)
 //   - If select-pane fails, return false (don't swallow errors)
-func JumpToPane(sessionID, windowID, paneID string) bool {
+func (c *Core) JumpToPane(sessionID, windowID, paneID string) bool {
 	// ASSERTION: Validate input parameters are non-empty
 	if sessionID == "" || windowID == "" || paneID == "" {
-		colors.Error("JumpToPane: invalid parameters (empty sessionID, windowID, or paneID)")
+		var missing []string
+		if sessionID == "" {
+			missing = append(missing, "sessionID")
+		}
+		if windowID == "" {
+			missing = append(missing, "windowID")
+		}
+		if paneID == "" {
+			missing = append(missing, "paneID")
+		}
+		colors.Error(fmt.Sprintf("JumpToPane: invalid parameters (empty %s)", strings.Join(missing, ", ")))
 		return false
 	}
 
 	// First validate if the pane exists
-	paneExists := ValidatePaneExists(sessionID, windowID, paneID)
+	paneExists := c.ValidatePaneExists(sessionID, windowID, paneID)
 	colors.Debug(fmt.Sprintf("JumpToPane: pane validation for %s:%s in window %s:%s - exists: %v", sessionID, paneID, sessionID, windowID, paneExists))
 
 	// Select the window (this happens regardless of whether the pane exists)
 	targetWindow := sessionID + ":" + windowID
 	colors.Debug(fmt.Sprintf("JumpToPane: selecting window %s", targetWindow))
-	_, stderr, err := tmuxRunner("select-window", "-t", targetWindow)
+	_, stderr, err := c.client.Run("select-window", "-t", targetWindow)
 	if err != nil {
-		colors.Error("Window " + targetWindow + " does not exist")
+		colors.Error(fmt.Sprintf("JumpToPane: failed to select window %s: %v", targetWindow, err))
 		if stderr != "" {
-			colors.Debug("stderr: " + stderr)
+			colors.Debug("JumpToPane: stderr: " + stderr)
 		}
 		return false
 	}
@@ -154,12 +137,12 @@ func JumpToPane(sessionID, windowID, paneID string) bool {
 	// ASSERTION: targetPane must follow tmux pane reference format
 	targetPane := sessionID + ":" + windowID + "." + paneID
 	colors.Debug(fmt.Sprintf("JumpToPane: selecting pane %s", targetPane))
-	_, stderr, err = tmuxRunner("select-pane", "-t", targetPane)
+	_, stderr, err = c.client.Run("select-pane", "-t", targetPane)
 	if err != nil {
 		// Fail-fast: don't swallow errors, return false to indicate failure
-		colors.Error("Failed to select pane " + targetPane)
+		colors.Error(fmt.Sprintf("JumpToPane: failed to select pane %s: %v", targetPane, err))
 		if stderr != "" {
-			colors.Debug("stderr: " + stderr)
+			colors.Debug("JumpToPane: stderr: " + stderr)
 		}
 		return false
 	}
@@ -168,36 +151,40 @@ func JumpToPane(sessionID, windowID, paneID string) bool {
 	return true
 }
 
+// JumpToPane jumps to a specific pane using the default client.
+func JumpToPane(sessionID, windowID, paneID string) bool {
+	return defaultCore.JumpToPane(sessionID, windowID, paneID)
+}
+
 // GetTmuxVisibility returns the value of TMUX_INTRAY_VISIBLE global tmux variable.
 // Returns "0" if variable is not set.
-func GetTmuxVisibility() string {
-	stdout, stderr, err := tmuxRunner("show-environment", "-g", "TMUX_INTRAY_VISIBLE")
+func (c *Core) GetTmuxVisibility() string {
+	value, err := c.client.GetEnvironment("TMUX_INTRAY_VISIBLE")
 	if err != nil {
-		colors.Debug("tmux show-environment failed: " + err.Error())
-		if stderr != "" {
-			colors.Debug("stderr: " + stderr)
-		}
+		colors.Debug("GetTmuxVisibility: tmux show-environment failed: " + err.Error())
 		return "0"
 	}
-	// Output could be "TMUX_INTRAY_VISIBLE=1" or empty line
-	lines := strings.Split(strings.TrimSpace(stdout), "\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "TMUX_INTRAY_VISIBLE=") {
-			return strings.TrimPrefix(line, "TMUX_INTRAY_VISIBLE=")
-		}
-	}
-	return "0"
+	return value
+}
+
+// GetTmuxVisibility returns the value of TMUX_INTRAY_VISIBLE global tmux variable using the default client.
+func GetTmuxVisibility() string {
+	return defaultCore.GetTmuxVisibility()
 }
 
 // SetTmuxVisibility sets the TMUX_INTRAY_VISIBLE global tmux variable.
-func SetTmuxVisibility(value string) bool {
-	_, stderr, err := tmuxRunner("set-environment", "-g", "TMUX_INTRAY_VISIBLE", value)
+// Returns (true, nil) on success, (false, error) on failure.
+func (c *Core) SetTmuxVisibility(value string) (bool, error) {
+	err := c.client.SetEnvironment("TMUX_INTRAY_VISIBLE", value)
 	if err != nil {
-		colors.Error("Failed to set tmux visibility: " + err.Error())
-		if stderr != "" {
-			colors.Debug("stderr: " + stderr)
-		}
-		return false
+		colors.Error(fmt.Sprintf("SetTmuxVisibility: failed to set TMUX_INTRAY_VISIBLE to '%s': %v", value, err))
+		return false, err
 	}
-	return true
+	return true, nil
+}
+
+// SetTmuxVisibility sets the TMUX_INTRAY_VISIBLE global tmux variable using the default client.
+// Returns (true, nil) on success, (false, error) on failure.
+func SetTmuxVisibility(value string) (bool, error) {
+	return defaultCore.SetTmuxVisibility(value)
 }

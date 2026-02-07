@@ -14,6 +14,16 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 )
 
+// File permission constants
+const (
+	// FileModeDir is the permission for directories (rwxr-xr-x)
+	// Owner: read/write/execute, Group/others: read/execute
+	FileModeDir os.FileMode = 0755
+	// FileModeFile is the permission for data files (rw-r--r--)
+	// Owner: read/write, Group/others: read only
+	FileModeFile os.FileMode = 0644
+)
+
 // Default column values.
 const (
 	ColumnID          = "id"
@@ -231,7 +241,7 @@ func Save(settings *Settings) error {
 	if configDir == "" {
 		return fmt.Errorf("config_dir not configured")
 	}
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, FileModeDir); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
@@ -250,7 +260,7 @@ func Save(settings *Settings) error {
 	return storage.WithLock(settingsDir+".lock", func() error {
 		// Write to temporary file first for atomic operation
 		tempPath := settingsPath + ".tmp." + strconv.Itoa(rand.Intn(1000000))
-		if err := os.WriteFile(tempPath, data, 0644); err != nil {
+		if err := os.WriteFile(tempPath, data, FileModeFile); err != nil {
 			return fmt.Errorf("failed to write temporary settings file: %w", err)
 		}
 
@@ -285,7 +295,7 @@ func Init() (*Settings, error) {
 		configDir = filepath.Join(xdgConfigHome, "tmux-intray")
 	}
 
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, FileModeDir); err != nil {
 		return nil, fmt.Errorf("failed to create config directory: %w", err)
 	}
 

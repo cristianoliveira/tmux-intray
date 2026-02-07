@@ -28,7 +28,12 @@ Hook scripts are placed in the following directory structure:
 ├── pre-add/
 │   ├── 01-validate.sh
 │   ├── 02-enrich.sh
-│   └── 99-log.sh
+│   ├── 99-log.sh
+│   ├── 02-macos-notification.sh      # macOS UI notification (visual only)
+│   ├── 03-tmux-status-bar.sh         # tmux status bar notification (visual only)
+│   ├── 04-linux-notification.sh      # Linux UI notification (visual only)
+│   ├── 05-macos-sound.sh             # macOS sound notification (audio only)
+│   └── 06-linux-sound.sh             # Linux sound notification (audio only)
 ├── post-add/
 │   ├── 01-slack-notify.sh
 │   └── 99-log.sh
@@ -39,6 +44,8 @@ Hook scripts are placed in the following directory structure:
 └── cleanup/
     └── 01-archive.sh
 ```
+
+**Note**: Example hook scripts are available in the `examples/hooks/` directory of the tmux-intray repository. See the [Notification Hook Examples](#notification-hook-examples) section for detailed documentation of available examples.
 
 - **Directory naming**: Hook scripts are organized in directories named after hook points
 - **Execution order**: Scripts are executed in alphabetical/numerical order within each hook point
@@ -131,6 +138,8 @@ TMUX_INTRAY_HOOKS_FAILURE_MODE_pre_add="warn"
 ```
 
 ## Example Use Cases
+
+The following examples illustrate common use cases for hooks. For comprehensive notification-specific examples, see the [Notification Hook Examples](#notification-hook-examples) section.
 
 ### 1. Notification Validation
 ```bash
@@ -246,6 +255,306 @@ Check hook execution logs:
 ```bash
 tail -f ~/.local/state/tmux-intray/debug.log | grep -i hook
 ```
+
+## Notification Hook Examples
+
+The following notification hook examples are available in `examples/hooks/pre-add/` and demonstrate various ways to extend tmux-intray's notification capabilities. Examples are organized into UI notifications (visual only) and sound notifications (audio only), allowing you to mix and match for your preferred notification experience.
+
+### Base Example
+
+### 01-log.sh - Simple Logging
+
+**Purpose**: Logs all notification events to a file for auditing and debugging.
+
+**Use Case**: Track notification history, debug issues, or maintain an audit trail.
+
+**Configuration**:
+- `HOOK_LOG_FILE` - Path to the log file (default: `~/.local/state/tmux-intray/hooks.log`)
+
+**Platform Compatibility**: All platforms (macOS, Linux, BSD)
+
+**Environment Variables Available**:
+- `NOTIFICATION_ID` - Unique ID of the notification
+- `LEVEL` - Severity level (info, warning, error, critical)
+- `MESSAGE` - The notification message content
+- `TIMESTAMP` - When the notification was created (ISO 8601)
+- `SESSION` - tmux session ID where notification originated
+- `WINDOW` - tmux window ID where notification originated
+- `PANE` - tmux pane ID where notification originated
+- `PANE_CREATED` - Timestamp when pane was created
+
+**File Location**: `examples/hooks/pre-add/01-log.sh`
+
+```bash
+#!/usr/bin/env bash
+LOG_FILE="${HOOK_LOG_FILE:-$HOME/.local/state/tmux-intray/hooks.log}"
+mkdir -p "$(dirname "$LOG_FILE")"
+{
+    echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") [pre-add] ID=$NOTIFICATION_ID level=$LEVEL"
+    echo "  message: $MESSAGE"
+    echo "  context: ${SESSION:-none}/${WINDOW:-none}/${PANE:-none}"
+} >>"$LOG_FILE" 2>/dev/null || true
+```
+
+---
+
+### UI Notification Examples
+
+These hooks provide visual notifications only. Use them to see alerts without sound, or combine them with sound notification hooks for a complete notification experience.
+
+### 02-macos-notification.sh - macOS Desktop Notification (UI Only)
+
+**Purpose**: Displays a macOS desktop notification when a notification is added.
+
+**Use Case**: Get visual alerts on macOS even when tmux is not visible.
+
+**Platform Compatibility**: macOS only
+
+**Environment Variables Available**: Same as 01-log.sh
+
+**File Location**: `examples/hooks/pre-add/02-macos-notification.sh`
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Display notification using osascript (no sound)
+osascript -e "display notification \"Message: $MESSAGE\" with title \"tmux-intray\"" 2>/dev/null || true
+```
+
+**Requirements**: `osascript` (built into macOS)
+
+**Notes**:
+- Visual notification only - no sound is played
+- For sound notifications, use `05-macos-sound.sh`
+- Can be combined with `05-macos-sound.sh` for full visual + audio notification
+
+---
+
+### 03-tmux-status-bar.sh - tmux Status Bar Notification
+
+**Purpose**: Displays a temporary yellow status notification at the bottom of the tmux window.
+
+**Use Case**: Get in-tmux visual alerts that don't require switching windows or leaving tmux.
+
+**Configuration**:
+- `TMUX_NOTIFICATION_DURATION` - Duration to display notification in milliseconds (default: `3000`)
+
+**Platform Compatibility**: All platforms where tmux is available
+
+**Environment Variables Available**: Same as 01-log.sh
+
+**File Location**: `examples/hooks/pre-add/03-tmux-status-bar.sh`
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+DISPLAY_DURATION="${TMUX_NOTIFICATION_DURATION:-3000}"
+
+tmux display-message -d "$DISPLAY_DURATION" "tmux-intray: $MESSAGE" 2>/dev/null || true
+```
+
+**Requirements**: `tmux` must be available in the current environment
+
+**Notes**:
+- Notification appears in the tmux status bar (typically at the bottom)
+- Message is displayed for the configured duration then automatically clears
+- Works seamlessly with other tmux status line configurations
+
+---
+
+### 04-linux-notification.sh - Linux Desktop Notification (UI Only)
+
+**Purpose**: Displays a Linux desktop notification using the freedesktop notification system.
+
+**Use Case**: Get desktop notifications on Linux systems with visual alerts only.
+
+**Platform Compatibility**: Linux systems with libnotify (freedesktop notification system)
+
+**Environment Variables Available**: Same as 01-log.sh
+
+**File Location**: `examples/hooks/pre-add/04-linux-notification.sh`
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Display desktop notification using notify-send (no sound)
+notify-send "tmux-intray" "$MESSAGE" \
+    --icon=dialog-information \
+    --urgency=normal \
+    --app-name="tmux-intray" 2>/dev/null || true
+```
+
+**Requirements**: `notify-send` (from libnotify-bin package)
+
+**Notes**:
+- Visual notification only - no sound is played
+- For sound notifications, use `06-linux-sound.sh`
+- Can be combined with `06-linux-sound.sh` for full visual + audio notification
+- Uses standard freedesktop notification system for integration with desktop environments
+
+---
+
+### Sound Notification Examples
+
+These hooks provide audio notifications only. Use them to hear alerts without visual popups, or combine them with UI notification hooks for a complete notification experience.
+
+### 05-macos-sound.sh - macOS Sound Notification
+
+**Purpose**: Plays a sound when a notification is added.
+
+**Use Case**: Get audible alerts on macOS without visual popups.
+
+**Configuration**:
+- `MACOS_SOUND_FILE` - Path to sound file (default: `/System/Library/Sounds/Ping.aiff`)
+  - You can use system sounds like: Ping, Glass, Purr, Sosumi, Blow, Bottle, Frog, Funk, Morse, Pop, Submarine, Tink
+  - Or specify a custom file path like: `/path/to/your/sound.mp3`
+
+**Platform Compatibility**: macOS only
+
+**Environment Variables Available**: Same as 01-log.sh
+
+**File Location**: `examples/hooks/pre-add/05-macos-sound.sh`
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Sound file path for notification
+SOUND_FILE="${MACOS_SOUND_FILE:-/System/Library/Sounds/Ping.aiff}"
+
+# Play the sound using afplay
+if [ -f "$SOUND_FILE" ]; then
+    afplay "$SOUND_FILE" 2>/dev/null || true
+else
+    # Fallback: use osascript beep if sound file not found
+    osascript -e 'beep 1' 2>/dev/null || true
+fi
+```
+
+**Requirements**:
+- `afplay` (built into macOS) or `osascript` (built into macOS) as fallback
+
+**Notes**:
+- Audio notification only - no visual popup is displayed
+- For visual notifications, use `02-macos-notification.sh`
+- Can be combined with `02-macos-notification.sh` for full visual + audio notification
+- Gracefully falls back to system beep if sound file is not found
+
+---
+
+### 06-linux-sound.sh - Linux Sound Notification
+
+**Purpose**: Plays a sound when a notification is added.
+
+**Use Case**: Get audible alerts on Linux systems without visual popups.
+
+**Configuration**:
+- `LINUX_SOUND_FILE` - Path to sound file (default: `/usr/share/sounds/freedesktop/stereo/message.oga`)
+
+**Platform Compatibility**: Linux systems
+
+**Environment Variables Available**: Same as 01-log.sh
+
+**File Location**: `examples/hooks/pre-add/06-linux-sound.sh`
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Sound file path for notification
+SOUND_FILE="${LINUX_SOUND_FILE:-/usr/share/sounds/freedesktop/stereo/message.oga}"
+
+# Play notification sound if file exists
+if [ -f "$SOUND_FILE" ]; then
+    # Try paplay (PulseAudio) first, then fallback to aplay (ALSA)
+    paplay "$SOUND_FILE" 2>/dev/null || aplay "$SOUND_FILE" 2>/dev/null || true
+fi
+```
+
+**Requirements**:
+- Sound playback: `paplay` (PulseAudio) or `aplay` (ALSA)
+
+**Notes**:
+- Audio notification only - no visual popup is displayed
+- For visual notifications, use `04-linux-notification.sh`
+- Can be combined with `04-linux-notification.sh` for full visual + audio notification
+- Gracefully handles missing audio system or sound file
+
+---
+
+### Combining UI and Sound Notifications
+
+You can combine UI and sound notification hooks to create a complete notification experience. For example:
+
+**macOS Full Notification (Visual + Audio)**:
+```bash
+~/.config/tmux-intray/hooks/pre-add/
+├── 01-log.sh                    # Log to file
+├── 02-macos-notification.sh     # macOS UI notification (visual)
+└── 05-macos-sound.sh            # macOS sound notification (audio)
+```
+
+**Linux Full Notification (Visual + Audio)**:
+```bash
+~/.config/tmux-intray/hooks/pre-add/
+├── 01-log.sh                    # Log to file
+├── 04-linux-notification.sh     # Linux UI notification (visual)
+└── 06-linux-sound.sh            # Linux sound notification (audio)
+```
+
+**tmux-only Notification**:
+```bash
+~/.config/tmux-intray/hooks/pre-add/
+├── 01-log.sh                    # Log to file
+└── 03-tmux-status-bar.sh        # tmux status bar notification (visual only)
+```
+
+**Notification Without Visual Alerts**:
+```bash
+~/.config/tmux-intray/hooks/pre-add/
+├── 01-log.sh                    # Log to file
+├── 05-macos-sound.sh            # macOS sound notification (audio only)
+└── 03-tmux-status-bar.sh        # tmux status bar notification (subtle visual)
+```
+
+The hooks execute in alphabetical order, so you can control the sequence by adjusting the numeric prefixes.
+
+### Installing Notification Hooks
+
+To use any of these notification hook examples:
+
+1. **Create the hooks directory**:
+   ```bash
+   mkdir -p ~/.config/tmux-intray/hooks/pre-add
+   ```
+
+2. **Copy the desired hook scripts**:
+   ```bash
+   cp examples/hooks/pre-add/01-log.sh ~/.config/tmux-intray/hooks/pre-add/
+   cp examples/hooks/pre-add/02-macos-notification.sh ~/.config/tmux-intray/hooks/pre-add/
+   cp examples/hooks/pre-add/05-macos-sound.sh ~/.config/tmux-intray/hooks/pre-add/
+   ```
+
+3. **Make the scripts executable**:
+   ```bash
+   chmod +x ~/.config/tmux-intray/hooks/pre-add/*.sh
+   ```
+
+4. **Configure (optional)** - Set environment variables in `~/.config/tmux-intray/config.sh` or export in your shell:
+   ```bash
+   export MACOS_SOUND_FILE="/System/Library/Sounds/Glass.aiff"
+   export TMUX_NOTIFICATION_DURATION=5000
+   ```
+
+5. **Test** - Add a test notification:
+   ```bash
+   tmux-intray add "Test notification"
+   ```
+
+---
 
 ## Migration from Previous Versions
 
