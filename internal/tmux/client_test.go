@@ -804,3 +804,163 @@ func TestDefaultClientEnvironmentGetSetRoundTrip(t *testing.T) {
 		})
 	}
 }
+
+// TestDefaultClientGetCurrentContextInvalidFormat tests GetCurrentContext with invalid output format.
+func TestDefaultClientGetCurrentContextInvalidFormat(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	client := NewDefaultClient(WithSocketPath("nonexistent-socket"))
+
+	_, err := client.GetCurrentContext()
+	assert.Error(t, err, "GetCurrentContext should fail with invalid format")
+	t.Logf("Error: %v", err)
+}
+
+// TestDefaultClientGetEnvironmentNotFound tests GetEnvironment with non-existent variable.
+func TestDefaultClientGetEnvironmentNotFound(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Skip if tmux not running
+	_, err := exec.Command("tmux", "has-session").CombinedOutput()
+	if err != nil {
+		t.Skip("tmux not running, skipping integration test")
+	}
+
+	client := NewDefaultClient()
+
+	// Test getting non-existent variable
+	_, err = client.GetEnvironment("TMUX_INTRAY_NONEXISTENT_VAR_XYZ123")
+	assert.Error(t, err, "GetEnvironment should fail for non-existent variable")
+	assert.Contains(t, err.Error(), "failed to get environment variable", "error should mention failed to get")
+	t.Logf("Error: %v", err)
+}
+
+// TestDefaultClientSetStatusOptionTmuxNotRunning tests SetStatusOption when tmux is not running.
+func TestDefaultClientSetStatusOptionTmuxNotRunning(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	client := NewDefaultClient(WithSocketPath("nonexistent-socket"))
+
+	err := client.SetStatusOption("status-interval", "5")
+	assert.Error(t, err, "SetStatusOption should fail when tmux is not running")
+	assert.Equal(t, ErrTmuxNotRunning, err, "should return ErrTmuxNotRunning")
+	t.Logf("Error: %v", err)
+}
+
+// TestDefaultClientJumpToPaneInvalidTarget tests JumpToPane with invalid targets.
+func TestDefaultClientJumpToPaneInvalidTarget(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	client := NewDefaultClient()
+
+	tests := []struct {
+		name        string
+		sessionID   string
+		windowID    string
+		paneID      string
+		description string
+	}{
+		{
+			name:        "empty session",
+			sessionID:   "",
+			windowID:    "@0",
+			paneID:      "%0",
+			description: "should fail with empty session ID",
+		},
+		{
+			name:        "empty window",
+			sessionID:   "$0",
+			windowID:    "",
+			paneID:      "%0",
+			description: "should fail with empty window ID",
+		},
+		{
+			name:        "empty pane",
+			sessionID:   "$0",
+			windowID:    "@0",
+			paneID:      "",
+			description: "should fail with empty pane ID",
+		},
+		{
+			name:        "all empty",
+			sessionID:   "",
+			windowID:    "",
+			paneID:      "",
+			description: "should fail with all empty IDs",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			success, err := client.JumpToPane(tt.sessionID, tt.windowID, tt.paneID)
+			assert.Error(t, err, tt.description)
+			assert.False(t, success, tt.description)
+			assert.Equal(t, ErrInvalidTarget, err, "should return ErrInvalidTarget")
+			t.Logf("Error: %v", err)
+		})
+	}
+}
+
+// TestDefaultClientJumpToPaneValidateError tests JumpToPane when ValidatePaneExists returns an error.
+func TestDefaultClientJumpToPaneValidateError(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	client := NewDefaultClient(WithSocketPath("nonexistent-socket"))
+
+	// Test with non-existent session - validation will fail
+	success, err := client.JumpToPane("$999999", "@999999", "%999999")
+	assert.Error(t, err, "JumpToPane should fail when validation errors")
+	assert.False(t, success, "JumpToPane should return false on error")
+	assert.Contains(t, err.Error(), "pane validation failed", "error should mention validation failed")
+	t.Logf("Error: %v", err)
+}
+
+// TestDefaultClientJumpToPaneWindowNotExist tests JumpToPane when window doesn't exist.
+func TestDefaultClientJumpToPaneWindowNotExist(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Skip if tmux not running
+	_, err := exec.Command("tmux", "has-session").CombinedOutput()
+	if err != nil {
+		t.Skip("tmux not running, skipping integration test")
+	}
+
+	client := NewDefaultClient()
+
+	// Get current context to test with real session
+	ctx, err := client.GetCurrentContext()
+	require.NoError(t, err, "should get current context")
+
+	// Test with valid session but invalid window - validation will fail first
+	success, err := client.JumpToPane(ctx.SessionID, "@999999", "%0")
+	assert.Error(t, err, "JumpToPane should fail when window doesn't exist")
+	assert.False(t, success, "JumpToPane should return false when window doesn't exist")
+	assert.Contains(t, err.Error(), "pane validation failed", "error should mention validation failed")
+	t.Logf("Error: %v", err)
+}
+
+// TestDefaultClientListSessionsEmptyOutput tests ListSessions with empty output.
+func TestDefaultClientListSessionsEmptyOutput(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	client := NewDefaultClient(WithSocketPath("nonexistent-socket"))
+
+	sessions, err := client.ListSessions()
+	assert.Error(t, err, "ListSessions should fail with non-existent socket")
+	assert.Nil(t, sessions, "sessions should be nil on error")
+	t.Logf("Error: %v", err)
+}
