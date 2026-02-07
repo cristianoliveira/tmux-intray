@@ -31,6 +31,19 @@ const (
 	numFields        = 9
 )
 
+// File permission constants
+const (
+	// FileModeDir is the permission for directories (rwxr-xr-x)
+	// Owner: read/write/execute, Group/others: read/execute
+	FileModeDir os.FileMode = 0755
+	// FileModeFile is the permission for data files (rw-r--r--)
+	// Owner: read/write, Group/others: read only
+	FileModeFile os.FileMode = 0644
+	// FileModeScript is the permission for executable scripts (rwxr-xr-x)
+	// Owner: read/write/execute, Group/others: read/execute
+	FileModeScript os.FileMode = 0755
+)
+
 // Valid notification levels
 var (
 	validLevels = map[string]bool{
@@ -72,14 +85,14 @@ func Init() error {
 		lockDir = filepath.Join(stateDir, "lock")
 
 		// Ensure directories exist
-		if err = os.MkdirAll(stateDir, 0755); err != nil {
+		if err = os.MkdirAll(stateDir, FileModeDir); err != nil {
 			err = fmt.Errorf("failed to create state directory: %w", err)
 			return
 		}
 
 		// Ensure notifications file exists
 		var f *os.File
-		f, err = os.OpenFile(notificationsFile, os.O_RDONLY|os.O_CREATE, 0644)
+		f, err = os.OpenFile(notificationsFile, os.O_RDONLY|os.O_CREATE, FileModeFile)
 		if err != nil {
 			err = fmt.Errorf("failed to create notifications file: %w", err)
 			return
@@ -546,11 +559,23 @@ func CleanupOldNotifications(daysThreshold int, dryRun bool) error {
 func updateTmuxStatusOption(count int) error {
 	// Only update if tmux is running
 	cmd := exec.Command("tmux", "has-session")
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
+		errMsg := stderr.String()
+		if errMsg != "" {
+			colors.Debug(fmt.Sprintf("tmux has-session failed: %v, stderr: %s", err, errMsg))
+		}
 		return fmt.Errorf("tmux not available: %w", err)
 	}
 	cmd = exec.Command("tmux", "set", "-g", "@tmux_intray_active_count", fmt.Sprintf("%d", count))
+	stderr.Reset()
+	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
+		errMsg := stderr.String()
+		if errMsg != "" {
+			colors.Debug(fmt.Sprintf("tmux set failed: %v, stderr: %s", err, errMsg))
+		}
 		return fmt.Errorf("failed to set tmux status option: %w", err)
 	}
 	return nil
@@ -640,7 +665,7 @@ func unescapeMessage(msg string) string {
 func appendLine(id int, timestamp, state, session, window, pane, message, paneCreated, level string) error {
 	line := fmt.Sprintf("%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 		id, timestamp, state, session, window, pane, message, paneCreated, level)
-	f, err := os.OpenFile(notificationsFile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+	f, err := os.OpenFile(notificationsFile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, FileModeFile)
 	if err != nil {
 		return fmt.Errorf("open file: %w", err)
 	}
@@ -943,34 +968,9 @@ func dismissAllActive() error {
 	return nil
 }
 
-func cleanupOld(daysThreshold int, dryRun bool) error {
-	allDismissed := daysThreshold == 0
-	cutoff := time.Now().UTC().AddDate(0, 0, -daysThreshold)
-	cutoffStr := cutoff.Format("2006-01-02T15:04:05Z")
-
-	if allDismissed {
-		colors.Info("Cleaning up all dismissed notifications")
-	} else {
-		colors.Info(fmt.Sprintf("Cleaning up notifications dismissed before %s", cutoffStr))
-	}
-
-	// Run pre-cleanup hooks
-	envVars := []string{
-		fmt.Sprintf("CLEANUP_DAYS=%d", daysThreshold),
-		fmt.Sprintf("CUTOFF_TIMESTAMP=%s", cutoffStr),
-		fmt.Sprintf("DRY_RUN=%t", dryRun),
-	}
-	if err := hooks.Run("cleanup", envVars...); err != nil {
-		return fmt.Errorf("pre-cleanup hook failed: %w", err)
-	}
-
-	// Get latest version of each notification
-	latestLines, err := getLatestNotifications()
-	if err != nil {
-		return fmt.Errorf("failed to read notifications: %w", err)
-	}
-
-	// Collect IDs of dismissed notifications older than cutoff (or all dismissed if daysThreshold == 0)
+// findNotificationsToDelete collects IDs of dismissed notifications older than cutoff.
+// Returns a slice of notification IDs to delete.
+func findNotificationsToDelete(latestLines []string, allDismissed bool, cutoffStr string) []int {
 	var idsToDelete []int
 	for _, line := range latestLines {
 		fields := strings.Split(line, "\t")
@@ -1001,8 +1001,80 @@ func cleanupOld(daysThreshold int, dryRun bool) error {
 		}
 		idsToDelete = append(idsToDelete, id)
 	}
+	return idsToDelete
+}
 
+// filterLinesByIDs removes lines whose ID is in idsToDelete.
+// Returns the filtered lines.
+func filterLinesByIDs(lines []string, idsToDelete []int) []string {
+	var filtered []string
+	for _, line := range lines {
+		fields := strings.Split(line, "\t")
+		if len(fields) <= fieldID {
+			continue
+		}
+		id, err := strconv.Atoi(fields[fieldID])
+		if err != nil {
+			continue
+		}
+		keep := true
+		for _, delID := range idsToDelete {
+			if id == delID {
+				keep = false
+				break
+			}
+		}
+		if keep {
+			filtered = append(filtered, line)
+		}
+	}
+	return filtered
+}
+
+// writeNotifications writes lines to the notifications file.
+func writeNotifications(lines []string) error {
+	data := strings.Join(lines, "\n")
+	if len(lines) > 0 {
+		data += "\n"
+	}
+	if err := os.WriteFile(notificationsFile, []byte(data), FileModeFile); err != nil {
+		return fmt.Errorf("write file: %w", err)
+	}
+	return nil
+}
+
+// cleanupOld performs the actual cleanup of old notifications.
+func cleanupOld(daysThreshold int, dryRun bool) error {
+	allDismissed := daysThreshold == 0
+	cutoff := time.Now().UTC().AddDate(0, 0, -daysThreshold)
+	cutoffStr := cutoff.Format("2006-01-02T15:04:05Z")
+
+	if allDismissed {
+		colors.Info("Cleaning up all dismissed notifications")
+	} else {
+		colors.Info(fmt.Sprintf("Cleaning up notifications dismissed before %s", cutoffStr))
+	}
+
+	// Run pre-cleanup hooks
+	envVars := []string{
+		fmt.Sprintf("CLEANUP_DAYS=%d", daysThreshold),
+		fmt.Sprintf("CUTOFF_TIMESTAMP=%s", cutoffStr),
+		fmt.Sprintf("DRY_RUN=%t", dryRun),
+	}
+	if err := hooks.Run("cleanup", envVars...); err != nil {
+		return fmt.Errorf("pre-cleanup hook failed: %w", err)
+	}
+
+	// Get latest version of each notification
+	latestLines, err := getLatestNotifications()
+	if err != nil {
+		return fmt.Errorf("failed to read notifications: %w", err)
+	}
+
+	// Find notifications to delete
+	idsToDelete := findNotificationsToDelete(latestLines, allDismissed, cutoffStr)
 	deletedCount := len(idsToDelete)
+
 	if deletedCount == 0 {
 		colors.Info("No old dismissed notifications to clean up")
 		// Run post-cleanup hooks with zero count
@@ -1025,39 +1097,16 @@ func cleanupOld(daysThreshold int, dryRun bool) error {
 		return nil
 	}
 
-	// Filter out all lines whose ID is in idsToDelete
+	// Filter out deleted IDs from all lines
 	lines, err := readAllLines()
 	if err != nil {
 		return fmt.Errorf("failed to read all lines: %w", err)
 	}
-	var filtered []string
-	for _, line := range lines {
-		fields := strings.Split(line, "\t")
-		if len(fields) <= fieldID {
-			continue
-		}
-		id, err := strconv.Atoi(fields[fieldID])
-		if err != nil {
-			continue
-		}
-		keep := true
-		for _, delID := range idsToDelete {
-			if id == delID {
-				keep = false
-				break
-			}
-		}
-		if keep {
-			filtered = append(filtered, line)
-		}
-	}
-	// Write back filtered lines
-	data := strings.Join(filtered, "\n")
-	if len(filtered) > 0 {
-		data += "\n"
-	}
-	if err := os.WriteFile(notificationsFile, []byte(data), 0644); err != nil {
-		return fmt.Errorf("write file: %w", err)
+	filtered := filterLinesByIDs(lines, idsToDelete)
+
+	// Write filtered lines back to file
+	if err := writeNotifications(filtered); err != nil {
+		return err
 	}
 
 	colors.Info(fmt.Sprintf("Successfully cleaned up %d notification(s)", deletedCount))

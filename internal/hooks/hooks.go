@@ -16,6 +16,16 @@ import (
 	"time"
 )
 
+// File permission constants
+const (
+	// FileModeDir is the permission for directories (rwxr-xr-x)
+	// Owner: read/write/execute, Group/others: read/execute
+	FileModeDir os.FileMode = 0755
+	// FileModeScript is the permission for executable scripts (rwxr-xr-x)
+	// Owner: read/write/execute, Group/others: read/execute
+	FileModeScript os.FileMode = 0755
+)
+
 var (
 	// async tracking
 	asyncPending      sync.WaitGroup
@@ -63,7 +73,7 @@ func Init() {
 	}
 	// Ensure hooks directory exists
 	dir := getHooksDir()
-	os.MkdirAll(dir, 0755)
+	os.MkdirAll(dir, FileModeDir)
 	m.initialized = true
 }
 

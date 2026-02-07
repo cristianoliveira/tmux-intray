@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -885,4 +886,126 @@ func TestDismissAllHandlesTmuxError(t *testing.T) {
 	require.NoError(t, err)
 	// Verify all notifications are actually dismissed
 	require.Equal(t, 0, GetActiveCount())
+}
+
+func TestFindNotificationsToDelete(t *testing.T) {
+	setupTest(t)
+	require.NoError(t, Init())
+
+	// Add test notifications
+	id1, err := AddNotification("old1", "2000-01-01T00:00:00Z", "", "", "", "", "info")
+	require.NoError(t, err)
+	id2, err := AddNotification("old2", "2000-01-02T00:00:00Z", "", "", "", "", "info")
+	require.NoError(t, err)
+	id3, err := AddNotification("recent", "", "", "", "", "", "info")
+	require.NoError(t, err)
+
+	// Dismiss all
+	require.NoError(t, DismissNotification(id1))
+	require.NoError(t, DismissNotification(id2))
+	require.NoError(t, DismissNotification(id3))
+
+	// Get latest notifications
+	latest, err := getLatestNotifications()
+	require.NoError(t, err)
+
+	// Test 1: Find all dismissed notifications (daysThreshold == 0)
+	ids := findNotificationsToDelete(latest, true, "")
+	require.Len(t, ids, 3)
+	require.Contains(t, ids, mustAtoi(t, id1))
+	require.Contains(t, ids, mustAtoi(t, id2))
+	require.Contains(t, ids, mustAtoi(t, id3))
+
+	// Test 2: Find dismissed notifications older than cutoff
+	ids = findNotificationsToDelete(latest, false, "2000-01-03T00:00:00Z")
+	require.Len(t, ids, 2)
+	require.Contains(t, ids, mustAtoi(t, id1))
+	require.Contains(t, ids, mustAtoi(t, id2))
+
+	// Test 3: No notifications match cutoff
+	ids = findNotificationsToDelete(latest, false, "1999-01-01T00:00:00Z")
+	require.Empty(t, ids)
+}
+
+func TestFilterLinesByIDs(t *testing.T) {
+	setupTest(t)
+	require.NoError(t, Init())
+
+	// Add test notifications
+	id1, err := AddNotification("msg1", "", "", "", "", "", "info")
+	require.NoError(t, err)
+	id2, err := AddNotification("msg2", "", "", "", "", "", "info")
+	require.NoError(t, err)
+	id3, err := AddNotification("msg3", "", "", "", "", "", "info")
+	require.NoError(t, err)
+
+	// Get all lines
+	lines, err := readAllLines()
+	require.NoError(t, err)
+	require.Len(t, lines, 3)
+
+	// Filter out id2
+	idsToDelete := []int{mustAtoi(t, id2)}
+	filtered := filterLinesByIDs(lines, idsToDelete)
+	require.Len(t, filtered, 2)
+
+	// Verify id2 is not in filtered, but id1 and id3 are
+	id1Found, id3Found := false, false
+	for _, line := range filtered {
+		fields := strings.Split(line, "\t")
+		if fields[fieldID] == id1 {
+			id1Found = true
+		}
+		if fields[fieldID] == id3 {
+			id3Found = true
+		}
+		require.NotEqual(t, id2, fields[fieldID])
+	}
+	require.True(t, id1Found, "id1 should be present in filtered lines")
+	require.True(t, id3Found, "id3 should be present in filtered lines")
+}
+
+func TestWriteNotifications(t *testing.T) {
+	tmpDir := setupTest(t)
+	require.NoError(t, Init())
+
+	// Write test data
+	lines := []string{
+		"1\t2000-01-01T00:00:00Z\tactive\t\t\t\tmessage\t\tinfo",
+		"2\t2000-01-02T00:00:00Z\tactive\t\t\t\tmessage\t\tinfo",
+	}
+	require.NoError(t, writeNotifications(lines))
+
+	// Verify file was written
+	notifFile := filepath.Join(tmpDir, "notifications.tsv")
+	data, err := os.ReadFile(notifFile)
+	require.NoError(t, err)
+	content := string(data)
+	require.Contains(t, content, "1\t2000-01-01T00:00:00Z")
+	require.Contains(t, content, "2\t2000-01-02T00:00:00Z")
+
+	// Verify file ends with newline
+	require.True(t, strings.HasSuffix(content, "\n"))
+}
+
+func TestWriteNotificationsEmpty(t *testing.T) {
+	tmpDir := setupTest(t)
+	require.NoError(t, Init())
+
+	// Write empty data
+	lines := []string{}
+	require.NoError(t, writeNotifications(lines))
+
+	// Verify file is empty
+	notifFile := filepath.Join(tmpDir, "notifications.tsv")
+	data, err := os.ReadFile(notifFile)
+	require.NoError(t, err)
+	require.Empty(t, strings.TrimSpace(string(data)))
+}
+
+// Helper function to convert string ID to int for tests
+func mustAtoi(t *testing.T, s string) int {
+	n, err := strconv.Atoi(s)
+	require.NoError(t, err)
+	return n
 }

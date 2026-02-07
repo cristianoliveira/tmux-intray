@@ -27,7 +27,7 @@ func (l *Lock) Acquire() error {
 	start := time.Now()
 	for {
 		// Use MkdirAll to ensure parent directories exist
-		err := os.MkdirAll(l.dir, 0755)
+		err := os.MkdirAll(l.dir, FileModeDir)
 		if err == nil {
 			return nil
 		}
