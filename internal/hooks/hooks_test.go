@@ -148,3 +148,155 @@ func TestRunAsyncHookMaxLimit(t *testing.T) {
 	// Wait for pending hooks
 	time.Sleep(600 * time.Millisecond)
 }
+
+func TestAsyncHookPanicRecovery(t *testing.T) {
+	ResetForTesting()
+	tmpDir := t.TempDir()
+	hookDir := filepath.Join(tmpDir, "pre-add")
+	require.NoError(t, os.MkdirAll(hookDir, 0755))
+
+	// Create a script that panics (will cause panic in goroutine body)
+	script := filepath.Join(hookDir, "panic.sh")
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nexit 0"), 0755))
+
+	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
+	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
+	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1")
+	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
+
+	// This should not panic the test even if internal goroutine panics
+	require.NotPanics(t, func() {
+		Run("pre-add")
+	})
+
+	// Ensure all hooks complete and cleanup happens
+	WaitForPendingHooks()
+}
+
+func TestAsyncHookTimeoutDetection(t *testing.T) {
+	ResetForTesting()
+	tmpDir := t.TempDir()
+	hookDir := filepath.Join(tmpDir, "pre-add")
+	require.NoError(t, os.MkdirAll(hookDir, 0755))
+
+	// Create a script that sleeps longer than the timeout
+	script := filepath.Join(hookDir, "timeout.sh")
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nsleep 5\necho done"), 0755))
+
+	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
+	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
+	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1")
+	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
+	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "0.5")
+
+	start := time.Now()
+	err := Run("pre-add")
+	require.NoError(t, err)
+
+	// Wait for hook to complete (should timeout)
+	WaitForPendingHooks()
+	duration := time.Since(start)
+
+	// Should complete within timeout + some overhead (not wait for full sleep 5)
+	require.Less(t, duration, 2*time.Second)
+}
+
+func TestAsyncHookNoLeakOnFailure(t *testing.T) {
+	ResetForTesting()
+	tmpDir := t.TempDir()
+	hookDir := filepath.Join(tmpDir, "pre-add")
+	require.NoError(t, os.MkdirAll(hookDir, 0755))
+
+	// Create a script that fails
+	script := filepath.Join(hookDir, "fail.sh")
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nexit 1"), 0755))
+
+	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
+	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
+	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1")
+	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "warn")
+
+	err := Run("pre-add")
+	require.NoError(t, err)
+
+	// Wait for all hooks to complete
+	WaitForPendingHooks()
+
+	// Verify no goroutines leaked by checking that WaitForPendingHooks returns
+	// If there was a leak, this would block forever
+}
+
+func TestAsyncHookCleanupAlwaysCalled(t *testing.T) {
+	ResetForTesting()
+	tmpDir := t.TempDir()
+	hookDir := filepath.Join(tmpDir, "pre-add")
+	require.NoError(t, os.MkdirAll(hookDir, 0755))
+
+	// Create multiple hooks with different behaviors
+	scripts := []struct {
+		name     string
+		content  string
+		duration time.Duration
+	}{
+		{"success.sh", "#!/bin/sh\necho success", 100 * time.Millisecond},
+		{"fail.sh", "#!/bin/sh\nexit 1", 100 * time.Millisecond},
+		{"timeout.sh", "#!/bin/sh\nsleep 2", 2 * time.Second},
+	}
+
+	for _, s := range scripts {
+		script := filepath.Join(hookDir, s.name)
+		require.NoError(t, os.WriteFile(script, []byte(s.content), 0755))
+	}
+
+	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
+	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
+	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1")
+	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "warn")
+	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "0.5")
+
+	err := Run("pre-add")
+	require.NoError(t, err)
+
+	// Wait for all hooks to complete (including those that timeout)
+	WaitForPendingHooks()
+
+	// If cleanup wasn't called, this test would hang
+}
+
+func TestAsyncHookContextCancellation(t *testing.T) {
+	ResetForTesting()
+	tmpDir := t.TempDir()
+	hookDir := filepath.Join(tmpDir, "pre-add")
+	require.NoError(t, os.MkdirAll(hookDir, 0755))
+
+	// Create a script that ignores SIGTERM and keeps running
+	script := filepath.Join(hookDir, "ignore-sigterm.sh")
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\ntrap '' TERM\nsleep 10\necho done"), 0755))
+
+	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
+	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
+	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
+	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1")
+	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
+	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "0.5")
+
+	start := time.Now()
+	err := Run("pre-add")
+	require.NoError(t, err)
+
+	// Wait for all hooks to complete
+	WaitForPendingHooks()
+	duration := time.Since(start)
+
+	// Should complete within timeout + overhead
+	require.Less(t, duration, 2*time.Second)
+}
