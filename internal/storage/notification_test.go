@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"errors"
 	"os"
 	"testing"
 
@@ -176,4 +177,31 @@ func TestGetNotificationByIDNotInitialized(t *testing.T) {
 	// The error message will be "notification with ID 1 not found" if the state_dir is not set
 	// or "storage not initialized" if the state_dir is set but not initialized
 	// We'll check that we get an error in either case
+}
+
+func TestErrNotFound(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "tmux-intray-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Reset storage state
+	Reset()
+
+	// Set up test environment
+	os.Setenv("TMUX_INTRAY_STATE_DIR", tempDir)
+	if err := Init(); err != nil {
+		t.Fatalf("Failed to initialize storage: %v", err)
+	}
+
+	// Test that ErrNotFound is returned for non-existent notification
+	_, err = GetNotificationByID("999")
+	require.Error(t, err)
+
+	// Check that the error wraps ErrNotFound
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("Expected error to wrap ErrNotFound, got: %v", err)
+	}
 }

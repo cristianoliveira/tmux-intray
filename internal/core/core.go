@@ -42,7 +42,7 @@ func GetTrayItems(stateFilter string) string {
 		}
 		message := fields[fieldMessage]
 		// Unescape message
-		message = unescapeMessage(message)
+		message = storage.UnescapeMessage(message)
 		messages = append(messages, message)
 	}
 	return strings.Join(messages, "\n")
@@ -101,28 +101,6 @@ func SetVisibility(visible bool) error {
 		return ErrTmuxOperationFailed
 	}
 	return nil
-}
-
-// Helper functions copied from storage package (since they're not exported)
-
-func escapeMessage(msg string) string {
-	// Escape backslashes first
-	msg = strings.ReplaceAll(msg, "\\", "\\\\")
-	// Escape tabs
-	msg = strings.ReplaceAll(msg, "\t", "\\t")
-	// Escape newlines
-	msg = strings.ReplaceAll(msg, "\n", "\\n")
-	return msg
-}
-
-func unescapeMessage(msg string) string {
-	// Unescape newlines first
-	msg = strings.ReplaceAll(msg, "\\n", "\n")
-	// Unescape tabs
-	msg = strings.ReplaceAll(msg, "\\t", "\t")
-	// Unescape backslashes
-	msg = strings.ReplaceAll(msg, "\\\\", "\\")
-	return msg
 }
 
 // ErrTmuxOperationFailed is returned when tmux operation fails.

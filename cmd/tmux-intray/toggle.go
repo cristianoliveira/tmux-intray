@@ -4,6 +4,7 @@ Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/cristianoliveira/tmux-intray/cmd"
@@ -78,7 +79,7 @@ variable TMUX_INTRAY_VISIBLE to "1" (visible) or "0" (hidden).`,
 			"OLD_VISIBLE=" + oldVisible,
 			"VISIBLE=" + newVisibleStr,
 		}
-		if err := hooks.Run("pre-toggle", envVars...); err != nil {
+		if err := hooks.Run(context.Background(), "pre-toggle", envVars...); err != nil {
 			colors.Error(err.Error())
 			return err
 		}
@@ -90,7 +91,7 @@ variable TMUX_INTRAY_VISIBLE to "1" (visible) or "0" (hidden).`,
 		}
 
 		// Run post-toggle hooks
-		if err := hooks.Run("post-toggle", envVars...); err != nil {
+		if err := hooks.Run(context.Background(), "post-toggle", envVars...); err != nil {
 			colors.Error(err.Error())
 			return err
 		}

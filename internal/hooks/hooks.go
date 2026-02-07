@@ -53,6 +53,10 @@ func getManager() *hookManager {
 }
 
 // Init initializes the hooks subsystem.
+// It loads configuration, creates the hooks directory (if it doesn't exist),
+// and marks the subsystem as initialized. Safe for concurrent calls.
+// If the hooks directory cannot be created, the subsystem may not function correctly,
+// but this error is not returned to maintain backward compatibility.
 func Init() {
 	config.Load()
 	m := getManager()
@@ -140,9 +144,9 @@ func getMaxAsyncHooks() int {
 }
 
 // runSyncHook executes a hook script synchronously.
-func runSyncHook(scriptPath, scriptName string, envMap map[string]string, failureMode string) error {
+func runSyncHook(ctx context.Context, scriptPath, scriptName string, envMap map[string]string, failureMode string) error {
 	start := time.Now()
-	cmd := exec.Command(scriptPath)
+	cmd := exec.CommandContext(ctx, scriptPath)
 	cmd.Env = os.Environ()
 	for k, v := range envMap {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
@@ -152,6 +156,17 @@ func runSyncHook(scriptPath, scriptName string, envMap map[string]string, failur
 	// Print hook output to stderr (so it appears in logs)
 	if len(output) > 0 {
 		os.Stderr.Write(output)
+	}
+	// Check if the command was canceled
+	if ctx.Err() != nil {
+		switch failureMode {
+		case "abort":
+			return fmt.Errorf("hook %s canceled: %v", scriptName, ctx.Err())
+		case "warn":
+			fmt.Fprintf(os.Stderr, "warning: hook %s canceled: %v\n", scriptName, ctx.Err())
+		case "ignore":
+			// do nothing
+		}
 	}
 	if err != nil {
 		switch failureMode {
@@ -170,10 +185,11 @@ func runSyncHook(scriptPath, scriptName string, envMap map[string]string, failur
 }
 
 // runAsyncHook executes a hook script asynchronously with timeout.
-func runAsyncHook(scriptPath, scriptName string, envMap map[string]string, failureMode string) {
+func runAsyncHook(ctx context.Context, scriptPath, scriptName string, envMap map[string]string, failureMode string) {
 	timeout := getAsyncTimeout()
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	cmd := exec.CommandContext(ctx, scriptPath)
+	// Create a new context that respects both the parent context and timeout
+	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
+	cmd := exec.CommandContext(cmdCtx, scriptPath)
 	cmd.Env = os.Environ()
 	for k, v := range envMap {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
@@ -218,8 +234,13 @@ func runAsyncHook(scriptPath, scriptName string, envMap map[string]string, failu
 		duration := time.Since(startTime)
 
 		// Check if hook exceeded timeout (context was canceled)
-		if ctx.Err() == context.DeadlineExceeded {
+		if cmdCtx.Err() == context.DeadlineExceeded {
 			fmt.Fprintf(os.Stderr, "warning: async hook %s timed out after %.2fs\n", scriptName, duration.Seconds())
+		}
+
+		// Check if parent context was canceled
+		if ctx.Err() != nil && ctx.Err() != context.DeadlineExceeded {
+			fmt.Fprintf(os.Stderr, "warning: async hook %s canceled by parent context\n", scriptName)
 		}
 
 		// Log hook execution result
@@ -232,7 +253,10 @@ func runAsyncHook(scriptPath, scriptName string, envMap map[string]string, failu
 }
 
 // Run executes hooks for a hook point with environment variables.
-func Run(hookPoint string, envVars ...string) error {
+// The ctx parameter allows for cancellation and timeout propagation.
+// If ctx is canceled or times out, synchronous hooks will be aborted and
+// asynchronous hooks will respect the cancellation.
+func Run(ctx context.Context, hookPoint string, envVars ...string) error {
 	hookDir := filepath.Join(getHooksDir(), hookPoint)
 	files, err := os.ReadDir(hookDir)
 	if err != nil {
@@ -339,10 +363,10 @@ func Run(hookPoint string, envVars ...string) error {
 			asyncPendingMu.Unlock()
 			// Start async hook
 			fmt.Fprintf(os.Stderr, "  Starting hook asynchronously: %s\n", script.name)
-			go runAsyncHook(script.path, script.name, envMap, failureMode)
+			go runAsyncHook(ctx, script.path, script.name, envMap, failureMode)
 		} else {
 			// Synchronous execution
-			if err := runSyncHook(script.path, script.name, envMap, failureMode); err != nil {
+			if err := runSyncHook(ctx, script.path, script.name, envMap, failureMode); err != nil {
 				if failureMode == "abort" {
 					return err
 				}

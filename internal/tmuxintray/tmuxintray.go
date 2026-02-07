@@ -112,17 +112,6 @@ type Notification struct {
 	Level       string
 }
 
-// unescapeMessage reverses the escaping applied by storage package.
-func unescapeMessage(msg string) string {
-	// Unescape newlines first
-	msg = strings.ReplaceAll(msg, "\\n", "\n")
-	// Unescape tabs
-	msg = strings.ReplaceAll(msg, "\\t", "\t")
-	// Unescape backslashes
-	msg = strings.ReplaceAll(msg, "\\\\", "\\")
-	return msg
-}
-
 // ParseNotification parses a TSV line into a Notification struct.
 // Returns an error if the line is empty or doesn't contain enough fields.
 func ParseNotification(tsvLine string) (Notification, error) {
@@ -142,7 +131,7 @@ func ParseNotification(tsvLine string) (Notification, error) {
 		Session:     fields[fieldSession],
 		Window:      fields[fieldWindow],
 		Pane:        fields[fieldPane],
-		Message:     unescapeMessage(fields[fieldMessage]),
+		Message:     storage.UnescapeMessage(fields[fieldMessage]),
 		PaneCreated: fields[fieldPaneCreated],
 		Level:       fields[fieldLevel],
 	}, nil

@@ -2,6 +2,7 @@
 package storage
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -31,6 +32,12 @@ const (
 	numFields        = 9
 )
 
+// Valid notification states
+const (
+	StateActive    = "active"
+	StateDismissed = "dismissed"
+)
+
 // Valid notification levels
 var (
 	validLevels = map[string]bool{
@@ -39,6 +46,11 @@ var (
 		"error":    true,
 		"critical": true,
 	}
+)
+
+// Sentinel errors
+var (
+	ErrNotFound = errors.New("notification not found")
 )
 
 var (
@@ -51,7 +63,12 @@ var (
 )
 
 // Init initializes storage directories and files.
-// Returns an error if initialization fails. Safe for concurrent calls.
+// It loads configuration, creates the state directory (if it doesn't exist),
+// ensures the notifications file exists, and marks the storage as initialized.
+// Returns an error if initialization fails (e.g., state_dir not configured,
+// directory creation failed, or file creation failed). Safe for concurrent calls.
+// Subsequent calls after a successful initialization return the error from the
+// first call or nil if the first call succeeded.
 func Init() error {
 	var err error
 	initOnce.Do(func() {
@@ -107,9 +124,24 @@ func Init() error {
 	return err
 }
 
+// validateState validates that a state value is one of the valid states.
+// Returns an error if the state is invalid, nil otherwise.
+func validateState(state string) error {
+	if state != StateActive && state != StateDismissed {
+		return fmt.Errorf("invalid state '%s', must be one of: %s, %s", state, StateActive, StateDismissed)
+	}
+	return nil
+}
+
 // validateNotificationInputs validates all parameters for AddNotification.
 // Returns an error if validation fails, nil otherwise.
 func validateNotificationInputs(message, timestamp, session, window, pane, paneCreated, level string) error {
+	// Validate state is valid (though currently only "active" is supported for new notifications)
+	if err := validateState(StateActive); err != nil {
+		return err
+	}
+
+	// Validate message is non-empty
 	// Validate message is non-empty
 	if strings.TrimSpace(message) == "" {
 		return fmt.Errorf("message cannot be empty")
@@ -172,7 +204,7 @@ func AddNotification(message, timestamp, session, window, pane, paneCreated, lev
 	}
 
 	// Escape message
-	escapedMessage := escapeMessage(message)
+	escapedMessage := EscapeMessage(message)
 
 	// Run pre-add hooks
 	envVars := []string{
@@ -186,14 +218,14 @@ func AddNotification(message, timestamp, session, window, pane, paneCreated, lev
 		fmt.Sprintf("PANE=%s", pane),
 		fmt.Sprintf("PANE_CREATED=%s", paneCreated),
 	}
-	if err := hooks.Run("pre-add", envVars...); err != nil {
+	if err := hooks.Run(context.Background(), "pre-add", envVars...); err != nil {
 		colors.Error(fmt.Sprintf("pre-add hook aborted: %v", err))
 		return "", fmt.Errorf("pre-add hook aborted: %w", err)
 	}
 
 	// Append line with lock
 	if err := WithLock(lockDir, func() error {
-		return appendLine(id, timestamp, "active", session, window, pane, escapedMessage, paneCreated, level)
+		return appendLine(id, timestamp, StateActive, session, window, pane, escapedMessage, paneCreated, level)
 	}); err != nil {
 		colors.Error(fmt.Sprintf("failed to add notification: %v", err))
 		return "", fmt.Errorf("failed to add notification: %w", err)
@@ -206,7 +238,7 @@ func AddNotification(message, timestamp, session, window, pane, paneCreated, lev
 	if err2 == nil {
 		for _, line := range latest {
 			fields := strings.Split(line, "\t")
-			if len(fields) > fieldState && fields[fieldState] == "active" {
+			if len(fields) > fieldState && fields[fieldState] == StateActive {
 				activeCount++
 			}
 		}
@@ -216,7 +248,7 @@ func AddNotification(message, timestamp, session, window, pane, paneCreated, lev
 	}
 
 	// Run post-add hooks
-	if err := hooks.Run("post-add", envVars...); err != nil {
+	if err := hooks.Run(context.Background(), "post-add", envVars...); err != nil {
 		colors.Error(fmt.Sprintf("post-add hook aborted: %v", err))
 		// Still return ID because notification was added, but log the error
 	}
@@ -288,7 +320,7 @@ func GetNotificationByID(id string) (string, error) {
 	}
 
 	if result == "" {
-		return "", fmt.Errorf("notification with ID %s not found", id)
+		return "", fmt.Errorf("%w: ID %s", ErrNotFound, id)
 	}
 
 	return result, nil
@@ -314,7 +346,7 @@ func DismissNotification(id string) error {
 			}
 		}
 		if targetLine == "" {
-			return fmt.Errorf("notification %s not found", id)
+			return fmt.Errorf("%w: %s", ErrNotFound, id)
 		}
 		fields := strings.Split(targetLine, "\t")
 		if len(fields) < numFields {
@@ -324,7 +356,7 @@ func DismissNotification(id string) error {
 		if err != nil {
 			return fmt.Errorf("failed to get state field: %w", err)
 		}
-		if state == "dismissed" {
+		if state == StateDismissed {
 			return fmt.Errorf("notification %s is already dismissed", id)
 		}
 		level, err := getField(fields, fieldLevel)
@@ -370,7 +402,7 @@ func DismissNotification(id string) error {
 			fmt.Sprintf("PANE=%s", pane),
 			fmt.Sprintf("PANE_CREATED=%s", paneCreated),
 		}
-		if err := hooks.Run("pre-dismiss", envVars...); err != nil {
+		if err := hooks.Run(context.Background(), "pre-dismiss", envVars...); err != nil {
 			return err
 		}
 		idInt, err := strToInt(idField)
@@ -380,7 +412,7 @@ func DismissNotification(id string) error {
 		if err := appendLine(
 			idInt,
 			timestamp,
-			"dismissed",
+			StateDismissed,
 			session,
 			window,
 			pane,
@@ -390,7 +422,7 @@ func DismissNotification(id string) error {
 		); err != nil {
 			return err
 		}
-		if err := hooks.Run("post-dismiss", envVars...); err != nil {
+		if err := hooks.Run(context.Background(), "post-dismiss", envVars...); err != nil {
 			return err
 		}
 		// Calculate active count after dismissing
@@ -399,7 +431,7 @@ func DismissNotification(id string) error {
 		if err2 == nil {
 			for _, line := range latest {
 				fields := strings.Split(line, "\t")
-				if len(fields) > fieldState && fields[fieldState] == "active" {
+				if len(fields) > fieldState && fields[fieldState] == StateActive {
 					activeCount++
 				}
 			}
@@ -422,7 +454,7 @@ func DismissAll() error {
 		return fmt.Errorf("storage not initialized: %w", err)
 	}
 	colors.Debug("DismissAll called")
-	if err := hooks.Run("pre-clear"); err != nil {
+	if err := hooks.Run(context.Background(), "pre-clear"); err != nil {
 		return err
 	}
 	err := WithLock(lockDir, func() error {
@@ -441,7 +473,7 @@ func DismissAll() error {
 			if err != nil {
 				return fmt.Errorf("failed to get state field: %w", err)
 			}
-			if state != "active" {
+			if state != StateActive {
 				continue
 			}
 			id, err := getField(fields, fieldID)
@@ -487,7 +519,7 @@ func DismissAll() error {
 				fmt.Sprintf("PANE=%s", pane),
 				fmt.Sprintf("PANE_CREATED=%s", paneCreated),
 			}
-			if err := hooks.Run("pre-dismiss", envVars...); err != nil {
+			if err := hooks.Run(context.Background(), "pre-dismiss", envVars...); err != nil {
 				return err
 			}
 			idInt, err := strToInt(id)
@@ -497,7 +529,7 @@ func DismissAll() error {
 			if err := appendLine(
 				idInt,
 				timestamp,
-				"dismissed",
+				StateDismissed,
 				session,
 				window,
 				pane,
@@ -507,7 +539,7 @@ func DismissAll() error {
 			); err != nil {
 				return err
 			}
-			if err := hooks.Run("post-dismiss", envVars...); err != nil {
+			if err := hooks.Run(context.Background(), "post-dismiss", envVars...); err != nil {
 				return err
 			}
 		}
@@ -517,7 +549,7 @@ func DismissAll() error {
 		if err2 == nil {
 			for _, line := range latest {
 				fields := strings.Split(line, "\t")
-				if len(fields) > fieldState && fields[fieldState] == "active" {
+				if len(fields) > fieldState && fields[fieldState] == StateActive {
 					activeCount++
 				}
 			}
@@ -572,7 +604,7 @@ func GetActiveCount() int {
 		}
 		for _, line := range latest {
 			fields := strings.Split(line, "\t")
-			if len(fields) > fieldState && fields[fieldState] == "active" {
+			if len(fields) > fieldState && fields[fieldState] == StateActive {
 				count++
 			}
 		}
@@ -619,7 +651,9 @@ func getNextID() (int, error) {
 	return maxID + 1, nil
 }
 
-func escapeMessage(msg string) string {
+// EscapeMessage escapes special characters in a message for TSV storage.
+// It escapes backslashes, tabs, and newlines.
+func EscapeMessage(msg string) string {
 	// Escape backslashes first
 	msg = strings.ReplaceAll(msg, "\\", "\\\\")
 	// Escape tabs
@@ -629,7 +663,9 @@ func escapeMessage(msg string) string {
 	return msg
 }
 
-func unescapeMessage(msg string) string {
+// UnescapeMessage unescapes special characters in a message from TSV storage.
+// It unescapes newlines, tabs, and backslashes.
+func UnescapeMessage(msg string) string {
 	// Unescape newlines first
 	msg = strings.ReplaceAll(msg, "\\n", "\n")
 	// Unescape tabs
@@ -809,7 +845,7 @@ func dismissByID(id string) error {
 		}
 	}
 	if targetLine == "" {
-		return fmt.Errorf("notification %s not found", id)
+		return fmt.Errorf("%w: %s", ErrNotFound, id)
 	}
 	fields := strings.Split(targetLine, "\t")
 	if len(fields) < numFields {
@@ -820,7 +856,7 @@ func dismissByID(id string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get state field: %w", err)
 	}
-	if state == "dismissed" {
+	if state == StateDismissed {
 		return fmt.Errorf("already dismissed")
 	}
 	idField, err := getField(fields, fieldID)
@@ -863,7 +899,7 @@ func dismissByID(id string) error {
 	return appendLine(
 		idInt,
 		timestamp,
-		"dismissed",
+		StateDismissed,
 		session,
 		window,
 		pane,
@@ -887,7 +923,7 @@ func dismissAllActive() error {
 		if err != nil {
 			return fmt.Errorf("failed to get state field: %w", err)
 		}
-		if state != "active" {
+		if state != StateActive {
 			continue
 		}
 		idField, err := getField(fields, fieldID)
@@ -930,7 +966,7 @@ func dismissAllActive() error {
 		err = appendLine(
 			idInt,
 			timestamp,
-			"dismissed",
+			StateDismissed,
 			session,
 			window,
 			pane,
@@ -962,7 +998,7 @@ func cleanupOld(daysThreshold int, dryRun bool) error {
 		fmt.Sprintf("CUTOFF_TIMESTAMP=%s", cutoffStr),
 		fmt.Sprintf("DRY_RUN=%t", dryRun),
 	}
-	if err := hooks.Run("cleanup", envVars...); err != nil {
+	if err := hooks.Run(context.Background(), "cleanup", envVars...); err != nil {
 		return fmt.Errorf("pre-cleanup hook failed: %w", err)
 	}
 
@@ -983,7 +1019,7 @@ func cleanupOld(daysThreshold int, dryRun bool) error {
 		if err != nil {
 			continue
 		}
-		if state != "dismissed" {
+		if state != StateDismissed {
 			continue
 		}
 		timestamp, err := getField(fields, fieldTimestamp)
@@ -1009,7 +1045,7 @@ func cleanupOld(daysThreshold int, dryRun bool) error {
 		colors.Info("No old dismissed notifications to clean up")
 		// Run post-cleanup hooks with zero count
 		postEnv := append(envVars, "DELETED_COUNT=0")
-		if err := hooks.Run("post-cleanup", postEnv...); err != nil {
+		if err := hooks.Run(context.Background(), "post-cleanup", postEnv...); err != nil {
 			return fmt.Errorf("post-cleanup hook failed: %w", err)
 		}
 		return nil
@@ -1021,7 +1057,7 @@ func cleanupOld(daysThreshold int, dryRun bool) error {
 		colors.Info(fmt.Sprintf("Dry run: would delete notifications with IDs: %v", idsToDelete))
 		// Run post-cleanup hooks with dry run
 		postEnv := append(envVars, "DRY_RUN=true", fmt.Sprintf("DELETED_COUNT=%d", deletedCount))
-		if err := hooks.Run("post-cleanup", postEnv...); err != nil {
+		if err := hooks.Run(context.Background(), "post-cleanup", postEnv...); err != nil {
 			return fmt.Errorf("post-cleanup hook failed: %w", err)
 		}
 		return nil
@@ -1066,7 +1102,7 @@ func cleanupOld(daysThreshold int, dryRun bool) error {
 
 	// Run post-cleanup hooks
 	postEnv := append(envVars, fmt.Sprintf("DELETED_COUNT=%d", deletedCount))
-	if err := hooks.Run("post-cleanup", postEnv...); err != nil {
+	if err := hooks.Run(context.Background(), "post-cleanup", postEnv...); err != nil {
 		return fmt.Errorf("post-cleanup hook failed: %w", err)
 	}
 	return nil

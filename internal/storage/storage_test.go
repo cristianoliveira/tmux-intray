@@ -312,7 +312,7 @@ storage_list_notifications "%s" "%s" "%s" "%s" "%s" "%s" "%s"
 		for _, line := range lines {
 			fields := strings.Split(line, "\t")
 			if fields[fieldID] == bashID {
-				require.Equal(t, "hello\nworld", unescapeMessage(fields[fieldMessage]))
+				require.Equal(t, "hello\nworld", UnescapeMessage(fields[fieldMessage]))
 				found = true
 				break
 			}
@@ -338,7 +338,7 @@ storage_list_notifications "%s" "%s" "%s" "%s" "%s" "%s" "%s"
 			fields := strings.Split(line, "\t")
 			if len(fields) > fieldID && fields[fieldID] == goID {
 				// Bash storage returns escaped message; need to unescape
-				require.Equal(t, "test\tmessage", unescapeMessage(fields[fieldMessage]))
+				require.Equal(t, "test\tmessage", UnescapeMessage(fields[fieldMessage]))
 				found = true
 				break
 			}
@@ -367,7 +367,7 @@ storage_list_notifications "%s" "%s" "%s" "%s" "%s" "%s" "%s"
 				for _, line := range lines {
 					fields := strings.Split(line, "\t")
 					if fields[fieldID] == bashID {
-						require.Equal(t, tc.msg, unescapeMessage(fields[fieldMessage]))
+						require.Equal(t, tc.msg, UnescapeMessage(fields[fieldMessage]))
 						break
 					}
 				}
@@ -382,7 +382,7 @@ storage_list_notifications "%s" "%s" "%s" "%s" "%s" "%s" "%s"
 				for _, line := range lines {
 					fields := strings.Split(line, "\t")
 					if len(fields) > fieldID && fields[fieldID] == goID {
-						require.Equal(t, tc.msg, unescapeMessage(fields[fieldMessage]))
+						require.Equal(t, tc.msg, UnescapeMessage(fields[fieldMessage]))
 						break
 					}
 				}
@@ -739,7 +739,7 @@ func TestAppendLineWithSpecialCharacters(t *testing.T) {
 			setupTest(t)
 			require.NoError(t, Init())
 
-			escaped := escapeMessage(tc.message)
+			escaped := EscapeMessage(tc.message)
 			err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "window0", "pane0",
 				escaped, "123456789", "info")
 			require.NoError(t, err)

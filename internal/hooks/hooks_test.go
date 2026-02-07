@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,7 +14,7 @@ import (
 func TestInitAndRunNoPanic(t *testing.T) {
 	require.NotPanics(t, func() {
 		Init()
-		Run("pre-add", "FOO=bar")
+		Run(context.Background(), "pre-add", "FOO=bar")
 	})
 }
 
@@ -30,7 +31,7 @@ func TestRunSyncHookSuccess(t *testing.T) {
 	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
 	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
 
-	require.NoError(t, Run("pre-add", "FOO=bar"))
+	require.NoError(t, Run(context.Background(), "pre-add", "FOO=bar"))
 }
 
 func TestRunSyncHookFailureModes(t *testing.T) {
@@ -47,17 +48,17 @@ func TestRunSyncHookFailureModes(t *testing.T) {
 
 	// abort mode should return error
 	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "abort")
-	err := Run("pre-add")
+	err := Run(context.Background(), "pre-add")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "hook fail.sh failed")
 
 	// warn mode should not error but print warning (we can't capture stderr easily)
 	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "warn")
-	require.NoError(t, Run("pre-add"))
+	require.NoError(t, Run(context.Background(), "pre-add"))
 
 	// ignore mode should not error
 	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
-	require.NoError(t, Run("pre-add"))
+	require.NoError(t, Run(context.Background(), "pre-add"))
 }
 
 func TestRunSyncHookEnvVars(t *testing.T) {
@@ -78,7 +79,7 @@ echo "FOO=$FOO"
 	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
 
 	// Capture output? We'll just ensure no error.
-	require.NoError(t, Run("pre-add", "FOO=bar"))
+	require.NoError(t, Run(context.Background(), "pre-add", "FOO=bar"))
 }
 
 func TestRunSyncHookOrdering(t *testing.T) {
@@ -100,7 +101,7 @@ func TestRunSyncHookOrdering(t *testing.T) {
 	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
 
 	// No easy way to verify order, but we can at least ensure they all run
-	require.NoError(t, Run("pre-add"))
+	require.NoError(t, Run(context.Background(), "pre-add"))
 }
 
 func TestRunAsyncHook(t *testing.T) {
@@ -119,7 +120,7 @@ func TestRunAsyncHook(t *testing.T) {
 	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
 
 	start := time.Now()
-	require.NoError(t, Run("pre-add"))
+	require.NoError(t, Run(context.Background(), "pre-add"))
 	// Async should return quickly (not wait for sleep)
 	require.Less(t, time.Since(start), 50*time.Millisecond)
 	// Wait for async hook to complete
@@ -146,7 +147,7 @@ func TestRunAsyncHookMaxLimit(t *testing.T) {
 	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
 
 	// Should skip the third hook due to max limit (warning printed)
-	require.NoError(t, Run("pre-add"))
+	require.NoError(t, Run(context.Background(), "pre-add"))
 	// Wait for pending hooks
 	WaitForPendingHooks()
 }
@@ -170,7 +171,7 @@ func TestAsyncHookPanicRecovery(t *testing.T) {
 
 	// This should not panic the test even if internal goroutine panics
 	require.NotPanics(t, func() {
-		Run("pre-add")
+		Run(context.Background(), "pre-add")
 	})
 
 	// Ensure all hooks complete and cleanup happens
@@ -196,7 +197,7 @@ func TestAsyncHookTimeoutDetection(t *testing.T) {
 	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "0.5")
 
 	start := time.Now()
-	err := Run("pre-add")
+	err := Run(context.Background(), "pre-add")
 	require.NoError(t, err)
 
 	// Wait for hook to complete (should timeout)
@@ -224,7 +225,7 @@ func TestAsyncHookNoLeakOnFailure(t *testing.T) {
 	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1")
 	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "warn")
 
-	err := Run("pre-add")
+	err := Run(context.Background(), "pre-add")
 	require.NoError(t, err)
 
 	// Wait for all hooks to complete
@@ -264,7 +265,7 @@ func TestAsyncHookCleanupAlwaysCalled(t *testing.T) {
 	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "warn")
 	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "0.5")
 
-	err := Run("pre-add")
+	err := Run(context.Background(), "pre-add")
 	require.NoError(t, err)
 
 	// Wait for all hooks to complete (including those that timeout)
@@ -292,7 +293,7 @@ func TestAsyncHookContextCancellation(t *testing.T) {
 	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "0.5")
 
 	start := time.Now()
-	err := Run("pre-add")
+	err := Run(context.Background(), "pre-add")
 	require.NoError(t, err)
 
 	// Wait for all hooks to complete
