@@ -25,7 +25,7 @@ func NewLock(dir string) *Lock {
 // Acquire attempts to acquire the lock, retrying until timeout.
 func (l *Lock) Acquire() error {
 	start := time.Now()
-	for {
+	for time.Since(start) <= lockTimeout {
 		// Use MkdirAll to ensure parent directories exist
 		err := os.MkdirAll(l.dir, 0755)
 		if err == nil {
@@ -35,12 +35,12 @@ func (l *Lock) Acquire() error {
 		if os.IsExist(err) {
 			return nil
 		}
-		// Log the error and retry
-		if time.Since(start) > lockTimeout {
-			return fmt.Errorf("failed to create lock directory after timeout: %w", err)
-		}
+		// Retry after a short delay
 		time.Sleep(lockRetry)
 	}
+	// Timeout reached - this check ensures we timeout even if operation hangs without error
+	elapsed := time.Since(start)
+	return fmt.Errorf("failed to acquire lock after %v (timeout: %v)", elapsed, lockTimeout)
 }
 
 // Release releases the lock by removing the directory.

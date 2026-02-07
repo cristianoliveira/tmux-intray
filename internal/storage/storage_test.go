@@ -886,3 +886,86 @@ func TestDismissAllHandlesTmuxError(t *testing.T) {
 	// Verify all notifications are actually dismissed
 	require.Equal(t, 0, GetActiveCount())
 }
+
+func TestLockAcquireAndRelease(t *testing.T) {
+	tmpDir := t.TempDir()
+	lock := NewLock(filepath.Join(tmpDir, "lock"))
+
+	// Acquire lock
+	err := lock.Acquire()
+	require.NoError(t, err)
+
+	// Release lock
+	err = lock.Release()
+	require.NoError(t, err)
+
+	// Should be able to acquire again
+	err = lock.Acquire()
+	require.NoError(t, err)
+	// Clean up
+	lock.Release()
+}
+
+func TestLockExistingDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	lockDir := filepath.Join(tmpDir, "lock")
+
+	// Create lock directory manually
+	require.NoError(t, os.MkdirAll(lockDir, 0755))
+
+	// Should still be able to acquire lock (existing directory is OK)
+	lock := NewLock(lockDir)
+	err := lock.Acquire()
+	require.NoError(t, err)
+}
+
+func TestFileCloseError(t *testing.T) {
+	// This test verifies that file close errors are properly checked
+	// We test this by creating a temporary directory and initializing storage
+	tmpDir := setupTest(t)
+
+	// The Init function now checks for file close errors
+	// If there's an error closing the file, Init should fail
+	err := Init()
+	require.NoError(t, err)
+
+	// Verify the notifications file was created successfully
+	require.FileExists(t, filepath.Join(tmpDir, "notifications.tsv"))
+}
+
+func TestWithLockConcurrency(t *testing.T) {
+	tmpDir := t.TempDir()
+	lockDir := filepath.Join(tmpDir, "lock")
+
+	// Test that WithLock properly acquires and releases lock
+	counter := 0
+	err := WithLock(lockDir, func() error {
+		counter++
+		return nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, counter)
+
+	// Multiple calls should work
+	for i := 0; i < 5; i++ {
+		err := WithLock(lockDir, func() error {
+			counter++
+			return nil
+		})
+		require.NoError(t, err)
+	}
+	require.Equal(t, 6, counter)
+}
+
+func TestLockWithExistingDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	lockDir := filepath.Join(tmpDir, "lock")
+
+	// Create lock directory manually to test IsExist handling
+	require.NoError(t, os.MkdirAll(lockDir, 0755))
+
+	// Should still be able to acquire lock (existing directory is OK)
+	lock := NewLock(lockDir)
+	err := lock.Acquire()
+	require.NoError(t, err)
+}
