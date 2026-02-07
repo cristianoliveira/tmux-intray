@@ -430,7 +430,12 @@ func TestToState(t *testing.T) {
 					Window:  "@1",
 					Pane:    "%1",
 				},
-				viewMode: settings.ViewModeDetailed,
+				viewMode:           settings.ViewModeDetailed,
+				groupBy:            settings.GroupBySession,
+				defaultExpandLevel: 2,
+				expansionState: map[string]bool{
+					"session:$1": true,
+				},
 			},
 			want: settings.TUIState{
 				SortBy:    settings.SortByLevel,
@@ -443,7 +448,12 @@ func TestToState(t *testing.T) {
 					Window:  "@1",
 					Pane:    "%1",
 				},
-				ViewMode: settings.ViewModeDetailed,
+				ViewMode:           settings.ViewModeDetailed,
+				GroupBy:            settings.GroupBySession,
+				DefaultExpandLevel: 2,
+				ExpansionState: map[string]bool{
+					"session:$1": true,
+				},
 			},
 		},
 		{
@@ -451,10 +461,12 @@ func TestToState(t *testing.T) {
 			model: &Model{
 				sortBy:   settings.SortByTimestamp,
 				viewMode: settings.ViewModeCompact,
+				groupBy:  settings.GroupByNone,
 			},
 			want: settings.TUIState{
 				SortBy:   settings.SortByTimestamp,
 				ViewMode: settings.ViewModeCompact,
+				GroupBy:  settings.GroupByNone,
 			},
 		},
 	}
@@ -468,6 +480,9 @@ func TestToState(t *testing.T) {
 			assert.Equal(t, tt.want.Columns, got.Columns)
 			assert.Equal(t, tt.want.Filters, got.Filters)
 			assert.Equal(t, tt.want.ViewMode, got.ViewMode)
+			assert.Equal(t, tt.want.GroupBy, got.GroupBy)
+			assert.Equal(t, tt.want.DefaultExpandLevel, got.DefaultExpandLevel)
+			assert.Equal(t, tt.want.ExpansionState, got.ExpansionState)
 		})
 	}
 }
@@ -490,6 +505,9 @@ func TestFromState(t *testing.T) {
 				assert.Equal(t, "", m.sortOrder)
 				assert.Empty(t, m.columns)
 				assert.Equal(t, "", m.viewMode)
+				assert.Equal(t, "", m.groupBy)
+				assert.Equal(t, 0, m.defaultExpandLevel)
+				assert.Nil(t, m.expansionState)
 				assert.Equal(t, settings.Filter{}, m.filters)
 			},
 		},
@@ -507,7 +525,12 @@ func TestFromState(t *testing.T) {
 					Window:  "@1",
 					Pane:    "%1",
 				},
-				ViewMode: settings.ViewModeDetailed,
+				ViewMode:           settings.ViewModeDetailed,
+				GroupBy:            settings.GroupByWindow,
+				DefaultExpandLevel: 2,
+				ExpansionState: map[string]bool{
+					"window:@1": true,
+				},
 			},
 			wantErr: false,
 			verifyFn: func(t *testing.T, m *Model) {
@@ -515,6 +538,9 @@ func TestFromState(t *testing.T) {
 				assert.Equal(t, settings.SortOrderAsc, m.sortOrder)
 				assert.Equal(t, []string{settings.ColumnID, settings.ColumnMessage, settings.ColumnLevel}, m.columns)
 				assert.Equal(t, settings.ViewModeDetailed, m.viewMode)
+				assert.Equal(t, settings.GroupByWindow, m.groupBy)
+				assert.Equal(t, 2, m.defaultExpandLevel)
+				assert.Equal(t, map[string]bool{"window:@1": true}, m.expansionState)
 				assert.Equal(t, settings.LevelFilterWarning, m.filters.Level)
 				assert.Equal(t, settings.StateFilterActive, m.filters.State)
 				assert.Equal(t, "my-session", m.filters.Session)
@@ -531,11 +557,14 @@ func TestFromState(t *testing.T) {
 				filters: settings.Filter{
 					Level: settings.LevelFilterError,
 				},
-				viewMode: settings.ViewModeCompact,
+				viewMode:           settings.ViewModeCompact,
+				groupBy:            settings.GroupBySession,
+				defaultExpandLevel: 3,
 			},
 			state: settings.TUIState{
-				SortBy:  settings.SortByLevel,
-				Columns: []string{settings.ColumnID, settings.ColumnMessage},
+				SortBy:             settings.SortByLevel,
+				Columns:            []string{settings.ColumnID, settings.ColumnMessage},
+				DefaultExpandLevel: 0,
 			},
 			wantErr: false,
 			verifyFn: func(t *testing.T, m *Model) {
@@ -544,6 +573,8 @@ func TestFromState(t *testing.T) {
 				assert.Equal(t, []string{settings.ColumnID, settings.ColumnMessage}, m.columns)
 				assert.Equal(t, settings.LevelFilterError, m.filters.Level)
 				assert.Equal(t, settings.ViewModeCompact, m.viewMode)
+				assert.Equal(t, settings.GroupBySession, m.groupBy)
+				assert.Equal(t, 3, m.defaultExpandLevel)
 			},
 		},
 		{
@@ -554,12 +585,18 @@ func TestFromState(t *testing.T) {
 					State:   settings.StateFilterActive,
 					Session: "old-session",
 				},
+				groupBy:            settings.GroupByPane,
+				defaultExpandLevel: 2,
+				expansionState: map[string]bool{
+					"pane:%1": true,
+				},
 			},
 			state: settings.TUIState{
 				Filters: settings.Filter{
 					Level:   settings.LevelFilterWarning,
 					Session: "new-session",
 				},
+				ExpansionState: map[string]bool{},
 			},
 			wantErr: false,
 			verifyFn: func(t *testing.T, m *Model) {
@@ -568,7 +605,22 @@ func TestFromState(t *testing.T) {
 				assert.Equal(t, "new-session", m.filters.Session)
 				assert.Empty(t, m.filters.Window)
 				assert.Empty(t, m.filters.Pane)
+				assert.Equal(t, settings.GroupByPane, m.groupBy)
+				assert.Equal(t, 2, m.defaultExpandLevel)
+				assert.Equal(t, map[string]bool{}, m.expansionState)
 			},
+		},
+		{
+			name:    "invalid groupBy",
+			model:   &Model{},
+			state:   settings.TUIState{GroupBy: "invalid"},
+			wantErr: true,
+		},
+		{
+			name:    "invalid defaultExpandLevel",
+			model:   &Model{},
+			state:   settings.TUIState{DefaultExpandLevel: 4},
+			wantErr: true,
 		},
 	}
 
@@ -608,7 +660,12 @@ func TestRoundTripSettings(t *testing.T) {
 					Window:  "@1",
 					Pane:    "%1",
 				},
-				viewMode: settings.ViewModeDetailed,
+				viewMode:           settings.ViewModeDetailed,
+				groupBy:            settings.GroupByWindow,
+				defaultExpandLevel: 2,
+				expansionState: map[string]bool{
+					"window:@1": true,
+				},
 			},
 		},
 		{
@@ -633,6 +690,9 @@ func TestRoundTripSettings(t *testing.T) {
 			assert.Equal(t, tt.model.columns, newModel.columns)
 			assert.Equal(t, tt.model.filters, newModel.filters)
 			assert.Equal(t, tt.model.viewMode, newModel.viewMode)
+			assert.Equal(t, tt.model.groupBy, newModel.groupBy)
+			assert.Equal(t, tt.model.defaultExpandLevel, newModel.defaultExpandLevel)
+			assert.Equal(t, tt.model.expansionState, newModel.expansionState)
 		})
 	}
 }
@@ -642,10 +702,15 @@ func TestSaveSettings(t *testing.T) {
 	setupConfig(t, tmpDir)
 
 	model := &Model{
-		sortBy:    settings.SortByLevel,
-		sortOrder: settings.SortOrderAsc,
-		columns:   []string{settings.ColumnID, settings.ColumnMessage},
-		viewMode:  settings.ViewModeDetailed,
+		sortBy:             settings.SortByLevel,
+		sortOrder:          settings.SortOrderAsc,
+		columns:            []string{settings.ColumnID, settings.ColumnMessage},
+		viewMode:           settings.ViewModeDetailed,
+		groupBy:            settings.GroupBySession,
+		defaultExpandLevel: 2,
+		expansionState: map[string]bool{
+			"session:$1": true,
+		},
 	}
 
 	err := model.saveSettings()
@@ -657,6 +722,9 @@ func TestSaveSettings(t *testing.T) {
 	assert.Equal(t, settings.SortOrderAsc, loaded.SortOrder)
 	assert.Equal(t, []string{settings.ColumnID, settings.ColumnMessage}, loaded.Columns)
 	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
+	assert.Equal(t, settings.GroupBySession, loaded.GroupBy)
+	assert.Equal(t, 2, loaded.DefaultExpandLevel)
+	assert.Equal(t, map[string]bool{"session:$1": true}, loaded.ExpansionState)
 }
 
 func TestModelSaveOnQuit(t *testing.T) {
@@ -667,6 +735,7 @@ func TestModelSaveOnQuit(t *testing.T) {
 		sortBy:    settings.SortByLevel,
 		sortOrder: settings.SortOrderAsc,
 		viewMode:  settings.ViewModeDetailed,
+		groupBy:   settings.GroupBySession,
 	}
 
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}}
@@ -679,6 +748,7 @@ func TestModelSaveOnQuit(t *testing.T) {
 	assert.Equal(t, settings.SortByLevel, loaded.SortBy)
 	assert.Equal(t, settings.SortOrderAsc, loaded.SortOrder)
 	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
+	assert.Equal(t, settings.GroupBySession, loaded.GroupBy)
 }
 
 func TestModelSaveOnCtrlC(t *testing.T) {
@@ -688,6 +758,7 @@ func TestModelSaveOnCtrlC(t *testing.T) {
 	model := &Model{
 		sortBy:   settings.SortByTimestamp,
 		viewMode: settings.ViewModeDetailed,
+		groupBy:  settings.GroupByWindow,
 	}
 
 	msg := tea.KeyMsg{Type: tea.KeyCtrlC}
@@ -699,6 +770,7 @@ func TestModelSaveOnCtrlC(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, settings.SortByTimestamp, loaded.SortBy)
 	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
+	assert.Equal(t, settings.GroupByWindow, loaded.GroupBy)
 }
 
 func TestModelSaveOnCommandQ(t *testing.T) {
@@ -708,6 +780,7 @@ func TestModelSaveOnCommandQ(t *testing.T) {
 	model := &Model{
 		sortBy:   settings.SortByLevel,
 		viewMode: settings.ViewModeDetailed,
+		groupBy:  settings.GroupByPane,
 	}
 
 	model.commandMode = true
@@ -721,6 +794,7 @@ func TestModelSaveOnCommandQ(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, settings.SortByLevel, loaded.SortBy)
 	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
+	assert.Equal(t, settings.GroupByPane, loaded.GroupBy)
 }
 
 func TestModelSaveCommandW(t *testing.T) {
@@ -730,6 +804,7 @@ func TestModelSaveCommandW(t *testing.T) {
 	model := &Model{
 		sortBy:   settings.SortByLevel,
 		viewMode: settings.ViewModeDetailed,
+		groupBy:  settings.GroupBySession,
 	}
 
 	model.commandMode = true
@@ -748,6 +823,7 @@ func TestModelSaveCommandW(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, settings.SortByLevel, loaded.SortBy)
 	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
+	assert.Equal(t, settings.GroupBySession, loaded.GroupBy)
 }
 
 func TestModelMissingSettingsFile(t *testing.T) {
@@ -802,6 +878,9 @@ func TestModelSettingsLifecycle(t *testing.T) {
 	model.sortBy = settings.SortByLevel
 	model.sortOrder = settings.SortOrderAsc
 	model.viewMode = settings.ViewModeDetailed
+	model.groupBy = settings.GroupByWindow
+	model.defaultExpandLevel = 2
+	model.expansionState = map[string]bool{"window:@1": true}
 
 	err = model.saveSettings()
 	require.NoError(t, err)
@@ -811,6 +890,9 @@ func TestModelSettingsLifecycle(t *testing.T) {
 	assert.Equal(t, settings.SortByLevel, reloaded.SortBy)
 	assert.Equal(t, settings.SortOrderAsc, reloaded.SortOrder)
 	assert.Equal(t, settings.ViewModeDetailed, reloaded.ViewMode)
+	assert.Equal(t, settings.GroupByWindow, reloaded.GroupBy)
+	assert.Equal(t, 2, reloaded.DefaultExpandLevel)
+	assert.Equal(t, map[string]bool{"window:@1": true}, reloaded.ExpansionState)
 
 	newModel := &Model{}
 	newState := settings.FromSettings(reloaded)
@@ -819,4 +901,7 @@ func TestModelSettingsLifecycle(t *testing.T) {
 	assert.Equal(t, settings.SortByLevel, newModel.sortBy)
 	assert.Equal(t, settings.SortOrderAsc, newModel.sortOrder)
 	assert.Equal(t, settings.ViewModeDetailed, newModel.viewMode)
+	assert.Equal(t, settings.GroupByWindow, newModel.groupBy)
+	assert.Equal(t, 2, newModel.defaultExpandLevel)
+	assert.Equal(t, map[string]bool{"window:@1": true}, newModel.expansionState)
 }

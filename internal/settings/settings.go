@@ -70,6 +70,20 @@ const (
 	ViewModeDetailed = "detailed"
 )
 
+// Group by constants.
+const (
+	GroupByNone    = "none"
+	GroupBySession = "session"
+	GroupByWindow  = "window"
+	GroupByPane    = "pane"
+)
+
+// Expansion level limits.
+const (
+	MinExpandLevel = 0
+	MaxExpandLevel = 3
+)
+
 // State filter constants.
 const (
 	StateFilterActive    = "active"
@@ -124,7 +138,10 @@ type Filter struct {
 //	    "window": "",
 //	    "pane": ""
 //	  },
-//	  "viewMode": "compact"
+//	  "viewMode": "compact",
+//	  "groupBy": "none",
+//	  "defaultExpandLevel": 1,
+//	  "expansionState": {}
 //	}
 //
 // Settings are stored at ~/.config/tmux-intray/settings.json
@@ -149,6 +166,17 @@ type Settings struct {
 	// ViewMode specifies the display layout: "compact" or "detailed".
 	// Empty string means use default view mode (compact).
 	ViewMode string `json:"viewMode"`
+
+	// GroupBy specifies the grouping mode: "none", "session", "window", or "pane".
+	// Empty string means use default grouping (none).
+	GroupBy string `json:"groupBy"`
+
+	// DefaultExpandLevel controls the default grouping expansion level (0-3).
+	// Use 0 to collapse all groups by default.
+	DefaultExpandLevel int `json:"defaultExpandLevel"`
+
+	// ExpansionState stores explicit expansion overrides by node path.
+	ExpansionState map[string]bool `json:"expansionState"`
 }
 
 // DefaultSettings returns settings with all default values.
@@ -164,7 +192,10 @@ func DefaultSettings() *Settings {
 			Window:  "",
 			Pane:    "",
 		},
-		ViewMode: ViewModeCompact,
+		ViewMode:           ViewModeCompact,
+		GroupBy:            GroupByNone,
+		DefaultExpandLevel: 1,
+		ExpansionState:     map[string]bool{},
 	}
 }
 
@@ -382,6 +413,16 @@ func Validate(settings *Settings) error {
 		return fmt.Errorf("invalid viewMode value: %s", settings.ViewMode)
 	}
 
+	// Validate groupBy
+	if settings.GroupBy != "" && !IsValidGroupBy(settings.GroupBy) {
+		return fmt.Errorf("invalid groupBy value: %s", settings.GroupBy)
+	}
+
+	// Validate defaultExpandLevel
+	if settings.DefaultExpandLevel < MinExpandLevel || settings.DefaultExpandLevel > MaxExpandLevel {
+		return fmt.Errorf("invalid defaultExpandLevel value: %d", settings.DefaultExpandLevel)
+	}
+
 	// Validate filters
 	validLevels := map[string]bool{
 		"": true, LevelFilterInfo: true, LevelFilterWarning: true,
@@ -399,6 +440,16 @@ func Validate(settings *Settings) error {
 	}
 
 	return nil
+}
+
+// IsValidGroupBy returns true if groupBy is a supported grouping mode.
+func IsValidGroupBy(groupBy string) bool {
+	switch groupBy {
+	case GroupByNone, GroupBySession, GroupByWindow, GroupByPane:
+		return true
+	default:
+		return false
+	}
 }
 
 // validate is an alias for Validate for internal use.

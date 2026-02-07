@@ -5,19 +5,28 @@ package settings
 // This DTO pattern avoids tight coupling between internal/settings and cmd/tmux-intray packages.
 type TUIState struct {
 	// Columns defines which columns are displayed and their order.
-	Columns []string
+	Columns []string `json:"columns"`
 
 	// SortBy specifies which column to sort by.
-	SortBy string
+	SortBy string `json:"sortBy"`
 
 	// SortOrder specifies sort direction: "asc" or "desc".
-	SortOrder string
+	SortOrder string `json:"sortOrder"`
 
 	// Filters contains active filter criteria.
-	Filters Filter
+	Filters Filter `json:"filters"`
 
 	// ViewMode specifies the display layout: "compact" or "detailed".
-	ViewMode string
+	ViewMode string `json:"viewMode"`
+
+	// GroupBy specifies the grouping mode: "none", "session", "window", or "pane".
+	GroupBy string `json:"groupBy"`
+
+	// DefaultExpandLevel controls the default grouping expansion level (0-3).
+	DefaultExpandLevel int `json:"defaultExpandLevel"`
+
+	// ExpansionState stores explicit expansion overrides by node path.
+	ExpansionState map[string]bool `json:"expansionState"`
 }
 
 // FromSettings converts Settings to TUIState.
@@ -26,11 +35,14 @@ func FromSettings(s *Settings) TUIState {
 		return TUIState{}
 	}
 	return TUIState{
-		Columns:   s.Columns,
-		SortBy:    s.SortBy,
-		SortOrder: s.SortOrder,
-		Filters:   s.Filters,
-		ViewMode:  s.ViewMode,
+		Columns:            s.Columns,
+		SortBy:             s.SortBy,
+		SortOrder:          s.SortOrder,
+		Filters:            s.Filters,
+		ViewMode:           s.ViewMode,
+		GroupBy:            s.GroupBy,
+		DefaultExpandLevel: s.DefaultExpandLevel,
+		ExpansionState:     s.ExpansionState,
 	}
 }
 
@@ -39,11 +51,14 @@ func FromSettings(s *Settings) TUIState {
 // If values are empty, they will use defaults when loaded/saved.
 func (t TUIState) ToSettings() *Settings {
 	return &Settings{
-		Columns:   t.Columns,
-		SortBy:    t.SortBy,
-		SortOrder: t.SortOrder,
-		Filters:   t.Filters,
-		ViewMode:  t.ViewMode,
+		Columns:            t.Columns,
+		SortBy:             t.SortBy,
+		SortOrder:          t.SortOrder,
+		Filters:            t.Filters,
+		ViewMode:           t.ViewMode,
+		GroupBy:            t.GroupBy,
+		DefaultExpandLevel: t.DefaultExpandLevel,
+		ExpansionState:     t.ExpansionState,
 	}
 }
 
@@ -53,6 +68,9 @@ func (t TUIState) IsEmpty() bool {
 		t.SortBy == "" &&
 		t.SortOrder == "" &&
 		t.ViewMode == "" &&
+		t.GroupBy == "" &&
+		t.DefaultExpandLevel == 0 &&
+		len(t.ExpansionState) == 0 &&
 		t.Filters.Level == "" &&
 		t.Filters.State == "" &&
 		t.Filters.Session == "" &&

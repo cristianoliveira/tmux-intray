@@ -124,6 +124,11 @@ func TestSettingsDefaults(t *testing.T) {
 	// Verify default view mode
 	require.Equal(t, "compact", defaults.ViewMode)
 
+	// Verify default grouping settings
+	require.Equal(t, settings.GroupByNone, defaults.GroupBy)
+	require.Equal(t, 1, defaults.DefaultExpandLevel)
+	require.Equal(t, map[string]bool{}, defaults.ExpansionState)
+
 	// Verify default filters are empty
 	require.Equal(t, "", defaults.Filters.Level)
 	require.Equal(t, "", defaults.Filters.State)
