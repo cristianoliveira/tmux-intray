@@ -24,15 +24,12 @@ const (
 
 // GetTrayItems returns tray items for a given state filter.
 // Returns newline-separated messages (unescaped).
-// Valid stateFilter values: "", "active", "dismissed", "all"
 func GetTrayItems(stateFilter string) (string, error) {
-	// Validate stateFilter parameter
-	if stateFilter != "" && stateFilter != "active" && stateFilter != "dismissed" && stateFilter != "all" {
-		return "", fmt.Errorf("invalid stateFilter '%s': must be one of: (empty), active, dismissed, all", stateFilter)
-	}
-
 	// Use storage.ListNotifications with only state filter
-	lines := storage.ListNotifications(stateFilter, "", "", "", "", "", "")
+	lines, err := storage.ListNotifications(stateFilter, "", "", "", "", "", "")
+	if err != nil {
+		return "", err
+	}
 	if lines == "" {
 		return "", nil
 	}
@@ -111,9 +108,9 @@ func (c *Core) SetVisibility(visible bool) error {
 	if visible {
 		value = "1"
 	}
-	success := c.SetTmuxVisibility(value)
-	if !success {
-		return ErrTmuxOperationFailed
+	_, err := c.SetTmuxVisibility(value)
+	if err != nil {
+		return fmt.Errorf("set visibility: %w", err)
 	}
 	return nil
 }

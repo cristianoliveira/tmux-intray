@@ -138,16 +138,19 @@ func TestTmuxFunctions(t *testing.T) {
 		mockClient := new(tmux.MockClient)
 		mockClient.On("SetEnvironment", "TMUX_INTRAY_VISIBLE", "1").Return(nil).Once()
 		c := NewCore(mockClient)
-		result := c.SetTmuxVisibility("1")
-		require.True(t, result)
+		success, err := c.SetTmuxVisibility("1")
+		require.True(t, success)
+		require.NoError(t, err)
 		mockClient.AssertExpectations(t)
 
 		// Test failed set
 		mockClient = new(tmux.MockClient)
 		mockClient.On("SetEnvironment", "TMUX_INTRAY_VISIBLE", "1").Return(tmux.ErrTmuxNotRunning).Once()
 		c = NewCore(mockClient)
-		result = c.SetTmuxVisibility("1")
-		require.False(t, result)
+		success, err = c.SetTmuxVisibility("1")
+		require.False(t, success)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "tmux server is not running")
 		mockClient.AssertExpectations(t)
 	})
 
