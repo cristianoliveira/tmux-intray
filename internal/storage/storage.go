@@ -912,7 +912,8 @@ func dismissAllActive() error {
 	}
 	for _, line := range latest {
 		fields := strings.Split(line, "\t")
-		if len(fields) <= fieldState {
+		// Skip lines that don't have all required fields
+		if len(fields) < numFields {
 			continue
 		}
 		state, err := getField(fields, fieldState)
