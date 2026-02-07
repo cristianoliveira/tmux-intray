@@ -123,7 +123,10 @@ func Init() error {
 			err = fmt.Errorf("failed to create notifications file: %w", err)
 			return
 		}
-		f.Close()
+		if cerr := f.Close(); cerr != nil {
+			err = fmt.Errorf("failed to close notifications file: %w", cerr)
+			return
+		}
 
 		// Mark initialized only if all steps succeeded
 		initMu.Lock()
