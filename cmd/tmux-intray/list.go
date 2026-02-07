@@ -68,7 +68,8 @@ var listOutputWriter io.Writer = os.Stdout
 
 // listListFunc is the function used to retrieve notifications. Can be changed for testing.
 var listListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
-	return storage.ListNotifications(state, level, session, window, pane, olderThan, newerThan)
+	result, _ := storage.ListNotifications(state, level, session, window, pane, olderThan, newerThan)
+	return result
 }
 
 // FilterOptions holds all filter parameters for listing notifications.

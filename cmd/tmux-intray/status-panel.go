@@ -41,7 +41,8 @@ var statusPanelGetActiveCountFunc = func() int {
 
 // statusPanelListNotificationsFunc is the function used to list notifications.
 var statusPanelListNotificationsFunc = func(stateFilter string) string {
-	return storage.ListNotifications(stateFilter, "", "", "", "", "", "")
+	result, _ := storage.ListNotifications(stateFilter, "", "", "", "", "", "")
+	return result
 }
 
 // statusPanelGetConfigBoolFunc is the function used to get boolean config.
