@@ -119,7 +119,20 @@ func AddNotification(message, timestamp, session, window, pane, paneCreated, lev
 		return ""
 	}
 	// Update tmux status option outside lock to avoid deadlock (updateTmuxStatusOption also acquires a lock) and keep lock duration short
-	updateTmuxStatusOption()
+	// Calculate active count after adding (this notification is now active)
+	activeCount := 0
+	latest, err2 := getLatestNotifications()
+	if err2 == nil {
+		for _, line := range latest {
+			fields := strings.Split(line, "\t")
+			if len(fields) > fieldState && fields[fieldState] == "active" {
+				activeCount++
+			}
+		}
+	}
+	if err := updateTmuxStatusOption(activeCount); err != nil {
+		colors.Error(fmt.Sprintf("failed to update tmux status: %v", err))
+	}
 
 	// Run post-add hooks
 	if err := hooks.Run("post-add", envVars...); err != nil {
@@ -261,8 +274,6 @@ func DismissNotification(id string) error {
 		if err := hooks.Run("post-dismiss", envVars...); err != nil {
 			return err
 		}
-<<<<<<< HEAD
-=======
 		// Calculate active count after dismissing
 		activeCount := 0
 		latest, err2 := getLatestNotifications()
@@ -277,13 +288,11 @@ func DismissNotification(id string) error {
 		if err := updateTmuxStatusOption(activeCount); err != nil {
 			colors.Error(fmt.Sprintf("failed to update tmux status: %v", err))
 		}
->>>>>>> 0c1ec4c (Fix silent command execution failures in updateTmuxStatusOption())
 		return nil
 	})
 	if err != nil {
 		return err
 	}
-	updateTmuxStatusOption()
 	return nil
 }
 
@@ -344,8 +353,6 @@ func DismissAll() error {
 				return err
 			}
 		}
-<<<<<<< HEAD
-=======
 		// Calculate active count after dismissing all
 		activeCount := 0
 		latest, err2 := getLatestNotifications()
@@ -360,13 +367,11 @@ func DismissAll() error {
 		if err := updateTmuxStatusOption(activeCount); err != nil {
 			colors.Error(fmt.Sprintf("failed to update tmux status: %v", err))
 		}
->>>>>>> 0c1ec4c (Fix silent command execution failures in updateTmuxStatusOption())
 		return nil
 	})
 	if err != nil {
 		return err
 	}
-	updateTmuxStatusOption()
 	return nil
 }
 
