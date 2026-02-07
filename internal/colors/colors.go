@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 )
 
 // Color constants
@@ -22,6 +23,7 @@ const checkmark = "✓"
 var (
 	debugEnabled    = false
 	inErrorHandling = false
+	errorMutex      sync.RWMutex
 )
 
 func init() {
@@ -46,9 +48,20 @@ func Error(msgs ...string) {
 	msg := strings.Join(msgs, " ")
 	_, err := fmt.Fprintf(os.Stderr, "%sError:%s %s%s\n", Red, Reset, msg, Reset)
 	if err != nil {
-		if !inErrorHandling {
+		errorMutex.RLock()
+		alreadyHandling := inErrorHandling
+		errorMutex.RUnlock()
+
+		if !alreadyHandling {
+			errorMutex.Lock()
 			inErrorHandling = true
-			defer func() { inErrorHandling = false }()
+			errorMutex.Unlock()
+
+			defer func() {
+				errorMutex.Lock()
+				inErrorHandling = false
+				errorMutex.Unlock()
+			}()
 			Warning("failed to print error message: " + err.Error())
 		} else {
 			errorFallback("Error: failed to print error message: " + err.Error())
@@ -61,9 +74,20 @@ func Success(msgs ...string) {
 	msg := strings.Join(msgs, " ")
 	_, err := fmt.Fprintf(os.Stdout, "%s%s%s %s%s\n", Green, checkmark, Reset, msg, Reset)
 	if err != nil {
-		if !inErrorHandling {
+		errorMutex.RLock()
+		alreadyHandling := inErrorHandling
+		errorMutex.RUnlock()
+
+		if !alreadyHandling {
+			errorMutex.Lock()
 			inErrorHandling = true
-			defer func() { inErrorHandling = false }()
+			errorMutex.Unlock()
+
+			defer func() {
+				errorMutex.Lock()
+				inErrorHandling = false
+				errorMutex.Unlock()
+			}()
 			Warning("failed to print success message: " + err.Error())
 		} else {
 			errorFallback("Warning: failed to print success message: " + err.Error())
@@ -76,9 +100,20 @@ func Warning(msgs ...string) {
 	msg := strings.Join(msgs, " ")
 	_, err := fmt.Fprintf(os.Stderr, "%sWarning:%s %s%s\n", Yellow, Reset, msg, Reset)
 	if err != nil {
-		if !inErrorHandling {
+		errorMutex.RLock()
+		alreadyHandling := inErrorHandling
+		errorMutex.RUnlock()
+
+		if !alreadyHandling {
+			errorMutex.Lock()
 			inErrorHandling = true
-			defer func() { inErrorHandling = false }()
+			errorMutex.Unlock()
+
+			defer func() {
+				errorMutex.Lock()
+				inErrorHandling = false
+				errorMutex.Unlock()
+			}()
 			Error("failed to print warning message: " + err.Error())
 		} else {
 			errorFallback("Error: failed to print warning message: " + err.Error())
@@ -91,9 +126,20 @@ func Info(msgs ...string) {
 	msg := strings.Join(msgs, " ")
 	_, err := fmt.Fprintf(os.Stdout, "%s%s%s\n", Blue, msg, Reset)
 	if err != nil {
-		if !inErrorHandling {
+		errorMutex.RLock()
+		alreadyHandling := inErrorHandling
+		errorMutex.RUnlock()
+
+		if !alreadyHandling {
+			errorMutex.Lock()
 			inErrorHandling = true
-			defer func() { inErrorHandling = false }()
+			errorMutex.Unlock()
+
+			defer func() {
+				errorMutex.Lock()
+				inErrorHandling = false
+				errorMutex.Unlock()
+			}()
 			Warning("failed to print info message: " + err.Error())
 		} else {
 			errorFallback("Warning: failed to print info message: " + err.Error())
@@ -106,9 +152,20 @@ func LogInfo(msgs ...string) {
 	msg := strings.Join(msgs, " ")
 	_, err := fmt.Fprintf(os.Stderr, "%s%s%s\n", Blue, msg, Reset)
 	if err != nil {
-		if !inErrorHandling {
+		errorMutex.RLock()
+		alreadyHandling := inErrorHandling
+		errorMutex.RUnlock()
+
+		if !alreadyHandling {
+			errorMutex.Lock()
 			inErrorHandling = true
-			defer func() { inErrorHandling = false }()
+			errorMutex.Unlock()
+
+			defer func() {
+				errorMutex.Lock()
+				inErrorHandling = false
+				errorMutex.Unlock()
+			}()
 			Warning("failed to print log info message: " + err.Error())
 		} else {
 			errorFallback("Warning: failed to print log info message: " + err.Error())
@@ -124,9 +181,20 @@ func Debug(msgs ...string) {
 	msg := strings.Join(msgs, " ")
 	_, err := fmt.Fprintf(os.Stderr, "%sDebug:%s %s%s\n", Cyan, Reset, msg, Reset)
 	if err != nil {
-		if !inErrorHandling {
+		errorMutex.RLock()
+		alreadyHandling := inErrorHandling
+		errorMutex.RUnlock()
+
+		if !alreadyHandling {
+			errorMutex.Lock()
 			inErrorHandling = true
-			defer func() { inErrorHandling = false }()
+			errorMutex.Unlock()
+
+			defer func() {
+				errorMutex.Lock()
+				inErrorHandling = false
+				errorMutex.Unlock()
+			}()
 			Warning("failed to print debug message: " + err.Error())
 		} else {
 			errorFallback("Warning: failed to print debug message: " + err.Error())

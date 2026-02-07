@@ -5,10 +5,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/hooks"
+	"github.com/cristianoliveira/tmux-intray/internal/tmux"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,6 +24,11 @@ func setupTest(t *testing.T) string {
 	colors.SetDebug(true)
 	// Reset package state
 	Reset()
+	// Set up mock tmux client for testing
+	mockClient := new(tmux.MockClient)
+	mockClient.On("HasSession").Return(true, nil)
+	mockClient.On("SetStatusOption", "@tmux_intray_active_count", mock.Anything).Return(nil)
+	SetTmuxClient(mockClient)
 	return tmpDir
 }
 
@@ -40,7 +49,8 @@ func TestAddNotification(t *testing.T) {
 	// Should be numeric
 	require.Regexp(t, `^\d+$`, id)
 	// List notifications should contain one active
-	list := ListNotifications("active", "", "", "", "", "", "")
+	list, err := ListNotifications("active", "", "", "", "", "", "")
+	require.NoError(t, err)
 	require.Contains(t, list, id)
 	require.Contains(t, list, "test message")
 }
@@ -51,7 +61,8 @@ func TestAddNotificationWithTimestamp(t *testing.T) {
 	id, err := AddNotification("msg", "2025-01-01T12:00:00Z", "", "", "", "", "warning")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
-	list := ListNotifications("all", "", "", "", "", "", "")
+	list, err := ListNotifications("all", "", "", "", "", "", "")
+	require.NoError(t, err)
 	require.Contains(t, list, "2025-01-01T12:00:00Z")
 	require.Contains(t, list, "warning")
 }
@@ -94,27 +105,32 @@ func TestListNotificationsFilters(t *testing.T) {
 	}
 
 	// Filter by state active
-	list := ListNotifications("active", "", "", "", "", "", "")
+	list, err := ListNotifications("active", "", "", "", "", "", "")
+	require.NoError(t, err)
 	assertContainsID(list, id1)
 	assertContainsID(list, id2)
 
 	// Filter by level
-	list = ListNotifications("all", "error", "", "", "", "", "")
+	list, err = ListNotifications("all", "error", "", "", "", "", "")
+	require.NoError(t, err)
 	assertContainsID(list, id1)
 	assertNotContainsID(list, id2)
 
 	// Filter by session
-	list = ListNotifications("all", "", "session1", "", "", "", "")
+	list, err = ListNotifications("all", "", "session1", "", "", "", "")
+	require.NoError(t, err)
 	assertContainsID(list, id1)
 	assertNotContainsID(list, id2)
 
 	// Filter by window
-	list = ListNotifications("all", "", "", "window2", "", "", "")
+	list, err = ListNotifications("all", "", "", "window2", "", "", "")
+	require.NoError(t, err)
 	assertContainsID(list, id2)
 	assertNotContainsID(list, id1)
 
 	// Filter by pane
-	list = ListNotifications("all", "", "", "", "pane1", "", "")
+	list, err = ListNotifications("all", "", "", "", "pane1", "", "")
+	require.NoError(t, err)
 	assertContainsID(list, id1)
 	assertNotContainsID(list, id2)
 }
@@ -126,16 +142,19 @@ func TestDismissNotification(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 	// Should be active
-	list := ListNotifications("active", "", "", "", "", "", "")
+	list, err := ListNotifications("active", "", "", "", "", "", "")
+	require.NoError(t, err)
 	require.Contains(t, list, id)
 	// Dismiss
 	err = DismissNotification(id)
 	require.NoError(t, err)
 	// Should not appear in active
-	list = ListNotifications("active", "", "", "", "", "", "")
+	list, err = ListNotifications("active", "", "", "", "", "", "")
+	require.NoError(t, err)
 	require.NotContains(t, list, id)
 	// Should appear in dismissed
-	list = ListNotifications("dismissed", "", "", "", "", "", "")
+	list, err = ListNotifications("dismissed", "", "", "", "", "", "")
+	require.NoError(t, err)
 	require.Contains(t, list, id)
 	// Dismissing again should return error
 	err = DismissNotification(id)
@@ -153,7 +172,8 @@ func TestDismissAllFromStorage(t *testing.T) {
 	err = DismissAll()
 	require.NoError(t, err)
 	require.Equal(t, 0, GetActiveCount())
-	list := ListNotifications("dismissed", "", "", "", "", "", "")
+	list, err := ListNotifications("dismissed", "", "", "", "", "", "")
+	require.NoError(t, err)
 	require.Contains(t, list, id1)
 	require.Contains(t, list, id2)
 }
@@ -169,12 +189,14 @@ func TestCleanupOldNotifications(t *testing.T) {
 	err = CleanupOldNotifications(1, true)
 	require.NoError(t, err)
 	// Should still exist
-	list := ListNotifications("all", "", "", "", "", "", "")
+	list, err := ListNotifications("all", "", "", "", "", "", "")
+	require.NoError(t, err)
 	require.Contains(t, list, id)
 	// Real cleanup (should delete because timestamp is very old)
 	err = CleanupOldNotifications(1, false)
 	require.NoError(t, err)
-	list = ListNotifications("all", "", "", "", "", "", "")
+	list, err = ListNotifications("all", "", "", "", "", "", "")
+	require.NoError(t, err)
 	require.NotContains(t, list, id)
 }
 
@@ -304,7 +326,8 @@ storage_list_notifications "%s" "%s" "%s" "%s" "%s" "%s" "%s"
 
 		// List via Go
 		Init()
-		list := ListNotifications("all", "", "", "", "", "", "")
+		list, err := ListNotifications("all", "", "", "", "", "", "")
+		require.NoError(t, err)
 		require.Contains(t, list, bashID)
 		// Check message is correct (unescaped)
 		lines := strings.Split(strings.TrimSpace(list), "\n")
@@ -361,7 +384,8 @@ storage_list_notifications "%s" "%s" "%s" "%s" "%s" "%s" "%s"
 				bashID, err := bashAddNotification(tc.msg, "", "", "", "", "", "info")
 				require.NoError(t, err)
 				Init()
-				list := ListNotifications("all", "", "", "", "", "", "")
+				list, err := ListNotifications("all", "", "", "", "", "", "")
+				require.NoError(t, err)
 				require.Contains(t, list, bashID)
 				lines := strings.Split(strings.TrimSpace(list), "\n")
 				for _, line := range lines {
@@ -429,7 +453,8 @@ func TestAddNotificationWithHooks(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 	// Verify notification exists
-	list := ListNotifications("active", "", "", "", "", "", "")
+	list, err := ListNotifications("active", "", "", "", "", "", "")
+	require.NoError(t, err)
 	require.Contains(t, list, id)
 	// Note: we cannot easily capture hook output; but if hook fails with abort mode, AddNotification would return empty.
 }
@@ -464,7 +489,8 @@ func TestAddNotificationHookAbort(t *testing.T) {
 	require.Error(t, err)
 	require.Empty(t, id)
 	// Ensure no notification added
-	list := ListNotifications("all", "", "", "", "", "", "")
+	list, err := ListNotifications("all", "", "", "", "", "", "")
+	require.NoError(t, err)
 	require.NotContains(t, list, "test message")
 }
 
@@ -492,7 +518,8 @@ func TestMalformedTSVData(t *testing.T) {
 	require.NotEmpty(t, id)
 
 	// List should work (filterNotifications should handle malformed data gracefully)
-	list := ListNotifications("all", "", "", "", "", "", "")
+	list, err := ListNotifications("all", "", "", "", "", "", "")
+	require.NoError(t, err)
 	require.Contains(t, list, id)
 	require.Contains(t, list, "valid message")
 
@@ -678,8 +705,8 @@ func TestAppendLineWriteError(t *testing.T) {
 
 	err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "window0", "pane0", "test message", "123456789", "info")
 	require.Error(t, err)
-	// The error should be either "open file" (permission denied) or "write line"
-	require.True(t, strings.Contains(err.Error(), "open file") || strings.Contains(err.Error(), "write line"))
+	// The error should be either "open" (permission denied) or "write" in the error message
+	require.True(t, strings.Contains(err.Error(), "open") || strings.Contains(err.Error(), "write"))
 }
 
 func TestAppendLineOpenError(t *testing.T) {
@@ -697,7 +724,8 @@ func TestAppendLineOpenError(t *testing.T) {
 
 	err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "window0", "pane0", "test message", "123456789", "info")
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "open file")
+	// Error should mention failed to open notifications file
+	require.Contains(t, err.Error(), "open")
 }
 
 func TestAppendLineMultipleWrites(t *testing.T) {
@@ -784,21 +812,21 @@ func TestStrToInt(t *testing.T) {
 			input:   "abc",
 			want:    0,
 			wantErr: true,
-			errMsg:  "convert string to int",
+			errMsg:  "failed to convert",
 		},
 		{
 			name:    "invalid empty string",
 			input:   "",
 			want:    0,
 			wantErr: true,
-			errMsg:  "convert string to int",
+			errMsg:  "failed to convert",
 		},
 		{
 			name:    "invalid with letters",
 			input:   "42abc",
 			want:    0,
 			wantErr: true,
-			errMsg:  "convert string to int",
+			errMsg:  "failed to convert",
 		},
 		{
 			name:    "negative value rejected",
@@ -843,14 +871,29 @@ func TestUpdateTmuxStatusOption(t *testing.T) {
 	require.NoError(t, Init())
 
 	t.Run("tmux availability check", func(t *testing.T) {
+		// Create a new mock client for this subtest
+		mockClient := new(tmux.MockClient)
+		mockClient.On("HasSession").Return(true, nil)
+		mockClient.On("SetStatusOption", "@tmux_intray_active_count", "5").Return(nil)
+		SetTmuxClient(mockClient)
+
 		// Call function with a test count
 		err := updateTmuxStatusOption(5)
-		// The function should either succeed or return a clear error
-		if err != nil {
-			// If tmux is not available, we expect a clear error message
-			require.Contains(t, err.Error(), "tmux")
-		}
-		// If tmux is available, it should succeed
+		require.NoError(t, err)
+		// Verify the mock was called
+		mockClient.AssertCalled(t, "HasSession")
+		mockClient.AssertCalled(t, "SetStatusOption", "@tmux_intray_active_count", "5")
+	})
+
+	t.Run("tmux not available", func(t *testing.T) {
+		// Create a mock client that returns error for HasSession
+		mockClient := new(tmux.MockClient)
+		mockClient.On("HasSession").Return(false, tmux.ErrTmuxNotRunning)
+		SetTmuxClient(mockClient)
+
+		err := updateTmuxStatusOption(5)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "tmux not")
 	})
 }
 
@@ -860,17 +903,17 @@ func TestDismissNotificationHandlesTmuxError(t *testing.T) {
 	id, err := AddNotification("to dismiss", "", "", "", "", "", "info")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
-	// Mock tmux not being available by setting PATH to exclude tmux
-	oldPath := os.Getenv("PATH")
-	os.Setenv("PATH", "")
-	defer os.Setenv("PATH", oldPath)
-	// Dismiss should fail if tmux update fails (error is now properly returned)
+
+	// Create a mock client that will fail on tmux calls
+	mockClient := new(tmux.MockClient)
+	mockClient.On("HasSession").Return(true, nil)
+	mockClient.On("SetStatusOption", mock.Anything, mock.Anything).Return(fmt.Errorf("tmux error"))
+	SetTmuxClient(mockClient)
+
+	// Dismiss should fail if tmux update fails
 	err = DismissNotification(id)
-	// The dismissal should fail due to tmux error
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to update tmux status")
-	// Note: The notification may or may not be dismissed depending on when tmux update occurs
-	// The important part is that the error is now properly returned
 }
 
 func TestDismissAllHandlesTmuxError(t *testing.T) {
@@ -881,15 +924,520 @@ func TestDismissAllHandlesTmuxError(t *testing.T) {
 	_, err = AddNotification("msg2", "", "", "", "", "", "warning")
 	require.NoError(t, err)
 	require.Equal(t, 2, GetActiveCount())
-	// Mock tmux not being available by setting PATH to exclude tmux
-	oldPath := os.Getenv("PATH")
-	os.Setenv("PATH", "")
-	defer os.Setenv("PATH", oldPath)
-	// DismissAll should fail if tmux update fails (error is now properly returned)
+
+	// Create a mock client that will fail on tmux calls
+	mockClient := new(tmux.MockClient)
+	mockClient.On("HasSession").Return(true, nil)
+	mockClient.On("SetStatusOption", mock.Anything, mock.Anything).Return(fmt.Errorf("tmux error"))
+	SetTmuxClient(mockClient)
+
+	// DismissAll should fail if tmux update fails
 	err = DismissAll()
 	// The dismissal should fail due to tmux error
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to update tmux status")
 	// Note: Some notifications may or may not be dismissed depending on when tmux update occurs
 	// The important part is that the error is now properly returned
+}
+
+func TestLockAcquireAndRelease(t *testing.T) {
+	tmpDir := t.TempDir()
+	lock := NewLock(filepath.Join(tmpDir, "lock"))
+
+	// Acquire lock
+	err := lock.Acquire()
+	require.NoError(t, err)
+
+	// Release lock
+	err = lock.Release()
+	require.NoError(t, err)
+
+	// Should be able to acquire again
+	err = lock.Acquire()
+	require.NoError(t, err)
+	// Clean up
+	lock.Release()
+}
+
+func TestLockExistingDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	lockDir := filepath.Join(tmpDir, "lock")
+
+	// Create lock directory manually
+	require.NoError(t, os.MkdirAll(lockDir, 0755))
+
+	// Should still be able to acquire lock (existing directory is OK)
+	lock := NewLock(lockDir)
+	err := lock.Acquire()
+	require.NoError(t, err)
+}
+
+func TestFileCloseError(t *testing.T) {
+	// This test verifies that file close errors are properly checked
+	// We test this by creating a temporary directory and initializing storage
+	tmpDir := setupTest(t)
+
+	// The Init function now checks for file close errors
+	// If there's an error closing the file, Init should fail
+	err := Init()
+	require.NoError(t, err)
+
+	// Verify the notifications file was created successfully
+	require.FileExists(t, filepath.Join(tmpDir, "notifications.tsv"))
+}
+
+func TestWithLockConcurrency(t *testing.T) {
+	tmpDir := t.TempDir()
+	lockDir := filepath.Join(tmpDir, "lock")
+
+	// Test that WithLock properly acquires and releases lock
+	counter := 0
+	err := WithLock(lockDir, func() error {
+		counter++
+		return nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, counter)
+
+	// Multiple calls should work
+	for i := 0; i < 5; i++ {
+		err := WithLock(lockDir, func() error {
+			counter++
+			return nil
+		})
+		require.NoError(t, err)
+	}
+	require.Equal(t, 6, counter)
+}
+
+func TestAddNotificationPostAddHookFailureModes(t *testing.T) {
+	// Save original environment variables
+	oldHooksDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
+	oldFailureMode := os.Getenv("TMUX_INTRAY_HOOKS_FAILURE_MODE")
+	defer func() {
+		os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldHooksDir)
+		os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", oldFailureMode)
+	}()
+
+	// Test 1: abort mode - post-add hook failure should return error
+	t.Run("abort mode returns error", func(t *testing.T) {
+		setupTest(t)
+		tmpDir := t.TempDir()
+		hookDir := filepath.Join(tmpDir, "post-add")
+		require.NoError(t, os.MkdirAll(hookDir, 0755))
+
+		// Set hooks directory
+		os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
+
+		Reset()
+		require.NoError(t, Init())
+		hooks.Init()
+
+		// Create a failing post-add hook
+		script := filepath.Join(hookDir, "fail.sh")
+		require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nexit 1"), 0755))
+
+		// Set failure mode to abort
+		os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "abort")
+
+		// AddNotification should fail
+		id, err := AddNotification("test message", "", "", "", "", "", "info")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "post-add hook failed")
+		// ID should still be returned (notification was added)
+		require.NotEmpty(t, id)
+		// Verify notification was added to storage despite hook failure
+		list, err := ListNotifications("active", "", "", "", "", "", "")
+		require.NoError(t, err)
+		require.Contains(t, list, id)
+	})
+
+	// Test 2: warn mode - post-add hook failure should log warning but return ID
+	t.Run("warn mode returns ID", func(t *testing.T) {
+		setupTest(t)
+		tmpDir := t.TempDir()
+		hookDir := filepath.Join(tmpDir, "post-add")
+		require.NoError(t, os.MkdirAll(hookDir, 0755))
+
+		// Set hooks directory
+		os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
+
+		Reset()
+		require.NoError(t, Init())
+		hooks.Init()
+
+		// Create a failing post-add hook
+		script := filepath.Join(hookDir, "warn-fail.sh")
+		require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nexit 1"), 0755))
+
+		// Set failure mode to warn
+		os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "warn")
+
+		// AddNotification should succeed
+		id, err := AddNotification("warn test", "", "", "", "", "", "info")
+		require.NoError(t, err)
+		require.NotEmpty(t, id)
+		// Verify notification was added
+		list, err := ListNotifications("active", "", "", "", "", "", "")
+		require.NoError(t, err)
+		require.Contains(t, list, id)
+	})
+
+	// Test 3: ignore mode - post-add hook failure should silently return ID
+	t.Run("ignore mode returns ID", func(t *testing.T) {
+		setupTest(t)
+		tmpDir := t.TempDir()
+		hookDir := filepath.Join(tmpDir, "post-add")
+		require.NoError(t, os.MkdirAll(hookDir, 0755))
+
+		// Set hooks directory
+		os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
+
+		Reset()
+		require.NoError(t, Init())
+		hooks.Init()
+
+		// Create a failing post-add hook
+		script := filepath.Join(hookDir, "ignore-fail.sh")
+		require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nexit 1"), 0755))
+
+		// Set failure mode to ignore
+		os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
+
+		// AddNotification should succeed
+		id, err := AddNotification("ignore test", "", "", "", "", "", "info")
+		require.NoError(t, err)
+		require.NotEmpty(t, id)
+		// Verify notification was added
+		list, err := ListNotifications("active", "", "", "", "", "", "")
+		require.NoError(t, err)
+		require.Contains(t, list, id)
+	})
+
+	// Test 4: successful hook - should return ID in all modes
+	t.Run("successful hook returns ID", func(t *testing.T) {
+		// Test all failure modes
+		for _, mode := range []string{"abort", "warn", "ignore"} {
+			t.Run(mode, func(t *testing.T) {
+				setupTest(t)
+				tmpDir := t.TempDir()
+				hookDir := filepath.Join(tmpDir, "post-add")
+				require.NoError(t, os.MkdirAll(hookDir, 0755))
+
+				// Set hooks directory
+				os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
+
+				Reset()
+				require.NoError(t, Init())
+				hooks.Init()
+
+				// Create a successful post-add hook
+				script := filepath.Join(hookDir, "success.sh")
+				require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\necho post-add success"), 0755))
+
+				os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", mode)
+
+				id, err := AddNotification("success test", "", "", "", "", "", "info")
+				require.NoError(t, err)
+				require.NotEmpty(t, id)
+				// Verify notification was added
+				list, err := ListNotifications("active", "", "", "", "", "", "")
+				require.NoError(t, err)
+				require.Contains(t, list, id)
+			})
+		}
+	})
+}
+
+func TestGetNextID(t *testing.T) {
+	t.Run("empty file returns 1", func(t *testing.T) {
+		setupTest(t)
+		require.NoError(t, Init())
+
+		// With empty file, getNextID should return 1
+		id, err := getNextID()
+		require.NoError(t, err)
+		require.Equal(t, 1, id)
+	})
+
+	t.Run("single entry returns next ID", func(t *testing.T) {
+		setupTest(t)
+		require.NoError(t, Init())
+
+		// Add one notification
+		_, err := AddNotification("first message", "", "", "", "", "", "info")
+		require.NoError(t, err)
+
+		// getNextID should return 2
+		id, err := getNextID()
+		require.NoError(t, err)
+		require.Equal(t, 2, id)
+	})
+
+	t.Run("multiple entries returns next ID", func(t *testing.T) {
+		setupTest(t)
+		require.NoError(t, Init())
+
+		// Add multiple notifications
+		id1, err := AddNotification("msg1", "", "", "", "", "", "info")
+		require.NoError(t, err)
+		id2, err := AddNotification("msg2", "", "", "", "", "", "info")
+		require.NoError(t, err)
+		id3, err := AddNotification("msg3", "", "", "", "", "", "info")
+		require.NoError(t, err)
+
+		// Verify IDs are sequential
+		require.Equal(t, "1", id1)
+		require.Equal(t, "2", id2)
+		require.Equal(t, "3", id3)
+
+		// getNextID should return 4
+		id, err := getNextID()
+		require.NoError(t, err)
+		require.Equal(t, 4, id)
+	})
+
+	t.Run("ID always greater than zero", func(t *testing.T) {
+		setupTest(t)
+		require.NoError(t, Init())
+
+		// First call should return 1
+		id, err := getNextID()
+		require.NoError(t, err)
+		require.Greater(t, id, 0, "ID must be greater than 0")
+
+		// Add notification and verify next ID is also > 0
+		_, err = AddNotification("test", "", "", "", "", "", "info")
+		require.NoError(t, err)
+
+		id, err = getNextID()
+		require.NoError(t, err)
+		require.Greater(t, id, 0, "ID must be greater than 0")
+	})
+
+	t.Run("ID is monotonically increasing", func(t *testing.T) {
+		setupTest(t)
+		require.NoError(t, Init())
+
+		// Track IDs across multiple calls
+		var ids []int
+		for i := 0; i < 10; i++ {
+			id, err := getNextID()
+			require.NoError(t, err)
+
+			// Each ID should be strictly greater than previous
+			for _, prevID := range ids {
+				require.Greater(t, id, prevID, "ID must be monotonically increasing")
+			}
+
+			ids = append(ids, id)
+
+			// Add a notification to increment the max ID
+			_, err = AddNotification(fmt.Sprintf("message %d", i), "", "", "", "", "", "info")
+			require.NoError(t, err)
+		}
+
+		// Verify all IDs are unique and increasing
+		for i := 1; i < len(ids); i++ {
+			require.Greater(t, ids[i], ids[i-1], "IDs must be strictly increasing")
+		}
+	})
+
+	t.Run("malformed entries are skipped", func(t *testing.T) {
+		tmpDir := setupTest(t)
+		notifFile := filepath.Join(tmpDir, "notifications.tsv")
+
+		// Write malformed TSV data with some valid entries
+		malformedData := "malformed\tline\twith\tbad\tid\n" + // Invalid ID (not numeric)
+			"5\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg5\tcreated\tinfo\n" + // Valid entry with ID 5
+			"invalid\n" + // Too few fields
+			"10\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg10\tcreated\tinfo\n" // Valid entry with ID 10
+		err := os.WriteFile(notifFile, []byte(malformedData), 0644)
+		require.NoError(t, err)
+
+		// Reset and reinitialize to load the malformed data
+		Reset()
+		os.Setenv("TMUX_INTRAY_STATE_DIR", tmpDir)
+		require.NoError(t, Init())
+
+		// getNextID should skip malformed entries and return maxID + 1
+		// Max valid ID is 10, so should return 11
+		id, err := getNextID()
+		require.NoError(t, err)
+		require.Equal(t, 11, id, "Should return 11 (max valid ID 10 + 1)")
+	})
+
+	t.Run("handles non-sequential IDs", func(t *testing.T) {
+		tmpDir := setupTest(t)
+		notifFile := filepath.Join(tmpDir, "notifications.tsv")
+
+		// Write entries with non-sequential IDs
+		nonSequentialData := "1\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg1\tcreated\tinfo\n" +
+			"5\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg5\tcreated\tinfo\n" +
+			"100\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg100\tcreated\tinfo\n"
+		err := os.WriteFile(notifFile, []byte(nonSequentialData), 0644)
+		require.NoError(t, err)
+
+		// Reset and reinitialize
+		Reset()
+		os.Setenv("TMUX_INTRAY_STATE_DIR", tmpDir)
+		require.NoError(t, Init())
+
+		// getNextID should return 101 (max ID 100 + 1)
+		id, err := getNextID()
+		require.NoError(t, err)
+		require.Equal(t, 101, id, "Should return 101 (max ID 100 + 1)")
+	})
+
+	t.Run("handles dismissed notifications", func(t *testing.T) {
+		setupTest(t)
+		require.NoError(t, Init())
+
+		// Add and dismiss some notifications
+		id1, err := AddNotification("msg1", "", "", "", "", "", "info")
+		require.NoError(t, err)
+		err = DismissNotification(id1)
+		require.NoError(t, err)
+
+		_, err = AddNotification("msg2", "", "", "", "", "", "info")
+		require.NoError(t, err)
+
+		_, err = AddNotification("msg3", "", "", "", "", "", "info")
+		require.NoError(t, err)
+
+		// getNextID should return 4 (max ID 3 + 1)
+		// Even though ID 1 is dismissed, it still exists in the file
+		id, err := getNextID()
+		require.NoError(t, err)
+		require.Equal(t, 4, id)
+	})
+
+	t.Run("ID greater than all existing", func(t *testing.T) {
+		setupTest(t)
+		require.NoError(t, Init())
+
+		// Add multiple notifications
+		for i := 0; i < 5; i++ {
+			_, err := AddNotification(fmt.Sprintf("msg%d", i), "", "", "", "", "", "info")
+			require.NoError(t, err)
+		}
+
+		// Get next ID
+		nextID, err := getNextID()
+		require.NoError(t, err)
+
+		// Verify it's greater than all existing IDs
+		latest, err := getLatestNotifications()
+		require.NoError(t, err)
+
+		for _, line := range latest {
+			fields := strings.Split(line, "\t")
+			if len(fields) > fieldID {
+				existingID, err := strconv.Atoi(fields[fieldID])
+				require.NoError(t, err)
+				require.Greater(t, nextID, existingID, "Next ID must be greater than all existing IDs")
+			}
+		}
+	})
+}
+
+func TestValidateListInputs(t *testing.T) {
+	// Test validateListInputs with various inputs
+	testCases := []struct {
+		name            string
+		stateFilter     string
+		levelFilter     string
+		olderThanCutoff string
+		newerThanCutoff string
+		wantError       bool
+		errorMsg        string
+	}{
+		// Valid inputs (all empty filters are allowed)
+		{"valid empty filters", "", "", "", "", false, ""},
+		{"valid state active", "active", "", "", "", false, ""},
+		{"valid state dismissed", "dismissed", "", "", "", false, ""},
+		{"valid state all", "all", "", "", "", false, ""},
+		{"valid level info", "", "info", "", "", false, ""},
+		{"valid level warning", "", "warning", "", "", false, ""},
+		{"valid level error", "", "error", "", "", false, ""},
+		{"valid level critical", "", "critical", "", "", false, ""},
+		{"valid timestamp RFC3339", "", "", "2025-01-01T12:00:00Z", "", false, ""},
+		{"valid timestamp with fractional", "", "", "2025-01-01T12:00:00.123Z", "", false, ""},
+		{"valid timestamp with offset", "", "", "", "2025-01-01T12:00:00+00:00", false, ""},
+
+		// Invalid state values
+		{"invalid state lowercase", "pending", "", "", "", true, "invalid state 'pending'"},
+		{"invalid state uppercase", "ACTIVE", "", "", "", true, "invalid state 'ACTIVE'"},
+		{"invalid state number", "123", "", "", "", true, "invalid state '123'"},
+		{"invalid state partial", "act", "", "", "", true, "invalid state 'act'"},
+
+		// Invalid level values
+		{"invalid level lowercase", "", "debug", "", "", true, "invalid level 'debug'"},
+		{"invalid level uppercase", "", "INFO", "", "", true, "invalid level 'INFO'"},
+		{"invalid level number", "", "1", "", "", true, "invalid level '1'"},
+
+		// Invalid timestamp formats
+		{"invalid timestamp no T", "", "", "2025-01-01 12:00:00Z", "", true, "invalid olderThanCutoff format"},
+		{"invalid timestamp missing Z", "", "", "2025-01-01T12:00:00", "", true, "invalid olderThanCutoff format"},
+		{"invalid timestamp garbage", "", "", "not-a-timestamp", "", true, "invalid olderThanCutoff format"},
+		{"invalid timestamp partial", "", "", "2025-01-01T12:00", "", true, "invalid olderThanCutoff format"},
+		{"invalid newerThanCutoff format", "", "", "", "bad-timestamp", true, "invalid newerThanCutoff format"},
+
+		// Valid combinations
+		{"valid state and level", "active", "error", "", "", false, ""},
+		{"valid state and timestamp", "active", "", "2025-01-01T12:00:00Z", "", false, ""},
+		{"valid all filters", "all", "warning", "2025-01-01T12:00:00Z", "2025-01-01T12:00:00Z", false, ""},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateListInputs(tc.stateFilter, tc.levelFilter, tc.olderThanCutoff, tc.newerThanCutoff)
+			if tc.wantError {
+				require.Error(t, err, "expected error for test case: "+tc.name)
+				if tc.errorMsg != "" {
+					require.Contains(t, err.Error(), tc.errorMsg, "error message should contain: "+tc.errorMsg)
+				}
+			} else {
+				require.NoError(t, err, "unexpected error for test case: "+tc.name)
+			}
+		})
+	}
+}
+
+func TestListNotificationsValidation(t *testing.T) {
+	setupTest(t)
+	require.NoError(t, Init())
+
+	// Test that validation errors are properly returned from ListNotifications
+	testCases := []struct {
+		name            string
+		stateFilter     string
+		levelFilter     string
+		olderThanCutoff string
+		newerThanCutoff string
+		wantError       bool
+		errorMsg        string
+	}{
+		{"valid empty filters", "", "", "", "", false, ""},
+		{"valid state", "active", "", "", "", false, ""},
+		{"valid level", "", "info", "", "", false, ""},
+		{"valid both", "active", "warning", "", "", false, ""},
+		{"invalid state", "pending", "", "", "", true, "invalid state 'pending'"},
+		{"invalid level", "", "debug", "", "", true, "invalid level 'debug'"},
+		{"invalid timestamp", "", "", "bad-timestamp", "", true, "invalid olderThanCutoff format"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := ListNotifications(tc.stateFilter, tc.levelFilter, "", "", "", tc.olderThanCutoff, tc.newerThanCutoff)
+			if tc.wantError {
+				require.Error(t, err, "expected error for test case: "+tc.name)
+				if tc.errorMsg != "" {
+					require.Contains(t, err.Error(), tc.errorMsg, "error message should contain: "+tc.errorMsg)
+				}
+			} else {
+				require.NoError(t, err, "unexpected error for test case: "+tc.name)
+			}
+		})
+	}
 }

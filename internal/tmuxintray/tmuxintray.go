@@ -42,7 +42,9 @@ func Init() error {
 	storage.Init()
 
 	// Initialize hooks subsystem
-	hooks.Init()
+	if err := hooks.Init(); err != nil {
+		return fmt.Errorf("hooks initialization failed: %w", err)
+	}
 
 	// TODO: verify initialization
 	return nil
@@ -63,8 +65,8 @@ func AddNotification(message, session, window, pane, paneCreated string, noAuto 
 
 // ListNotifications returns a list of notifications matching the filters.
 // Filters that are empty strings are ignored.
-// Returns TSV lines (same format as storage.ListNotifications).
-func ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff string) string {
+// Returns TSV lines (same format as storage.ListNotifications) and an error if validation fails.
+func ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff string) (string, error) {
 	return storage.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff)
 }
 

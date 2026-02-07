@@ -43,7 +43,8 @@ var statusOutputWriter io.Writer = os.Stdout
 
 // statusListFunc is the function used to retrieve notifications. Can be changed for testing.
 var statusListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
-	return storage.ListNotifications(state, level, session, window, pane, olderThan, newerThan)
+	result, _ := storage.ListNotifications(state, level, session, window, pane, olderThan, newerThan)
+	return result
 }
 
 // statusActiveCountFunc is the function used to get active count. Can be changed for testing.
