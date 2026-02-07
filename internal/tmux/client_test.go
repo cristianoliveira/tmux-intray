@@ -427,3 +427,380 @@ func TestDefaultClientRunConcurrent(t *testing.T) {
 
 	t.Logf("Successfully ran %d concurrent commands", concurrency)
 }
+
+// TestDefaultClientGetCurrentContext tests GetCurrentContext method.
+func TestDefaultClientGetCurrentContext(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Skip if tmux not running
+	_, err := exec.Command("tmux", "has-session").CombinedOutput()
+	if err != nil {
+		t.Skip("tmux not running, skipping integration test")
+	}
+
+	client := NewDefaultClient()
+	ctx, err := client.GetCurrentContext()
+
+	assert.NoError(t, err, "GetCurrentContext should succeed")
+	assert.NotEmpty(t, ctx.SessionID, "SessionID should not be empty")
+	assert.NotEmpty(t, ctx.WindowID, "WindowID should not be empty")
+	assert.NotEmpty(t, ctx.PaneID, "PaneID should not be empty")
+	assert.NotEmpty(t, ctx.PanePID, "PanePID should not be empty")
+
+	// SessionID should start with $
+	assert.Contains(t, ctx.SessionID, "$", "SessionID should start with $")
+	// WindowID should start with @
+	assert.Contains(t, ctx.WindowID, "@", "WindowID should start with @")
+	// PaneID should start with %
+	assert.Contains(t, ctx.PaneID, "%", "PaneID should start with %")
+
+	t.Logf("Context: SessionID=%s, WindowID=%s, PaneID=%s, PanePID=%s",
+		ctx.SessionID, ctx.WindowID, ctx.PaneID, ctx.PanePID)
+}
+
+// TestDefaultClientValidatePaneExists tests ValidatePaneExists method.
+func TestDefaultClientValidatePaneExists(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Skip if tmux not running
+	_, err := exec.Command("tmux", "has-session").CombinedOutput()
+	if err != nil {
+		t.Skip("tmux not running, skipping integration test")
+	}
+
+	client := NewDefaultClient()
+
+	// Get current context to test with real values
+	ctx, err := client.GetCurrentContext()
+	require.NoError(t, err, "should get current context")
+
+	// Test with current pane (should exist)
+	exists, err := client.ValidatePaneExists(ctx.SessionID, ctx.WindowID, ctx.PaneID)
+	assert.NoError(t, err, "ValidatePaneExists should succeed for existing pane")
+	assert.True(t, exists, "current pane should exist")
+
+	// Test with non-existent pane
+	exists, err = client.ValidatePaneExists(ctx.SessionID, ctx.WindowID, "%999999")
+	assert.NoError(t, err, "ValidatePaneExists should succeed for non-existent pane")
+	assert.False(t, exists, "non-existent pane should not exist")
+
+	// Test with invalid target
+	_, err = client.ValidatePaneExists("$999999", "@999999", "%999999")
+	assert.Error(t, err, "ValidatePaneExists should fail for invalid target")
+}
+
+// TestDefaultClientJumpToPane tests JumpToPane method.
+func TestDefaultClientJumpToPane(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Skip if tmux not running
+	_, err := exec.Command("tmux", "has-session").CombinedOutput()
+	if err != nil {
+		t.Skip("tmux not running, skipping integration test")
+	}
+
+	client := NewDefaultClient()
+
+	// Get current context to test with real values
+	ctx, err := client.GetCurrentContext()
+	require.NoError(t, err, "should get current context")
+
+	// Test jumping to current pane (should succeed)
+	success, err := client.JumpToPane(ctx.SessionID, ctx.WindowID, ctx.PaneID)
+	assert.NoError(t, err, "JumpToPane should succeed for current pane")
+	assert.True(t, success, "jump to current pane should succeed")
+
+	// Test jumping to non-existent pane (should succeed but fall back to window)
+	success, err = client.JumpToPane(ctx.SessionID, ctx.WindowID, "%999999")
+	assert.NoError(t, err, "JumpToPane should succeed for non-existent pane (fallback to window)")
+	assert.True(t, success, "jump to non-existent pane should succeed with fallback")
+
+	// Test with invalid target (empty parameters)
+	success, err = client.JumpToPane("", "", "")
+	assert.Error(t, err, "JumpToPane should fail with empty parameters")
+	assert.False(t, success, "jump with empty parameters should fail")
+
+	// Test with invalid session
+	success, err = client.JumpToPane("$999999", "@999999", "%999999")
+	assert.Error(t, err, "JumpToPane should fail with invalid session")
+	assert.False(t, success, "jump to invalid session should fail")
+}
+
+// TestDefaultClientSetEnvironment tests SetEnvironment method.
+func TestDefaultClientSetEnvironment(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Skip if tmux not running
+	_, err := exec.Command("tmux", "has-session").CombinedOutput()
+	if err != nil {
+		t.Skip("tmux not running, skipping integration test")
+	}
+
+	client := NewDefaultClient()
+
+	// Test setting an environment variable
+	testVarName := "TMUX_INTRAY_TEST_VAR"
+	testVarValue := "test_value_123"
+
+	err = client.SetEnvironment(testVarName, testVarValue)
+	assert.NoError(t, err, "SetEnvironment should succeed")
+
+	// Verify the variable was set by getting it back
+	retrievedValue, err := client.GetEnvironment(testVarName)
+	assert.NoError(t, err, "GetEnvironment should succeed after SetEnvironment")
+	assert.Equal(t, testVarValue, retrievedValue, "retrieved value should match set value")
+
+	// Clean up - unset the variable
+	err = client.SetEnvironment(testVarName, "")
+	assert.NoError(t, err, "unsetting environment variable should succeed")
+}
+
+// TestDefaultClientGetEnvironment tests GetEnvironment method.
+func TestDefaultClientGetEnvironment(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Skip if tmux not running
+	_, err := exec.Command("tmux", "has-session").CombinedOutput()
+	if err != nil {
+		t.Skip("tmux not running, skipping integration test")
+	}
+
+	client := NewDefaultClient()
+
+	// Test getting existing environment variable (TERM should always exist)
+	termValue, err := client.GetEnvironment("TERM")
+	assert.NoError(t, err, "GetEnvironment should succeed for existing variable")
+	assert.NotEmpty(t, termValue, "TERM value should not be empty")
+
+	t.Logf("TERM environment variable: %s", termValue)
+
+	// Test getting non-existent variable
+	_, err = client.GetEnvironment("TMUX_INTRAY_NONEXISTENT_VAR")
+	assert.Error(t, err, "GetEnvironment should fail for non-existent variable")
+}
+
+// TestDefaultClientHasSession tests HasSession method.
+func TestDefaultClientHasSession(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	client := NewDefaultClient()
+
+	// Test when tmux is running
+	_, err := exec.Command("tmux", "has-session").CombinedOutput()
+	tmuxRunning := err == nil
+
+	if tmuxRunning {
+		running, err := client.HasSession()
+		assert.NoError(t, err, "HasSession should succeed when tmux is running")
+		assert.True(t, running, "HasSession should return true when tmux is running")
+	} else {
+		t.Skip("tmux not running, skipping HasSession test")
+	}
+
+	// Test with custom socket path (tmux not running on that socket)
+	clientWithSocket := NewDefaultClient(WithSocketPath("nonexistent-socket"))
+	running, err := clientWithSocket.HasSession()
+	assert.Error(t, err, "HasSession should fail with non-existent socket")
+	assert.False(t, running, "HasSession should return false when tmux is not running")
+}
+
+// TestDefaultClientSetStatusOption tests SetStatusOption method.
+func TestDefaultClientSetStatusOption(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Skip if tmux not running
+	_, err := exec.Command("tmux", "has-session").CombinedOutput()
+	if err != nil {
+		t.Skip("tmux not running, skipping integration test")
+	}
+
+	client := NewDefaultClient()
+
+	// Test setting a status option
+	// We'll set status-interval (safe to change)
+	err = client.SetStatusOption("status-interval", "5")
+	assert.NoError(t, err, "SetStatusOption should succeed")
+
+	// Verify by getting the status-interval value
+	stdout, _, err := client.Run("show-option", "-g", "status-interval")
+	assert.NoError(t, err, "show-option should succeed")
+	assert.Contains(t, stdout, "5", "status-interval should be set to 5")
+
+	// Restore default value
+	err = client.SetStatusOption("status-interval", "15")
+	assert.NoError(t, err, "restoring default status-interval should succeed")
+
+	t.Logf("SetStatusOption stdout: %s", stdout)
+
+	// Test when tmux is not running
+	clientWithSocket := NewDefaultClient(WithSocketPath("nonexistent-socket"))
+	err = clientWithSocket.SetStatusOption("status-interval", "5")
+	assert.Error(t, err, "SetStatusOption should fail when tmux is not running")
+}
+
+// TestDefaultClientListSessions tests ListSessions method.
+func TestDefaultClientListSessions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Skip if tmux not running
+	_, err := exec.Command("tmux", "has-session").CombinedOutput()
+	if err != nil {
+		t.Skip("tmux not running, skipping integration test")
+	}
+
+	client := NewDefaultClient()
+
+	// Test listing sessions
+	sessions, err := client.ListSessions()
+	assert.NoError(t, err, "ListSessions should succeed")
+	assert.NotNil(t, sessions, "sessions map should not be nil")
+
+	// Should have at least one session
+	assert.Greater(t, len(sessions), 0, "should have at least one session")
+
+	// Verify session IDs start with $
+	for sessionID := range sessions {
+		assert.Contains(t, sessionID, "$", "session ID should start with $")
+		assert.NotEmpty(t, sessions[sessionID], "session name should not be empty")
+		t.Logf("Session: ID=%s, Name=%s", sessionID, sessions[sessionID])
+	}
+
+	// Test with non-existent socket
+	clientWithSocket := NewDefaultClient(WithSocketPath("nonexistent-socket"))
+	_, err = clientWithSocket.ListSessions()
+	assert.Error(t, err, "ListSessions should fail with non-existent socket")
+}
+
+// TestDefaultClientMethodsErrorWrapping tests that all methods properly wrap errors.
+func TestDefaultClientMethodsErrorWrapping(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	client := NewDefaultClient(WithSocketPath("nonexistent-socket"))
+
+	tests := []struct {
+		name        string
+		method      func() (interface{}, error)
+		errorCheck  func(error) bool
+		description string
+	}{
+		{
+			name: "GetCurrentContext",
+			method: func() (interface{}, error) {
+				return client.GetCurrentContext()
+			},
+			errorCheck: func(err error) bool {
+				return err != nil && strings.Contains(err.Error(), "failed to get tmux context")
+			},
+			description: "should wrap error with context message",
+		},
+		{
+			name: "ValidatePaneExists",
+			method: func() (interface{}, error) {
+				return client.ValidatePaneExists("$0", "@0", "%0")
+			},
+			errorCheck: func(err error) bool {
+				return err != nil && strings.Contains(err.Error(), "failed to list panes")
+			},
+			description: "should wrap error with context message",
+		},
+		{
+			name: "SetEnvironment",
+			method: func() (interface{}, error) {
+				return nil, client.SetEnvironment("TEST", "value")
+			},
+			errorCheck: func(err error) bool {
+				return err != nil && strings.Contains(err.Error(), "failed to set environment variable")
+			},
+			description: "should wrap error with context message",
+		},
+		{
+			name: "GetEnvironment",
+			method: func() (interface{}, error) {
+				return client.GetEnvironment("TEST")
+			},
+			errorCheck: func(err error) bool {
+				return err != nil && strings.Contains(err.Error(), "failed to get environment variable")
+			},
+			description: "should wrap error with context message",
+		},
+		{
+			name: "ListSessions",
+			method: func() (interface{}, error) {
+				return client.ListSessions()
+			},
+			errorCheck: func(err error) bool {
+				return err != nil && strings.Contains(err.Error(), "failed to list sessions")
+			},
+			description: "should wrap error with context message",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.method()
+			assert.Error(t, err, tt.description)
+			assert.True(t, tt.errorCheck(err), "error should contain expected message")
+			t.Logf("Error: %v", err)
+		})
+	}
+}
+
+// TestDefaultClientEnvironmentGetSetRoundTrip tests setting and getting environment variables.
+func TestDefaultClientEnvironmentGetSetRoundTrip(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Skip if tmux not running
+	_, err := exec.Command("tmux", "has-session").CombinedOutput()
+	if err != nil {
+		t.Skip("tmux not running, skipping integration test")
+	}
+
+	client := NewDefaultClient()
+
+	testCases := []struct {
+		name  string
+		value string
+	}{
+		{"TMUX_INTRAY_TEST_1", "value1"},
+		{"TMUX_INTRAY_TEST_2", "value with spaces"},
+		{"TMUX_INTRAY_TEST_3", "12345"},
+		{"TMUX_INTRAY_TEST_4", "special!@#$%^&*()"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Set the variable
+			err := client.SetEnvironment(tc.name, tc.value)
+			assert.NoError(t, err, "SetEnvironment should succeed")
+
+			// Get the variable
+			retrieved, err := client.GetEnvironment(tc.name)
+			assert.NoError(t, err, "GetEnvironment should succeed")
+			assert.Equal(t, tc.value, retrieved, "retrieved value should match set value")
+
+			// Clean up
+			err = client.SetEnvironment(tc.name, "")
+			assert.NoError(t, err, "unsetting should succeed")
+		})
+	}
+}

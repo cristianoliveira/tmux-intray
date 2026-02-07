@@ -92,7 +92,7 @@ func (c *DefaultClient) runCommand(args ...string) (string, string, error) {
 // GetCurrentContext returns the current tmux session/window/pane context.
 func (c *DefaultClient) GetCurrentContext() (TmuxContext, error) {
 	format := "#{session_id} #{window_id} #{pane_id} #{pane_pid}"
-	stdout, stderr, err := c.runCommand("display", "-p", format)
+	stdout, stderr, err := c.Run("display", "-p", format)
 	if err != nil {
 		if stderr != "" {
 			colors.Debug("stderr: " + stderr)
@@ -137,7 +137,7 @@ func (c *DefaultClient) GetCurrentContext() (TmuxContext, error) {
 // ValidatePaneExists checks if a pane exists in a given session and window.
 func (c *DefaultClient) ValidatePaneExists(sessionID, windowID, paneID string) (bool, error) {
 	target := sessionID + ":" + windowID
-	stdout, stderr, err := c.runCommand("list-panes", "-t", target, "-F", "#{pane_id}")
+	stdout, stderr, err := c.Run("list-panes", "-t", target, "-F", "#{pane_id}")
 	if err != nil {
 		if stderr != "" {
 			colors.Debug("stderr: " + stderr)
@@ -176,7 +176,7 @@ func (c *DefaultClient) JumpToPane(sessionID, windowID, paneID string) (bool, er
 	// Select the window (this happens regardless of whether the pane exists)
 	targetWindow := sessionID + ":" + windowID
 	colors.Debug(fmt.Sprintf("JumpToPane: selecting window %s", targetWindow))
-	_, stderr, err := c.runCommand("select-window", "-t", targetWindow)
+	_, stderr, err := c.Run("select-window", "-t", targetWindow)
 	if err != nil {
 		if stderr != "" {
 			colors.Debug("stderr: " + stderr)
@@ -194,7 +194,7 @@ func (c *DefaultClient) JumpToPane(sessionID, windowID, paneID string) (bool, er
 	// Pane exists, select it using the correct tmux pane syntax: "sessionID:windowID.paneID"
 	targetPane := sessionID + ":" + windowID + "." + paneID
 	colors.Debug(fmt.Sprintf("JumpToPane: selecting pane %s", targetPane))
-	_, stderr, err = c.runCommand("select-pane", "-t", targetPane)
+	_, stderr, err = c.Run("select-pane", "-t", targetPane)
 	if err != nil {
 		if stderr != "" {
 			colors.Debug("stderr: " + stderr)
@@ -208,7 +208,7 @@ func (c *DefaultClient) JumpToPane(sessionID, windowID, paneID string) (bool, er
 
 // SetEnvironment sets a tmux environment variable.
 func (c *DefaultClient) SetEnvironment(name, value string) error {
-	_, stderr, err := c.runCommand("set-environment", "-g", name, value)
+	_, stderr, err := c.Run("set-environment", "-g", name, value)
 	if err != nil {
 		if stderr != "" {
 			colors.Debug("stderr: " + stderr)
@@ -220,7 +220,7 @@ func (c *DefaultClient) SetEnvironment(name, value string) error {
 
 // GetEnvironment gets a tmux environment variable value.
 func (c *DefaultClient) GetEnvironment(name string) (string, error) {
-	stdout, stderr, err := c.runCommand("show-environment", "-g", name)
+	stdout, stderr, err := c.Run("show-environment", "-g", name)
 	if err != nil {
 		if stderr != "" {
 			colors.Debug("stderr: " + stderr)
@@ -240,7 +240,7 @@ func (c *DefaultClient) GetEnvironment(name string) (string, error) {
 
 // HasSession checks if tmux server is running.
 func (c *DefaultClient) HasSession() (bool, error) {
-	_, stderr, err := c.runCommand("has-session")
+	_, stderr, err := c.Run("has-session")
 	if err != nil {
 		if stderr != "" {
 			colors.Debug("stderr: " + stderr)
@@ -261,7 +261,7 @@ func (c *DefaultClient) SetStatusOption(name, value string) error {
 		return ErrTmuxNotRunning
 	}
 
-	_, stderr, err := c.runCommand("set", "-g", name, value)
+	_, stderr, err := c.Run("set", "-g", name, value)
 	if err != nil {
 		if stderr != "" {
 			colors.Debug("stderr: " + stderr)
@@ -273,7 +273,7 @@ func (c *DefaultClient) SetStatusOption(name, value string) error {
 
 // ListSessions returns all tmux sessions as a map of session ID to name.
 func (c *DefaultClient) ListSessions() (map[string]string, error) {
-	stdout, stderr, err := c.runCommand("list-sessions", "-F", "#{session_id}\t#{session_name}")
+	stdout, stderr, err := c.Run("list-sessions", "-F", "#{session_id}\t#{session_name}")
 	if err != nil {
 		if stderr != "" {
 			colors.Debug("stderr: " + stderr)
