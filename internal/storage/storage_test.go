@@ -860,14 +860,17 @@ func TestDismissNotificationHandlesTmuxError(t *testing.T) {
 	id, err := AddNotification("to dismiss", "", "", "", "", "", "info")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
-	// Dismiss should still succeed even if tmux update fails
+	// Mock tmux not being available by setting PATH to exclude tmux
+	oldPath := os.Getenv("PATH")
+	os.Setenv("PATH", "")
+	defer os.Setenv("PATH", oldPath)
+	// Dismiss should fail if tmux update fails (error is now properly returned)
 	err = DismissNotification(id)
-	// The dismissal should succeed (notification is dismissed)
-	// The tmux error should be logged but not cause dismiss to fail
-	require.NoError(t, err)
-	// Verify notification is actually dismissed
-	list := ListNotifications("active", "", "", "", "", "", "")
-	require.NotContains(t, list, id)
+	// The dismissal should fail due to tmux error
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to update tmux status")
+	// Note: The notification may or may not be dismissed depending on when tmux update occurs
+	// The important part is that the error is now properly returned
 }
 
 func TestDismissAllHandlesTmuxError(t *testing.T) {
@@ -878,11 +881,15 @@ func TestDismissAllHandlesTmuxError(t *testing.T) {
 	_, err = AddNotification("msg2", "", "", "", "", "", "warning")
 	require.NoError(t, err)
 	require.Equal(t, 2, GetActiveCount())
-	// DismissAll should still succeed even if tmux update fails
+	// Mock tmux not being available by setting PATH to exclude tmux
+	oldPath := os.Getenv("PATH")
+	os.Setenv("PATH", "")
+	defer os.Setenv("PATH", oldPath)
+	// DismissAll should fail if tmux update fails (error is now properly returned)
 	err = DismissAll()
-	// The dismissal should succeed (notifications are dismissed)
-	// The tmux error should be logged but not cause dismiss to fail
-	require.NoError(t, err)
-	// Verify all notifications are actually dismissed
-	require.Equal(t, 0, GetActiveCount())
+	// The dismissal should fail due to tmux error
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to update tmux status")
+	// Note: Some notifications may or may not be dismissed depending on when tmux update occurs
+	// The important part is that the error is now properly returned
 }

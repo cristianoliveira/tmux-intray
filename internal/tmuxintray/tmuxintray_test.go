@@ -163,3 +163,20 @@ func TestParseNotification(t *testing.T) {
 	require.Equal(t, "2", notif2.ID)
 	require.Equal(t, "line1\nline2\ttab", notif2.Message)
 }
+
+func TestParseNotificationErrors(t *testing.T) {
+	// Test empty line
+	_, err := ParseNotification("")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "empty notification line")
+
+	// Test whitespace-only line
+	_, err = ParseNotification("   \t  ")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "empty notification line")
+
+	// Test insufficient fields
+	_, err = ParseNotification("1\t2025-01-01T12:00:00Z\tactive")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "expected 9 fields")
+}

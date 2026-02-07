@@ -78,16 +78,31 @@ type Notification struct {
 }
 
 // parseNotification parses a TSV line into a Notification.
+// Returns an error if the line is empty, doesn't contain enough fields,
+// or the ID field is not a valid integer.
 func parseNotification(line string) (Notification, error) {
+	if strings.TrimSpace(line) == "" {
+		return Notification{}, fmt.Errorf("empty notification line")
+	}
+
 	fields := strings.Split(line, "\t")
 	// Ensure at least 9 fields
-	for len(fields) < 9 {
-		fields = append(fields, "")
+	if len(fields) < 9 {
+		return Notification{}, fmt.Errorf("invalid notification line: expected 9 fields, got %d", len(fields))
 	}
+
+	// Parse ID field
 	id := 0
 	if fields[0] != "" {
-		fmt.Sscanf(fields[0], "%d", &id)
+		n, err := fmt.Sscanf(fields[0], "%d", &id)
+		if err != nil {
+			return Notification{}, fmt.Errorf("failed to parse ID field: %w", err)
+		}
+		if n != 1 {
+			return Notification{}, fmt.Errorf("failed to parse ID field: invalid format")
+		}
 	}
+
 	return Notification{
 		ID:          id,
 		Timestamp:   fields[1],

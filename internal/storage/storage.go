@@ -406,6 +406,7 @@ func DismissNotification(id string) error {
 		}
 		if err := updateTmuxStatusOption(activeCount); err != nil {
 			colors.Error(fmt.Sprintf("failed to update tmux status: %v", err))
+			return fmt.Errorf("failed to update tmux status: %w", err)
 		}
 		return nil
 	})
@@ -523,6 +524,7 @@ func DismissAll() error {
 		}
 		if err := updateTmuxStatusOption(activeCount); err != nil {
 			colors.Error(fmt.Sprintf("failed to update tmux status: %v", err))
+			return fmt.Errorf("failed to update tmux status: %w", err)
 		}
 		return nil
 	})

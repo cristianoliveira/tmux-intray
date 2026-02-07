@@ -115,13 +115,28 @@ func getAsyncTimeout() time.Duration {
 }
 
 // getMaxAsyncHooks returns maximum number of concurrent async hooks.
+// Valid range is 1-100. Values outside this range default to 10.
 func getMaxAsyncHooks() int {
+	const (
+		defaultMax = 10
+		minMax     = 1
+		maxMax     = 100
+	)
+
 	if maxStr := os.Getenv("TMUX_INTRAY_MAX_HOOKS"); maxStr != "" {
-		if max, err := strconv.Atoi(maxStr); err == nil && max > 0 {
-			return max
+		if max, err := strconv.Atoi(maxStr); err == nil {
+			if max >= minMax && max <= maxMax {
+				return max
+			}
+			// Log warning if out of range
+			colors.Warning(fmt.Sprintf("TMUX_INTRAY_MAX_HOOKS=%s is out of range [%d-%d], using default %d",
+				maxStr, minMax, maxMax, defaultMax))
+		} else {
+			colors.Warning(fmt.Sprintf("TMUX_INTRAY_MAX_HOOKS=%s is not a valid integer, using default %d",
+				maxStr, defaultMax))
 		}
 	}
-	return 10
+	return defaultMax
 }
 
 // runSyncHook executes a hook script synchronously.

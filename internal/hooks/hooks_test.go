@@ -302,3 +302,52 @@ func TestAsyncHookContextCancellation(t *testing.T) {
 	// Should complete within timeout + overhead
 	require.Less(t, duration, 2*time.Second)
 }
+
+func TestGetMaxAsyncHooksValidation(t *testing.T) {
+	// Test default value when env var is not set
+	oldMaxHooks := os.Getenv("TMUX_INTRAY_MAX_HOOKS")
+	defer os.Setenv("TMUX_INTRAY_MAX_HOOKS", oldMaxHooks)
+	os.Unsetenv("TMUX_INTRAY_MAX_HOOKS")
+	max := getMaxAsyncHooks()
+	require.Equal(t, 10, max, "Default should be 10")
+
+	// Test valid values within range [1, 100]
+	os.Setenv("TMUX_INTRAY_MAX_HOOKS", "1")
+	max = getMaxAsyncHooks()
+	require.Equal(t, 1, max, "Minimum value should be 1")
+
+	os.Setenv("TMUX_INTRAY_MAX_HOOKS", "50")
+	max = getMaxAsyncHooks()
+	require.Equal(t, 50, max, "Valid mid-range value should be accepted")
+
+	os.Setenv("TMUX_INTRAY_MAX_HOOKS", "100")
+	max = getMaxAsyncHooks()
+	require.Equal(t, 100, max, "Maximum value should be 100")
+
+	// Test values below minimum (should default to 10)
+	os.Setenv("TMUX_INTRAY_MAX_HOOKS", "0")
+	max = getMaxAsyncHooks()
+	require.Equal(t, 10, max, "Zero should default to 10")
+
+	os.Setenv("TMUX_INTRAY_MAX_HOOKS", "-5")
+	max = getMaxAsyncHooks()
+	require.Equal(t, 10, max, "Negative value should default to 10")
+
+	// Test values above maximum (should default to 10)
+	os.Setenv("TMUX_INTRAY_MAX_HOOKS", "101")
+	max = getMaxAsyncHooks()
+	require.Equal(t, 10, max, "Value above maximum should default to 10")
+
+	os.Setenv("TMUX_INTRAY_MAX_HOOKS", "999")
+	max = getMaxAsyncHooks()
+	require.Equal(t, 10, max, "Very large value should default to 10")
+
+	// Test invalid format (should default to 10)
+	os.Setenv("TMUX_INTRAY_MAX_HOOKS", "abc")
+	max = getMaxAsyncHooks()
+	require.Equal(t, 10, max, "Non-numeric value should default to 10")
+
+	os.Setenv("TMUX_INTRAY_MAX_HOOKS", "")
+	max = getMaxAsyncHooks()
+	require.Equal(t, 10, max, "Empty string should default to 10")
+}

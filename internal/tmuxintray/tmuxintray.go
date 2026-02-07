@@ -2,6 +2,7 @@
 package tmuxintray
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
@@ -123,14 +124,17 @@ func unescapeMessage(msg string) string {
 }
 
 // ParseNotification parses a TSV line into a Notification struct.
+// Returns an error if the line is empty or doesn't contain enough fields.
 func ParseNotification(tsvLine string) (Notification, error) {
+	if strings.TrimSpace(tsvLine) == "" {
+		return Notification{}, fmt.Errorf("empty notification line")
+	}
+
 	fields := strings.Split(tsvLine, "\t")
 	if len(fields) < numFields {
-		// Pad missing fields
-		for len(fields) < numFields {
-			fields = append(fields, "")
-		}
+		return Notification{}, fmt.Errorf("invalid notification line: expected %d fields, got %d", numFields, len(fields))
 	}
+
 	return Notification{
 		ID:          fields[fieldID],
 		Timestamp:   fields[fieldTimestamp],

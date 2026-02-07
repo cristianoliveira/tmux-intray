@@ -310,6 +310,42 @@ func TestParseNotification(t *testing.T) {
 	}
 }
 
+func TestParseNotificationErrors(t *testing.T) {
+	// Test empty line
+	_, err := parseNotification("")
+	if err == nil {
+		t.Error("Expected error for empty line")
+	}
+	if err != nil && err.Error() != "empty notification line" {
+		t.Errorf("Expected 'empty notification line' error, got: %v", err)
+	}
+
+	// Test whitespace-only line
+	_, err = parseNotification("   \t  ")
+	if err == nil {
+		t.Error("Expected error for whitespace line")
+	}
+
+	// Test insufficient fields
+	_, err = parseNotification("1\t2025-01-01T12:00:00Z\tactive")
+	if err == nil {
+		t.Error("Expected error for insufficient fields")
+	}
+	if err != nil && !strings.Contains(err.Error(), "expected 9 fields") {
+		t.Errorf("Expected 'expected 9 fields' error, got: %v", err)
+	}
+
+	// Test invalid ID format (should still succeed with ID=0 if we allow it, or fail if we validate)
+	// Current implementation sets ID to 0 for empty ID field
+	notif, err := parseNotification("\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg\t123\tinfo")
+	if err != nil {
+		t.Errorf("Unexpected error for empty ID field: %v", err)
+	}
+	if notif.ID != 0 {
+		t.Errorf("Expected ID 0 for empty ID field, got %d", notif.ID)
+	}
+}
+
 func TestUnescapeMessage(t *testing.T) {
 	tests := []struct {
 		input    string
