@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 )
 
@@ -51,7 +50,7 @@ func GetTrayItems(stateFilter string) string {
 // AddTrayItem adds a tray item.
 // If session, window, pane are empty and noAuto is false, current tmux context is used.
 // Returns the notification ID or an error if validation fails.
-func AddTrayItem(item, session, window, pane, paneCreated string, noAuto bool, level string) (string, error) {
+func (c *Core) AddTrayItem(item, session, window, pane, paneCreated string, noAuto bool, level string) (string, error) {
 	// Treat empty/whitespace context same as not provided for resilience
 	// This handles cases where plugin passes empty strings as flags
 	session = strings.TrimSpace(session)
@@ -60,7 +59,7 @@ func AddTrayItem(item, session, window, pane, paneCreated string, noAuto bool, l
 
 	// If auto context allowed and session/window/pane empty, get current tmux context
 	if !noAuto && session == "" && window == "" && pane == "" {
-		ctx := GetCurrentTmuxContext()
+		ctx := c.GetCurrentTmuxContext()
 		if ctx.SessionID != "" {
 			session = ctx.SessionID
 			window = ctx.WindowID
@@ -74,10 +73,14 @@ func AddTrayItem(item, session, window, pane, paneCreated string, noAuto bool, l
 	// Add notification with empty timestamp (auto-generated)
 	id, err := storage.AddNotification(item, "", session, window, pane, paneCreated, level)
 	if err != nil {
-		colors.Error(fmt.Sprintf("Failed to add tray item: %v", err))
-		return "", err
+		return "", fmt.Errorf("AddTrayItem: failed to add notification: %w", err)
 	}
 	return id, nil
+}
+
+// AddTrayItem adds a tray item using the default client.
+func AddTrayItem(item, session, window, pane, paneCreated string, noAuto bool, level string) (string, error) {
+	return defaultCore.AddTrayItem(item, session, window, pane, paneCreated, noAuto, level)
 }
 
 // ClearTrayItems dismisses all active tray items.
@@ -86,21 +89,31 @@ func ClearTrayItems() error {
 }
 
 // GetVisibility returns the visibility state as "0" or "1".
+func (c *Core) GetVisibility() string {
+	return c.GetTmuxVisibility()
+}
+
+// GetVisibility returns the visibility state as "0" or "1" using the default client.
 func GetVisibility() string {
-	return GetTmuxVisibility()
+	return defaultCore.GetVisibility()
 }
 
 // SetVisibility sets the visibility state.
-func SetVisibility(visible bool) error {
+func (c *Core) SetVisibility(visible bool) error {
 	value := "0"
 	if visible {
 		value = "1"
 	}
-	success := SetTmuxVisibility(value)
+	success := c.SetTmuxVisibility(value)
 	if !success {
 		return ErrTmuxOperationFailed
 	}
 	return nil
+}
+
+// SetVisibility sets the visibility state using the default client.
+func SetVisibility(visible bool) error {
+	return defaultCore.SetVisibility(visible)
 }
 
 // Helper functions copied from storage package (since they're not exported)

@@ -37,7 +37,7 @@ func (l *Lock) Acquire() error {
 		}
 		// Log the error and retry
 		if time.Since(start) > lockTimeout {
-			return fmt.Errorf("failed to create lock directory after timeout: %w", err)
+			return fmt.Errorf("failed to acquire lock for %s after timeout: %w", l.dir, err)
 		}
 		time.Sleep(lockRetry)
 	}
@@ -52,7 +52,7 @@ func (l *Lock) Release() error {
 func WithLock(dir string, fn func() error) error {
 	lock := NewLock(dir)
 	if err := lock.Acquire(); err != nil {
-		return fmt.Errorf("acquire lock: %w", err)
+		return fmt.Errorf("WithLock: failed to acquire lock for %s: %w", dir, err)
 	}
 	defer lock.Release()
 	return fn()

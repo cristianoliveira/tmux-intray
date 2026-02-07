@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,7 +13,8 @@ import (
 
 func TestInitAndRunNoPanic(t *testing.T) {
 	require.NotPanics(t, func() {
-		Init()
+		err := Init()
+		require.NoError(t, err)
 		Run("pre-add", "FOO=bar")
 	})
 }
@@ -49,7 +51,8 @@ func TestRunSyncHookFailureModes(t *testing.T) {
 	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "abort")
 	err := Run("pre-add")
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "hook fail.sh failed")
+	// Error should mention the hook name and that it failed
+	require.Contains(t, err.Error(), "hook 'fail.sh' failed")
 
 	// warn mode should not error but print warning (we can't capture stderr easily)
 	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "warn")
@@ -301,4 +304,29 @@ func TestAsyncHookContextCancellation(t *testing.T) {
 
 	// Should complete within timeout + overhead
 	require.Less(t, duration, 2*time.Second)
+}
+
+func TestInitDirectoryCreationFailure(t *testing.T) {
+	// Reset manager state to allow testing
+	manager = nil
+	once = sync.Once{}
+
+	// Create a temporary directory structure with a read-only parent
+	tmpDir := t.TempDir()
+	roDir := filepath.Join(tmpDir, "readonly")
+	require.NoError(t, os.MkdirAll(roDir, 0755))
+	// Make the directory read-only
+	require.NoError(t, os.Chmod(roDir, 0444))
+	defer os.Chmod(roDir, 0755) // Restore permissions for cleanup
+
+	// Set hooks directory to be inside the read-only directory
+	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
+	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
+	hooksDir := filepath.Join(roDir, "hooks")
+	os.Setenv("TMUX_INTRAY_HOOKS_DIR", hooksDir)
+
+	// Attempt to initialize hooks - should fail
+	err := Init()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to create hooks directory")
 }

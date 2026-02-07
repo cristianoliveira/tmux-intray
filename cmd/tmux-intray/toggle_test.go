@@ -1,13 +1,14 @@
 package main
 
 import (
-	"os/exec"
 	"testing"
+
+	"github.com/cristianoliveira/tmux-intray/internal/core"
 )
 
 func TestToggleCommand(t *testing.T) {
-	// Skip if tmux not running
-	if err := exec.Command("tmux", "has-session").Run(); err != nil {
+	// Skip if tmux not running (use core abstraction)
+	if !core.EnsureTmuxRunning() {
 		t.Skip("tmux not running, skipping toggle test")
 	}
 
