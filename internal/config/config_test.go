@@ -118,6 +118,30 @@ status_format: detailed
 	require.Equal(t, "detailed", Get("status_format", ""))
 }
 
+func TestConfigFileTypeValidation(t *testing.T) {
+	reset()
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+	configPath := filepath.Join(tmpDir, "config.json")
+	cfg := map[string]interface{}{
+		"max_notifications":   []int{1, 2},
+		"status_enabled":      map[string]interface{}{"value": true},
+		"table_format":        "minimal",
+		"hooks_async_timeout": 12,
+	}
+	data, err := json.Marshal(cfg)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(configPath, data, 0644))
+
+	t.Setenv("TMUX_INTRAY_CONFIG_PATH", configPath)
+	Load()
+
+	require.Equal(t, "1000", Get("max_notifications", ""))
+	require.Equal(t, "true", Get("status_enabled", ""))
+	require.Equal(t, "minimal", Get("table_format", ""))
+	require.Equal(t, "12", Get("hooks_async_timeout", ""))
+}
+
 func TestValidation(t *testing.T) {
 	// Invalid max_notifications (negative)
 	reset()
