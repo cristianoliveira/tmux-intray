@@ -261,6 +261,23 @@ func DismissNotification(id string) error {
 		if err := hooks.Run("post-dismiss", envVars...); err != nil {
 			return err
 		}
+<<<<<<< HEAD
+=======
+		// Calculate active count after dismissing
+		activeCount := 0
+		latest, err2 := getLatestNotifications()
+		if err2 == nil {
+			for _, line := range latest {
+				fields := strings.Split(line, "\t")
+				if len(fields) > fieldState && fields[fieldState] == "active" {
+					activeCount++
+				}
+			}
+		}
+		if err := updateTmuxStatusOption(activeCount); err != nil {
+			colors.Error(fmt.Sprintf("failed to update tmux status: %v", err))
+		}
+>>>>>>> 0c1ec4c (Fix silent command execution failures in updateTmuxStatusOption())
 		return nil
 	})
 	if err != nil {
@@ -327,6 +344,23 @@ func DismissAll() error {
 				return err
 			}
 		}
+<<<<<<< HEAD
+=======
+		// Calculate active count after dismissing all
+		activeCount := 0
+		latest, err2 := getLatestNotifications()
+		if err2 == nil {
+			for _, line := range latest {
+				fields := strings.Split(line, "\t")
+				if len(fields) > fieldState && fields[fieldState] == "active" {
+					activeCount++
+				}
+			}
+		}
+		if err := updateTmuxStatusOption(activeCount); err != nil {
+			colors.Error(fmt.Sprintf("failed to update tmux status: %v", err))
+		}
+>>>>>>> 0c1ec4c (Fix silent command execution failures in updateTmuxStatusOption())
 		return nil
 	})
 	if err != nil {
@@ -347,17 +381,18 @@ func CleanupOldNotifications(daysThreshold int, dryRun bool) error {
 	})
 }
 
-// updateTmuxStatusOption updates the tmux status option with the current active count.
-func updateTmuxStatusOption() {
+// updateTmuxStatusOption updates the tmux status option with the given active count.
+func updateTmuxStatusOption(count int) error {
 	// Only update if tmux is running
 	cmd := exec.Command("tmux", "has-session")
 	if err := cmd.Run(); err != nil {
-		// tmux not running, skip
-		return
+		return fmt.Errorf("tmux not available: %w", err)
 	}
-	count := GetActiveCount()
 	cmd = exec.Command("tmux", "set", "-g", "@tmux_intray_active_count", fmt.Sprintf("%d", count))
-	cmd.Run() // ignore error
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to set tmux status option: %w", err)
+	}
+	return nil
 }
 
 // GetActiveCount returns the active notification count.
