@@ -37,6 +37,7 @@ func TestDefaultConfig(t *testing.T) {
 	require.Equal(t, "false", Get("hooks_async", ""))
 	require.Equal(t, "30", Get("hooks_async_timeout", ""))
 	require.Equal(t, "10", Get("max_hooks", ""))
+	require.Equal(t, "tsv", Get("storage_backend", ""))
 	// Directories should be non-empty.
 	require.NotEmpty(t, Get("state_dir", ""))
 	require.NotEmpty(t, Get("config_dir", ""))
@@ -185,6 +186,14 @@ func TestValidation(t *testing.T) {
 	t.Setenv("TMUX_INTRAY_MAX_HOOKS", "0")
 	Load()
 	require.Equal(t, "10", Get("max_hooks", ""))
+
+	// Invalid storage_backend
+	reset()
+	tmpDir6 := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir6)
+	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "unknown")
+	Load()
+	require.Equal(t, "tsv", Get("storage_backend", ""))
 }
 
 func TestGetIntGetBool(t *testing.T) {

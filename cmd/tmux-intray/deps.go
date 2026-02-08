@@ -5,5 +5,5 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 )
 
-var fileStorage, _ = storage.NewFileStorage()
+var fileStorage, _ = storage.NewFromConfig()
 var coreClient = core.NewCore(nil, fileStorage)
