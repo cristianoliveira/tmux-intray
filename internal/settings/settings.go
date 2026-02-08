@@ -22,6 +22,10 @@ const (
 	// FileModeFile is the permission for data files (rw-r--r--)
 	// Owner: read/write, Group/others: read only
 	FileModeFile os.FileMode = 0644
+
+	// FileExtJSON is the file extension for JSON files.
+	// Used for user settings persistence.
+	FileExtJSON = ".json"
 )
 
 // Default column values.
@@ -469,5 +473,5 @@ func getSettingsPath() string {
 		}
 		configDir = filepath.Join(xdgConfigHome, "tmux-intray")
 	}
-	return filepath.Join(configDir, "settings.json")
+	return filepath.Join(configDir, "settings"+FileExtJSON)
 }

@@ -29,6 +29,10 @@ const (
 	// FileModeScript is the permission for executable scripts (rwxr-xr-x)
 	// Owner: read/write/execute, Group/others: read/execute
 	FileModeScript os.FileMode = 0755
+
+	// FileExtTSV is the file extension for TSV (Tab-Separated Values) files.
+	// Used for notifications storage.
+	FileExtTSV = ".tsv"
 )
 
 // Valid notification levels
@@ -94,7 +98,7 @@ func Init() error {
 			err = fmt.Errorf("storage initialization failed: TMUX_INTRAY_STATE_DIR not configured")
 			return
 		}
-		notificationsFile = filepath.Join(stateDir, "notifications.tsv")
+		notificationsFile = filepath.Join(stateDir, "notifications"+FileExtTSV)
 		lockDir = filepath.Join(stateDir, "lock")
 
 		// Ensure directories exist
