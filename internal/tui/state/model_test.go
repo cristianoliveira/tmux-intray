@@ -1639,3 +1639,39 @@ func TestModelSettingsLifecycle(t *testing.T) {
 	assert.Equal(t, 2, newModel.defaultExpandLevel)
 	assert.Equal(t, map[string]bool{"window:@1": true}, newModel.expansionState)
 }
+
+func TestGroupedViewWithGroupByNone(t *testing.T) {
+	t.Run("default settings", func(t *testing.T) {
+		setupStorage(t)
+		mockClient := stubSessionFetchers(t)
+		_, err := storage.AddNotification("test message", "", "", "", "", "", "info")
+		require.NoError(t, err)
+		model, err := NewModel(mockClient)
+		require.NoError(t, err)
+		model.viewMode = settings.ViewModeGrouped
+		model.groupBy = settings.GroupByNone
+		model.applySearchFilter()
+		t.Logf("visibleNodes count: %d", len(model.visibleNodes))
+		for i, n := range model.visibleNodes {
+			t.Logf("  [%d] kind=%s title=%s expanded=%v", i, n.Kind, n.Title, n.Expanded)
+		}
+		require.NotEmpty(t, model.visibleNodes)
+	})
+	t.Run("defaultExpandLevel=1", func(t *testing.T) {
+		setupStorage(t)
+		mockClient := stubSessionFetchers(t)
+		_, err := storage.AddNotification("test message", "", "", "", "", "", "info")
+		require.NoError(t, err)
+		model, err := NewModel(mockClient)
+		require.NoError(t, err)
+		model.viewMode = settings.ViewModeGrouped
+		model.groupBy = settings.GroupByNone
+		model.defaultExpandLevel = 1
+		model.applySearchFilter()
+		t.Logf("visibleNodes count: %d", len(model.visibleNodes))
+		for i, n := range model.visibleNodes {
+			t.Logf("  [%d] kind=%s title=%s expanded=%v", i, n.Kind, n.Title, n.Expanded)
+		}
+		require.NotEmpty(t, model.visibleNodes)
+	})
+}
