@@ -172,6 +172,7 @@ func (c *DefaultClient) ValidatePaneExists(sessionID, windowID, paneID string) (
 // JumpToPane jumps to the specified pane or window.
 // If paneID is empty, jumps to the window only.
 // Returns true if jump succeeded, false if failed.
+// Preconditions: sessionID and windowID must be non-empty; paneID is optional.
 func (c *DefaultClient) JumpToPane(sessionID, windowID, paneID string) (bool, error) {
 	// Validate required fields (sessionID and windowID)
 	if sessionID == "" || windowID == "" {
