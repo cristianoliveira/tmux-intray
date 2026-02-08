@@ -108,7 +108,6 @@ func setDefaults() {
 	setDefault("hooks_enabled_post_dismiss", "true")
 	setDefault("hooks_enabled_cleanup", "true")
 	setDefault("hooks_enabled_post_cleanup", "true")
-	setDefault("storage_backend", "tsv")
 	setDefault("dual_read_backend", "sqlite")
 	setDefault("dual_verify_only", "false")
 	setDefault("dual_verify_sample_size", "25")
@@ -295,18 +294,6 @@ func validate() {
 			config["hooks_failure_mode"] = configMap["hooks_failure_mode"]
 		} else if valLower != val {
 			config["hooks_failure_mode"] = valLower
-		}
-	}
-
-	// storage_backend validation
-	if val, ok := config["storage_backend"]; ok {
-		valLower := strings.ToLower(val)
-		allowed := map[string]bool{"tsv": true, "sqlite": true, "dual": true}
-		if !allowed[valLower] {
-			colors.Warning(fmt.Sprintf("invalid storage_backend value '%s': must be one of: tsv, sqlite, dual; using default: %s", val, configMap["storage_backend"]))
-			config["storage_backend"] = configMap["storage_backend"]
-		} else if valLower != val {
-			config["storage_backend"] = valLower
 		}
 	}
 
