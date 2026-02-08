@@ -13,6 +13,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
@@ -58,6 +59,7 @@ type Model struct {
 
 	ensureTmuxRunning func() bool
 	jumpToPane        func(sessionID, windowID, paneID string) bool
+	searchProvider    search.Provider // Optional custom search provider (defaults to token-based search)
 }
 
 // Init initializes the TUI model.
@@ -396,39 +398,19 @@ func (m *Model) applySearchFilter() {
 	if query == "" {
 		m.filtered = m.notifications
 	} else {
-		lowerQuery := strings.ToLower(query)
-		tokens := strings.Fields(lowerQuery)
-		readFilter := false
-		unreadFilter := false
-		textTokens := []string{}
-		for _, token := range tokens {
-			switch token {
-			case "read":
-				readFilter = true
-			case "unread":
-				unreadFilter = true
-			default:
-				textTokens = append(textTokens, token)
-			}
+		// Use custom provider if set, otherwise use default token provider
+		var provider search.Provider
+		if m.searchProvider != nil {
+			provider = m.searchProvider
+		} else {
+			// Default: token-based search with case-insensitivity (backward compatible)
+			provider = search.NewTokenProvider(search.WithCaseInsensitive(true))
 		}
-		if readFilter && unreadFilter {
-			readFilter = false
-			unreadFilter = false
-		}
-		textQuery := strings.Join(textTokens, " ")
+
+		// Filter using the provider
 		m.filtered = []notification.Notification{}
 		for _, n := range m.notifications {
-			if readFilter && !n.IsRead() {
-				continue
-			}
-			if unreadFilter && n.IsRead() {
-				continue
-			}
-			if textQuery == "" ||
-				strings.Contains(strings.ToLower(n.Message), textQuery) ||
-				strings.Contains(strings.ToLower(n.Session), textQuery) ||
-				strings.Contains(strings.ToLower(n.Window), textQuery) ||
-				strings.Contains(strings.ToLower(n.Pane), textQuery) {
+			if provider.Match(n, query) {
 				m.filtered = append(m.filtered, n)
 			}
 		}

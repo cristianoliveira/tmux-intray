@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/cristianoliveira/tmux-intray/internal/search"
 )
 
 // mockLines returns a fixed TSV string for testing.
@@ -284,5 +286,91 @@ func TestPrintListGroupCount(t *testing.T) {
 	// Should not contain messages
 	if strings.Contains(output, "message") {
 		t.Error("Group count should not list messages")
+	}
+}
+
+func TestPrintListWithCustomSearchProvider(t *testing.T) {
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+		return "1\t2025-01-01T10:00:00Z\tactive\tsess1\twin1\tpane1\terror message\t123\terror\n" +
+			"2\t2025-01-01T11:00:00Z\tactive\tsess1\twin1\tpane2\twarning message\t124\twarning\n"
+	}
+	defer restoreMock()
+
+	var buf bytes.Buffer
+	listOutputWriter = &buf
+	defer func() { listOutputWriter = nil }()
+
+	// Test with custom search provider that only matches "error"
+	mockProvider := search.NewSubstringProvider(search.WithFields([]string{"level"}))
+
+	opts := FilterOptions{
+		Search:         "error",
+		SearchProvider: mockProvider,
+		Format:         "legacy",
+	}
+	PrintList(opts)
+	output := buf.String()
+
+	// Should only match the first notification (has error in level)
+	if !strings.Contains(output, "error message") {
+		t.Error("Missing error message")
+	}
+	if strings.Contains(output, "warning message") {
+		t.Error("Should not include warning message")
+	}
+
+	buf.Reset()
+
+	// Test with provider that matches warning
+	opts.Search = "warning"
+	PrintList(opts)
+	output = buf.String()
+	if strings.Contains(output, "error message") {
+		t.Error("Should not include error message")
+	}
+	if !strings.Contains(output, "warning message") {
+		t.Error("Missing warning message")
+	}
+}
+
+func TestPrintListBackwardCompatibility(t *testing.T) {
+	// Verify that existing behavior is preserved when no custom provider is set
+
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+		return "1\t2025-01-01T10:00:00Z\tactive\tsess1\twin1\tpane1\tHello World\t123\tinfo\n"
+	}
+	defer restoreMock()
+
+	var buf bytes.Buffer
+	listOutputWriter = &buf
+	defer func() { listOutputWriter = nil }()
+
+	// Test substring search (default, no regex flag)
+	opts := FilterOptions{
+		Search: "Hello",
+		Regex:  false,
+		Format: "legacy",
+	}
+	PrintList(opts)
+	if !strings.Contains(buf.String(), "Hello World") {
+		t.Error("Substring search should find Hello World")
+	}
+
+	buf.Reset()
+
+	// Test regex search (with regex flag)
+	opts.Regex = true
+	PrintList(opts)
+	if !strings.Contains(buf.String(), "Hello World") {
+		t.Error("Regex search should find Hello World")
+	}
+
+	buf.Reset()
+
+	// Test no search (should show all)
+	opts.Search = ""
+	PrintList(opts)
+	if !strings.Contains(buf.String(), "Hello World") {
+		t.Error("Empty search should show all notifications")
 	}
 }
