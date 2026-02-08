@@ -30,6 +30,11 @@ func TestDefaultSettings(t *testing.T) {
 
 	// Check view mode
 	assert.Equal(t, ViewModeCompact, s.ViewMode)
+
+	// Check grouping settings
+	assert.Equal(t, GroupByNone, s.GroupBy)
+	assert.Equal(t, 1, s.DefaultExpandLevel)
+	assert.Equal(t, map[string]bool{}, s.ExpansionState)
 }
 
 func TestLoadDefaultWhenFileDoesNotExist(t *testing.T) {
@@ -48,6 +53,9 @@ func TestLoadDefaultWhenFileDoesNotExist(t *testing.T) {
 	assert.Equal(t, expected.SortOrder, settings.SortOrder)
 	assert.Equal(t, expected.Filters, settings.Filters)
 	assert.Equal(t, expected.ViewMode, settings.ViewMode)
+	assert.Equal(t, expected.GroupBy, settings.GroupBy)
+	assert.Equal(t, expected.DefaultExpandLevel, settings.DefaultExpandLevel)
+	assert.Equal(t, expected.ExpansionState, settings.ExpansionState)
 }
 
 func TestLoadFromExistingFile(t *testing.T) {
@@ -69,7 +77,12 @@ func TestLoadFromExistingFile(t *testing.T) {
 			State:   StateFilterActive,
 			Session: "my-session",
 		},
-		ViewMode: ViewModeDetailed,
+		ViewMode:           ViewModeDetailed,
+		GroupBy:            GroupByWindow,
+		DefaultExpandLevel: 2,
+		ExpansionState: map[string]bool{
+			"window:@1": true,
+		},
 	}
 
 	data, err := json.MarshalIndent(customSettings, "", "  ")
@@ -90,6 +103,9 @@ func TestLoadFromExistingFile(t *testing.T) {
 	assert.Equal(t, StateFilterActive, settings.Filters.State)
 	assert.Equal(t, "my-session", settings.Filters.Session)
 	assert.Equal(t, ViewModeDetailed, settings.ViewMode)
+	assert.Equal(t, GroupByWindow, settings.GroupBy)
+	assert.Equal(t, 2, settings.DefaultExpandLevel)
+	assert.Equal(t, map[string]bool{"window:@1": true}, settings.ExpansionState)
 }
 
 func TestLoadPartialSettings(t *testing.T) {
@@ -122,6 +138,9 @@ func TestLoadPartialSettings(t *testing.T) {
 	assert.Equal(t, DefaultColumns, settings.Columns)
 	assert.Equal(t, SortOrderDesc, settings.SortOrder)
 	assert.Equal(t, "", settings.Filters.Level)
+	assert.Equal(t, GroupByNone, settings.GroupBy)
+	assert.Equal(t, 1, settings.DefaultExpandLevel)
+	assert.Equal(t, map[string]bool{}, settings.ExpansionState)
 }
 
 func TestLoadInvalidJSON(t *testing.T) {
@@ -149,6 +168,9 @@ func TestLoadInvalidJSON(t *testing.T) {
 	assert.Equal(t, expected.SortOrder, settings.SortOrder)
 	assert.Equal(t, expected.Filters, settings.Filters)
 	assert.Equal(t, expected.ViewMode, settings.ViewMode)
+	assert.Equal(t, expected.GroupBy, settings.GroupBy)
+	assert.Equal(t, expected.DefaultExpandLevel, settings.DefaultExpandLevel)
+	assert.Equal(t, expected.ExpansionState, settings.ExpansionState)
 }
 
 func TestLoadInvalidColumn(t *testing.T) {
@@ -189,7 +211,12 @@ func TestSave(t *testing.T) {
 		Filters: Filter{
 			Level: LevelFilterError,
 		},
-		ViewMode: ViewModeDetailed,
+		ViewMode:           ViewModeDetailed,
+		GroupBy:            GroupBySession,
+		DefaultExpandLevel: 2,
+		ExpansionState: map[string]bool{
+			"session:$1": true,
+		},
 	}
 
 	// Save settings
@@ -214,6 +241,9 @@ func TestSave(t *testing.T) {
 	assert.Equal(t, settings.SortOrder, loaded.SortOrder)
 	assert.Equal(t, settings.Filters, loaded.Filters)
 	assert.Equal(t, settings.ViewMode, loaded.ViewMode)
+	assert.Equal(t, settings.GroupBy, loaded.GroupBy)
+	assert.Equal(t, settings.DefaultExpandLevel, loaded.DefaultExpandLevel)
+	assert.Equal(t, settings.ExpansionState, loaded.ExpansionState)
 }
 
 func TestSaveInvalidSettings(t *testing.T) {
@@ -241,20 +271,24 @@ func TestSaveOverwritesExistingFile(t *testing.T) {
 
 	// Create initial settings
 	settings1 := &Settings{
-		Columns:   []string{ColumnID},
-		SortBy:    SortByTimestamp,
-		SortOrder: SortOrderDesc,
-		ViewMode:  ViewModeCompact,
+		Columns:            []string{ColumnID},
+		SortBy:             SortByTimestamp,
+		SortOrder:          SortOrderDesc,
+		ViewMode:           ViewModeCompact,
+		GroupBy:            GroupByNone,
+		DefaultExpandLevel: 1,
 	}
 	err := Save(settings1)
 	require.NoError(t, err)
 
 	// Save different settings
 	settings2 := &Settings{
-		Columns:   []string{ColumnID, ColumnMessage},
-		SortBy:    SortByLevel,
-		SortOrder: SortOrderAsc,
-		ViewMode:  ViewModeDetailed,
+		Columns:            []string{ColumnID, ColumnMessage},
+		SortBy:             SortByLevel,
+		SortOrder:          SortOrderAsc,
+		ViewMode:           ViewModeDetailed,
+		GroupBy:            GroupByWindow,
+		DefaultExpandLevel: 2,
 	}
 	err = Save(settings2)
 	require.NoError(t, err)
@@ -266,6 +300,8 @@ func TestSaveOverwritesExistingFile(t *testing.T) {
 	assert.Equal(t, SortByLevel, loaded.SortBy)
 	assert.Equal(t, SortOrderAsc, loaded.SortOrder)
 	assert.Equal(t, ViewModeDetailed, loaded.ViewMode)
+	assert.Equal(t, GroupByWindow, loaded.GroupBy)
+	assert.Equal(t, 2, loaded.DefaultExpandLevel)
 }
 
 func TestValidateValidSettings(t *testing.T) {
@@ -280,10 +316,12 @@ func TestValidateValidSettings(t *testing.T) {
 		{
 			name: "custom columns",
 			settings: &Settings{
-				Columns:   []string{ColumnID, ColumnMessage, ColumnLevel},
-				SortBy:    SortByLevel,
-				SortOrder: SortOrderAsc,
-				ViewMode:  ViewModeDetailed,
+				Columns:            []string{ColumnID, ColumnMessage, ColumnLevel},
+				SortBy:             SortByLevel,
+				SortOrder:          SortOrderAsc,
+				ViewMode:           ViewModeDetailed,
+				GroupBy:            GroupBySession,
+				DefaultExpandLevel: 2,
 			},
 		},
 		{
@@ -299,7 +337,9 @@ func TestValidateValidSettings(t *testing.T) {
 					Window:  "@1",
 					Pane:    "%1",
 				},
-				ViewMode: ViewModeCompact,
+				ViewMode:           ViewModeCompact,
+				GroupBy:            GroupByPane,
+				DefaultExpandLevel: 3,
 			},
 		},
 		{
@@ -310,6 +350,7 @@ func TestValidateValidSettings(t *testing.T) {
 				SortOrder: "",
 				Filters:   Filter{},
 				ViewMode:  "",
+				GroupBy:   "",
 			},
 		},
 	}
@@ -370,6 +411,20 @@ func TestValidateInvalidSettings(t *testing.T) {
 			},
 			wantErr: "invalid filter state",
 		},
+		{
+			name: "invalid groupBy",
+			settings: &Settings{
+				GroupBy: "invalid",
+			},
+			wantErr: "invalid groupBy value",
+		},
+		{
+			name: "invalid defaultExpandLevel",
+			settings: &Settings{
+				DefaultExpandLevel: 5,
+			},
+			wantErr: "invalid defaultExpandLevel value",
+		},
 	}
 
 	for _, tt := range tests {
@@ -425,6 +480,9 @@ func TestSettingsJSONMarshaling(t *testing.T) {
 	assert.Contains(t, raw, "sortOrder")
 	assert.Contains(t, raw, "filters")
 	assert.Contains(t, raw, "viewMode")
+	assert.Contains(t, raw, "groupBy")
+	assert.Contains(t, raw, "defaultExpandLevel")
+	assert.Contains(t, raw, "expansionState")
 
 	// Check filters substructure
 	filters, ok := raw["filters"].(map[string]interface{})
@@ -454,6 +512,8 @@ func TestInit(t *testing.T) {
 	// Verify settings are valid
 	assert.Equal(t, DefaultColumns, settings.Columns)
 	assert.Equal(t, SortByTimestamp, settings.SortBy)
+	assert.Equal(t, GroupByNone, settings.GroupBy)
+	assert.Equal(t, 1, settings.DefaultExpandLevel)
 }
 
 func TestInitCreatesDirectory(t *testing.T) {
@@ -486,9 +546,11 @@ func TestInitWithExistingFile(t *testing.T) {
 
 	settingsPath := filepath.Join(configDir, "settings.json")
 	customSettings := &Settings{
-		SortBy:    SortByLevel,
-		SortOrder: SortOrderAsc,
-		ViewMode:  ViewModeDetailed,
+		SortBy:             SortByLevel,
+		SortOrder:          SortOrderAsc,
+		ViewMode:           ViewModeDetailed,
+		GroupBy:            GroupByWindow,
+		DefaultExpandLevel: 2,
 	}
 
 	data, err := json.MarshalIndent(customSettings, "", "  ")
@@ -504,6 +566,8 @@ func TestInitWithExistingFile(t *testing.T) {
 	assert.Equal(t, SortByLevel, settings.SortBy)
 	assert.Equal(t, SortOrderAsc, settings.SortOrder)
 	assert.Equal(t, ViewModeDetailed, settings.ViewMode)
+	assert.Equal(t, GroupByWindow, settings.GroupBy)
+	assert.Equal(t, 2, settings.DefaultExpandLevel)
 }
 
 func TestReset(t *testing.T) {
@@ -514,9 +578,11 @@ func TestReset(t *testing.T) {
 	// Create and save custom settings
 	settingsPath := filepath.Join(tmpDir, "tmux-intray", "settings.json")
 	customSettings := &Settings{
-		SortBy:    SortByLevel,
-		SortOrder: SortOrderAsc,
-		ViewMode:  ViewModeDetailed,
+		SortBy:             SortByLevel,
+		SortOrder:          SortOrderAsc,
+		ViewMode:           ViewModeDetailed,
+		GroupBy:            GroupByWindow,
+		DefaultExpandLevel: 2,
 	}
 	err := Save(customSettings)
 	require.NoError(t, err)
@@ -539,6 +605,8 @@ func TestReset(t *testing.T) {
 	assert.Equal(t, SortByTimestamp, defaults.SortBy)
 	assert.Equal(t, SortOrderDesc, defaults.SortOrder)
 	assert.Equal(t, ViewModeCompact, defaults.ViewMode)
+	assert.Equal(t, GroupByNone, defaults.GroupBy)
+	assert.Equal(t, 1, defaults.DefaultExpandLevel)
 }
 
 func TestResetWhenFileDoesNotExist(t *testing.T) {
@@ -556,6 +624,8 @@ func TestResetWhenFileDoesNotExist(t *testing.T) {
 	assert.Equal(t, SortByTimestamp, defaults.SortBy)
 	assert.Equal(t, SortOrderDesc, defaults.SortOrder)
 	assert.Equal(t, ViewModeCompact, defaults.ViewMode)
+	assert.Equal(t, GroupByNone, defaults.GroupBy)
+	assert.Equal(t, 1, defaults.DefaultExpandLevel)
 }
 
 func TestValidateExported(t *testing.T) {
