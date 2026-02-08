@@ -81,6 +81,7 @@ func TestCore(t *testing.T) {
 		require.NotEmpty(t, id)
 		items, _ := GetTrayItems("active")
 		require.Contains(t, items, "manual message")
+		mockClient.AssertExpectations(t)
 	})
 
 	t.Run("ClearTrayItems", func(t *testing.T) {
