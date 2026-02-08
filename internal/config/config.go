@@ -23,6 +23,16 @@ const (
 	// FileModeFile is the permission for data files (rw-r--r--)
 	// Owner: read/write, Group/others: read only
 	FileModeFile os.FileMode = 0644
+
+	// File extension constants for configuration files
+	// FileExtTOML is the file extension for TOML configuration files (primary format).
+	FileExtTOML = ".toml"
+	// FileExtJSON is the file extension for JSON configuration files.
+	FileExtJSON = ".json"
+	// FileExtYAML is the file extension for YAML configuration files.
+	FileExtYAML = ".yaml"
+	// FileExtYML is an alternative file extension for YAML configuration files.
+	FileExtYML = ".yml"
 )
 
 var (
@@ -112,10 +122,10 @@ func loadFromFile() {
 	if configPath == "" {
 		// Try default location
 		if configDir, ok := config["config_dir"]; ok {
-			configPath = filepath.Join(configDir, "config.toml")
+			configPath = filepath.Join(configDir, "config"+FileExtTOML)
 			if _, err := os.Stat(configPath); err != nil {
 				// Try other extensions
-				for _, ext := range []string{".json", ".yaml", ".yml"} {
+				for _, ext := range []string{FileExtJSON, FileExtYAML, FileExtYML} {
 					path := filepath.Join(configDir, "config"+ext)
 					if _, err := os.Stat(path); err == nil {
 						configPath = path
@@ -138,11 +148,11 @@ func loadFromFile() {
 	var raw map[string]interface{}
 	ext := strings.ToLower(filepath.Ext(configPath))
 	switch ext {
-	case ".toml":
+	case FileExtTOML:
 		err = toml.Unmarshal(data, &raw)
-	case ".json":
+	case FileExtJSON:
 		err = json.Unmarshal(data, &raw)
-	case ".yaml", ".yml":
+	case FileExtYAML, FileExtYML:
 		err = yaml.Unmarshal(data, &raw)
 	default:
 		return
@@ -353,7 +363,7 @@ func createSampleConfig() {
 	if configDir == "" {
 		return
 	}
-	samplePath := filepath.Join(configDir, "config.toml")
+	samplePath := filepath.Join(configDir, "config"+FileExtTOML)
 	if _, err := os.Stat(samplePath); err == nil {
 		return // file exists
 	}
