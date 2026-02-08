@@ -178,6 +178,20 @@ func (c *DefaultClient) JumpToPane(sessionID, windowID, paneID string) (bool, er
 		return false, ErrInvalidTarget
 	}
 
+	currentCtx, err := c.GetCurrentContext()
+	if err != nil {
+		colors.Debug("JumpToPane: failed to get current tmux context: " + err.Error())
+	} else if currentCtx.SessionID != sessionID {
+		colors.Debug(fmt.Sprintf("JumpToPane: switching client to session %s", sessionID))
+		_, stderr, err := c.Run("switch-client", "-t", sessionID)
+		if err != nil {
+			if stderr != "" {
+				colors.Debug("JumpToPane: stderr: " + stderr)
+			}
+			return false, fmt.Errorf("switch client to session %s: %w", sessionID, err)
+		}
+	}
+
 	// paneID is optional - if empty, jump to window only
 	if paneID == "" {
 		// Switch client to target session before selecting window
@@ -196,7 +210,7 @@ func (c *DefaultClient) JumpToPane(sessionID, windowID, paneID string) (bool, er
 		_, stderr, err = c.Run("select-window", "-t", targetWindow)
 		if err != nil {
 			if stderr != "" {
-				colors.Debug("stderr: " + stderr)
+				colors.Debug("JumpToPane: stderr: " + stderr)
 			}
 			return false, fmt.Errorf("window %s does not exist: %w", targetWindow, err)
 		}
@@ -228,7 +242,7 @@ func (c *DefaultClient) JumpToPane(sessionID, windowID, paneID string) (bool, er
 	_, stderr, err = c.Run("select-window", "-t", targetWindow)
 	if err != nil {
 		if stderr != "" {
-			colors.Debug("stderr: " + stderr)
+			colors.Debug("JumpToPane: stderr: " + stderr)
 		}
 		return false, fmt.Errorf("window %s does not exist: %w", targetWindow, err)
 	}
@@ -246,7 +260,7 @@ func (c *DefaultClient) JumpToPane(sessionID, windowID, paneID string) (bool, er
 	_, stderr, err = c.Run("select-pane", "-t", targetPane)
 	if err != nil {
 		if stderr != "" {
-			colors.Debug("stderr: " + stderr)
+			colors.Debug("JumpToPane: stderr: " + stderr)
 		}
 		return false, fmt.Errorf("failed to select pane %s: %w", targetPane, err)
 	}

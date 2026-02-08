@@ -110,6 +110,22 @@ func (c *Core) JumpToPane(sessionID, windowID, paneID string) bool {
 		return false
 	}
 
+	// TODO: Consider extracting cross-session switch logic to client layer to avoid duplication
+	currentCtx, err := c.client.GetCurrentContext()
+	if err != nil {
+		colors.Debug("JumpToPane: failed to get tmux context: " + err.Error())
+	} else if currentCtx.SessionID != sessionID {
+		colors.Debug(fmt.Sprintf("JumpToPane: switching client to session %s", sessionID))
+		_, stderr, err := c.client.Run("switch-client", "-t", sessionID)
+		if err != nil {
+			colors.Error(fmt.Sprintf("JumpToPane: failed to switch client to session %s: %v", sessionID, err))
+			if stderr != "" {
+				colors.Debug("JumpToPane: stderr: " + stderr)
+			}
+			return false
+		}
+	}
+
 	// First validate if the pane exists
 	paneExists := c.ValidatePaneExists(sessionID, windowID, paneID)
 	colors.Debug(fmt.Sprintf("JumpToPane: pane validation for %s:%s in window %s:%s - exists: %v", sessionID, paneID, sessionID, windowID, paneExists))
