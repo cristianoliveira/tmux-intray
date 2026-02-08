@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	viewModeGrouped       = "grouped"
+	viewModeGrouped       = settings.ViewModeGrouped
 	headerFooterLines     = 2
 	defaultViewportWidth  = 80
 	defaultViewportHeight = 22

@@ -72,6 +72,7 @@ const (
 const (
 	ViewModeCompact  = "compact"
 	ViewModeDetailed = "detailed"
+	ViewModeGrouped  = "grouped"
 )
 
 // Group by constants.
@@ -148,6 +149,8 @@ type Filter struct {
 //	  "expansionState": {}
 //	}
 //
+// Valid viewMode values: "compact", "detailed", "grouped".
+//
 // Settings are stored at ~/.config/tmux-intray/settings.json
 type Settings struct {
 	// Columns defines which columns are displayed and their order.
@@ -167,7 +170,7 @@ type Settings struct {
 	// Filters contains active filter criteria.
 	Filters Filter `json:"filters"`
 
-	// ViewMode specifies the display layout: "compact" or "detailed".
+	// ViewMode specifies the display layout: "compact", "detailed", or "grouped".
 	// Empty string means use default view mode (compact).
 	ViewMode string `json:"viewMode"`
 
@@ -415,7 +418,7 @@ func Validate(settings *Settings) error {
 	}
 
 	// Validate viewMode
-	if settings.ViewMode != "" && settings.ViewMode != ViewModeCompact && settings.ViewMode != ViewModeDetailed {
+	if settings.ViewMode != "" && settings.ViewMode != ViewModeCompact && settings.ViewMode != ViewModeDetailed && settings.ViewMode != ViewModeGrouped {
 		return fmt.Errorf("invalid viewMode value: %s", settings.ViewMode)
 	}
 

@@ -343,6 +343,17 @@ func TestValidateValidSettings(t *testing.T) {
 			},
 		},
 		{
+			name: "grouped view mode",
+			settings: &Settings{
+				Columns:            DefaultColumns,
+				SortBy:             SortByTimestamp,
+				SortOrder:          SortOrderDesc,
+				ViewMode:           ViewModeGrouped,
+				GroupBy:            GroupBySession,
+				DefaultExpandLevel: 1,
+			},
+		},
+		{
 			name: "empty values use defaults",
 			settings: &Settings{
 				Columns:   []string{},
