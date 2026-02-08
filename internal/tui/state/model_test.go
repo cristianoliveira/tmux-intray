@@ -109,6 +109,121 @@ func TestModelSwitchesViewModes(t *testing.T) {
 	assert.Empty(t, model.visibleNodes)
 }
 
+func TestToggleNodeExpansionGroupedView(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+
+	var groupNode *Node
+	groupIndex := -1
+	for idx, node := range model.visibleNodes {
+		if node != nil && isGroupNode(node) {
+			groupNode = node
+			groupIndex = idx
+			break
+		}
+	}
+	require.NotNil(t, groupNode)
+	require.NotEqual(t, -1, groupIndex)
+	model.cursor = groupIndex
+
+	require.True(t, groupNode.Expanded)
+
+	handled := model.toggleNodeExpansion()
+	require.True(t, handled)
+	assert.False(t, groupNode.Expanded)
+	assert.Len(t, model.visibleNodes, 1)
+	assert.Equal(t, 0, model.cursor)
+
+	handled = model.toggleNodeExpansion()
+	require.True(t, handled)
+	assert.True(t, groupNode.Expanded)
+	assert.Greater(t, len(model.visibleNodes), 1)
+}
+
+func TestCollapseNodeMovesCursorToParent(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+
+	var leafNode *Node
+	leafIndex := -1
+	for idx, node := range model.visibleNodes {
+		if node != nil && node.Kind == NodeKindNotification {
+			leafNode = node
+			leafIndex = idx
+			break
+		}
+	}
+	require.NotNil(t, leafNode)
+	require.NotEqual(t, -1, leafIndex)
+
+	path, ok := findNodePath(model.treeRoot, leafNode)
+	require.True(t, ok)
+	var paneNode *Node
+	for _, node := range path {
+		if node != nil && node.Kind == NodeKindPane {
+			paneNode = node
+			break
+		}
+	}
+	require.NotNil(t, paneNode)
+
+	model.cursor = leafIndex
+	model.collapseNode(paneNode)
+
+	paneIndex := indexOfNode(model.visibleNodes, paneNode)
+	require.NotEqual(t, -1, paneIndex)
+	assert.Equal(t, paneIndex, model.cursor)
+}
+
+func TestToggleNodeExpansionIgnoresLeafNodes(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+
+	var leafNode *Node
+	leafIndex := -1
+	for idx, node := range model.visibleNodes {
+		if node != nil && node.Kind == NodeKindNotification {
+			leafNode = node
+			leafIndex = idx
+			break
+		}
+	}
+	require.NotNil(t, leafNode)
+	require.NotEqual(t, -1, leafIndex)
+
+	model.cursor = leafIndex
+	visibleBefore := len(model.visibleNodes)
+
+	handled := model.toggleNodeExpansion()
+
+	assert.False(t, handled)
+	assert.Len(t, model.visibleNodes, visibleBefore)
+}
+
 func TestModelSelectedNotificationGroupedView(t *testing.T) {
 	model := &Model{
 		viewMode: viewModeGrouped,
