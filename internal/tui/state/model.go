@@ -184,6 +184,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "d":
 			// Dismiss selected notification
 			return m, m.handleDismiss()
+		case "r":
+			// Mark selected notification as read
+			return m, m.markSelectedRead()
+		case "u":
+			// Mark selected notification as unread
+			return m, m.markSelectedUnread()
 		case "h":
 			// Collapse selected group node
 			m.collapseNode(m.selectedVisibleNode())
@@ -386,16 +392,43 @@ type saveSettingsFailedMsg struct {
 
 // applySearchFilter filters notifications based on the search query.
 func (m *Model) applySearchFilter() {
-	if m.searchQuery == "" {
+	query := strings.TrimSpace(m.searchQuery)
+	if query == "" {
 		m.filtered = m.notifications
 	} else {
-		query := strings.ToLower(m.searchQuery)
+		lowerQuery := strings.ToLower(query)
+		tokens := strings.Fields(lowerQuery)
+		readFilter := false
+		unreadFilter := false
+		textTokens := []string{}
+		for _, token := range tokens {
+			switch token {
+			case "read":
+				readFilter = true
+			case "unread":
+				unreadFilter = true
+			default:
+				textTokens = append(textTokens, token)
+			}
+		}
+		if readFilter && unreadFilter {
+			readFilter = false
+			unreadFilter = false
+		}
+		textQuery := strings.Join(textTokens, " ")
 		m.filtered = []notification.Notification{}
 		for _, n := range m.notifications {
-			if strings.Contains(strings.ToLower(n.Message), query) ||
-				strings.Contains(strings.ToLower(n.Session), query) ||
-				strings.Contains(strings.ToLower(n.Window), query) ||
-				strings.Contains(strings.ToLower(n.Pane), query) {
+			if readFilter && !n.IsRead() {
+				continue
+			}
+			if unreadFilter && n.IsRead() {
+				continue
+			}
+			if textQuery == "" ||
+				strings.Contains(strings.ToLower(n.Message), textQuery) ||
+				strings.Contains(strings.ToLower(n.Session), textQuery) ||
+				strings.Contains(strings.ToLower(n.Window), textQuery) ||
+				strings.Contains(strings.ToLower(n.Pane), textQuery) {
 				m.filtered = append(m.filtered, n)
 			}
 		}
@@ -577,6 +610,74 @@ func (m *Model) handleDismiss() tea.Cmd {
 	// Update viewport content
 	m.updateViewportContent()
 
+	return nil
+}
+
+// markSelectedRead marks the selected notification as read.
+func (m *Model) markSelectedRead() tea.Cmd {
+	if m.currentListLen() == 0 {
+		return nil
+	}
+
+	selected, ok := m.selectedNotification()
+	if !ok {
+		return nil
+	}
+
+	id := strconv.Itoa(selected.ID)
+	if err := storage.MarkNotificationRead(id); err != nil {
+		colors.Error(fmt.Sprintf("Failed to mark notification read: %v", err))
+		return nil
+	}
+
+	if err := m.loadNotifications(); err != nil {
+		colors.Error(fmt.Sprintf("Failed to reload notifications: %v", err))
+		return nil
+	}
+
+	listLen := m.currentListLen()
+	if m.cursor >= listLen {
+		m.cursor = listLen - 1
+	}
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+
+	m.updateViewportContent()
+	return nil
+}
+
+// markSelectedUnread marks the selected notification as unread.
+func (m *Model) markSelectedUnread() tea.Cmd {
+	if m.currentListLen() == 0 {
+		return nil
+	}
+
+	selected, ok := m.selectedNotification()
+	if !ok {
+		return nil
+	}
+
+	id := strconv.Itoa(selected.ID)
+	if err := storage.MarkNotificationUnread(id); err != nil {
+		colors.Error(fmt.Sprintf("Failed to mark notification unread: %v", err))
+		return nil
+	}
+
+	if err := m.loadNotifications(); err != nil {
+		colors.Error(fmt.Sprintf("Failed to reload notifications: %v", err))
+		return nil
+	}
+
+	listLen := m.currentListLen()
+	if m.cursor >= listLen {
+		m.cursor = listLen - 1
+	}
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+
+	m.updateViewportContent()
 	return nil
 }
 
