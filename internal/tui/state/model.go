@@ -95,7 +95,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.searchMode {
 				m.searchMode = false
 				m.searchQuery = ""
-				m.applySearchFilter()
+				m.applySearchFilter(false)
 			} else if m.commandMode {
 				m.commandMode = false
 				m.commandQuery = ""
@@ -123,7 +123,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				for _, r := range msg.Runes {
 					m.searchQuery += string(r)
 				}
-				m.applySearchFilter()
+				m.applySearchFilter(false)
 			} else if m.commandMode {
 				// In command mode, append runes to command query
 				for _, r := range msg.Runes {
@@ -135,7 +135,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.searchMode {
 				if len(m.searchQuery) > 0 {
 					m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
-					m.applySearchFilter()
+					m.applySearchFilter(false)
 				}
 			} else if m.commandMode {
 				if len(m.commandQuery) > 0 {
@@ -176,7 +176,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Enter search mode
 			m.searchMode = true
 			m.searchQuery = ""
-			m.applySearchFilter()
+			m.applySearchFilter(false)
 		case ":":
 			// Enter command mode
 			if !m.searchMode && !m.commandMode {
@@ -353,7 +353,7 @@ func (m *Model) FromState(state settings.TUIState) error {
 		}
 	}
 
-	m.applySearchFilter()
+	m.applySearchFilter(false)
 	return nil
 }
 
@@ -394,7 +394,8 @@ type saveSettingsFailedMsg struct {
 }
 
 // applySearchFilter filters notifications based on the search query.
-func (m *Model) applySearchFilter() {
+// If preserveCursor is true, the cursor position will be maintained (if possible).
+func (m *Model) applySearchFilter(preserveCursor bool) {
 	query := strings.TrimSpace(m.searchQuery)
 	if query == "" {
 		m.filtered = m.notifications
@@ -423,7 +424,9 @@ func (m *Model) applySearchFilter() {
 		m.treeRoot = nil
 		m.visibleNodes = nil
 	}
-	m.cursor = 0
+	if !preserveCursor {
+		m.cursor = 0
+	}
 	m.updateViewportContent()
 }
 
@@ -567,6 +570,9 @@ func (m *Model) handleDismiss() tea.Cmd {
 		return nil
 	}
 
+	// Capture the current cursor position
+	cursorBefore := m.cursor
+
 	// Dismiss the notification using storage
 	id := strconv.Itoa(selected.ID)
 	if err := storage.DismissNotification(id); err != nil {
@@ -580,12 +586,19 @@ func (m *Model) handleDismiss() tea.Cmd {
 		return nil
 	}
 
-	// Adjust cursor if necessary
+	// Try to preserve cursor position: stay at the same index if possible
 	listLen := m.currentListLen()
-	if m.cursor >= listLen {
-		m.cursor = listLen - 1
-	}
-	if m.cursor < 0 {
+	if listLen > 0 {
+		// Try to keep cursor at the same position
+		m.cursor = cursorBefore
+		// Adjust if out of bounds
+		if m.cursor >= listLen {
+			m.cursor = listLen - 1
+		}
+		if m.cursor < 0 {
+			m.cursor = 0
+		}
+	} else {
 		m.cursor = 0
 	}
 
@@ -606,6 +619,17 @@ func (m *Model) markSelectedRead() tea.Cmd {
 		return nil
 	}
 
+	// Capture the current cursor position for restoration
+	var cursorIdentifier string
+	if m.isGroupedView() {
+		// For grouped view, use node identifier
+		node := m.selectedVisibleNode()
+		cursorIdentifier = m.getNodeIdentifier(node)
+	} else {
+		// For flat view, use notification ID
+		cursorIdentifier = fmt.Sprintf("notif:%d", selected.ID)
+	}
+
 	id := strconv.Itoa(selected.ID)
 	if err := storage.MarkNotificationRead(id); err != nil {
 		colors.Error(fmt.Sprintf("Failed to mark notification read: %v", err))
@@ -617,13 +641,11 @@ func (m *Model) markSelectedRead() tea.Cmd {
 		return nil
 	}
 
-	listLen := m.currentListLen()
-	if m.cursor >= listLen {
-		m.cursor = listLen - 1
-	}
-	if m.cursor < 0 {
-		m.cursor = 0
-	}
+	// Restore cursor to the same position (the notification still exists, just marked as read)
+	m.restoreCursor(cursorIdentifier)
+
+	// Adjust cursor if necessary
+	m.adjustCursorBounds()
 
 	m.updateViewportContent()
 	return nil
@@ -640,6 +662,17 @@ func (m *Model) markSelectedUnread() tea.Cmd {
 		return nil
 	}
 
+	// Capture the current cursor position for restoration
+	var cursorIdentifier string
+	if m.isGroupedView() {
+		// For grouped view, use node identifier
+		node := m.selectedVisibleNode()
+		cursorIdentifier = m.getNodeIdentifier(node)
+	} else {
+		// For flat view, use notification ID
+		cursorIdentifier = fmt.Sprintf("notif:%d", selected.ID)
+	}
+
 	id := strconv.Itoa(selected.ID)
 	if err := storage.MarkNotificationUnread(id); err != nil {
 		colors.Error(fmt.Sprintf("tui: failed to mark notification unread: %v", err))
@@ -651,13 +684,11 @@ func (m *Model) markSelectedUnread() tea.Cmd {
 		return nil
 	}
 
-	listLen := m.currentListLen()
-	if m.cursor >= listLen {
-		m.cursor = listLen - 1
-	}
-	if m.cursor < 0 {
-		m.cursor = 0
-	}
+	// Restore cursor to the same position (the notification still exists, just marked as unread)
+	m.restoreCursor(cursorIdentifier)
+
+	// Adjust cursor if necessary
+	m.adjustCursorBounds()
 
 	m.updateViewportContent()
 	return nil
@@ -738,7 +769,7 @@ func (m *Model) loadNotifications() error {
 	})
 
 	m.notifications = notifications
-	m.applySearchFilter()
+	m.applySearchFilter(false)
 	return nil
 }
 
@@ -1064,6 +1095,115 @@ func indexOfNode(nodes []*Node, target *Node) int {
 		}
 	}
 	return -1
+}
+
+// getNodeIdentifier returns a stable identifier for a node.
+// For notification nodes, returns the notification ID.
+// For group nodes, returns the node expansion key.
+func (m *Model) getNodeIdentifier(node *Node) string {
+	if node == nil {
+		return ""
+	}
+	if node.Kind == NodeKindNotification && node.Notification != nil {
+		return fmt.Sprintf("notif:%d", node.Notification.ID)
+	}
+	return m.nodeExpansionKey(node)
+}
+
+// findNodeByIdentifier finds a node in the tree by its identifier.
+// Returns the node and its index in visibleNodes, or nil and -1 if not found.
+func (m *Model) findNodeByIdentifier(identifier string) (*Node, int) {
+	if m.treeRoot == nil || identifier == "" {
+		return nil, -1
+	}
+
+	// First try to find in visible nodes
+	for idx, node := range m.visibleNodes {
+		if node == nil {
+			continue
+		}
+		if m.getNodeIdentifier(node) == identifier {
+			return node, idx
+		}
+	}
+
+	return nil, -1
+}
+
+// restoreCursor attempts to restore cursor to a node with the given identifier.
+// If the exact node is not found, tries to find the nearest ancestor (parent, grandparent, etc.).
+// Falls back to cursor 0 if no suitable node is found.
+func (m *Model) restoreCursor(identifier string) {
+	if identifier == "" {
+		return
+	}
+
+	// Handle flat view (non-grouped) mode
+	if !m.isGroupedView() {
+		// Extract notification ID from "notif:ID" format
+		if strings.HasPrefix(identifier, "notif:") {
+			idStr := strings.TrimPrefix(identifier, "notif:")
+			// Try to find the notification with this ID in filtered list
+			for idx, notif := range m.filtered {
+				if fmt.Sprintf("%d", notif.ID) == idStr {
+					m.cursor = idx
+					return
+				}
+			}
+		}
+		// If not found, reset to 0
+		m.cursor = 0
+		return
+	}
+
+	// Handle grouped view mode
+	// Try to find the exact node
+	if node, idx := m.findNodeByIdentifier(identifier); node != nil {
+		m.cursor = idx
+		return
+	}
+
+	// Extract the identifier components to find nearest ancestor
+	// For notification nodes, the format is "notif:ID"
+	// For group nodes, the format is like "session:$1", "window:$1:@1", "pane:$1:@1:%1"
+	parts := strings.Split(identifier, ":")
+	if len(parts) < 2 {
+		m.cursor = 0
+		return
+	}
+
+	// If it's a notification node, try to find the parent pane
+	if parts[0] == "notif" && len(parts) >= 2 {
+		// We can't easily find the parent notification without more context
+		// Fall back to trying parent session/window/pane identifiers
+		// For now, just reset to 0
+		m.cursor = 0
+		return
+	}
+
+	// For group nodes, try to find parent nodes by progressively removing parts
+	// e.g., "pane:$1:@1:%1" -> "window:$1:@1" -> "session:$1"
+	for i := len(parts) - 1; i >= 2; i-- {
+		ancestorID := strings.Join(parts[:i], ":")
+		if node, idx := m.findNodeByIdentifier(ancestorID); node != nil {
+			m.cursor = idx
+			return
+		}
+	}
+
+	// If no ancestor found, reset to 0
+	m.cursor = 0
+}
+
+// adjustCursorBounds ensures the cursor is within valid bounds.
+func (m *Model) adjustCursorBounds() {
+	listLen := m.currentListLen()
+	if m.cursor >= listLen && listLen > 0 {
+		m.cursor = listLen - 1
+	}
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
 }
 
 func expandTree(node *Node) {
