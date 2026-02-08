@@ -116,7 +116,7 @@ This is useful for temporary debugging or for per‑session customization.
 
 ## TUI Settings Persistence
 
-The TUI (Terminal User Interface) automatically saves your preferences when you exit. These settings include column order, sort preferences, active filters, and view mode.
+The TUI (Terminal User Interface) automatically saves your preferences when you exit. These settings include column order, sort preferences, active filters, view mode, and grouping preferences.
 
 ### Settings File Location
 
@@ -138,7 +138,10 @@ The settings file uses the following JSON schema:
     "window": "",
     "pane": ""
   },
-  "viewMode": "compact"
+  "viewMode": "compact",
+  "groupBy": "none",
+  "defaultExpandLevel": 1,
+  "expansionState": {}
 }
 ```
 
@@ -155,6 +158,9 @@ The settings file uses the following JSON schema:
 | `filters.window` | string | Filter by tmux window | `""` (no filter) | Window ID or `""` |
 | `filters.pane` | string | Filter by tmux pane | `""` (no filter) | Pane ID or `""` |
 | `viewMode` | string | Display layout | `"compact"` | `"compact"`, `"detailed"` |
+| `groupBy` | string | Group notifications in the TUI | `"none"` | `"none"`, `"session"`, `"window"`, `"pane"` |
+| `defaultExpandLevel` | number | Default grouping expansion depth | `1` | `0`-`3` |
+| `expansionState` | object | Explicit expansion overrides by node path | `{}` | Object of string to boolean |
 
 ### Default Settings
 
@@ -172,7 +178,10 @@ If the settings file doesn't exist or is corrupted, the TUI uses these defaults:
     "window": "",
     "pane": ""
   },
-  "viewMode": "compact"
+  "viewMode": "compact",
+  "groupBy": "none",
+  "defaultExpandLevel": 1,
+  "expansionState": {}
 }
 ```
 
@@ -238,7 +247,10 @@ Here are some example settings configurations:
     "window": "",
     "pane": ""
   },
-  "viewMode": "compact"
+  "viewMode": "compact",
+  "groupBy": "none",
+  "defaultExpandLevel": 1,
+  "expansionState": {}
 }
 ```
 
@@ -256,7 +268,12 @@ Here are some example settings configurations:
     "window": "",
     "pane": ""
   },
-  "viewMode": "detailed"
+  "viewMode": "detailed",
+  "groupBy": "session",
+  "defaultExpandLevel": 2,
+  "expansionState": {
+    "session:work": true
+  }
 }
 ```
 
