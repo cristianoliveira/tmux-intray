@@ -312,7 +312,7 @@ SUBCOMMANDS:
 DESCRIPTION:
     The settings command manages TUI user preferences that are persisted
     to disk. Settings include column order, sort preferences, active filters,
-    and view mode.
+    view mode, and grouping preferences.
 
     Settings are stored at ~/.config/tmux-intray/settings.json
     (or $XDG_CONFIG_HOME/tmux-intray/settings.json if XDG_CONFIG_HOME is set).
@@ -392,7 +392,10 @@ EXAMPLES:
         "window": "",
         "pane": ""
       },
-      "viewMode": "compact"
+      "viewMode": "compact",
+      "groupBy": "none",
+      "defaultExpandLevel": 1,
+      "expansionState": {}
     }
 
     # Pipe to jq for filtering
@@ -442,7 +445,7 @@ KEY BINDINGS:
 SETTINGS:
     Settings are automatically saved on TUI exit and loaded on startup.
     Settings include column order, sort preferences, active filters,
-    and view mode. Use the :w command to save manually without exiting.
+    view mode, and grouping preferences. Use the :w command to save manually without exiting.
     Settings file: ~/.config/tmux-intray/settings.json
 
     To view current settings: tmux-intray settings show
@@ -460,4 +463,3 @@ Show this help message
 Show version information
 
 *No detailed help available.*
-

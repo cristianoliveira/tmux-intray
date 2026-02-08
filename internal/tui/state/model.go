@@ -19,7 +19,12 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/tui/render"
 )
 
-const viewModeGrouped = "grouped"
+const (
+	viewModeGrouped       = "grouped"
+	headerFooterLines     = 2
+	defaultViewportWidth  = 80
+	defaultViewportHeight = 22
+)
 
 // Model represents the TUI model for bubbletea.
 type Model struct {
@@ -37,12 +42,15 @@ type Model struct {
 	client        tmux.TmuxClient // TmuxClient for tmux operations
 
 	// Settings fields
-	sortBy         string
-	sortOrder      string
-	columns        []string
-	filters        settings.Filter
-	viewMode       string
-	loadedSettings *settings.Settings // Track loaded settings for comparison
+	sortBy             string
+	sortOrder          string
+	columns            []string
+	filters            settings.Filter
+	viewMode           string
+	groupBy            string
+	defaultExpandLevel int
+	expansionState     map[string]bool
+	loadedSettings     *settings.Settings // Track loaded settings for comparison
 
 	treeRoot     *Node
 	visibleNodes []*Node
@@ -184,7 +192,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		// Initialize or update viewport dimensions
-		viewportHeight := m.height - 2 // Reserve 1 line for header, 1 line for footer
+		viewportHeight := m.height - headerFooterLines // Reserve 1 line for header, 1 line for footer
 		m.viewport = viewport.New(msg.Width, viewportHeight)
 		// Update viewport content
 		m.updateViewportContent()
@@ -196,7 +204,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders the TUI.
 func (m *Model) View() string {
 	if m.width == 0 {
-		m.width = 80
+		m.width = defaultViewportWidth
 	}
 	if m.height == 0 {
 		m.height = 24
@@ -204,7 +212,7 @@ func (m *Model) View() string {
 
 	// Ensure viewport is initialized
 	if m.viewport.Height == 0 {
-		viewportHeight := m.height - 2 // Reserve 1 line for header, 1 line for footer
+		viewportHeight := m.height - headerFooterLines // Reserve 1 line for header, 1 line for footer
 		m.viewport = viewport.New(m.width, viewportHeight)
 		m.updateViewportContent()
 	}
@@ -239,11 +247,15 @@ func (m *Model) SetLoadedSettings(loaded *settings.Settings) {
 // Only persists user-configurable settings (columns, sort, filters, view mode).
 func (m *Model) ToState() settings.TUIState {
 	return settings.TUIState{
-		Columns:   m.columns,
-		SortBy:    m.sortBy,
-		SortOrder: m.sortOrder,
-		Filters:   m.filters,
-		ViewMode:  m.viewMode,
+		Columns:               m.columns,
+		SortBy:                m.sortBy,
+		SortOrder:             m.sortOrder,
+		Filters:               m.filters,
+		ViewMode:              m.viewMode,
+		GroupBy:               m.groupBy,
+		DefaultExpandLevel:    m.defaultExpandLevel,
+		DefaultExpandLevelSet: true,
+		ExpansionState:        m.expansionState,
 	}
 }
 
@@ -251,6 +263,15 @@ func (m *Model) ToState() settings.TUIState {
 // Supports partial updates - only updates non-empty fields.
 // Returns an error if the settings are invalid.
 func (m *Model) FromState(state settings.TUIState) error {
+	if state.GroupBy != "" && !settings.IsValidGroupBy(state.GroupBy) {
+		return fmt.Errorf("invalid groupBy value: %s", state.GroupBy)
+	}
+	if state.DefaultExpandLevelSet {
+		if state.DefaultExpandLevel < settings.MinExpandLevel || state.DefaultExpandLevel > settings.MaxExpandLevel {
+			return fmt.Errorf("invalid defaultExpandLevel value: %d", state.DefaultExpandLevel)
+		}
+	}
+
 	// Apply non-empty fields only (support partial updates)
 	if len(state.Columns) > 0 {
 		m.columns = state.Columns
@@ -263,6 +284,15 @@ func (m *Model) FromState(state settings.TUIState) error {
 	}
 	if state.ViewMode != "" {
 		m.viewMode = state.ViewMode
+	}
+	if state.GroupBy != "" {
+		m.groupBy = state.GroupBy
+	}
+	if state.DefaultExpandLevelSet {
+		m.defaultExpandLevel = state.DefaultExpandLevel
+	}
+	if state.ExpansionState != nil {
+		m.expansionState = state.ExpansionState
 	}
 
 	// Apply filters - only update non-empty fields
@@ -305,9 +335,10 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 	}
 
 	m := Model{
-		viewport:          viewport.New(80, 22), // Default dimensions, will be updated on WindowSizeMsg
+		viewport:          viewport.New(defaultViewportWidth, defaultViewportHeight), // Default dimensions, will be updated on WindowSizeMsg
 		sessionNames:      sessionNames,
 		client:            client,
+		expansionState:    map[string]bool{},
 		ensureTmuxRunning: core.EnsureTmuxRunning,
 		jumpToPane:        core.JumpToPane,
 	}
@@ -399,13 +430,29 @@ func (m *Model) updateViewportContent() {
 			content.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("No notifications found"))
 		} else {
 			now := time.Now()
-			rowIndex := 0
-			for _, node := range m.visibleNodes {
-				if node == nil || node.Notification == nil {
+			for rowIndex, node := range m.visibleNodes {
+				if node == nil {
 					continue
 				}
 				if rowIndex > 0 {
 					content.WriteString("\n")
+				}
+				if isGroupNode(node) {
+					content.WriteString(render.RenderGroupRow(render.GroupRow{
+						Node: &render.GroupNode{
+							Title:    node.Title,
+							Display:  node.Display,
+							Expanded: node.Expanded,
+							Count:    node.Count,
+						},
+						Selected: rowIndex == m.cursor,
+						Level:    getTreeLevel(node),
+						Width:    m.width,
+					}))
+					continue
+				}
+				if node.Notification == nil {
+					continue
 				}
 				notif := *node.Notification
 				content.WriteString(render.Row(render.RowState{
@@ -415,7 +462,6 @@ func (m *Model) updateViewportContent() {
 					Selected:     rowIndex == m.cursor,
 					Now:          now,
 				}))
-				rowIndex++
 			}
 		}
 
@@ -601,8 +647,10 @@ func (m *Model) computeVisibleNodes() []*Node {
 		if node == nil {
 			return
 		}
-		if node.Kind == NodeKindNotification {
+		if node.Kind != NodeKindRoot {
 			visible = append(visible, node)
+		}
+		if node.Kind == NodeKindNotification {
 			return
 		}
 		if node.Kind != NodeKindRoot && !node.Expanded {
@@ -617,6 +665,28 @@ func (m *Model) computeVisibleNodes() []*Node {
 	return visible
 }
 
+func isGroupNode(node *Node) bool {
+	if node == nil {
+		return false
+	}
+	return node.Kind != NodeKindNotification && node.Kind != NodeKindRoot
+}
+
+func getTreeLevel(node *Node) int {
+	if node == nil {
+		return 0
+	}
+	switch node.Kind {
+	case NodeKindSession:
+		return 0
+	case NodeKindWindow:
+		return 1
+	case NodeKindPane:
+		return 2
+	default:
+		return 0
+	}
+}
 func (m *Model) currentListLen() int {
 	if m.isGroupedView() {
 		return len(m.visibleNodes)

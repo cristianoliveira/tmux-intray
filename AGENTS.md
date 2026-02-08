@@ -65,7 +65,7 @@ Detailed development guidelines in [DEVELOPMENT.md](./DEVELOPMENT.md).
 
 ### Go Code Style
 - **Package Structure**: cmd/ (CLI entry points), internal/ (private packages), tests/ (Bats integration tests), scripts/ (helpers). See [Go Package Structure](./docs/design/go-package-structure.md)
-- **Imports**: Group into stdlib, external, internal with blank lines. Sort alphabetically.
+- **Imports**: Group into stdlib, external, internal with blank lines. Sort alphabetically. Use `goimports` to automatically format imports and remove unused imports.
 - **Formatting**: Tabs for indentation (enforced by gofmt), aim for 100 char lines, no trailing whitespace, always final newline.
 - **Naming**: Packages `lowercase`, files `lowercase_with_underscores.go`, functions `PascalCase` (exported) / `camelCase` (private), constants `PascalCase` (exported) / `camelCase` (private), interfaces `PascalCase` ending in `er`, errors `Err` prefix.
 - **Types**: Use concrete types unless interface needed. Use `string` for TSV field values. Use exported constants for field indices. Use `error` return values; never panic on expected errors.
