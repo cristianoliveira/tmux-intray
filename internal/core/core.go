@@ -9,21 +9,6 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 )
 
-// Field indices matching storage package.
-const (
-	fieldID            = 0
-	fieldTimestamp     = 1
-	fieldState         = 2
-	fieldSession       = 3
-	fieldWindow        = 4
-	fieldPane          = 5
-	fieldMessage       = 6
-	fieldPaneCreated   = 7
-	fieldLevel         = 8
-	fieldReadTimestamp = 9
-	numFields          = 10
-)
-
 // GetTrayItems returns tray items for a given state filter.
 // Returns newline-separated messages (unescaped).
 func GetTrayItems(stateFilter string) (string, error) {
@@ -41,16 +26,16 @@ func GetTrayItems(stateFilter string) (string, error) {
 			continue
 		}
 		fields := strings.Split(line, "\t")
-		if len(fields) < numFields {
-			for len(fields) < numFields {
+		if len(fields) < storage.NumFields {
+			for len(fields) < storage.NumFields {
 				fields = append(fields, "")
 			}
 		}
 		// Bounds check for fieldMessage
-		if len(fields) <= fieldMessage {
+		if len(fields) <= storage.FieldMessage {
 			continue
 		}
-		message := fields[fieldMessage]
+		message := fields[storage.FieldMessage]
 		// Unescape message
 		message = unescapeMessage(message)
 		messages = append(messages, message)

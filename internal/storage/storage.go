@@ -18,24 +18,6 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 )
 
-// TSV schema fields:
-// 0:id 1:timestamp 2:state 3:session 4:window 5:pane 6:message 7:pane_created 8:level 9:read_timestamp
-// read_timestamp is RFC3339 when read, empty when unread.
-const (
-	fieldID            = 0
-	fieldTimestamp     = 1
-	fieldState         = 2
-	fieldSession       = 3
-	fieldWindow        = 4
-	fieldPane          = 5
-	fieldMessage       = 6
-	fieldPaneCreated   = 7
-	fieldLevel         = 8
-	fieldReadTimestamp = 9
-	numFields          = 10
-	minFields          = numFields - 1
-)
-
 // File permission constants
 const (
 	// FileModeDir is the permission for directories (rwxr-xr-x)

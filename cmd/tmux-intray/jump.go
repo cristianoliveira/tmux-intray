@@ -38,19 +38,6 @@ EXAMPLES:
 	Run: runJump,
 }
 
-// Field indices matching storage package
-const (
-	fieldID        = 0
-	fieldTimestamp = 1
-	fieldState     = 2
-	fieldSession   = 3
-	fieldWindow    = 4
-	fieldPane      = 5
-	fieldMessage   = 6
-	// fieldPaneCreated = 7
-	// fieldLevel       = 8
-)
-
 // ensureTmuxRunningFunc is the function used to ensure tmux is running. Can be changed for testing.
 var ensureTmuxRunningFunc = func() bool {
 	return core.EnsureTmuxRunning()
@@ -98,14 +85,14 @@ func Jump(id string) (*JumpResult, error) {
 
 	fields := strings.Split(line, "\t")
 	// Ensure at least 7 fields (up to pane)
-	if len(fields) <= fieldPane {
+	if len(fields) <= storage.FieldPane {
 		return nil, fmt.Errorf("invalid notification line format")
 	}
-	state := fields[fieldState]
-	session := fields[fieldSession]
-	window := fields[fieldWindow]
-	pane := fields[fieldPane]
-	message := fields[fieldMessage]
+	state := fields[storage.FieldState]
+	session := fields[storage.FieldSession]
+	window := fields[storage.FieldWindow]
+	pane := fields[storage.FieldPane]
+	message := fields[storage.FieldMessage]
 
 	if session == "" || window == "" || pane == "" {
 		// Build a detailed error message showing which fields are missing
