@@ -91,6 +91,120 @@ func TestModelGroupedModeBuildsVisibleNodes(t *testing.T) {
 	assert.Equal(t, NodeKindNotification, model.visibleNodes[7].Kind)
 }
 
+func TestComputeVisibleNodesUsesCacheWhenValid(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		groupBy:  settings.GroupByPane,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+	require.True(t, model.cacheValid)
+	require.Len(t, model.visibleNodes, 4)
+
+	groupNode := model.visibleNodes[0]
+	require.NotNil(t, groupNode)
+	require.True(t, groupNode.Expanded)
+
+	groupNode.Expanded = false
+	visible := model.computeVisibleNodes()
+
+	assert.Len(t, visible, 4)
+	assert.Equal(t, NodeKindNotification, visible[len(visible)-1].Kind)
+}
+
+func TestInvalidateCacheForcesVisibleNodesRecompute(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		groupBy:  settings.GroupByPane,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+	require.True(t, model.cacheValid)
+	require.Len(t, model.visibleNodes, 4)
+
+	groupNode := model.visibleNodes[0]
+	groupNode.Expanded = false
+
+	model.invalidateCache()
+	assert.False(t, model.cacheValid)
+	assert.Nil(t, model.visibleNodesCache)
+
+	visible := model.computeVisibleNodes()
+	assert.True(t, model.cacheValid)
+	assert.Len(t, visible, 1)
+	assert.Equal(t, NodeKindSession, visible[0].Kind)
+}
+
+func TestCacheInvalidationOnSearchAndExpansionChanges(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		groupBy:  settings.GroupBySession,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "alpha message"},
+			{ID: 2, Session: "$2", Window: "@2", Pane: "%2", Message: "beta message"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+	require.True(t, model.cacheValid)
+	require.Len(t, model.visibleNodes, 4)
+
+	model.searchQuery = "alpha"
+	model.applySearchFilter()
+	require.True(t, model.cacheValid)
+	require.Len(t, model.visibleNodes, 2)
+
+	groupNode := model.visibleNodes[0]
+	model.cursor = 0
+	require.True(t, groupNode.Expanded)
+
+	handled := model.toggleNodeExpansion()
+	require.True(t, handled)
+	assert.False(t, groupNode.Expanded)
+	assert.True(t, model.cacheValid)
+	assert.Len(t, model.visibleNodes, 1)
+}
+
+func BenchmarkComputeVisibleNodesCache(b *testing.B) {
+	notifications := make([]notification.Notification, 0, 1000)
+	for i := 0; i < 1000; i++ {
+		notifications = append(notifications, notification.Notification{
+			ID:      i + 1,
+			Session: "$1",
+			Window:  "@1",
+			Pane:    "%1",
+			Message: "bench message",
+		})
+	}
+
+	model := &Model{
+		viewMode:       viewModeGrouped,
+		groupBy:        settings.GroupByPane,
+		notifications:  notifications,
+		expansionState: map[string]bool{},
+		viewport:       viewport.New(80, 22),
+		width:          80,
+	}
+	model.applySearchFilter()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = model.computeVisibleNodes()
+	}
+}
+
 func TestModelGroupedModeRespectsGroupByDepth(t *testing.T) {
 	tests := []struct {
 		name                 string

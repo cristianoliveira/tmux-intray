@@ -59,6 +59,9 @@ type Model struct {
 	treeRoot     *Node
 	visibleNodes []*Node
 
+	visibleNodesCache []*Node
+	cacheValid        bool
+
 	ensureTmuxRunning func() bool
 	jumpToPane        func(sessionID, windowID, paneID string) bool
 	searchProvider    search.Provider // Optional custom search provider (defaults to token-based search)
@@ -401,6 +404,8 @@ type saveSettingsFailedMsg struct {
 
 // applySearchFilter filters notifications based on the search query.
 func (m *Model) applySearchFilter() {
+	m.invalidateCache()
+
 	query := strings.TrimSpace(m.searchQuery)
 	if query == "" {
 		m.filtered = m.notifications
@@ -427,6 +432,7 @@ func (m *Model) applySearchFilter() {
 		m.visibleNodes = m.computeVisibleNodes()
 	} else {
 		m.treeRoot = nil
+		m.invalidateCache()
 		m.visibleNodes = nil
 	}
 	m.cursor = 0
@@ -805,6 +811,7 @@ func (m *Model) loadNotifications() error {
 		m.notifications = []notification.Notification{}
 		m.filtered = []notification.Notification{}
 		m.treeRoot = nil
+		m.invalidateCache()
 		m.visibleNodes = nil
 		m.updateViewportContent()
 		return nil
@@ -875,7 +882,13 @@ func isViewModeAvailable(mode string) bool {
 }
 
 func (m *Model) computeVisibleNodes() []*Node {
+	if m.cacheValid {
+		return m.visibleNodesCache
+	}
+
 	if m.treeRoot == nil {
+		m.visibleNodesCache = nil
+		m.cacheValid = true
 		return nil
 	}
 
@@ -900,7 +913,14 @@ func (m *Model) computeVisibleNodes() []*Node {
 	}
 
 	walk(m.treeRoot)
+	m.visibleNodesCache = visible
+	m.cacheValid = true
 	return visible
+}
+
+func (m *Model) invalidateCache() {
+	m.visibleNodesCache = nil
+	m.cacheValid = false
 }
 
 func isGroupNode(node *Node) bool {
@@ -1051,6 +1071,7 @@ func (m *Model) applyDefaultExpansion() {
 	}
 	walk(m.treeRoot)
 
+	m.invalidateCache()
 	m.visibleNodes = m.computeVisibleNodes()
 	if selected != nil {
 		if index := indexOfNode(m.visibleNodes, selected); index >= 0 {
@@ -1079,6 +1100,7 @@ func (m *Model) expandNode(node *Node) {
 
 	node.Expanded = true
 	m.updateExpansionState(node, true)
+	m.invalidateCache()
 	m.visibleNodes = m.computeVisibleNodes()
 	m.updateViewportContent()
 	m.ensureCursorVisible()
@@ -1098,6 +1120,7 @@ func (m *Model) collapseNode(node *Node) {
 	selected := m.selectedVisibleNode()
 	node.Expanded = false
 	m.updateExpansionState(node, false)
+	m.invalidateCache()
 	m.visibleNodes = m.computeVisibleNodes()
 	if selected != nil && nodeContains(node, selected) {
 		if index := indexOfNode(m.visibleNodes, node); index >= 0 {
@@ -1282,6 +1305,8 @@ func expandTree(node *Node) {
 // buildFilteredTree builds a tree from filtered notifications and applies saved expansion state.
 // Returns a tree where group counts reflect only matching notifications.
 func (m *Model) buildFilteredTree(notifications []notification.Notification) *Node {
+	m.invalidateCache()
+
 	if len(notifications) == 0 {
 		return nil
 	}
