@@ -31,10 +31,10 @@ func TestBoundsChecking(t *testing.T) {
 		"7\t2025-01-01T12:00:00Z\tactive\tsess1\twin1\tpane1\tmessage7\n" +
 		// Line 8: 8 fields (up to paneCreated)
 		"8\t2025-01-01T12:00:00Z\tactive\tsess1\twin1\tpane1\tmessage8\tcreated8\n" +
-		// Line 9: Complete 9 fields (valid)
+		// Line 9: Complete 9 fields (valid legacy)
 		"9\t2025-01-01T12:00:00Z\tactive\tsess1\twin1\tpane1\tmessage9\tcreated9\tinfo\n" +
-		// Line 10: Extra fields (10 fields - should be handled gracefully)
-		"10\t2025-01-01T12:00:00Z\tactive\tsess1\twin1\tpane1\tmessage10\tcreated10\tinfo\textra\n"
+		// Line 10: Extra fields (11 fields - should be handled gracefully)
+		"10\t2025-01-01T12:00:00Z\tactive\tsess1\twin1\tpane1\tmessage10\tcreated10\tinfo\textra\textra2\n"
 
 	err := os.WriteFile(notifFile, []byte(malformedData), 0644)
 	require.NoError(t, err)

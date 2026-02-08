@@ -3,7 +3,7 @@ package notification
 import "testing"
 
 func TestParseNotification(t *testing.T) {
-	line := "1\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\ttest\\tmessage\t123\tinfo"
+	line := "1\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\ttest\\tmessage\t123\tinfo\t2025-01-02T01:02:03Z"
 	notif, err := ParseNotification(line)
 	if err != nil {
 		t.Fatal(err)
@@ -22,6 +22,9 @@ func TestParseNotification(t *testing.T) {
 	}
 	if notif.Level != "info" {
 		t.Errorf("Level mismatch")
+	}
+	if notif.ReadTimestamp != "2025-01-02T01:02:03Z" {
+		t.Errorf("ReadTimestamp mismatch")
 	}
 }
 

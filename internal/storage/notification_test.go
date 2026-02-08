@@ -34,7 +34,7 @@ func TestGetNotificationByID(t *testing.T) {
 				require.NoError(t, err)
 			},
 			id:        "1",
-			wantLine:  "1\t2025-02-04T10:00:00Z\tactive\tsession1\twindow1\tpane1\ttest message\t123456\tinfo",
+			wantLine:  "1\t2025-02-04T10:00:00Z\tactive\tsession1\twindow1\tpane1\ttest message\t123456\tinfo\t",
 			wantError: false,
 		},
 		{
@@ -49,7 +49,7 @@ func TestGetNotificationByID(t *testing.T) {
 				DismissNotification("1")
 			},
 			id:        "1",
-			wantLine:  "1\t2025-02-04T10:00:00Z\tdismissed\tsession1\twindow1\tpane1\ttest message\t123456\tinfo",
+			wantLine:  "1\t2025-02-04T10:00:00Z\tdismissed\tsession1\twindow1\tpane1\ttest message\t123456\tinfo\t",
 			wantError: false,
 		},
 		{
@@ -92,7 +92,7 @@ func TestGetNotificationByID(t *testing.T) {
 				DismissNotification("1")
 			},
 			id:        "1",
-			wantLine:  "1\t2025-02-04T10:00:00Z\tdismissed\tsession1\twindow1\tpane1\ttest message\t123456\tinfo",
+			wantLine:  "1\t2025-02-04T10:00:00Z\tdismissed\tsession1\twindow1\tpane1\ttest message\t123456\tinfo\t",
 			wantError: false,
 		},
 	}
@@ -156,7 +156,7 @@ func TestGetNotificationByIDWithLock(t *testing.T) {
 		return
 	}
 
-	expected := "1\t2025-02-04T10:00:00Z\tactive\tsession1\twindow1\tpane1\ttest message\t123456\tinfo"
+	expected := "1\t2025-02-04T10:00:00Z\tactive\tsession1\twindow1\tpane1\ttest message\t123456\tinfo\t"
 	if line != expected {
 		t.Errorf("Got line %q, want %q", line, expected)
 	}

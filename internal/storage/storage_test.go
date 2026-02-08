@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/hooks"
@@ -159,6 +160,39 @@ func TestDismissNotification(t *testing.T) {
 	// Dismissing again should return error
 	err = DismissNotification(id)
 	require.Error(t, err)
+}
+
+func TestMarkNotificationReadUnread(t *testing.T) {
+	setupTest(t)
+	require.NoError(t, Init())
+
+	id, err := AddNotification("to read", "", "", "", "", "", "info")
+	require.NoError(t, err)
+	require.NotEmpty(t, id)
+
+	err = MarkNotificationRead(id)
+	require.NoError(t, err)
+
+	line, err := GetNotificationByID(id)
+	require.NoError(t, err)
+	fields := strings.Split(line, "\t")
+	for len(fields) < numFields {
+		fields = append(fields, "")
+	}
+	require.NotEmpty(t, fields[fieldReadTimestamp])
+	_, err = time.Parse(time.RFC3339, fields[fieldReadTimestamp])
+	require.NoError(t, err)
+
+	err = MarkNotificationUnread(id)
+	require.NoError(t, err)
+
+	line, err = GetNotificationByID(id)
+	require.NoError(t, err)
+	fields = strings.Split(line, "\t")
+	for len(fields) < numFields {
+		fields = append(fields, "")
+	}
+	require.Empty(t, fields[fieldReadTimestamp])
 }
 
 func TestDismissAllFromStorage(t *testing.T) {
@@ -499,7 +533,7 @@ func TestMalformedTSVData(t *testing.T) {
 	notifFile := filepath.Join(tmpDir, "notifications.tsv")
 
 	// Write malformed TSV data
-	malformedData := "1\ttimestamp\tactive\n" + // Only 3 fields instead of 9
+	malformedData := "1\ttimestamp\tactive\n" + // Only 3 fields instead of at least 9
 		"2\t2025-01-01T12:00:00Z\tactive\t\n\n\n\n\n\ninfo\n" + // Empty fields
 		"3\t2025-01-01T12:00:00Z\n" + // Only 2 fields
 		"4\t2025-01-01T12:00:00Z\tactive\tsession\twindow\tpane\tmessage\tcreated\t\n" // Missing level
@@ -526,7 +560,7 @@ func TestMalformedTSVData(t *testing.T) {
 	// Dismissing notification 1 (malformed with 3 fields) should return error
 	err = DismissNotification("1")
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "expected 9 fields, got 3")
+	require.Contains(t, err.Error(), "expected at least 9 fields, got 3")
 
 	// Dismissing notification 3 (malformed with 2 fields) should return error
 	err = DismissNotification("3")
@@ -678,7 +712,7 @@ func TestAppendLine(t *testing.T) {
 	require.NoError(t, Init())
 
 	// Test successful append
-	err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "window0", "pane0", "test message", "123456789", "info")
+	err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "window0", "pane0", "test message", "123456789", "info", "")
 	require.NoError(t, err)
 
 	// Verify line was written
@@ -703,7 +737,7 @@ func TestAppendLineWriteError(t *testing.T) {
 	require.NoError(t, os.WriteFile(readOnlyFile, []byte("initial"), 0444))
 	notificationsFile = readOnlyFile
 
-	err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "window0", "pane0", "test message", "123456789", "info")
+	err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "window0", "pane0", "test message", "123456789", "info", "")
 	require.Error(t, err)
 	// The error should be either "open" (permission denied) or "write" in the error message
 	require.True(t, strings.Contains(err.Error(), "open") || strings.Contains(err.Error(), "write"))
@@ -722,7 +756,7 @@ func TestAppendLineOpenError(t *testing.T) {
 	// Set to an invalid path (directory that doesn't exist)
 	notificationsFile = filepath.Join(t.TempDir(), "nonexistent", "file.txt")
 
-	err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "window0", "pane0", "test message", "123456789", "info")
+	err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "window0", "pane0", "test message", "123456789", "info", "")
 	require.Error(t, err)
 	// Error should mention failed to open notifications file
 	require.Contains(t, err.Error(), "open")
@@ -735,7 +769,7 @@ func TestAppendLineMultipleWrites(t *testing.T) {
 	// Test multiple successful writes
 	for i := 1; i <= 5; i++ {
 		err := appendLine(i, "2025-01-01T12:00:00Z", "active", "session1", "window0", "pane0",
-			fmt.Sprintf("message %d", i), "123456789", "info")
+			fmt.Sprintf("message %d", i), "123456789", "info", "")
 		require.NoError(t, err)
 	}
 
@@ -769,7 +803,7 @@ func TestAppendLineWithSpecialCharacters(t *testing.T) {
 
 			escaped := escapeMessage(tc.message)
 			err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "window0", "pane0",
-				escaped, "123456789", "info")
+				escaped, "123456789", "info", "")
 			require.NoError(t, err)
 
 			// Verify line was written
