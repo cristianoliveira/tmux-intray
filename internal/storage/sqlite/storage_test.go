@@ -2,11 +2,13 @@ package sqlite
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,6 +23,14 @@ func newTestStorage(t *testing.T) *SQLiteStorage {
 	})
 
 	return s
+}
+
+func writeHookScript(t *testing.T, hooksDir, hookPoint, name, body string) {
+	t.Helper()
+	hookPointDir := filepath.Join(hooksDir, hookPoint)
+	require.NoError(t, os.MkdirAll(hookPointDir, 0o755))
+	scriptPath := filepath.Join(hookPointDir, name)
+	require.NoError(t, os.WriteFile(scriptPath, []byte(body), 0o755))
 }
 
 func TestSQLiteStorageImplementsInterface(t *testing.T) {
@@ -152,4 +162,79 @@ func TestValidationAndNotFoundErrors(t *testing.T) {
 	err = s.MarkNotificationRead("not-a-number")
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ErrInvalidNotificationID))
+}
+
+func TestHooksParityForAddDismissAndCleanup(t *testing.T) {
+	hooksDir := filepath.Join(t.TempDir(), "hooks")
+	hookLog := filepath.Join(t.TempDir(), "hooks.log")
+	t.Setenv("TMUX_INTRAY_HOOKS_DIR", hooksDir)
+	t.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "abort")
+
+	scriptBody := "#!/bin/sh\necho \"$HOOK_POINT:$NOTIFICATION_ID:$DELETED_COUNT\" >> \"$HOOK_LOG\"\n"
+	writeHookScript(t, hooksDir, "pre-add", "01-pre-add.sh", scriptBody)
+	writeHookScript(t, hooksDir, "post-add", "01-post-add.sh", scriptBody)
+	writeHookScript(t, hooksDir, "pre-dismiss", "01-pre-dismiss.sh", scriptBody)
+	writeHookScript(t, hooksDir, "post-dismiss", "01-post-dismiss.sh", scriptBody)
+	writeHookScript(t, hooksDir, "pre-clear", "01-pre-clear.sh", scriptBody)
+	writeHookScript(t, hooksDir, "cleanup", "01-cleanup.sh", scriptBody)
+	writeHookScript(t, hooksDir, "post-cleanup", "01-post-cleanup.sh", scriptBody)
+	t.Setenv("HOOK_LOG", hookLog)
+
+	s := newTestStorage(t)
+
+	id, err := s.AddNotification("old", "2000-01-01T00:00:00Z", "", "", "", "", "info")
+	require.NoError(t, err)
+	require.NoError(t, s.DismissNotification(id))
+	require.NoError(t, s.CleanupOldNotifications(1, false))
+	_, err = s.AddNotification("new", "", "", "", "", "", "warning")
+	require.NoError(t, err)
+	require.NoError(t, s.DismissAll())
+
+	content, err := os.ReadFile(hookLog)
+	require.NoError(t, err)
+	logOutput := string(content)
+	require.Contains(t, logOutput, "pre-add:1:")
+	require.Contains(t, logOutput, "post-add:1:")
+	require.Contains(t, logOutput, "pre-dismiss:1:")
+	require.Contains(t, logOutput, "post-dismiss:1:")
+	require.Contains(t, logOutput, "pre-clear::")
+	require.Equal(t, 2, strings.Count(logOutput, "pre-dismiss:"))
+	require.Equal(t, 2, strings.Count(logOutput, "post-dismiss:"))
+	require.Contains(t, logOutput, "cleanup::")
+	require.Contains(t, logOutput, "post-cleanup::1")
+}
+
+func TestTmuxStatusParityForActiveCountChanges(t *testing.T) {
+	s := newTestStorage(t)
+
+	mockClient := new(tmux.MockClient)
+	mockClient.On("HasSession").Return(true, nil)
+	mockClient.On("SetStatusOption", "@tmux_intray_active_count", "1").Return(nil).Once()
+	mockClient.On("SetStatusOption", "@tmux_intray_active_count", "2").Return(nil).Once()
+	mockClient.On("SetStatusOption", "@tmux_intray_active_count", "1").Return(nil).Once()
+	mockClient.On("SetStatusOption", "@tmux_intray_active_count", "0").Return(nil).Once()
+
+	SetTmuxClient(mockClient)
+	t.Cleanup(func() {
+		SetTmuxClient(tmux.NewDefaultClient())
+	})
+
+	id1, err := s.AddNotification("n1", "", "", "", "", "", "info")
+	require.NoError(t, err)
+	id2, err := s.AddNotification("n2", "", "", "", "", "", "warning")
+	require.NoError(t, err)
+
+	require.NoError(t, s.DismissNotification(id1))
+	require.NoError(t, s.DismissAll())
+
+	mockClient.AssertCalled(t, "SetStatusOption", "@tmux_intray_active_count", "1")
+	mockClient.AssertCalled(t, "SetStatusOption", "@tmux_intray_active_count", "2")
+	mockClient.AssertCalled(t, "SetStatusOption", "@tmux_intray_active_count", "1")
+	mockClient.AssertCalled(t, "SetStatusOption", "@tmux_intray_active_count", "0")
+	mockClient.AssertNumberOfCalls(t, "SetStatusOption", 4)
+	mockClient.AssertNumberOfCalls(t, "HasSession", 4)
+
+	line, err := s.GetNotificationByID(id2)
+	require.NoError(t, err)
+	require.Contains(t, line, "\tdismissed\t")
 }

@@ -11,7 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/hooks"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
+	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	_ "modernc.org/sqlite"
 )
 
@@ -36,6 +39,8 @@ var validStates = map[string]bool{
 	"dismissed": true,
 	"all":       true,
 }
+
+var tmuxClient tmux.TmuxClient = tmux.NewDefaultClient()
 
 // SQLiteStorage implements the storage.Storage interface using SQLite.
 type SQLiteStorage struct {
@@ -119,20 +124,28 @@ func (s *SQLiteStorage) AddNotification(message, timestamp, session, window, pan
 	if timestamp == "" {
 		timestamp = utcNow()
 	}
+	id, err := s.nextNotificationID()
+	if err != nil {
+		return "", err
+	}
+	escapedMessage := escapeMessage(message)
+	envVars := buildNotificationHookEnv(id, level, message, escapedMessage, timestamp, session, window, pane, paneCreated)
+	if err := hooks.Run("pre-add", envVars...); err != nil {
+		return "", fmt.Errorf("pre-add hook aborted: %w", err)
+	}
 
 	now := utcNow()
-	res, err := s.db.Exec(
-		`INSERT INTO notifications (timestamp, state, session, window, pane, message, pane_created, level, read_timestamp, updated_at)
-		 VALUES (?, 'active', ?, ?, ?, ?, ?, ?, '', ?)`,
-		timestamp, session, window, pane, message, paneCreated, level, now,
+	_, err = s.db.Exec(
+		`INSERT INTO notifications (id, timestamp, state, session, window, pane, message, pane_created, level, read_timestamp, updated_at)
+		 VALUES (?, ?, 'active', ?, ?, ?, ?, ?, ?, '', ?)`,
+		id, timestamp, session, window, pane, message, paneCreated, level, now,
 	)
 	if err != nil {
 		return "", fmt.Errorf("sqlite storage: add notification: %w", err)
 	}
-
-	id, err := res.LastInsertId()
-	if err != nil {
-		return "", fmt.Errorf("sqlite storage: get inserted id: %w", err)
+	s.syncTmuxStatusOption()
+	if err := hooks.Run("post-add", envVars...); err != nil {
+		return strconv.FormatInt(id, 10), fmt.Errorf("post-add hook failed: %w", err)
 	}
 
 	return strconv.FormatInt(id, 10), nil
@@ -231,48 +244,79 @@ func (s *SQLiteStorage) DismissNotification(id string) error {
 	if err != nil {
 		return err
 	}
-
-	tx, err := s.db.Begin()
+	notification, err := s.getNotificationForHooks(idInt)
 	if err != nil {
-		return fmt.Errorf("sqlite storage: begin dismiss transaction: %w", err)
+		return err
 	}
-	defer tx.Rollback()
-
-	var state string
-	err = tx.QueryRow("SELECT state FROM notifications WHERE id = ?", idInt).Scan(&state)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("sqlite storage: dismiss notification: %w: id %s", ErrNotificationNotFound, id)
-		}
-		return fmt.Errorf("sqlite storage: dismiss notification: %w", err)
-	}
-	if state == "dismissed" {
+	if notification.state == "dismissed" {
 		return fmt.Errorf("sqlite storage: dismiss notification: %w: id %s", ErrNotificationAlreadyDismissed, id)
 	}
+	envVars := buildNotificationHookEnv(
+		notification.id,
+		notification.level,
+		notification.message,
+		escapeMessage(notification.message),
+		notification.timestamp,
+		notification.session,
+		notification.window,
+		notification.pane,
+		notification.paneCreated,
+	)
+	if err := hooks.Run("pre-dismiss", envVars...); err != nil {
+		return err
+	}
 
-	if _, err := tx.Exec(
+	if _, err := s.db.Exec(
 		"UPDATE notifications SET state = 'dismissed', updated_at = ? WHERE id = ?",
 		utcNow(),
 		idInt,
 	); err != nil {
 		return fmt.Errorf("sqlite storage: update dismissed state: %w", err)
 	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("sqlite storage: commit dismiss transaction: %w", err)
+	if err := hooks.Run("post-dismiss", envVars...); err != nil {
+		return err
 	}
+	s.syncTmuxStatusOption()
 
 	return nil
 }
 
 // DismissAll marks all active notifications as dismissed.
 func (s *SQLiteStorage) DismissAll() error {
-	if _, err := s.db.Exec(
-		"UPDATE notifications SET state = 'dismissed', updated_at = ? WHERE state = 'active'",
-		utcNow(),
-	); err != nil {
-		return fmt.Errorf("sqlite storage: dismiss all notifications: %w", err)
+	if err := hooks.Run("pre-clear"); err != nil {
+		return err
 	}
+	activeNotifications, err := s.listActiveNotificationsForHooks()
+	if err != nil {
+		return err
+	}
+	for _, notification := range activeNotifications {
+		envVars := buildNotificationHookEnv(
+			notification.id,
+			notification.level,
+			notification.message,
+			escapeMessage(notification.message),
+			notification.timestamp,
+			notification.session,
+			notification.window,
+			notification.pane,
+			notification.paneCreated,
+		)
+		if err := hooks.Run("pre-dismiss", envVars...); err != nil {
+			return err
+		}
+		if _, err := s.db.Exec(
+			"UPDATE notifications SET state = 'dismissed', updated_at = ? WHERE id = ?",
+			utcNow(),
+			notification.id,
+		); err != nil {
+			return fmt.Errorf("sqlite storage: dismiss all notifications: %w", err)
+		}
+		if err := hooks.Run("post-dismiss", envVars...); err != nil {
+			return err
+		}
+	}
+	s.syncTmuxStatusOption()
 	return nil
 }
 
@@ -318,8 +362,40 @@ func (s *SQLiteStorage) CleanupOldNotifications(daysThreshold int, dryRun bool) 
 	if daysThreshold < 0 {
 		return fmt.Errorf("sqlite storage: days threshold must be >= 0")
 	}
+	cutoff := time.Now().UTC().AddDate(0, 0, -daysThreshold).Format("2006-01-02T15:04:05Z")
+	envVars := []string{
+		fmt.Sprintf("CLEANUP_DAYS=%d", daysThreshold),
+		fmt.Sprintf("CUTOFF_TIMESTAMP=%s", cutoff),
+		fmt.Sprintf("DRY_RUN=%t", dryRun),
+	}
+	if err := hooks.Run("cleanup", envVars...); err != nil {
+		return fmt.Errorf("pre-cleanup hook failed: %w", err)
+	}
+
+	countQuery := "SELECT COUNT(1) FROM notifications WHERE state = 'dismissed'"
+	countArgs := []any{}
+	if daysThreshold != 0 {
+		countQuery += " AND timestamp < ?"
+		countArgs = append(countArgs, cutoff)
+	}
+
+	var deletedCount int
+	if err := s.db.QueryRow(countQuery, countArgs...).Scan(&deletedCount); err != nil {
+		return fmt.Errorf("sqlite storage: count notifications for cleanup: %w", err)
+	}
+	if deletedCount == 0 {
+		postEnv := append(envVars, "DELETED_COUNT=0")
+		if err := hooks.Run("post-cleanup", postEnv...); err != nil {
+			return fmt.Errorf("post-cleanup hook failed: %w", err)
+		}
+		return nil
+	}
 
 	if dryRun {
+		postEnv := append(envVars, fmt.Sprintf("DELETED_COUNT=%d", deletedCount))
+		if err := hooks.Run("post-cleanup", postEnv...); err != nil {
+			return fmt.Errorf("post-cleanup hook failed: %w", err)
+		}
 		return nil
 	}
 
@@ -328,10 +404,13 @@ func (s *SQLiteStorage) CleanupOldNotifications(daysThreshold int, dryRun bool) 
 		if err != nil {
 			return fmt.Errorf("sqlite storage: cleanup dismissed notifications: %w", err)
 		}
+		postEnv := append(envVars, fmt.Sprintf("DELETED_COUNT=%d", deletedCount))
+		if err := hooks.Run("post-cleanup", postEnv...); err != nil {
+			return fmt.Errorf("post-cleanup hook failed: %w", err)
+		}
 		return nil
 	}
 
-	cutoff := time.Now().UTC().AddDate(0, 0, -daysThreshold).Format("2006-01-02T15:04:05Z")
 	_, err := s.db.Exec(
 		"DELETE FROM notifications WHERE state = 'dismissed' AND timestamp < ?",
 		cutoff,
@@ -339,8 +418,20 @@ func (s *SQLiteStorage) CleanupOldNotifications(daysThreshold int, dryRun bool) 
 	if err != nil {
 		return fmt.Errorf("sqlite storage: cleanup old notifications: %w", err)
 	}
+	postEnv := append(envVars, fmt.Sprintf("DELETED_COUNT=%d", deletedCount))
+	if err := hooks.Run("post-cleanup", postEnv...); err != nil {
+		return fmt.Errorf("post-cleanup hook failed: %w", err)
+	}
 
 	return nil
+}
+
+// SetTmuxClient sets the tmux client used for status updates.
+func SetTmuxClient(client tmux.TmuxClient) {
+	if client == nil {
+		return
+	}
+	tmuxClient = client
 }
 
 // GetActiveCount returns the number of active notifications.
@@ -440,6 +531,121 @@ func parseID(id string) (int64, error) {
 		return 0, fmt.Errorf("sqlite storage: %w", ErrInvalidNotificationID)
 	}
 	return idInt, nil
+}
+
+type hookNotification struct {
+	id          int64
+	timestamp   string
+	state       string
+	session     string
+	window      string
+	pane        string
+	message     string
+	paneCreated string
+	level       string
+}
+
+func buildNotificationHookEnv(id int64, level, message, escapedMessage, timestamp, session, window, pane, paneCreated string) []string {
+	return []string{
+		fmt.Sprintf("NOTIFICATION_ID=%d", id),
+		fmt.Sprintf("LEVEL=%s", level),
+		fmt.Sprintf("MESSAGE=%s", message),
+		fmt.Sprintf("ESCAPED_MESSAGE=%s", escapedMessage),
+		fmt.Sprintf("TIMESTAMP=%s", timestamp),
+		fmt.Sprintf("SESSION=%s", session),
+		fmt.Sprintf("WINDOW=%s", window),
+		fmt.Sprintf("PANE=%s", pane),
+		fmt.Sprintf("PANE_CREATED=%s", paneCreated),
+	}
+}
+
+func (s *SQLiteStorage) nextNotificationID() (int64, error) {
+	var maxID int64
+	if err := s.db.QueryRow("SELECT COALESCE(MAX(id), 0) FROM notifications").Scan(&maxID); err != nil {
+		return 0, fmt.Errorf("sqlite storage: get next id: %w", err)
+	}
+	return maxID + 1, nil
+}
+
+func (s *SQLiteStorage) getNotificationForHooks(id int64) (hookNotification, error) {
+	notification := hookNotification{}
+	err := s.db.QueryRow(
+		`SELECT id, timestamp, state, session, window, pane, message, pane_created, level
+		 FROM notifications WHERE id = ?`,
+		id,
+	).Scan(
+		&notification.id,
+		&notification.timestamp,
+		&notification.state,
+		&notification.session,
+		&notification.window,
+		&notification.pane,
+		&notification.message,
+		&notification.paneCreated,
+		&notification.level,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return hookNotification{}, fmt.Errorf("sqlite storage: dismiss notification: %w: id %d", ErrNotificationNotFound, id)
+		}
+		return hookNotification{}, fmt.Errorf("sqlite storage: dismiss notification: %w", err)
+	}
+	return notification, nil
+}
+
+func (s *SQLiteStorage) listActiveNotificationsForHooks() ([]hookNotification, error) {
+	rows, err := s.db.Query(
+		`SELECT id, timestamp, state, session, window, pane, message, pane_created, level
+		 FROM notifications WHERE state = 'active' ORDER BY id ASC`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("sqlite storage: list active notifications: %w", err)
+	}
+	defer rows.Close()
+
+	notifications := make([]hookNotification, 0)
+	for rows.Next() {
+		var notification hookNotification
+		if err := rows.Scan(
+			&notification.id,
+			&notification.timestamp,
+			&notification.state,
+			&notification.session,
+			&notification.window,
+			&notification.pane,
+			&notification.message,
+			&notification.paneCreated,
+			&notification.level,
+		); err != nil {
+			return nil, fmt.Errorf("sqlite storage: scan active notification: %w", err)
+		}
+		notifications = append(notifications, notification)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite storage: iterate active notifications: %w", err)
+	}
+
+	return notifications, nil
+}
+
+func (s *SQLiteStorage) syncTmuxStatusOption() {
+	if err := s.updateTmuxStatusOption(s.GetActiveCount()); err != nil {
+		colors.Error(fmt.Sprintf("failed to update tmux status: %v", err))
+	}
+}
+
+func (s *SQLiteStorage) updateTmuxStatusOption(count int) error {
+	running, err := tmuxClient.HasSession()
+	if err != nil {
+		return fmt.Errorf("updateTmuxStatusOption: tmux not available: %w", err)
+	}
+	if !running {
+		return fmt.Errorf("updateTmuxStatusOption: tmux not running")
+	}
+	if err := tmuxClient.SetStatusOption("@tmux_intray_active_count", fmt.Sprintf("%d", count)); err != nil {
+		return fmt.Errorf("updateTmuxStatusOption: failed to set @tmux_intray_active_count to %d: %w", count, err)
+	}
+	return nil
 }
 
 func escapeMessage(msg string) string {
