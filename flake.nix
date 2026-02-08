@@ -31,6 +31,10 @@
             # cobra-cli add <subcommand-name>
             cobra-cli
 
+            ## Databse tools for golang
+            # USAGE: sqlc generate
+            sqlc
+
             # To generate the mock for the interfaces, run:
             # mockgen -source=./pkg/cli/cli.go -destination=./pkg/cli/mock/mock_cli.go -package=mock
             mockgen
