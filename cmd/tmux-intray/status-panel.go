@@ -13,7 +13,6 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
-	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -36,12 +35,12 @@ var statusPanelEnsureTmuxRunningFunc = func() bool {
 
 // statusPanelGetActiveCountFunc is the function used to get active notification count.
 var statusPanelGetActiveCountFunc = func() int {
-	return storage.GetActiveCount()
+	return storageStore.GetActiveCount()
 }
 
 // statusPanelListNotificationsFunc is the function used to list notifications.
 var statusPanelListNotificationsFunc = func(stateFilter string) string {
-	result, _ := storage.ListNotifications(stateFilter, "", "", "", "", "", "")
+	result, _ := storageStore.ListNotifications(stateFilter, "", "", "", "", "", "")
 	return result
 }
 

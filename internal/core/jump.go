@@ -12,6 +12,7 @@ import (
 // JumpService handles jump-to-pane operations with validation and error handling.
 type JumpService struct {
 	tmuxClient tmux.TmuxClient
+	store      storage.Store
 }
 
 // JumpResult contains the result of a jump operation.
@@ -26,22 +27,27 @@ type JumpResult struct {
 
 // NewJumpService creates a new JumpService with default dependencies.
 func NewJumpService() *JumpService {
-	return &JumpService{
-		tmuxClient: tmux.NewDefaultClient(),
-	}
+	return NewJumpServiceWithDeps(tmux.NewDefaultClient(), storage.NewDefaultStore())
 }
 
 // NewJumpServiceWithDeps creates a JumpService with custom dependencies (for testing).
-func NewJumpServiceWithDeps(tmuxClient tmux.TmuxClient) *JumpService {
+func NewJumpServiceWithDeps(tmuxClient tmux.TmuxClient, store storage.Store) *JumpService {
+	if tmuxClient == nil {
+		tmuxClient = tmux.NewDefaultClient()
+	}
+	if store == nil {
+		store = storage.NewDefaultStore()
+	}
 	return &JumpService{
 		tmuxClient: tmuxClient,
+		store:      store,
 	}
 }
 
 // JumpToNotification jumps to the pane/window of a notification.
 func (s *JumpService) JumpToNotification(notificationID string) (*JumpResult, error) {
 	// 1. Get notification from storage
-	line, err := storage.GetNotificationByID(notificationID)
+	line, err := s.store.GetNotificationByID(notificationID)
 	if err != nil {
 		return nil, fmt.Errorf("get notification: %w", err)
 	}

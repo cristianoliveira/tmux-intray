@@ -12,7 +12,6 @@ import (
 	"github.com/cristianoliveira/tmux-intray/cmd"
 
 	"github.com/cristianoliveira/tmux-intray/internal/core"
-	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -43,13 +42,13 @@ var statusOutputWriter io.Writer = os.Stdout
 
 // statusListFunc is the function used to retrieve notifications. Can be changed for testing.
 var statusListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
-	result, _ := storage.ListNotifications(state, level, session, window, pane, olderThan, newerThan)
+	result, _ := storageStore.ListNotifications(state, level, session, window, pane, olderThan, newerThan)
 	return result
 }
 
 // statusActiveCountFunc is the function used to get active count. Can be changed for testing.
 var statusActiveCountFunc = func() int {
-	return storage.GetActiveCount()
+	return storageStore.GetActiveCount()
 }
 
 // PrintStatus prints status summary according to the provided format.

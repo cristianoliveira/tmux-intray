@@ -12,7 +12,6 @@ import (
 	"github.com/cristianoliveira/tmux-intray/cmd"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
-	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -38,7 +37,7 @@ EXAMPLES:
 }
 
 var clearAllFunc = func() error {
-	return storage.DismissAll()
+	return storageStore.DismissAll()
 }
 
 func ClearAll() error {

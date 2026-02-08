@@ -11,7 +11,6 @@ import (
 	"github.com/cristianoliveira/tmux-intray/cmd"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
-	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/state"
 	"github.com/spf13/cobra"
@@ -46,7 +45,7 @@ func init() {
 
 func runTUI(cmd *cobra.Command, args []string) {
 	// Initialize storage
-	storage.Init()
+	storageStore.Init()
 
 	// Create TmuxClient
 	client := tmux.NewDefaultClient()

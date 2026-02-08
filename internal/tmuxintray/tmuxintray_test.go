@@ -130,7 +130,7 @@ func TestGetVisibility(t *testing.T) {
 	mockClient := new(tmux.MockClient)
 	mockClient.On("GetEnvironment", "TMUX_INTRAY_VISIBLE").Return("1", nil)
 
-	coreClient := core.NewCore(mockClient)
+	coreClient := core.NewCore(mockClient, nil)
 	origGetVisibility := getVisibilityFunc
 	t.Cleanup(func() {
 		getVisibilityFunc = origGetVisibility

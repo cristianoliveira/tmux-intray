@@ -5,15 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-
-	"github.com/cristianoliveira/tmux-intray/internal/storage"
 )
 
 // GetTrayItems returns tray items for a given state filter.
 // Returns newline-separated messages (unescaped).
-func GetTrayItems(stateFilter string) (string, error) {
+func (c *Core) GetTrayItems(stateFilter string) (string, error) {
 	// Use storage.ListNotifications with only state filter
-	lines, err := storage.ListNotifications(stateFilter, "", "", "", "", "", "")
+	lines, err := c.store.ListNotifications(stateFilter, "", "", "", "", "", "")
 	if err != nil {
 		return "", err
 	}
@@ -43,6 +41,11 @@ func GetTrayItems(stateFilter string) (string, error) {
 	return strings.Join(messages, "\n"), nil
 }
 
+// GetTrayItems returns tray items for a given state filter using the default core.
+func GetTrayItems(stateFilter string) (string, error) {
+	return defaultCore.GetTrayItems(stateFilter)
+}
+
 // AddTrayItem adds a tray item.
 // If session, window, pane are empty and noAuto is false, current tmux context is used.
 // Returns the notification ID or an error if validation fails.
@@ -67,7 +70,7 @@ func (c *Core) AddTrayItem(item, session, window, pane, paneCreated string, noAu
 	}
 
 	// Add notification with empty timestamp (auto-generated)
-	id, err := storage.AddNotification(item, "", session, window, pane, paneCreated, level)
+	id, err := c.store.AddNotification(item, "", session, window, pane, paneCreated, level)
 	if err != nil {
 		return "", fmt.Errorf("add tray item: failed to add notification: %w", err)
 	}
@@ -80,8 +83,13 @@ func AddTrayItem(item, session, window, pane, paneCreated string, noAuto bool, l
 }
 
 // ClearTrayItems dismisses all active tray items.
+func (c *Core) ClearTrayItems() error {
+	return c.store.DismissAll()
+}
+
+// ClearTrayItems dismisses all active tray items using the default core.
 func ClearTrayItems() error {
-	return storage.DismissAll()
+	return defaultCore.ClearTrayItems()
 }
 
 // MarkNotificationRead marks a notification as read.

@@ -28,7 +28,7 @@ func TestCore(t *testing.T) {
 	t.Run("GetTrayItems", func(t *testing.T) {
 		clearNotifications()
 		// Use default core (tmux not needed for this test)
-		c := NewCore(nil)
+		c := NewCore(nil, nil)
 
 		// Add notifications with explicit session/window/pane
 		id1, err := c.AddTrayItem("message 1", "$1", "%1", "@1", "123456", true, "info")
@@ -60,7 +60,7 @@ func TestCore(t *testing.T) {
 			PaneID:    "@pane",
 			PanePID:   "1748987643",
 		}, nil).Once()
-		c := NewCore(mockClient)
+		c := NewCore(mockClient, nil)
 
 		id, err := c.AddTrayItem("auto message", "", "", "", "", false, "info")
 		require.NoError(t, err)
@@ -75,7 +75,7 @@ func TestCore(t *testing.T) {
 		clearNotifications()
 		// tmux client will fail, but noAuto true means we don't call it
 		mockClient := new(tmux.MockClient)
-		c := NewCore(mockClient)
+		c := NewCore(mockClient, nil)
 		id, err := c.AddTrayItem("manual message", "$s", "%w", "@p", "123", true, "error")
 		require.NoError(t, err)
 		require.NotEmpty(t, id)
@@ -87,7 +87,7 @@ func TestCore(t *testing.T) {
 	t.Run("ClearTrayItems", func(t *testing.T) {
 		clearNotifications()
 		// Use default core
-		c := NewCore(nil)
+		c := NewCore(nil, nil)
 
 		_, err := c.AddTrayItem("msg1", "$1", "%1", "@1", "123", true, "info")
 		require.NoError(t, err)
@@ -106,7 +106,7 @@ func TestCore(t *testing.T) {
 		// Mock tmux client for visibility operations
 		mockClient := new(tmux.MockClient)
 		mockClient.On("GetEnvironment", "TMUX_INTRAY_VISIBLE").Return("1", nil).Once()
-		c := NewCore(mockClient)
+		c := NewCore(mockClient, nil)
 
 		visible := c.GetVisibility()
 		require.Equal(t, "1", visible)
@@ -115,7 +115,7 @@ func TestCore(t *testing.T) {
 		// SetVisibility with true should call set-environment with "1"
 		mockClient = new(tmux.MockClient)
 		mockClient.On("SetEnvironment", "TMUX_INTRAY_VISIBLE", "1").Return(nil).Once()
-		c = NewCore(mockClient)
+		c = NewCore(mockClient, nil)
 		err := c.SetVisibility(true)
 		require.NoError(t, err)
 		mockClient.AssertExpectations(t)
@@ -123,7 +123,7 @@ func TestCore(t *testing.T) {
 		// SetVisibility with false should set "0"
 		mockClient = new(tmux.MockClient)
 		mockClient.On("SetEnvironment", "TMUX_INTRAY_VISIBLE", "0").Return(nil).Once()
-		c = NewCore(mockClient)
+		c = NewCore(mockClient, nil)
 		err = c.SetVisibility(false)
 		require.NoError(t, err)
 		mockClient.AssertExpectations(t)
@@ -131,7 +131,7 @@ func TestCore(t *testing.T) {
 		// Simulate tmux failure
 		mockClient = new(tmux.MockClient)
 		mockClient.On("SetEnvironment", "TMUX_INTRAY_VISIBLE", "1").Return(tmux.ErrTmuxNotRunning).Once()
-		c = NewCore(mockClient)
+		c = NewCore(mockClient, nil)
 		err = c.SetVisibility(true)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "set visibility")
