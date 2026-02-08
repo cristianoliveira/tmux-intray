@@ -41,6 +41,10 @@ func stubSessionFetchers(t *testing.T) *tmux.MockClient {
 	mockClient := new(tmux.MockClient)
 	// Mock ListSessions to return empty map
 	mockClient.On("ListSessions").Return(map[string]string{}, nil)
+	// Mock ListWindows to return empty map
+	mockClient.On("ListWindows").Return(map[string]string{}, nil)
+	// Mock ListPanes to return empty map
+	mockClient.On("ListPanes").Return(map[string]string{}, nil)
 
 	return mockClient
 }

@@ -412,3 +412,336 @@ func BenchmarkTokenProvider(b *testing.B) {
 		provider.Match(testNotification, query)
 	}
 }
+
+// TestNameBasedSearch tests name-based search for sessions, windows, and panes.
+func TestNameBasedSearch(t *testing.T) {
+	// Create test notifications
+	notif1 := notification.Notification{
+		ID:        1,
+		Session:   "$1",
+		Window:    "@0",
+		Pane:      "%0",
+		Message:   "error: failed to connect",
+		Level:     "error",
+		State:     "active",
+		Timestamp: "2024-01-01T12:00:00Z",
+	}
+
+	notif2 := notification.Notification{
+		ID:        2,
+		Session:   "$2",
+		Window:    "@1",
+		Pane:      "%1",
+		Message:   "warning: slow connection",
+		Level:     "warning",
+		State:     "active",
+		Timestamp: "2024-01-01T12:00:00Z",
+	}
+
+	// Create name maps
+	sessionNames := map[string]string{
+		"$1": "my-work",
+		"$2": "personal",
+	}
+	windowNames := map[string]string{
+		"@0": "main",
+		"@1": "editor",
+	}
+	paneNames := map[string]string{
+		"%0": "terminal",
+		"%1": "vim",
+	}
+
+	tests := []struct {
+		name        string
+		provider    Provider
+		notif       notification.Notification
+		query       string
+		expected    bool
+		description string
+	}{
+		// Substring provider tests
+		{
+			name:        "substring: session name matches",
+			provider:    NewSubstringProvider(WithSessionNames(sessionNames)),
+			notif:       notif1,
+			query:       "my-work",
+			expected:    true,
+			description: "should match by session name",
+		},
+		{
+			name:        "substring: window name matches",
+			provider:    NewSubstringProvider(WithWindowNames(windowNames)),
+			notif:       notif1,
+			query:       "main",
+			expected:    true,
+			description: "should match by window name",
+		},
+		{
+			name:        "substring: pane name matches",
+			provider:    NewSubstringProvider(WithPaneNames(paneNames)),
+			notif:       notif1,
+			query:       "terminal",
+			expected:    true,
+			description: "should match by pane name",
+		},
+		{
+			name:        "substring: session ID still works",
+			provider:    NewSubstringProvider(WithSessionNames(sessionNames)),
+			notif:       notif1,
+			query:       "$1",
+			expected:    true,
+			description: "should still match by session ID",
+		},
+		{
+			name:        "substring: no name match",
+			provider:    NewSubstringProvider(WithSessionNames(sessionNames)),
+			notif:       notif1,
+			query:       "nonexistent",
+			expected:    false,
+			description: "should not match nonexistent name",
+		},
+		{
+			name:        "substring: all name maps",
+			provider:    NewSubstringProvider(WithSessionNames(sessionNames), WithWindowNames(windowNames), WithPaneNames(paneNames)),
+			notif:       notif1,
+			query:       "my-work",
+			expected:    true,
+			description: "should match with all name maps provided",
+		},
+		{
+			name:        "substring: different notification",
+			provider:    NewSubstringProvider(WithSessionNames(sessionNames), WithWindowNames(windowNames), WithPaneNames(paneNames)),
+			notif:       notif2,
+			query:       "personal",
+			expected:    true,
+			description: "should match second notification by session name",
+		},
+
+		// Regex provider tests
+		{
+			name:        "regex: session name matches",
+			provider:    NewRegexProvider(WithSessionNames(sessionNames)),
+			notif:       notif1,
+			query:       "my-work",
+			expected:    true,
+			description: "should match by session name",
+		},
+		{
+			name:        "regex: window name pattern",
+			provider:    NewRegexProvider(WithWindowNames(windowNames)),
+			notif:       notif1,
+			query:       "ma..",
+			expected:    true,
+			description: "should match window name with pattern",
+		},
+		{
+			name:        "regex: session ID still works",
+			provider:    NewRegexProvider(WithSessionNames(sessionNames)),
+			notif:       notif1,
+			query:       `\$1`,
+			expected:    true,
+			description: "should still match by session ID",
+		},
+		{
+			name:        "regex: no name match",
+			provider:    NewRegexProvider(WithSessionNames(sessionNames)),
+			notif:       notif1,
+			query:       "xyz",
+			expected:    false,
+			description: "should not match nonexistent name",
+		},
+
+		// Token provider tests
+		{
+			name:        "token: session name matches",
+			provider:    NewTokenProvider(WithSessionNames(sessionNames)),
+			notif:       notif1,
+			query:       "my-work",
+			expected:    true,
+			description: "should match by session name",
+		},
+		{
+			name:        "token: window name matches",
+			provider:    NewTokenProvider(WithWindowNames(windowNames)),
+			notif:       notif1,
+			query:       "main",
+			expected:    true,
+			description: "should match by window name",
+		},
+		{
+			name:        "token: pane name matches",
+			provider:    NewTokenProvider(WithPaneNames(paneNames)),
+			notif:       notif1,
+			query:       "terminal",
+			expected:    true,
+			description: "should match by pane name",
+		},
+		{
+			name:        "token: session ID still works",
+			provider:    NewTokenProvider(WithSessionNames(sessionNames)),
+			notif:       notif1,
+			query:       "$1",
+			expected:    true,
+			description: "should still match by session ID",
+		},
+		{
+			name:        "token: multiple tokens with name",
+			provider:    NewTokenProvider(WithSessionNames(sessionNames), WithCaseInsensitive(true)),
+			notif:       notif1,
+			query:       "my-work error",
+			expected:    true,
+			description: "should match multiple tokens including name",
+		},
+		{
+			name:        "token: case-insensitive name",
+			provider:    NewTokenProvider(WithSessionNames(sessionNames), WithCaseInsensitive(true)),
+			notif:       notif1,
+			query:       "MY-WORK",
+			expected:    true,
+			description: "should match name case-insensitively",
+		},
+		{
+			name:        "token: no name match",
+			provider:    NewTokenProvider(WithSessionNames(sessionNames)),
+			notif:       notif1,
+			query:       "nonexistent",
+			expected:    false,
+			description: "should not match nonexistent name",
+		},
+
+		// Case sensitivity tests
+		{
+			name:        "substring: case-sensitive name",
+			provider:    NewSubstringProvider(WithSessionNames(sessionNames)),
+			notif:       notif1,
+			query:       "MY-WORK",
+			expected:    false,
+			description: "should not match case-sensitive",
+		},
+		{
+			name:        "substring: case-insensitive name",
+			provider:    NewSubstringProvider(WithSessionNames(sessionNames), WithCaseInsensitive(true)),
+			notif:       notif1,
+			query:       "MY-WORK",
+			expected:    true,
+			description: "should match name case-insensitively",
+		},
+
+		// Nil name maps (backward compatibility)
+		{
+			name:        "substring: nil name maps",
+			provider:    NewSubstringProvider(WithSessionNames(nil)),
+			notif:       notif1,
+			query:       "$1",
+			expected:    true,
+			description: "should work with nil name maps (backward compatible)",
+		},
+		{
+			name:        "token: nil name maps",
+			provider:    NewTokenProvider(WithSessionNames(nil)),
+			notif:       notif1,
+			query:       "$1",
+			expected:    true,
+			description: "should work with nil name maps (backward compatible)",
+		},
+		{
+			name:        "regex: nil name maps",
+			provider:    NewRegexProvider(WithSessionNames(nil)),
+			notif:       notif1,
+			query:       `\$1`,
+			expected:    true,
+			description: "should work with nil name maps (backward compatible)",
+		},
+
+		// Empty ID tests
+		{
+			name:        "substring: empty session ID",
+			provider:    NewSubstringProvider(WithSessionNames(sessionNames)),
+			notif:       notification.Notification{ID: 1, Session: "", Message: "test"},
+			query:       "my-work",
+			expected:    false,
+			description: "should not match empty session ID",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.provider.Match(tt.notif, tt.query)
+			if result != tt.expected {
+				t.Errorf("%s: expected %v, got %v", tt.description, tt.expected, result)
+			}
+		})
+	}
+}
+
+// TestNameBasedSearchCrossField tests searching across multiple fields with names.
+func TestNameBasedSearchCrossField(t *testing.T) {
+	notif := notification.Notification{
+		ID:        1,
+		Session:   "$1",
+		Window:    "@0",
+		Pane:      "%0",
+		Message:   "error in my-work session",
+		Level:     "error",
+		State:     "active",
+		Timestamp: "2024-01-01T12:00:00Z",
+	}
+
+	sessionNames := map[string]string{
+		"$1": "my-work",
+	}
+	windowNames := map[string]string{
+		"@0": "main",
+	}
+	paneNames := map[string]string{
+		"%0": "terminal",
+	}
+
+	tests := []struct {
+		name     string
+		provider Provider
+		query    string
+		expected bool
+	}{
+		{
+			name:     "substring: match in name across fields",
+			provider: NewSubstringProvider(WithSessionNames(sessionNames), WithWindowNames(windowNames), WithPaneNames(paneNames)),
+			query:    "my-work",
+			expected: true,
+		},
+		{
+			name:     "token: match name across fields",
+			provider: NewTokenProvider(WithSessionNames(sessionNames), WithWindowNames(windowNames), WithPaneNames(paneNames)),
+			query:    "my-work",
+			expected: true,
+		},
+		{
+			name:     "regex: match name across fields",
+			provider: NewRegexProvider(WithSessionNames(sessionNames), WithWindowNames(windowNames), WithPaneNames(paneNames)),
+			query:    "my-work",
+			expected: true,
+		},
+		{
+			name:     "token: match name and message",
+			provider: NewTokenProvider(WithSessionNames(sessionNames), WithWindowNames(windowNames), WithPaneNames(paneNames)),
+			query:    "my-work error",
+			expected: true,
+		},
+		{
+			name:     "substring: different notification",
+			provider: NewSubstringProvider(WithSessionNames(sessionNames), WithWindowNames(windowNames), WithPaneNames(paneNames)),
+			query:    "main",
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.provider.Match(notif, tt.query)
+			if result != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, result)
+			}
+		})
+	}
+}

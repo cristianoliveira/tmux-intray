@@ -16,6 +16,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
+	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	"github.com/spf13/cobra"
 )
 
@@ -110,11 +111,36 @@ func printList(opts FilterOptions, w io.Writer) {
 		// Use custom provider if provided
 		searchProvider = opts.SearchProvider
 	} else if opts.Search != "" {
+		// Fetch name maps for transparent name-based search
+		client := tmux.NewDefaultClient()
+		sessionNames, err := client.ListSessions()
+		if err != nil {
+			sessionNames = make(map[string]string)
+		}
+		windowNames, err := client.ListWindows()
+		if err != nil {
+			windowNames = make(map[string]string)
+		}
+		paneNames, err := client.ListPanes()
+		if err != nil {
+			paneNames = make(map[string]string)
+		}
+
 		// Create default provider based on Regex flag
 		if opts.Regex {
-			searchProvider = search.NewRegexProvider(search.WithCaseInsensitive(false))
+			searchProvider = search.NewRegexProvider(
+				search.WithCaseInsensitive(false),
+				search.WithSessionNames(sessionNames),
+				search.WithWindowNames(windowNames),
+				search.WithPaneNames(paneNames),
+			)
 		} else {
-			searchProvider = search.NewSubstringProvider(search.WithCaseInsensitive(false))
+			searchProvider = search.NewSubstringProvider(
+				search.WithCaseInsensitive(false),
+				search.WithSessionNames(sessionNames),
+				search.WithWindowNames(windowNames),
+				search.WithPaneNames(paneNames),
+			)
 		}
 	}
 

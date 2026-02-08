@@ -20,8 +20,11 @@ type Provider interface {
 
 // Options holds configuration options for creating search providers.
 type Options struct {
-	CaseInsensitive bool     // If true, searches ignore case sensitivity
-	Fields          []string // Fields to search in (default: all fields)
+	CaseInsensitive bool              // If true, searches ignore case sensitivity
+	Fields          []string          // Fields to search in (default: all fields)
+	SessionNames    map[string]string // Map of session ID to session name for name resolution
+	WindowNames     map[string]string // Map of window ID to window name for name resolution
+	PaneNames       map[string]string // Map of pane ID to pane name for name resolution
 }
 
 // DefaultOptions returns the default search options.
@@ -47,6 +50,27 @@ func WithCaseInsensitive(enabled bool) Option {
 func WithFields(fields []string) Option {
 	return func(o *Options) {
 		o.Fields = fields
+	}
+}
+
+// WithSessionNames sets the session ID to name mapping for name resolution.
+func WithSessionNames(names map[string]string) Option {
+	return func(o *Options) {
+		o.SessionNames = names
+	}
+}
+
+// WithWindowNames sets the window ID to name mapping for name resolution.
+func WithWindowNames(names map[string]string) Option {
+	return func(o *Options) {
+		o.WindowNames = names
+	}
+}
+
+// WithPaneNames sets the pane ID to name mapping for name resolution.
+func WithPaneNames(names map[string]string) Option {
+	return func(o *Options) {
+		o.PaneNames = names
 	}
 }
 
