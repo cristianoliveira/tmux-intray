@@ -78,7 +78,7 @@ func autoMigrateTSVOnSQLiteOptIn(sqliteStorage *sqlite.SQLiteStorage, dbPath str
 		return nil
 	}
 
-	sqliteRows, err := sqliteStorage.ListNotifications("all", "", "", "", "", "", "")
+	sqliteRows, err := sqliteStorage.ListNotifications("all", "", "", "", "", "", "", "")
 	if err != nil {
 		return fmt.Errorf("inspect sqlite data: %w", err)
 	}

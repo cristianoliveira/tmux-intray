@@ -21,7 +21,7 @@ import (
 
 type parityBackend interface {
 	AddNotification(message, timestamp, session, window, pane, paneCreated, level string) (string, error)
-	ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff string) (string, error)
+	ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error)
 	GetNotificationByID(id string) (string, error)
 	DismissNotification(id string) error
 	DismissAll() error
@@ -60,8 +60,8 @@ func (b *tsvParityBackend) AddNotification(message, timestamp, session, window, 
 	return b.storage.AddNotification(message, timestamp, session, window, pane, paneCreated, level)
 }
 
-func (b *tsvParityBackend) ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff string) (string, error) {
-	return b.storage.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff)
+func (b *tsvParityBackend) ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error) {
+	return b.storage.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
 }
 
 func (b *tsvParityBackend) GetNotificationByID(id string) (string, error) {
@@ -173,7 +173,7 @@ VALUES (?, ?, 'active', ?, ?, ?, ?, ?, ?, '')
 	return strconv.Itoa(id), nil
 }
 
-func (b *sqliteParityBackend) ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff string) (string, error) {
+func (b *sqliteParityBackend) ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error) {
 	if err := validateListInputs(stateFilter, levelFilter, olderThanCutoff, newerThanCutoff); err != nil {
 		return "", err
 	}
@@ -183,7 +183,7 @@ func (b *sqliteParityBackend) ListNotifications(stateFilter, levelFilter, sessio
 		return "", err
 	}
 
-	filtered := filterNotifications(lines, stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff)
+	filtered := filterNotifications(lines, stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, "")
 	return strings.Join(filtered, "\n"), nil
 }
 
@@ -376,8 +376,8 @@ func assertErrorParity(t *testing.T, errA, errB error) {
 func assertListParity(t *testing.T, tsv parityBackend, sqlite parityBackend, stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff string) []normalizedNotification {
 	t.Helper()
 
-	listTSV, errTSV := tsv.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff)
-	listSQLite, errSQLite := sqlite.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff)
+	listTSV, errTSV := tsv.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, "")
+	listSQLite, errSQLite := sqlite.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, "")
 
 	assertErrorParity(t, errTSV, errSQLite)
 	require.NoError(t, errTSV)
@@ -585,7 +585,7 @@ func TestStorageBackendParityIntegration(t *testing.T) {
 						require.NoError(t, err)
 					}
 
-					list, err := backend.ListNotifications("all", "", "", "", "", "", "")
+					list, err := backend.ListNotifications("all", "", "", "", "", "", "", "")
 					require.NoError(t, err)
 					out := parseTSVLines(t, list)
 					require.Len(t, out, workers)
@@ -623,8 +623,8 @@ func TestStorageBackendParityIntegration(t *testing.T) {
 				_, errSQLite = sqlite.AddNotification("ok", "bad-ts", "", "", "", "", "info")
 				assertErrorParity(t, errTSV, errSQLite)
 
-				_, errTSV = tsv.ListNotifications("bad-state", "", "", "", "", "", "")
-				_, errSQLite = sqlite.ListNotifications("bad-state", "", "", "", "", "", "")
+				_, errTSV = tsv.ListNotifications("bad-state", "", "", "", "", "", "", "")
+				_, errSQLite = sqlite.ListNotifications("bad-state", "", "", "", "", "", "", "")
 				assertErrorParity(t, errTSV, errSQLite)
 
 				_, errTSV = tsv.GetNotificationByID("9999")
@@ -749,9 +749,9 @@ func TestSQLiteStorageOperationParityAgainstTSV(t *testing.T) {
 	idsSQLite := addFixtureNotifications(t, sqliteStore)
 	require.Equal(t, idsTSV, idsSQLite)
 
-	listTSV, err := tsvStore.ListNotifications("all", "", "", "", "", "", "")
+	listTSV, err := tsvStore.ListNotifications("all", "", "", "", "", "", "", "")
 	require.NoError(t, err)
-	listSQLite, err := sqliteStore.ListNotifications("all", "", "", "", "", "", "")
+	listSQLite, err := sqliteStore.ListNotifications("all", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.Equal(t, normalizeTSVOutput(listTSV), normalizeTSVOutput(listSQLite))
 
@@ -789,18 +789,18 @@ func TestSQLiteStorageOperationParityAgainstTSV(t *testing.T) {
 	require.NoError(t, tsvStore.CleanupOldNotifications(1, true))
 	require.NoError(t, sqliteStore.CleanupOldNotifications(1, true))
 
-	preCleanupTSV, err := tsvStore.ListNotifications("all", "", "", "", "", "", "")
+	preCleanupTSV, err := tsvStore.ListNotifications("all", "", "", "", "", "", "", "")
 	require.NoError(t, err)
-	preCleanupSQLite, err := sqliteStore.ListNotifications("all", "", "", "", "", "", "")
+	preCleanupSQLite, err := sqliteStore.ListNotifications("all", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.Equal(t, normalizeTSVOutput(preCleanupTSV), normalizeTSVOutput(preCleanupSQLite))
 
 	require.NoError(t, tsvStore.CleanupOldNotifications(1, false))
 	require.NoError(t, sqliteStore.CleanupOldNotifications(1, false))
 
-	postCleanupTSV, err := tsvStore.ListNotifications("all", "", "", "", "", "", "")
+	postCleanupTSV, err := tsvStore.ListNotifications("all", "", "", "", "", "", "", "")
 	require.NoError(t, err)
-	postCleanupSQLite, err := sqliteStore.ListNotifications("all", "", "", "", "", "", "")
+	postCleanupSQLite, err := sqliteStore.ListNotifications("all", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.Equal(t, normalizeTSVOutput(postCleanupTSV), normalizeTSVOutput(postCleanupSQLite))
 	require.Contains(t, postCleanupSQLite, "2099-01-01T00:00:00Z")
@@ -929,7 +929,7 @@ func TestSQLiteStorageLargeDatasetIntegration(t *testing.T) {
 
 	require.Equal(t, 1000, store.GetActiveCount())
 
-	list, err := store.ListNotifications("active", "info", "load-session", "", "", "", "")
+	list, err := store.ListNotifications("active", "info", "load-session", "", "", "", "", "")
 	require.NoError(t, err)
 	require.Len(t, strings.Split(strings.TrimSpace(list), "\n"), 1000)
 }

@@ -60,8 +60,8 @@ type FollowOptions struct {
 }
 
 // listFunc is the function used to retrieve notifications. Can be changed for testing.
-var listFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
-	result, _ := fileStorage.ListNotifications(state, level, session, window, pane, olderThan, newerThan)
+var listFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
+	result, _ := fileStorage.ListNotifications(state, level, session, window, pane, olderThan, newerThan, readFilter)
 	return result
 }
 
@@ -146,7 +146,7 @@ func Follow(ctx context.Context, opts FollowOptions) error {
 			return nil
 		case <-tickChan:
 			// Fetch notifications with filters
-			lines := listFunc(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, "", "")
+			lines := listFunc(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, "", "", "")
 			if lines == "" {
 				continue
 			}

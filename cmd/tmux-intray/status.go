@@ -41,8 +41,8 @@ var statusFormat string
 var statusOutputWriter io.Writer = os.Stdout
 
 // statusListFunc is the function used to retrieve notifications. Can be changed for testing.
-var statusListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
-	result, _ := fileStorage.ListNotifications(state, level, session, window, pane, olderThan, newerThan)
+var statusListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
+	result, _ := fileStorage.ListNotifications(state, level, session, window, pane, olderThan, newerThan, readFilter)
 	return result
 }
 
@@ -76,7 +76,7 @@ func printStatus(format string, w io.Writer) {
 
 // countByState returns the number of notifications with given state.
 func countByState(state string) int {
-	lines := statusListFunc(state, "", "", "", "", "", "")
+	lines := statusListFunc(state, "", "", "", "", "", "", "")
 	if lines == "" {
 		return 0
 	}
@@ -92,7 +92,7 @@ func countByState(state string) int {
 
 // countByLevel returns counts per level for active notifications.
 func countByLevel() (info, warning, error, critical int) {
-	lines := statusListFunc("active", "", "", "", "", "", "")
+	lines := statusListFunc("active", "", "", "", "", "", "", "")
 	if lines == "" {
 		return
 	}
@@ -124,7 +124,7 @@ func countByLevel() (info, warning, error, critical int) {
 // paneCounts returns map of pane key to count for active notifications.
 func paneCounts() map[string]int {
 	counts := make(map[string]int)
-	lines := statusListFunc("active", "", "", "", "", "", "")
+	lines := statusListFunc("active", "", "", "", "", "", "", "")
 	if lines == "" {
 		return counts
 	}

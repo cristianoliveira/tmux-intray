@@ -49,7 +49,7 @@ func TestMigrateTSVToSQLiteMigratesLatestRowsAndSkipsMalformed(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = s.Close() })
 
-	lines, err := s.ListNotifications("all", "", "", "", "", "", "")
+	lines, err := s.ListNotifications("all", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	parts := strings.Split(lines, "\n")
 	require.Len(t, parts, 2)
@@ -109,7 +109,7 @@ func TestMigrateTSVToSQLiteIsIdempotent(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = s.Close() })
 
-	lines, err := s.ListNotifications("all", "", "", "", "", "", "")
+	lines, err := s.ListNotifications("all", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.Len(t, strings.Split(lines, "\n"), 2)
 }

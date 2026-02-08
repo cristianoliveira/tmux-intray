@@ -824,7 +824,7 @@ func (m *Model) handleJump() tea.Cmd {
 
 // loadNotifications loads notifications from storage.
 func (m *Model) loadNotifications() error {
-	lines, err := storage.ListNotifications("active", "", "", "", "", "", "")
+	lines, err := storage.ListNotifications("active", "", "", "", "", "", "", "")
 	if err != nil {
 		return fmt.Errorf("failed to load notifications: %w", err)
 	}

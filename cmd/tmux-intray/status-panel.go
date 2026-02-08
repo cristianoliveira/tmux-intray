@@ -40,7 +40,7 @@ var statusPanelGetActiveCountFunc = func() int {
 
 // statusPanelListNotificationsFunc is the function used to list notifications.
 var statusPanelListNotificationsFunc = func(stateFilter string) string {
-	result, _ := fileStorage.ListNotifications(stateFilter, "", "", "", "", "", "")
+	result, _ := fileStorage.ListNotifications(stateFilter, "", "", "", "", "", "", "")
 	return result
 }
 

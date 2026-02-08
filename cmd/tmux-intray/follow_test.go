@@ -13,7 +13,7 @@ func TestFollowNewNotifications(t *testing.T) {
 	calls := 0
 	originalListFunc := listFunc
 	defer func() { listFunc = originalListFunc }()
-	listFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+	listFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
 		calls++
 		switch calls {
 		case 1:
@@ -87,7 +87,7 @@ func TestFollowFilters(t *testing.T) {
 	originalListFunc := listFunc
 	defer func() { listFunc = originalListFunc }()
 	var capturedState, capturedLevel, capturedPane string
-	listFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+	listFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
 		capturedState = state
 		capturedLevel = level
 		capturedPane = pane
@@ -140,7 +140,7 @@ func TestFollowEmptyLines(t *testing.T) {
 	originalListFunc := listFunc
 	defer func() { listFunc = originalListFunc }()
 	calls := 0
-	listFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+	listFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
 		calls++
 		// Return empty string on first call, then a notification on second
 		if calls == 1 {
@@ -189,7 +189,7 @@ func TestFollowEmptyLines(t *testing.T) {
 func TestFollowDuplicateNotification(t *testing.T) {
 	originalListFunc := listFunc
 	defer func() { listFunc = originalListFunc }()
-	listFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+	listFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
 		// Return same notification twice
 		return "1\t2025-01-01T12:00:00Z\tactive\t\t\t\tduplicate\t\tinfo"
 	}
@@ -235,7 +235,7 @@ func TestFollowDuplicateNotification(t *testing.T) {
 func TestFollowColorOutput(t *testing.T) {
 	originalListFunc := listFunc
 	defer func() { listFunc = originalListFunc }()
-	listFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+	listFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
 		return "1\t2025-01-01T12:00:00Z\tactive\t\t\t\ttest\t\terror"
 	}
 
@@ -280,7 +280,7 @@ func TestFollowColorOutput(t *testing.T) {
 func TestFollowPaneInfo(t *testing.T) {
 	originalListFunc := listFunc
 	defer func() { listFunc = originalListFunc }()
-	listFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+	listFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
 		return "1\t2025-01-01T12:00:00Z\tactive\t\t\t%123\tmessage\t\tinfo"
 	}
 
@@ -330,7 +330,7 @@ func TestFollowDefaultOutput(t *testing.T) {
 	// This test is just to ensure no panic
 	originalListFunc := listFunc
 	defer func() { listFunc = originalListFunc }()
-	listFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+	listFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
 		return ""
 	}
 	tickChan := make(chan time.Time)
