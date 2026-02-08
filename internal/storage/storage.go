@@ -18,17 +18,22 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 )
 
+// TSV schema fields:
+// 0:id 1:timestamp 2:state 3:session 4:window 5:pane 6:message 7:pane_created 8:level 9:read_timestamp
+// read_timestamp is RFC3339 when read, empty when unread.
 const (
-	fieldID          = 0
-	fieldTimestamp   = 1
-	fieldState       = 2
-	fieldSession     = 3
-	fieldWindow      = 4
-	fieldPane        = 5
-	fieldMessage     = 6
-	fieldPaneCreated = 7
-	fieldLevel       = 8
-	numFields        = 9
+	fieldID            = 0
+	fieldTimestamp     = 1
+	fieldState         = 2
+	fieldSession       = 3
+	fieldWindow        = 4
+	fieldPane          = 5
+	fieldMessage       = 6
+	fieldPaneCreated   = 7
+	fieldLevel         = 8
+	fieldReadTimestamp = 9
+	numFields          = 10
+	minFields          = numFields - 1
 )
 
 // File permission constants
@@ -276,7 +281,7 @@ func AddNotification(message, timestamp, session, window, pane, paneCreated, lev
 
 	// Append line with lock
 	if err := WithLock(lockDir, func() error {
-		return appendLine(id, timestamp, "active", session, window, pane, escapedMessage, paneCreated, level)
+		return appendLine(id, timestamp, "active", session, window, pane, escapedMessage, paneCreated, level, "")
 	}); err != nil {
 		colors.Error(fmt.Sprintf("failed to add notification: %v", err))
 		return "", fmt.Errorf("failed to add notification: %w", err)
@@ -413,8 +418,9 @@ func DismissNotification(id string) error {
 			return fmt.Errorf("DismissNotification: %w: ID %s", ErrNotificationNotFound, id)
 		}
 		fields := strings.Split(targetLine, "\t")
-		if len(fields) < numFields {
-			return fmt.Errorf("DismissNotification: %w: expected %d fields, got %d", ErrInvalidTSVFormat, numFields, len(fields))
+		fields, err = normalizeFields(fields)
+		if err != nil {
+			return fmt.Errorf("DismissNotification: %w: %s", ErrInvalidTSVFormat, err)
 		}
 		state, err := getField(fields, fieldState)
 		if err != nil {
@@ -451,6 +457,10 @@ func DismissNotification(id string) error {
 		if err != nil {
 			return fmt.Errorf("DismissNotification: failed to get pane created field: %w", err)
 		}
+		readTimestamp, err := getField(fields, fieldReadTimestamp)
+		if err != nil {
+			return fmt.Errorf("DismissNotification: failed to get read timestamp field: %w", err)
+		}
 		idField, err := getField(fields, fieldID)
 		if err != nil {
 			return fmt.Errorf("DismissNotification: failed to get id field: %w", err)
@@ -483,6 +493,7 @@ func DismissNotification(id string) error {
 			message,
 			paneCreated,
 			level,
+			readTimestamp,
 		); err != nil {
 			return err
 		}
@@ -509,6 +520,96 @@ func DismissNotification(id string) error {
 		return err
 	}
 	return nil
+}
+
+// MarkNotificationRead marks a notification as read by setting read_timestamp.
+func MarkNotificationRead(id string) error {
+	return markNotificationReadState(id, time.Now().UTC().Format(time.RFC3339))
+}
+
+// MarkNotificationUnread marks a notification as unread by clearing read_timestamp.
+func MarkNotificationUnread(id string) error {
+	return markNotificationReadState(id, "")
+}
+
+func markNotificationReadState(id, readTimestamp string) error {
+	if err := Init(); err != nil {
+		return fmt.Errorf("markNotificationReadState: %w", err)
+	}
+	return WithLock(lockDir, func() error {
+		latest, err := getLatestNotifications()
+		if err != nil {
+			return fmt.Errorf("markNotificationReadState: failed to read notifications: %w", err)
+		}
+		var targetLine string
+		for _, line := range latest {
+			fields := strings.Split(line, "\t")
+			if len(fields) > fieldID && fields[fieldID] == id {
+				targetLine = line
+				break
+			}
+		}
+		if targetLine == "" {
+			return fmt.Errorf("markNotificationReadState: %w: ID %s", ErrNotificationNotFound, id)
+		}
+		fields := strings.Split(targetLine, "\t")
+		fields, err = normalizeFields(fields)
+		if err != nil {
+			return fmt.Errorf("markNotificationReadState: %w: %s", ErrInvalidTSVFormat, err)
+		}
+		state, err := getField(fields, fieldState)
+		if err != nil {
+			return fmt.Errorf("markNotificationReadState: failed to get state field: %w", err)
+		}
+		timestamp, err := getField(fields, fieldTimestamp)
+		if err != nil {
+			return fmt.Errorf("markNotificationReadState: failed to get timestamp field: %w", err)
+		}
+		session, err := getField(fields, fieldSession)
+		if err != nil {
+			return fmt.Errorf("markNotificationReadState: failed to get session field: %w", err)
+		}
+		window, err := getField(fields, fieldWindow)
+		if err != nil {
+			return fmt.Errorf("markNotificationReadState: failed to get window field: %w", err)
+		}
+		pane, err := getField(fields, fieldPane)
+		if err != nil {
+			return fmt.Errorf("markNotificationReadState: failed to get pane field: %w", err)
+		}
+		message, err := getField(fields, fieldMessage)
+		if err != nil {
+			return fmt.Errorf("markNotificationReadState: failed to get message field: %w", err)
+		}
+		paneCreated, err := getField(fields, fieldPaneCreated)
+		if err != nil {
+			return fmt.Errorf("markNotificationReadState: failed to get pane created field: %w", err)
+		}
+		level, err := getField(fields, fieldLevel)
+		if err != nil {
+			return fmt.Errorf("markNotificationReadState: failed to get level field: %w", err)
+		}
+		idField, err := getField(fields, fieldID)
+		if err != nil {
+			return fmt.Errorf("markNotificationReadState: failed to get id field: %w", err)
+		}
+		idInt, err := strToInt(idField)
+		if err != nil {
+			return fmt.Errorf("markNotificationReadState: invalid ID %s: %w", idField, err)
+		}
+		return appendLine(
+			idInt,
+			timestamp,
+			state,
+			session,
+			window,
+			pane,
+			message,
+			paneCreated,
+			level,
+			readTimestamp,
+		)
+	})
 }
 
 // DismissAll dismisses all active notifications.
@@ -571,6 +672,10 @@ func DismissAll() error {
 			if err != nil {
 				return fmt.Errorf("DismissAll: failed to get pane created field: %w", err)
 			}
+			readTimestamp, err := getField(fields, fieldReadTimestamp)
+			if err != nil {
+				return fmt.Errorf("DismissAll: failed to get read timestamp field: %w", err)
+			}
 			envVars := []string{
 				fmt.Sprintf("NOTIFICATION_ID=%s", id),
 				fmt.Sprintf("LEVEL=%s", level),
@@ -599,6 +704,7 @@ func DismissAll() error {
 				message,
 				paneCreated,
 				level,
+				readTimestamp,
 			); err != nil {
 				return err
 			}
@@ -680,6 +786,18 @@ func GetActiveCount() int {
 		return 0
 	}
 	return count
+}
+
+func normalizeFields(fields []string) ([]string, error) {
+	if len(fields) < minFields {
+		return nil, fmt.Errorf("expected at least %d fields, got %d", minFields, len(fields))
+	}
+	if len(fields) < numFields {
+		for len(fields) < numFields {
+			fields = append(fields, "")
+		}
+	}
+	return fields, nil
 }
 
 // getField safely retrieves a field from a TSV line with bounds checking.
@@ -768,9 +886,9 @@ func unescapeMessage(msg string) string {
 	return msg
 }
 
-func appendLine(id int, timestamp, state, session, window, pane, message, paneCreated, level string) error {
-	line := fmt.Sprintf("%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-		id, timestamp, state, session, window, pane, message, paneCreated, level)
+func appendLine(id int, timestamp, state, session, window, pane, message, paneCreated, level, readTimestamp string) error {
+	line := fmt.Sprintf("%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		id, timestamp, state, session, window, pane, message, paneCreated, level, readTimestamp)
 	f, err := os.OpenFile(notificationsFile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, FileModeFile)
 	if err != nil {
 		return fmt.Errorf("appendLine: failed to open notifications file %s: %w", notificationsFile, err)
@@ -942,8 +1060,9 @@ func dismissByID(id string) error {
 		return fmt.Errorf("dismissByID: %w: ID %s", ErrNotificationNotFound, id)
 	}
 	fields := strings.Split(targetLine, "\t")
-	if len(fields) < numFields {
-		return fmt.Errorf("dismissByID: %w: expected %d fields, got %d", ErrInvalidTSVFormat, numFields, len(fields))
+	fields, err = normalizeFields(fields)
+	if err != nil {
+		return fmt.Errorf("dismissByID: %w: %s", ErrInvalidTSVFormat, err)
 	}
 	// Ensure state is active
 	state, err := getField(fields, fieldState)
@@ -985,6 +1104,10 @@ func dismissByID(id string) error {
 	if err != nil {
 		return fmt.Errorf("dismissByID: failed to get level field: %w", err)
 	}
+	readTimestamp, err := getField(fields, fieldReadTimestamp)
+	if err != nil {
+		return fmt.Errorf("dismissByID: failed to get read timestamp field: %w", err)
+	}
 	idInt, err := strToInt(idField)
 	if err != nil {
 		return fmt.Errorf("dismissByID: failed to parse ID field '%s': %w", idField, err)
@@ -1000,6 +1123,7 @@ func dismissByID(id string) error {
 		message,
 		paneCreated,
 		level,
+		readTimestamp,
 	)
 }
 
@@ -1010,8 +1134,8 @@ func dismissAllActive() error {
 	}
 	for _, line := range latest {
 		fields := strings.Split(line, "\t")
-		// Skip lines that don't have all required fields
-		if len(fields) < numFields {
+		fields, err = normalizeFields(fields)
+		if err != nil {
 			continue
 		}
 		state, err := getField(fields, fieldState)
@@ -1053,6 +1177,10 @@ func dismissAllActive() error {
 		if err != nil {
 			return fmt.Errorf("dismissAllActive: failed to get level field: %w", err)
 		}
+		readTimestamp, err := getField(fields, fieldReadTimestamp)
+		if err != nil {
+			return fmt.Errorf("dismissAllActive: failed to get read timestamp field: %w", err)
+		}
 		idInt, err := strToInt(idField)
 		if err != nil {
 			return fmt.Errorf("dismissAllActive: failed to parse ID field '%s': %w", idField, err)
@@ -1068,6 +1196,7 @@ func dismissAllActive() error {
 			message,
 			paneCreated,
 			level,
+			readTimestamp,
 		)
 		if err != nil {
 			return err

@@ -109,6 +109,268 @@ func TestModelSwitchesViewModes(t *testing.T) {
 	assert.Empty(t, model.visibleNodes)
 }
 
+func TestToggleNodeExpansionGroupedView(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+
+	var groupNode *Node
+	groupIndex := -1
+	for idx, node := range model.visibleNodes {
+		if node != nil && isGroupNode(node) {
+			groupNode = node
+			groupIndex = idx
+			break
+		}
+	}
+	require.NotNil(t, groupNode)
+	require.NotEqual(t, -1, groupIndex)
+	model.cursor = groupIndex
+
+	require.True(t, groupNode.Expanded)
+
+	handled := model.toggleNodeExpansion()
+	require.True(t, handled)
+	assert.False(t, groupNode.Expanded)
+	assert.Len(t, model.visibleNodes, 1)
+	assert.Equal(t, 0, model.cursor)
+
+	handled = model.toggleNodeExpansion()
+	require.True(t, handled)
+	assert.True(t, groupNode.Expanded)
+	assert.Greater(t, len(model.visibleNodes), 1)
+}
+
+func TestToggleFoldTogglesGroupNode(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+
+	var groupNode *Node
+	groupIndex := -1
+	for idx, node := range model.visibleNodes {
+		if node != nil && isGroupNode(node) {
+			groupNode = node
+			groupIndex = idx
+			break
+		}
+	}
+	require.NotNil(t, groupNode)
+	require.NotEqual(t, -1, groupIndex)
+	model.cursor = groupIndex
+
+	require.True(t, groupNode.Expanded)
+
+	model.toggleFold()
+	assert.False(t, groupNode.Expanded)
+	assert.Len(t, model.visibleNodes, 1)
+
+	model.toggleFold()
+	assert.True(t, groupNode.Expanded)
+	assert.Greater(t, len(model.visibleNodes), 1)
+}
+
+func TestToggleFoldWorksAtPaneDepth(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+
+	var paneNode *Node
+	paneIndex := -1
+	for idx, node := range model.visibleNodes {
+		if node != nil && node.Kind == NodeKindPane {
+			paneNode = node
+			paneIndex = idx
+			break
+		}
+	}
+	require.NotNil(t, paneNode)
+	require.NotEqual(t, -1, paneIndex)
+	model.cursor = paneIndex
+
+	require.True(t, paneNode.Expanded)
+
+	model.toggleFold()
+	assert.False(t, paneNode.Expanded)
+
+	model.toggleFold()
+	assert.True(t, paneNode.Expanded)
+}
+
+func TestCollapseNodeMovesCursorToParent(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+
+	var leafNode *Node
+	leafIndex := -1
+	for idx, node := range model.visibleNodes {
+		if node != nil && node.Kind == NodeKindNotification {
+			leafNode = node
+			leafIndex = idx
+			break
+		}
+	}
+	require.NotNil(t, leafNode)
+	require.NotEqual(t, -1, leafIndex)
+
+	path, ok := findNodePath(model.treeRoot, leafNode)
+	require.True(t, ok)
+	var paneNode *Node
+	for _, node := range path {
+		if node != nil && node.Kind == NodeKindPane {
+			paneNode = node
+			break
+		}
+	}
+	require.NotNil(t, paneNode)
+
+	model.cursor = leafIndex
+	model.collapseNode(paneNode)
+
+	paneIndex := indexOfNode(model.visibleNodes, paneNode)
+	require.NotEqual(t, -1, paneIndex)
+	assert.Equal(t, paneIndex, model.cursor)
+}
+
+func TestToggleNodeExpansionIgnoresLeafNodes(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+
+	var leafNode *Node
+	leafIndex := -1
+	for idx, node := range model.visibleNodes {
+		if node != nil && node.Kind == NodeKindNotification {
+			leafNode = node
+			leafIndex = idx
+			break
+		}
+	}
+	require.NotNil(t, leafNode)
+	require.NotEqual(t, -1, leafIndex)
+
+	model.cursor = leafIndex
+	visibleBefore := len(model.visibleNodes)
+
+	handled := model.toggleNodeExpansion()
+
+	assert.False(t, handled)
+	assert.Len(t, model.visibleNodes, visibleBefore)
+}
+
+func TestToggleFoldIgnoresLeafNodes(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+
+	var leafNode *Node
+	leafIndex := -1
+	for idx, node := range model.visibleNodes {
+		if node != nil && node.Kind == NodeKindNotification {
+			leafNode = node
+			leafIndex = idx
+			break
+		}
+	}
+	require.NotNil(t, leafNode)
+	require.NotEqual(t, -1, leafIndex)
+
+	model.cursor = leafIndex
+	visibleBefore := len(model.visibleNodes)
+
+	model.toggleFold()
+
+	assert.Len(t, model.visibleNodes, visibleBefore)
+}
+
+func TestToggleFoldExpandsDefaultWhenAllCollapsed(t *testing.T) {
+	model := &Model{
+		viewMode:           viewModeGrouped,
+		defaultExpandLevel: 2,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+
+	var collapseAll func(node *Node)
+	collapseAll = func(node *Node) {
+		if node == nil {
+			return
+		}
+		if isGroupNode(node) {
+			node.Expanded = false
+		}
+		for _, child := range node.Children {
+			collapseAll(child)
+		}
+	}
+	collapseAll(model.treeRoot)
+	model.visibleNodes = model.computeVisibleNodes()
+	model.cursor = 0
+
+	require.True(t, model.allGroupsCollapsed())
+
+	model.toggleFold()
+
+	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$1")
+	require.NotNil(t, sessionNode)
+	windowNode := findChildByTitle(sessionNode, NodeKindWindow, "@1")
+	require.NotNil(t, windowNode)
+	paneNode := findChildByTitle(windowNode, NodeKindPane, "%1")
+	require.NotNil(t, paneNode)
+
+	assert.True(t, sessionNode.Expanded)
+	assert.True(t, windowNode.Expanded)
+	assert.False(t, paneNode.Expanded)
+}
+
 func TestModelSelectedNotificationGroupedView(t *testing.T) {
 	model := &Model{
 		viewMode: viewModeGrouped,
@@ -662,6 +924,44 @@ func TestModelUpdateHandlesDismissKey(t *testing.T) {
 	updated, _ := model.Update(msg)
 
 	assert.NotNil(t, updated.(*Model))
+}
+
+func TestModelUpdateHandlesZaToggleFold(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+
+	var groupNode *Node
+	groupIndex := -1
+	for idx, node := range model.visibleNodes {
+		if node != nil && isGroupNode(node) {
+			groupNode = node
+			groupIndex = idx
+			break
+		}
+	}
+	require.NotNil(t, groupNode)
+	require.NotEqual(t, -1, groupIndex)
+	model.cursor = groupIndex
+
+	require.True(t, groupNode.Expanded)
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'z'}}
+	updated, _ := model.Update(msg)
+	require.NotNil(t, updated.(*Model))
+
+	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}
+	updated, _ = model.Update(msg)
+	require.NotNil(t, updated.(*Model))
+
+	assert.False(t, groupNode.Expanded)
 }
 
 func TestModelUpdateHandlesEnterKey(t *testing.T) {

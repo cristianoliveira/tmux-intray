@@ -30,6 +30,7 @@ type FooterState struct {
 	CommandMode  bool
 	SearchQuery  string
 	CommandQuery string
+	Grouped      bool
 }
 
 // RowState defines the inputs needed to render a notification row.
@@ -180,9 +181,16 @@ func Footer(state FooterState) string {
 	} else {
 		help = append(help, "/: search")
 		help = append(help, ":: command")
+		if state.Grouped {
+			help = append(help, "h/l: collapse/expand")
+			help = append(help, "za: toggle fold")
+		}
 	}
 	help = append(help, "d: dismiss")
 	enterHelp := "Enter: jump"
+	if state.Grouped {
+		enterHelp = "Enter: toggle/jump"
+	}
 	if state.CommandMode {
 		enterHelp = "Enter: execute"
 	}

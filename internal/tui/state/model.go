@@ -35,6 +35,7 @@ type Model struct {
 	searchMode    bool
 	commandMode   bool
 	commandQuery  string
+	pendingKey    string
 	viewport      viewport.Model
 	width         int
 	height        int
@@ -68,6 +69,18 @@ func (m *Model) Init() tea.Cmd {
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if m.searchMode || m.commandMode {
+			m.pendingKey = ""
+		} else if m.pendingKey != "" {
+			if msg.String() == "a" && m.pendingKey == "z" && m.isGroupedView() {
+				m.pendingKey = ""
+				m.toggleFold()
+				return m, nil
+			}
+			if msg.String() != "z" {
+				m.pendingKey = ""
+			}
+		}
 		switch msg.Type {
 		case tea.KeyCtrlC:
 			// Save settings before exiting
@@ -95,6 +108,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.commandMode = false
 				m.commandQuery = ""
 				return m, cmd
+			}
+			if m.isGroupedView() && m.toggleNodeExpansion() {
+				return m, nil
 			}
 			// Jump to pane of selected notification
 			return m, m.handleJump()
@@ -168,6 +184,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "d":
 			// Dismiss selected notification
 			return m, m.handleDismiss()
+		case "h":
+			// Collapse selected group node
+			m.collapseNode(m.selectedVisibleNode())
+		case "l":
+			// Expand selected group node
+			m.expandNode(m.selectedVisibleNode())
+		case "z":
+			if !m.searchMode && m.isGroupedView() {
+				m.pendingKey = "z"
+			}
 		case "i":
 			// In search mode, 'i' is handled by KeyRunes
 			// This is a no-op but kept for documentation
@@ -233,6 +259,7 @@ func (m *Model) View() string {
 		CommandMode:  m.commandMode,
 		SearchQuery:  m.searchQuery,
 		CommandQuery: m.commandQuery,
+		Grouped:      m.isGroupedView(),
 	}))
 
 	return s.String()
@@ -710,6 +737,250 @@ func (m *Model) selectedNotification() (notification.Notification, bool) {
 		return notification.Notification{}, false
 	}
 	return m.filtered[m.cursor], true
+}
+
+func (m *Model) selectedVisibleNode() *Node {
+	if !m.isGroupedView() {
+		return nil
+	}
+	if m.cursor < 0 || m.cursor >= len(m.visibleNodes) {
+		return nil
+	}
+	return m.visibleNodes[m.cursor]
+}
+
+func (m *Model) toggleNodeExpansion() bool {
+	node := m.selectedVisibleNode()
+	if node == nil || node.Kind == NodeKindNotification {
+		return false
+	}
+	if node.Expanded {
+		m.collapseNode(node)
+		return true
+	}
+	m.expandNode(node)
+	return true
+}
+
+func (m *Model) toggleFold() {
+	if !m.isGroupedView() {
+		return
+	}
+	node := m.selectedVisibleNode()
+	if node == nil || node.Kind == NodeKindNotification {
+		return
+	}
+	if m.allGroupsCollapsed() {
+		m.applyDefaultExpansion()
+		return
+	}
+	if node.Expanded {
+		m.collapseNode(node)
+		return
+	}
+	m.expandNode(node)
+}
+
+func (m *Model) allGroupsCollapsed() bool {
+	if m.treeRoot == nil {
+		return false
+	}
+	collapsed := true
+	seen := false
+	var walk func(node *Node)
+	walk = func(node *Node) {
+		if node == nil || !collapsed {
+			return
+		}
+		if isGroupNode(node) {
+			seen = true
+			if node.Expanded {
+				collapsed = false
+				return
+			}
+		}
+		for _, child := range node.Children {
+			walk(child)
+			if !collapsed {
+				return
+			}
+		}
+	}
+	walk(m.treeRoot)
+	return seen && collapsed
+}
+
+func (m *Model) applyDefaultExpansion() {
+	if m.treeRoot == nil {
+		return
+	}
+	selected := m.selectedVisibleNode()
+	level := m.defaultExpandLevel
+	if level < settings.MinExpandLevel {
+		level = settings.MinExpandLevel
+	}
+	if level > settings.MaxExpandLevel {
+		level = settings.MaxExpandLevel
+	}
+
+	var walk func(node *Node)
+	walk = func(node *Node) {
+		if node == nil {
+			return
+		}
+		if isGroupNode(node) {
+			nodeLevel := getTreeLevel(node) + 1
+			expanded := nodeLevel <= level
+			node.Expanded = expanded
+			m.updateExpansionState(node, expanded)
+		}
+		for _, child := range node.Children {
+			walk(child)
+		}
+	}
+	walk(m.treeRoot)
+
+	m.visibleNodes = m.computeVisibleNodes()
+	if selected != nil {
+		if index := indexOfNode(m.visibleNodes, selected); index >= 0 {
+			m.cursor = index
+		}
+	}
+	if m.cursor >= len(m.visibleNodes) {
+		m.cursor = len(m.visibleNodes) - 1
+	}
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+	m.updateViewportContent()
+	m.ensureCursorVisible()
+}
+func (m *Model) expandNode(node *Node) {
+	if !m.isGroupedView() {
+		return
+	}
+	if node == nil || node.Kind == NodeKindNotification {
+		return
+	}
+	if node.Expanded {
+		return
+	}
+
+	node.Expanded = true
+	m.updateExpansionState(node, true)
+	m.visibleNodes = m.computeVisibleNodes()
+	m.updateViewportContent()
+	m.ensureCursorVisible()
+}
+
+func (m *Model) collapseNode(node *Node) {
+	if !m.isGroupedView() {
+		return
+	}
+	if node == nil || node.Kind == NodeKindNotification {
+		return
+	}
+	if !node.Expanded {
+		return
+	}
+
+	selected := m.selectedVisibleNode()
+	node.Expanded = false
+	m.updateExpansionState(node, false)
+	m.visibleNodes = m.computeVisibleNodes()
+	if selected != nil && nodeContains(node, selected) {
+		if index := indexOfNode(m.visibleNodes, node); index >= 0 {
+			m.cursor = index
+		}
+	}
+	if m.cursor >= len(m.visibleNodes) {
+		m.cursor = len(m.visibleNodes) - 1
+	}
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+	m.updateViewportContent()
+	m.ensureCursorVisible()
+}
+
+func (m *Model) updateExpansionState(node *Node, expanded bool) {
+	key := m.nodeExpansionKey(node)
+	if key == "" {
+		return
+	}
+	if m.expansionState == nil {
+		m.expansionState = map[string]bool{}
+	}
+	m.expansionState[key] = expanded
+}
+
+func (m *Model) nodeExpansionKey(node *Node) string {
+	if node == nil || node.Kind == NodeKindNotification || node.Kind == NodeKindRoot {
+		return ""
+	}
+	if m.treeRoot == nil {
+		return fmt.Sprintf("%s:%s", node.Kind, node.Title)
+	}
+	path, ok := findNodePath(m.treeRoot, node)
+	if !ok || len(path) == 0 {
+		return ""
+	}
+	switch node.Kind {
+	case NodeKindSession:
+		return fmt.Sprintf("session:%s", node.Title)
+	case NodeKindWindow:
+		if len(path) < 3 {
+			return fmt.Sprintf("window:%s", node.Title)
+		}
+		return fmt.Sprintf("window:%s:%s", path[1].Title, node.Title)
+	case NodeKindPane:
+		if len(path) < 4 {
+			return fmt.Sprintf("pane:%s", node.Title)
+		}
+		return fmt.Sprintf("pane:%s:%s:%s", path[1].Title, path[2].Title, node.Title)
+	default:
+		return ""
+	}
+}
+
+func findNodePath(root *Node, target *Node) ([]*Node, bool) {
+	if root == nil || target == nil {
+		return nil, false
+	}
+	if root == target {
+		return []*Node{root}, true
+	}
+	for _, child := range root.Children {
+		path, ok := findNodePath(child, target)
+		if ok {
+			return append([]*Node{root}, path...), true
+		}
+	}
+	return nil, false
+}
+
+func nodeContains(root *Node, target *Node) bool {
+	if root == nil || target == nil {
+		return false
+	}
+	if root == target {
+		return true
+	}
+	for _, child := range root.Children {
+		if nodeContains(child, target) {
+			return true
+		}
+	}
+	return false
+}
+
+func indexOfNode(nodes []*Node, target *Node) int {
+	for i, node := range nodes {
+		if node == target {
+			return i
+		}
+	}
+	return -1
 }
 
 func expandTree(node *Node) {

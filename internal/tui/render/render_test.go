@@ -136,3 +136,11 @@ func TestRenderGroupRowTruncatesToWidth(t *testing.T) {
 
 	assert.Equal(t, 10, utf8.RuneCountInString(row))
 }
+
+func TestFooterGroupedHelpText(t *testing.T) {
+	footer := Footer(FooterState{Grouped: true})
+
+	assert.Contains(t, footer, "h/l: collapse/expand")
+	assert.Contains(t, footer, "za: toggle fold")
+	assert.Contains(t, footer, "Enter: toggle/jump")
+}

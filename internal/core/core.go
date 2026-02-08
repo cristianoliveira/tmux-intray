@@ -9,17 +9,19 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 )
 
-// Field indices matching storage package
+// Field indices matching storage package.
 const (
-	fieldID          = 0
-	fieldTimestamp   = 1
-	fieldState       = 2
-	fieldSession     = 3
-	fieldWindow      = 4
-	fieldPane        = 5
-	fieldMessage     = 6
-	fieldPaneCreated = 7
-	fieldLevel       = 8
+	fieldID            = 0
+	fieldTimestamp     = 1
+	fieldState         = 2
+	fieldSession       = 3
+	fieldWindow        = 4
+	fieldPane          = 5
+	fieldMessage       = 6
+	fieldPaneCreated   = 7
+	fieldLevel         = 8
+	fieldReadTimestamp = 9
+	numFields          = 10
 )
 
 // GetTrayItems returns tray items for a given state filter.
@@ -39,6 +41,11 @@ func GetTrayItems(stateFilter string) (string, error) {
 			continue
 		}
 		fields := strings.Split(line, "\t")
+		if len(fields) < numFields {
+			for len(fields) < numFields {
+				fields = append(fields, "")
+			}
+		}
 		// Bounds check for fieldMessage
 		if len(fields) <= fieldMessage {
 			continue
@@ -90,6 +97,16 @@ func AddTrayItem(item, session, window, pane, paneCreated string, noAuto bool, l
 // ClearTrayItems dismisses all active tray items.
 func ClearTrayItems() error {
 	return storage.DismissAll()
+}
+
+// MarkNotificationRead marks a notification as read.
+func MarkNotificationRead(id string) error {
+	return storage.MarkNotificationRead(id)
+}
+
+// MarkNotificationUnread marks a notification as unread.
+func MarkNotificationUnread(id string) error {
+	return storage.MarkNotificationUnread(id)
 }
 
 // GetVisibility returns the visibility state as "0" or "1".
