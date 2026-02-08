@@ -28,10 +28,10 @@ const (
 )
 
 var (
-	// async tracking
-	asyncPending      sync.WaitGroup
-	asyncPendingMu    sync.Mutex
-	asyncPendingCount int
+	// pendingHooks tracks async hook execution state
+	pendingHooks     sync.WaitGroup
+	pendingHooksMu   sync.Mutex
+	pendingHookCount int
 )
 
 var (
@@ -74,7 +74,7 @@ func Init() error {
 	}
 	// Ensure hooks directory exists
 	dir := getHooksDir()
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, FileModeDir); err != nil {
 		colors.Error(fmt.Sprintf("hooks.Init: failed to create hooks directory %s: %v", dir, err))
 		return fmt.Errorf("hooks.Init: failed to create hooks directory %s: %w", dir, err)
 	}
@@ -188,10 +188,10 @@ func runAsyncHook(scriptPath, scriptName string, envMap map[string]string, failu
 			fmt.Fprintf(os.Stderr, "warning: async hook %s failed to start: %v\n", scriptName, err)
 		}
 		// Decrement pending count on start failure
-		asyncPendingMu.Lock()
-		asyncPendingCount--
-		asyncPendingMu.Unlock()
-		asyncPending.Done()
+		pendingHooksMu.Lock()
+		pendingHookCount--
+		pendingHooksMu.Unlock()
+		pendingHooks.Done()
 		return
 	}
 	// Track start time for hung hook detection
@@ -205,11 +205,11 @@ func runAsyncHook(scriptPath, scriptName string, envMap map[string]string, failu
 				fmt.Fprintf(os.Stderr, "error: async hook %s panicked: %v\n", scriptName, r)
 			}
 			// Always decrement count, even on panic
-			asyncPendingMu.Lock()
-			asyncPendingCount--
-			asyncPendingMu.Unlock()
+			pendingHooksMu.Lock()
+			pendingHookCount--
+			pendingHooksMu.Unlock()
 			// Always signal completion, even on panic
-			asyncPending.Done()
+			pendingHooks.Done()
 			cancel() // ensure cancel is called after wait returns
 		}()
 
@@ -328,15 +328,15 @@ func Run(hookPoint string, envVars ...string) error {
 		fmt.Fprintf(os.Stderr, "  Executing hook: %s\n", script.name)
 		if asyncEnabled {
 			// Check if we can start another async hook
-			asyncPendingMu.Lock()
-			if asyncPendingCount >= maxAsync {
-				asyncPendingMu.Unlock()
+			pendingHooksMu.Lock()
+			if pendingHookCount >= maxAsync {
+				pendingHooksMu.Unlock()
 				fmt.Fprintf(os.Stderr, "warning: Too many async hooks pending (max: %d), skipping %s\n", maxAsync, script.name)
 				continue
 			}
-			asyncPendingCount++
-			asyncPending.Add(1)
-			asyncPendingMu.Unlock()
+			pendingHookCount++
+			pendingHooks.Add(1)
+			pendingHooksMu.Unlock()
 			// Start async hook
 			fmt.Fprintf(os.Stderr, "  Starting hook asynchronously: %s\n", script.name)
 			go runAsyncHook(script.path, script.name, envMap, failureMode)
@@ -358,18 +358,18 @@ func Run(hookPoint string, envVars ...string) error {
 // Precondition: All async hooks must have completed before calling this.
 // Violating this precondition will cause a panic (fail-fast).
 func ResetForTesting() {
-	asyncPendingMu.Lock()
-	defer asyncPendingMu.Unlock()
-	if asyncPendingCount > 0 {
-		panic(fmt.Sprintf("hooks.ResetForTesting: called with %d pending hooks. Call hooks.WaitForPendingHooks() first.", asyncPendingCount))
+	pendingHooksMu.Lock()
+	defer pendingHooksMu.Unlock()
+	if pendingHookCount > 0 {
+		panic(fmt.Sprintf("hooks.ResetForTesting: called with %d pending hooks. Call hooks.WaitForPendingHooks() first.", pendingHookCount))
 	}
-	asyncPendingCount = 0
-	asyncPending = sync.WaitGroup{}
+	pendingHookCount = 0
+	pendingHooks = sync.WaitGroup{}
 }
 
 // WaitForPendingHooks waits for all pending async hooks to complete.
 func WaitForPendingHooks() {
-	asyncPending.Wait()
+	pendingHooks.Wait()
 }
 
 // Shutdown gracefully shuts down the hooks subsystem.
