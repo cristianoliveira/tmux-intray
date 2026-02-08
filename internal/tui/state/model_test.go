@@ -58,6 +58,67 @@ func TestNewModelInitialState(t *testing.T) {
 	assert.Empty(t, model.filtered)
 	assert.NotNil(t, model.expansionState)
 	assert.Empty(t, model.expansionState)
+	assert.Nil(t, model.treeRoot)
+	assert.Empty(t, model.visibleNodes)
+}
+
+func TestModelGroupedModeBuildsVisibleNodes(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+			{ID: 2, Session: "$2", Window: "@1", Pane: "%2", Message: "Two"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+
+	require.NotNil(t, model.treeRoot)
+	require.Len(t, model.visibleNodes, 2)
+	assert.Equal(t, NodeKindNotification, model.visibleNodes[0].Kind)
+	assert.Equal(t, NodeKindNotification, model.visibleNodes[1].Kind)
+}
+
+func TestModelSwitchesViewModes(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+	require.NotNil(t, model.treeRoot)
+	require.NotEmpty(t, model.visibleNodes)
+
+	model.viewMode = "flat"
+	model.applySearchFilter()
+	assert.Nil(t, model.treeRoot)
+	assert.Empty(t, model.visibleNodes)
+}
+
+func TestModelSelectedNotificationGroupedView(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "b", Window: "@1", Pane: "%1", Message: "B"},
+			{ID: 2, Session: "a", Window: "@1", Pane: "%1", Message: "A"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+	model.cursor = 0
+
+	selected, ok := model.selectedNotification()
+
+	require.True(t, ok)
+	assert.Equal(t, "a", selected.Session)
 }
 
 func TestModelInitReturnsNil(t *testing.T) {
@@ -319,6 +380,42 @@ func TestHandleDismiss(t *testing.T) {
 	assert.Empty(t, model.filtered)
 }
 
+func TestHandleDismissGroupedViewUsesVisibleNodes(t *testing.T) {
+	setupStorage(t)
+	mockClient := stubSessionFetchers(t)
+
+	_, err := storage.AddNotification("B msg", "2024-02-02T12:00:00Z", "b", "@1", "%1", "", "info")
+	require.NoError(t, err)
+	_, err = storage.AddNotification("A msg", "2024-01-01T12:00:00Z", "a", "@1", "%1", "", "info")
+	require.NoError(t, err)
+
+	model, err := NewModel(mockClient)
+	require.NoError(t, err)
+	model.viewMode = viewModeGrouped
+	model.applySearchFilter()
+	model.cursor = 0
+
+	cmd := model.handleDismiss()
+
+	assert.Nil(t, cmd)
+
+	lines, err := storage.ListNotifications("active", "", "", "", "", "", "")
+	require.NoError(t, err)
+
+	remainingSessions := []string{}
+	for _, line := range strings.Split(lines, "\n") {
+		if line == "" {
+			continue
+		}
+		notif, err := notification.ParseNotification(line)
+		require.NoError(t, err)
+		remainingSessions = append(remainingSessions, notif.Session)
+	}
+
+	require.Len(t, remainingSessions, 1)
+	assert.Equal(t, "b", remainingSessions[0])
+}
+
 func TestHandleDismissWithEmptyList(t *testing.T) {
 	model := &Model{
 		notifications: []notification.Notification{},
@@ -352,6 +449,33 @@ func TestHandleJumpWithMissingContext(t *testing.T) {
 	model.filtered[0].Window = "@2"
 	model.filtered[0].Pane = ""
 	cmd = model.handleJump()
+	assert.Nil(t, cmd)
+}
+
+func TestHandleJumpGroupedViewUsesVisibleNodes(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "b", Window: "@1", Pane: "%1", Message: "B"},
+			{ID: 2, Session: "a", Window: "", Pane: "%1", Message: "A"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+		ensureTmuxRunning: func() bool {
+			t.Fatal("ensureTmuxRunning should not be called")
+			return true
+		},
+		jumpToPane: func(sessionID, windowID, paneID string) bool {
+			t.Fatal("jumpToPane should not be called")
+			return true
+		},
+	}
+
+	model.applySearchFilter()
+	model.cursor = 0
+
+	cmd := model.handleJump()
+
 	assert.Nil(t, cmd)
 }
 
@@ -760,6 +884,29 @@ func TestModelSaveOnQuit(t *testing.T) {
 	assert.Equal(t, settings.GroupBySession, loaded.GroupBy)
 }
 
+func TestTUISaveOnExit(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	model := &Model{
+		sortBy:    settings.SortByLevel,
+		sortOrder: settings.SortOrderAsc,
+		columns:   []string{settings.ColumnID, settings.ColumnMessage},
+		viewMode:  settings.ViewModeDetailed,
+	}
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}}
+	_, cmd := model.Update(msg)
+	assert.NotNil(t, cmd)
+
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.SortByLevel, loaded.SortBy)
+	assert.Equal(t, settings.SortOrderAsc, loaded.SortOrder)
+	assert.Equal(t, []string{settings.ColumnID, settings.ColumnMessage}, loaded.Columns)
+	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
+}
+
 func TestModelSaveOnCtrlC(t *testing.T) {
 	tmpDir := t.TempDir()
 	setupConfig(t, tmpDir)
@@ -780,6 +927,38 @@ func TestModelSaveOnCtrlC(t *testing.T) {
 	assert.Equal(t, settings.SortByTimestamp, loaded.SortBy)
 	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
 	assert.Equal(t, settings.GroupByWindow, loaded.GroupBy)
+}
+
+func TestTUILoadOnStart(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	original := &settings.Settings{
+		Columns:   []string{settings.ColumnID, settings.ColumnMessage, settings.ColumnLevel},
+		SortBy:    settings.SortByLevel,
+		SortOrder: settings.SortOrderAsc,
+		Filters: settings.Filter{
+			Level:   settings.LevelFilterWarning,
+			State:   settings.StateFilterActive,
+			Session: "session-1",
+		},
+		ViewMode: settings.ViewModeDetailed,
+	}
+
+	require.NoError(t, settings.Save(original))
+
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+
+	model := &Model{}
+	model.SetLoadedSettings(loaded)
+	require.NoError(t, model.FromState(settings.FromSettings(loaded)))
+
+	assert.Equal(t, original.Columns, model.columns)
+	assert.Equal(t, original.SortBy, model.sortBy)
+	assert.Equal(t, original.SortOrder, model.sortOrder)
+	assert.Equal(t, original.Filters, model.filters)
+	assert.Equal(t, original.ViewMode, model.viewMode)
 }
 
 func TestModelSaveOnCommandQ(t *testing.T) {

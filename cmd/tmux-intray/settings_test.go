@@ -136,3 +136,22 @@ func TestSettingsDefaults(t *testing.T) {
 	require.Equal(t, "", defaults.Filters.Window)
 	require.Equal(t, "", defaults.Filters.Pane)
 }
+
+func TestSettingsResetCommand(t *testing.T) {
+	originalResetSettingsFunc := resetSettingsFunc
+	originalResetForce := resetForce
+	defer func() {
+		resetSettingsFunc = originalResetSettingsFunc
+		resetForce = originalResetForce
+	}()
+
+	resetForce = true
+	called := false
+	resetSettingsFunc = func() (*settings.Settings, error) {
+		called = true
+		return settings.DefaultSettings(), nil
+	}
+
+	runSettingsReset(nil, nil)
+	require.True(t, called)
+}
