@@ -12,18 +12,20 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 )
 
-// Field indices matching storage package
+// Field indices matching storage package.
+// TSV schema: id, timestamp, state, session, window, pane, message, pane_created, level, read_timestamp.
 const (
-	fieldID          = 0
-	fieldTimestamp   = 1
-	fieldState       = 2
-	fieldSession     = 3
-	fieldWindow      = 4
-	fieldPane        = 5
-	fieldMessage     = 6
-	fieldPaneCreated = 7
-	fieldLevel       = 8
-	numFields        = 9
+	fieldID            = 0
+	fieldTimestamp     = 1
+	fieldState         = 2
+	fieldSession       = 3
+	fieldWindow        = 4
+	fieldPane          = 5
+	fieldMessage       = 6
+	fieldPaneCreated   = 7
+	fieldLevel         = 8
+	fieldReadTimestamp = 9
+	numFields          = 10
 )
 
 // Init initializes all internal packages in the correct order.
@@ -80,6 +82,16 @@ func DismissAllNotifications() error {
 	return storage.DismissAll()
 }
 
+// MarkNotificationRead marks a notification as read.
+func MarkNotificationRead(id string) error {
+	return storage.MarkNotificationRead(id)
+}
+
+// MarkNotificationUnread marks a notification as unread.
+func MarkNotificationUnread(id string) error {
+	return storage.MarkNotificationUnread(id)
+}
+
 // CleanupOldNotifications removes dismissed notifications older than the given days.
 // If dryRun is true, only logs what would be removed.
 func CleanupOldNotifications(days int, dryRun bool) {
@@ -107,15 +119,16 @@ func SetVisibility(visible bool) error {
 
 // Notification represents a single notification in the tray.
 type Notification struct {
-	ID          string
-	Timestamp   string
-	State       string
-	Session     string
-	Window      string
-	Pane        string
-	Message     string
-	PaneCreated string
-	Level       string
+	ID            string
+	Timestamp     string
+	State         string
+	Session       string
+	Window        string
+	Pane          string
+	Message       string
+	PaneCreated   string
+	Level         string
+	ReadTimestamp string
 }
 
 // unescapeMessage reverses the escaping applied by storage package.
@@ -139,14 +152,15 @@ func ParseNotification(tsvLine string) (Notification, error) {
 		}
 	}
 	return Notification{
-		ID:          fields[fieldID],
-		Timestamp:   fields[fieldTimestamp],
-		State:       fields[fieldState],
-		Session:     fields[fieldSession],
-		Window:      fields[fieldWindow],
-		Pane:        fields[fieldPane],
-		Message:     unescapeMessage(fields[fieldMessage]),
-		PaneCreated: fields[fieldPaneCreated],
-		Level:       fields[fieldLevel],
+		ID:            fields[fieldID],
+		Timestamp:     fields[fieldTimestamp],
+		State:         fields[fieldState],
+		Session:       fields[fieldSession],
+		Window:        fields[fieldWindow],
+		Pane:          fields[fieldPane],
+		Message:       unescapeMessage(fields[fieldMessage]),
+		PaneCreated:   fields[fieldPaneCreated],
+		Level:         fields[fieldLevel],
+		ReadTimestamp: fields[fieldReadTimestamp],
 	}, nil
 }
