@@ -1,6 +1,9 @@
 package notification
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestParseNotification(t *testing.T) {
 	line := "1\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\ttest\\tmessage\t123\tinfo\t2025-01-02T01:02:03Z"
@@ -25,6 +28,43 @@ func TestParseNotification(t *testing.T) {
 	}
 	if notif.ReadTimestamp != "2025-01-02T01:02:03Z" {
 		t.Errorf("ReadTimestamp mismatch")
+	}
+}
+
+func TestParseNotificationWithoutReadTimestamp(t *testing.T) {
+	line := "1\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\ttest\\tmessage\t123\tinfo"
+	notif, err := ParseNotification(line)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if notif.ReadTimestamp != "" {
+		t.Errorf("Expected empty ReadTimestamp, got %q", notif.ReadTimestamp)
+	}
+}
+
+func TestNotificationReadHelpers(t *testing.T) {
+	n := Notification{}
+	if n.IsRead() {
+		t.Errorf("Expected IsRead false for empty ReadTimestamp")
+	}
+
+	n = n.MarkRead()
+	if n.ReadTimestamp == "" {
+		t.Errorf("Expected ReadTimestamp to be set")
+	}
+	if _, err := time.Parse(time.RFC3339, n.ReadTimestamp); err != nil {
+		t.Fatalf("Expected RFC3339 timestamp, got %q", n.ReadTimestamp)
+	}
+	if !n.IsRead() {
+		t.Errorf("Expected IsRead true after MarkRead")
+	}
+
+	n = n.MarkUnread()
+	if n.ReadTimestamp != "" {
+		t.Errorf("Expected empty ReadTimestamp after MarkUnread, got %q", n.ReadTimestamp)
+	}
+	if n.IsRead() {
+		t.Errorf("Expected IsRead false after MarkUnread")
 	}
 }
 

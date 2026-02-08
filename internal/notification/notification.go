@@ -3,6 +3,7 @@ package notification
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 // Notification represents a single notification record.
@@ -22,9 +23,13 @@ type Notification struct {
 // ParseNotification parses a TSV line into a Notification.
 func ParseNotification(line string) (Notification, error) {
 	fields := strings.Split(line, "\t")
-	// Ensure at least 10 fields
-	for len(fields) < 10 {
+	switch len(fields) {
+	case 9:
 		fields = append(fields, "")
+	case 10:
+		// OK
+	default:
+		return Notification{}, fmt.Errorf("invalid notification field count: %d", len(fields))
 	}
 	id := 0
 	if fields[0] != "" {
@@ -42,6 +47,23 @@ func ParseNotification(line string) (Notification, error) {
 		Level:         fields[8],
 		ReadTimestamp: fields[9],
 	}, nil
+}
+
+// IsRead reports whether the notification has a read timestamp.
+func (n Notification) IsRead() bool {
+	return n.ReadTimestamp != ""
+}
+
+// MarkRead returns a copy of the notification with a read timestamp set.
+func (n Notification) MarkRead() Notification {
+	n.ReadTimestamp = time.Now().UTC().Format(time.RFC3339)
+	return n
+}
+
+// MarkUnread returns a copy of the notification with no read timestamp.
+func (n Notification) MarkUnread() Notification {
+	n.ReadTimestamp = ""
+	return n
 }
 
 // unescapeMessage reverses the escaping done by storage.escapeMessage.
