@@ -1922,6 +1922,66 @@ func TestModelSettingsLifecycle(t *testing.T) {
 	assert.Equal(t, map[string]bool{"window:@1": true}, newModel.expansionState)
 }
 
+func TestExpansionStatePreservedAfterActions(t *testing.T) {
+	setupStorage(t)
+	mockClient := stubSessionFetchers(t)
+
+	// Add two notifications in different sessions
+	_, err := storage.AddNotification("Message 1", "2024-01-01T10:00:00Z", "$1", "@1", "%1", "", "info")
+	require.NoError(t, err)
+	_, err = storage.AddNotification("Message 2", "2024-01-01T10:00:00Z", "$2", "@1", "%1", "", "info")
+	require.NoError(t, err)
+
+	model, err := NewModel(mockClient)
+	require.NoError(t, err)
+	model.viewMode = settings.ViewModeGrouped
+	model.applySearchFilter()
+
+	// Find session $1 node
+	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$1")
+	require.NotNil(t, sessionNode, "session $1 should exist")
+	require.True(t, sessionNode.Expanded, "session should be expanded by default")
+
+	// Collapse session $1
+	model.collapseNode(sessionNode)
+	require.False(t, sessionNode.Expanded, "session should be collapsed")
+
+	// Save expansion state
+	model.updateExpansionState(sessionNode, false)
+
+	// Verify expansion state saved
+	key := model.nodeExpansionKey(sessionNode)
+	require.NotEmpty(t, key)
+	require.False(t, model.expansionState[key], "expansion state should be false")
+
+	// Find notification from session $2
+	var targetNotification *notification.Notification
+	for _, node := range model.visibleNodes {
+		if node != nil && node.Kind == NodeKindNotification && node.Notification != nil && node.Notification.Session == "$2" {
+			targetNotification = node.Notification
+			break
+		}
+	}
+	require.NotNil(t, targetNotification, "notification from session $2 should exist")
+
+	// Set cursor to that notification
+	for i, node := range model.visibleNodes {
+		if node != nil && node.Kind == NodeKindNotification && node.Notification != nil && node.Notification.ID == targetNotification.ID {
+			model.cursor = i
+			break
+		}
+	}
+
+	// Dismiss the notification
+	cmd := model.handleDismiss()
+	assert.Nil(t, cmd)
+
+	// After dismiss, tree is rebuilt. Verify session $1 remains collapsed
+	newSessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$1")
+	require.NotNil(t, newSessionNode, "session $1 should still exist after dismiss")
+	assert.False(t, newSessionNode.Expanded, "session $1 should remain collapsed after action")
+}
+
 func TestGroupedViewWithGroupByNone(t *testing.T) {
 	t.Run("default settings", func(t *testing.T) {
 		setupStorage(t)

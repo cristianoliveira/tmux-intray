@@ -1090,6 +1090,10 @@ func (m *Model) buildFilteredTree(notifications []notification.Notification) *No
 	// Prune empty groups (groups with no matching notifications)
 	m.pruneEmptyGroups(root)
 
+	// FIX: Set treeRoot before applying expansion state
+	// to ensure consistent key generation
+	m.treeRoot = root
+
 	// Apply saved expansion state where possible
 	if m.expansionState != nil {
 		m.applyExpansionState(root)
