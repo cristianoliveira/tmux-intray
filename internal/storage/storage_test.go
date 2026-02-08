@@ -33,6 +33,12 @@ func setupTest(t *testing.T) string {
 	return tmpDir
 }
 
+func TestFieldConstants(t *testing.T) {
+	require.Equal(t, 0, FieldID)
+	require.Equal(t, NumFields-1, FieldReadTimestamp)
+	require.Equal(t, NumFields-1, MinFields)
+}
+
 func TestStorageInit(t *testing.T) {
 	tmpDir := setupTest(t)
 	err := Init()
