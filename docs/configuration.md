@@ -138,7 +138,7 @@ The settings file uses the following JSON schema:
     "window": "",
     "pane": ""
   },
-  "viewMode": "compact",
+  "viewMode": "grouped",
   "groupBy": "none",
   "defaultExpandLevel": 1,
   "expansionState": {}
@@ -157,7 +157,7 @@ The settings file uses the following JSON schema:
 | `filters.session` | string | Filter by tmux session | `""` (no filter) | Session name or `""` |
 | `filters.window` | string | Filter by tmux window | `""` (no filter) | Window ID or `""` |
 | `filters.pane` | string | Filter by tmux pane | `""` (no filter) | Pane ID or `""` |
-| `viewMode` | string | Display layout | `"compact"` | `"compact"`, `"detailed"` |
+| `viewMode` | string | Display layout | `"grouped"` | `"compact"`, `"detailed"`, `"grouped"` |
 | `groupBy` | string | Group notifications in the TUI | `"none"` | `"none"`, `"session"`, `"window"`, `"pane"` |
 | `defaultExpandLevel` | number | Default grouping expansion depth | `1` | `0`-`3` |
 | `expansionState` | object | Explicit expansion overrides by node path | `{}` | Object of string to boolean |
@@ -178,7 +178,7 @@ If the settings file doesn't exist or is corrupted, the TUI uses these defaults:
     "window": "",
     "pane": ""
   },
-  "viewMode": "compact",
+  "viewMode": "grouped",
   "groupBy": "none",
   "defaultExpandLevel": 1,
   "expansionState": {}

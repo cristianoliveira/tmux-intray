@@ -26,7 +26,7 @@ func TestFromSettings(t *testing.T) {
 				SortBy:                SortByTimestamp,
 				SortOrder:             SortOrderDesc,
 				Filters:               Filter{},
-				ViewMode:              ViewModeCompact,
+				ViewMode:              ViewModeGrouped,
 				GroupBy:               GroupByNone,
 				DefaultExpandLevel:    1,
 				DefaultExpandLevelSet: true,
