@@ -108,6 +108,9 @@ func setDefaults() {
 	setDefault("hooks_enabled_cleanup", "true")
 	setDefault("hooks_enabled_post_cleanup", "true")
 	setDefault("storage_backend", "tsv")
+	setDefault("dual_read_backend", "sqlite")
+	setDefault("dual_verify_only", "false")
+	setDefault("dual_verify_sample_size", "25")
 	setDefault("debug", "false")
 	setDefault("quiet", "false")
 }
@@ -294,6 +297,25 @@ func validate() {
 		}
 	}
 
+	if val, ok := config["dual_read_backend"]; ok {
+		valLower := strings.ToLower(val)
+		allowed := map[string]bool{"tsv": true, "sqlite": true}
+		if !allowed[valLower] {
+			colors.Warning(fmt.Sprintf("invalid dual_read_backend value '%s': must be one of: tsv, sqlite; using default: %s", val, configMap["dual_read_backend"]))
+			config["dual_read_backend"] = configMap["dual_read_backend"]
+		} else if valLower != val {
+			config["dual_read_backend"] = valLower
+		}
+	}
+
+	if val, ok := config["dual_verify_sample_size"]; ok {
+		n, err := strconv.Atoi(val)
+		if err != nil || n <= 0 {
+			colors.Warning(fmt.Sprintf("invalid dual_verify_sample_size value '%s': must be a positive integer, using default: %s", val, configMap["dual_verify_sample_size"]))
+			config["dual_verify_sample_size"] = configMap["dual_verify_sample_size"]
+		}
+	}
+
 	// Normalize and validate boolean values
 	for key, val := range config {
 		if isBoolKey(key) {
@@ -316,6 +338,7 @@ func isBoolKey(key string) bool {
 		"status_enabled", "show_levels", "hooks_enabled", "hooks_async", "debug", "quiet",
 		"hooks_enabled_pre_add", "hooks_enabled_post_add", "hooks_enabled_pre_dismiss",
 		"hooks_enabled_post_dismiss", "hooks_enabled_cleanup", "hooks_enabled_post_cleanup",
+		"dual_verify_only",
 	}
 	for _, k := range boolKeys {
 		if key == k {

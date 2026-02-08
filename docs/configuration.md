@@ -18,7 +18,10 @@ All configuration options are controlled by environment variables with the `TMUX
 |----------|---------|-------------|
 | `TMUX_INTRAY_STATE_DIR` | `$XDG_STATE_HOME/tmux-intray` (`~/.local/state/tmux-intray`) | Directory where notification data is stored. Follows XDG Base Directory Specification. |
 | `TMUX_INTRAY_CONFIG_DIR` | `$XDG_CONFIG_HOME/tmux-intray` (`~/.config/tmux-intray`) | Directory for configuration files and hooks. |
-| `TMUX_INTRAY_STORAGE_BACKEND` | `tsv` | Storage backend: `tsv`, `sqlite`, or `dual` (writes TSV + SQLite and reads from SQLite for rollout verification). |
+| `TMUX_INTRAY_STORAGE_BACKEND` | `tsv` | Storage backend: `tsv`, `sqlite`, or `dual` (TSV primary + SQLite secondary). |
+| `TMUX_INTRAY_DUAL_READ_BACKEND` | `sqlite` | When `storage_backend=dual`, selects read backend (`sqlite` or `tsv`). |
+| `TMUX_INTRAY_DUAL_VERIFY_ONLY` | `0` | When `storage_backend=dual`, write only to TSV (skip SQLite writes) for verification mode. |
+| `TMUX_INTRAY_DUAL_VERIFY_SAMPLE_SIZE` | `25` | Number of records sampled during consistency verification. |
 | `TMUX_INTRAY_MAX_NOTIFICATIONS` | `1000` | Maximum number of notifications to keep (oldest are automatically cleaned up). |
 | `TMUX_INTRAY_AUTO_CLEANUP_DAYS` | `30` | Automatically clean up notifications that have been dismissed for more than this many days. |
 
@@ -69,6 +72,12 @@ All configuration options are controlled by environment variables with the `TMUX
 # Storage directories (follow XDG Base Directory Specification)
 TMUX_INTRAY_STATE_DIR="$HOME/.local/state/tmux-intray"
 TMUX_INTRAY_CONFIG_DIR="$HOME/.config/tmux-intray"
+TMUX_INTRAY_STORAGE_BACKEND="tsv"
+
+# Dual-write mode (used when TMUX_INTRAY_STORAGE_BACKEND="dual")
+TMUX_INTRAY_DUAL_READ_BACKEND="sqlite"
+TMUX_INTRAY_DUAL_VERIFY_ONLY=0
+TMUX_INTRAY_DUAL_VERIFY_SAMPLE_SIZE=25
 
 # Storage limits
 TMUX_INTRAY_MAX_NOTIFICATIONS=1000
@@ -114,6 +123,16 @@ tmux-intray list
 ```
 
 This is useful for temporary debugging or for per‑session customization.
+
+## Dual-Write Mode
+
+Set `TMUX_INTRAY_STORAGE_BACKEND=dual` to enable migration-safe dual writes:
+
+- All mutating operations write to TSV first, then SQLite.
+- TSV write failures stop the command.
+- SQLite write failures are logged as warnings, and execution continues with TSV as source of truth.
+- Reads use `TMUX_INTRAY_DUAL_READ_BACKEND` (`sqlite` by default for performance checks).
+- `TMUX_INTRAY_DUAL_VERIFY_ONLY=1` keeps writes TSV-only while allowing consistency verification tooling.
 
 ## TUI Settings Persistence
 

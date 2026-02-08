@@ -38,6 +38,9 @@ func TestDefaultConfig(t *testing.T) {
 	require.Equal(t, "30", Get("hooks_async_timeout", ""))
 	require.Equal(t, "10", Get("max_hooks", ""))
 	require.Equal(t, "tsv", Get("storage_backend", ""))
+	require.Equal(t, "sqlite", Get("dual_read_backend", ""))
+	require.Equal(t, "false", Get("dual_verify_only", ""))
+	require.Equal(t, "25", Get("dual_verify_sample_size", ""))
 	// Directories should be non-empty.
 	require.NotEmpty(t, Get("state_dir", ""))
 	require.NotEmpty(t, Get("config_dir", ""))
@@ -61,17 +64,6 @@ func TestEnvironmentOverrides(t *testing.T) {
 	require.Equal(t, "ignore", Get("hooks_failure_mode", ""))
 	require.Equal(t, "60", Get("hooks_async_timeout", ""))
 	require.Equal(t, "5", Get("max_hooks", ""))
-}
-
-func TestStorageBackendAcceptsDualValue(t *testing.T) {
-	reset()
-	tmpDir := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", tmpDir)
-	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "DUAL")
-
-	Load()
-
-	require.Equal(t, "dual", Get("storage_backend", ""))
 }
 
 func TestConfigFileTOML(t *testing.T) {
@@ -205,6 +197,22 @@ func TestValidation(t *testing.T) {
 	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "unknown")
 	Load()
 	require.Equal(t, "tsv", Get("storage_backend", ""))
+
+	// Invalid dual_read_backend
+	reset()
+	tmpDir7 := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir7)
+	t.Setenv("TMUX_INTRAY_DUAL_READ_BACKEND", "invalid")
+	Load()
+	require.Equal(t, "sqlite", Get("dual_read_backend", ""))
+
+	// Invalid dual_verify_sample_size
+	reset()
+	tmpDir8 := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir8)
+	t.Setenv("TMUX_INTRAY_DUAL_VERIFY_SAMPLE_SIZE", "0")
+	Load()
+	require.Equal(t, "25", Get("dual_verify_sample_size", ""))
 }
 
 func TestGetIntGetBool(t *testing.T) {

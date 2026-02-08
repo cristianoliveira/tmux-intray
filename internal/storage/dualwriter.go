@@ -3,7 +3,7 @@ package storage
 
 import (
 	"fmt"
-	"math/rand"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -11,469 +11,469 @@ import (
 	"time"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/storage/sqlite"
 )
 
 const (
-	defaultConsistencySampleSize = 10
-	defaultVerifyEveryNWrites    = 25
-	notificationFieldCount       = 10
+	// ReadBackendTSV makes read operations use the TSV backend.
+	ReadBackendTSV = "tsv"
+	// ReadBackendSQLite makes read operations use the SQLite backend.
+	ReadBackendSQLite = "sqlite"
 )
 
-// DualWriterOptions controls runtime behavior for DualWriter.
-type DualWriterOptions struct {
-	// ReadFromSQLite controls which backend serves reads. Defaults to true.
-	ReadFromSQLite bool
-	// ReadOnlyVerificationMode writes to TSV only while still allowing SQLite reads.
-	ReadOnlyVerificationMode bool
-	// ConsistencySampleSize controls how many shared IDs are compared per verify call.
-	ConsistencySampleSize int
-	// VerifyEveryNWrites runs VerifyConsistency every N write operations.
-	// Set to 0 to disable periodic verification.
-	VerifyEveryNWrites int
+var fieldNames = []string{
+	"id",
+	"timestamp",
+	"state",
+	"session",
+	"window",
+	"pane",
+	"message",
+	"pane_created",
+	"level",
+	"read_timestamp",
 }
 
-// WriteMetrics captures aggregate write latency and count information.
+// DualWriterOptions controls DualWriter behavior.
+type DualWriterOptions struct {
+	ReadBackend string
+	VerifyOnly  bool
+	SampleSize  int
+}
+
+// WriteMetrics tracks basic write performance and reliability counters.
 type WriteMetrics struct {
 	WriteOperations    int64
-	TSVWriteLatency    time.Duration
-	SQLiteWriteLatency time.Duration
+	TSVWriteFailures   int64
+	SQLiteWriteFailure int64
+	TotalWriteLatency  time.Duration
+	MaxWriteLatency    time.Duration
 }
 
-// ConsistencyReport captures parity checks between TSV and SQLite backends.
+// AverageWriteLatency returns the mean latency for write operations.
+func (m WriteMetrics) AverageWriteLatency() time.Duration {
+	if m.WriteOperations == 0 {
+		return 0
+	}
+	return m.TotalWriteLatency / time.Duration(m.WriteOperations)
+}
+
+// ConsistencyFieldDiff represents a mismatch in a specific notification field.
+type ConsistencyFieldDiff struct {
+	Field       string
+	TSVValue    string
+	SQLiteValue string
+}
+
+// ConsistencyRecordDiff represents all field mismatches for one notification ID.
+type ConsistencyRecordDiff struct {
+	ID         string
+	FieldDiffs []ConsistencyFieldDiff
+}
+
+// ConsistencyReport contains cross-backend consistency results.
 type ConsistencyReport struct {
-	TSVRecordCount    int
-	SQLiteRecordCount int
+	TSVCount          int
+	SQLiteCount       int
 	TSVActiveCount    int
 	SQLiteActiveCount int
+	SampledRecords    int
 	MissingInTSV      []string
 	MissingInSQLite   []string
-	MismatchedIDs     []string
+	RecordDiffs       []ConsistencyRecordDiff
+	Consistent        bool
 }
 
-// HasCriticalDifferences returns true when the report indicates divergence.
-func (r ConsistencyReport) HasCriticalDifferences() bool {
-	return r.TSVRecordCount != r.SQLiteRecordCount ||
-		r.TSVActiveCount != r.SQLiteActiveCount ||
-		len(r.MissingInTSV) > 0 ||
-		len(r.MissingInSQLite) > 0 ||
-		len(r.MismatchedIDs) > 0
-}
-
-// DualWriter writes to TSV and SQLite during rollout, then verifies parity.
+// DualWriter writes to TSV then SQLite and can read from a selected backend.
 type DualWriter struct {
-	tsv    Storage
-	sqlite Storage
-	opts   DualWriterOptions
+	tsv         Storage
+	sqlite      Storage
+	readBackend string
+	verifyOnly  bool
+	sampleSize  int
 
-	mu                  sync.Mutex
-	metrics             WriteMetrics
-	sqliteWriteDisabled bool
-	rand                *rand.Rand
+	metricsMu sync.Mutex
+	metrics   WriteMetrics
 }
 
 var _ Storage = (*DualWriter)(nil)
 
-// NewDualWriter creates a dual-writer storage wrapper.
-func NewDualWriter(tsvStore, sqliteStore Storage, opts DualWriterOptions) (*DualWriter, error) {
-	if tsvStore == nil {
-		return nil, fmt.Errorf("dual writer: tsv store is required")
-	}
-	if sqliteStore == nil {
-		return nil, fmt.Errorf("dual writer: sqlite store is required")
+// NewDualWriter creates a DualWriter using default TSV and SQLite backends.
+func NewDualWriter(opts DualWriterOptions) (*DualWriter, error) {
+	tsvStorage, err := NewFileStorage()
+	if err != nil {
+		return nil, fmt.Errorf("dual writer: initialize tsv backend: %w", err)
 	}
 
-	if opts.ConsistencySampleSize <= 0 {
-		opts.ConsistencySampleSize = defaultConsistencySampleSize
+	dbPath := filepath.Join(GetStateDir(), "notifications.db")
+	sqliteStorage, err := sqlite.NewSQLiteStorage(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("dual writer: initialize sqlite backend: %w", err)
 	}
-	if opts.VerifyEveryNWrites < 0 {
-		opts.VerifyEveryNWrites = 0
+
+	return NewDualWriterWithBackends(tsvStorage, sqliteStorage, opts)
+}
+
+// NewDualWriterWithBackends creates a DualWriter from explicit backend instances.
+func NewDualWriterWithBackends(tsvStorage, sqliteStorage Storage, opts DualWriterOptions) (*DualWriter, error) {
+	if tsvStorage == nil {
+		return nil, fmt.Errorf("dual writer: tsv backend is required")
+	}
+	if sqliteStorage == nil {
+		return nil, fmt.Errorf("dual writer: sqlite backend is required")
+	}
+
+	readBackend := strings.ToLower(strings.TrimSpace(opts.ReadBackend))
+	if readBackend == "" {
+		readBackend = ReadBackendSQLite
+	}
+	if readBackend != ReadBackendTSV && readBackend != ReadBackendSQLite {
+		colors.Warning(fmt.Sprintf("invalid dual read backend '%s', defaulting to sqlite", opts.ReadBackend))
+		readBackend = ReadBackendSQLite
+	}
+
+	sampleSize := opts.SampleSize
+	if sampleSize <= 0 {
+		sampleSize = 25
 	}
 
 	return &DualWriter{
-		tsv:    tsvStore,
-		sqlite: sqliteStore,
-		opts:   opts,
-		rand:   rand.New(rand.NewSource(time.Now().UnixNano())),
+		tsv:         tsvStorage,
+		sqlite:      sqliteStorage,
+		readBackend: readBackend,
+		verifyOnly:  opts.VerifyOnly,
+		sampleSize:  sampleSize,
 	}, nil
 }
 
-// AddNotification writes to TSV first, then SQLite.
+// AddNotification writes to TSV then SQLite.
 func (d *DualWriter) AddNotification(message, timestamp, session, window, pane, paneCreated, level string) (string, error) {
-	var tsvID, sqliteID string
-	tsvErr := d.withTSVWriteMetric(func() error {
-		var err error
-		tsvID, err = d.tsv.AddNotification(message, timestamp, session, window, pane, paneCreated, level)
-		return err
-	})
+	start := time.Now()
+	id, tsvErr := d.tsv.AddNotification(message, timestamp, session, window, pane, paneCreated, level)
 	if tsvErr != nil {
-		colors.Warning(fmt.Sprintf("dual writer: tsv add failed: %v", tsvErr))
+		d.recordWrite(start, true, false)
+		return "", tsvErr
 	}
 
-	var sqliteErr error
-	if !d.skipSQLiteWrites() {
-		sqliteErr = d.withSQLiteWriteMetric(func() error {
-			var err error
-			sqliteID, err = d.sqlite.AddNotification(message, timestamp, session, window, pane, paneCreated, level)
-			return err
-		})
+	sqliteFailed := false
+	if !d.verifyOnly {
+		sqliteID, sqliteErr := d.sqlite.AddNotification(message, timestamp, session, window, pane, paneCreated, level)
 		if sqliteErr != nil {
-			d.disableSQLiteWrites(sqliteErr)
+			sqliteFailed = true
+			colors.Warning(fmt.Sprintf("dual write: sqlite add failed for id %s, continuing with tsv only: %v", id, sqliteErr))
+		} else if sqliteID != id {
+			colors.Warning(fmt.Sprintf("dual write: id mismatch after add (tsv=%s sqlite=%s)", id, sqliteID))
 		}
 	}
 
-	if tsvErr != nil && sqliteErr != nil {
-		return "", fmt.Errorf("dual writer: add failed on both backends: tsv=%v sqlite=%v", tsvErr, sqliteErr)
-	}
-
-	if tsvErr == nil && sqliteErr == nil && tsvID != sqliteID {
-		colors.Warning(fmt.Sprintf("dual writer: id mismatch after add (tsv=%s sqlite=%s)", tsvID, sqliteID))
-	}
-
-	d.afterWrite()
-	if d.opts.ReadFromSQLite && sqliteErr == nil && sqliteID != "" {
-		return sqliteID, nil
-	}
-	if tsvID != "" {
-		return tsvID, nil
-	}
-	return sqliteID, nil
+	d.recordWrite(start, false, sqliteFailed)
+	return id, nil
 }
 
-// ListNotifications reads from configured primary backend and falls back on error.
+// ListNotifications delegates reads to the configured read backend.
 func (d *DualWriter) ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff string) (string, error) {
-	if d.opts.ReadFromSQLite {
-		result, err := d.sqlite.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff)
-		if err == nil {
-			return result, nil
-		}
-		colors.Warning(fmt.Sprintf("dual writer: sqlite list failed, falling back to tsv: %v", err))
-	}
-	return d.tsv.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff)
+	return d.readStorage().ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff)
 }
 
-// GetNotificationByID reads from configured primary backend and falls back on error.
+// GetNotificationByID delegates reads to the configured read backend.
 func (d *DualWriter) GetNotificationByID(id string) (string, error) {
-	if d.opts.ReadFromSQLite {
-		result, err := d.sqlite.GetNotificationByID(id)
-		if err == nil {
-			return result, nil
-		}
-		colors.Warning(fmt.Sprintf("dual writer: sqlite get by id failed, falling back to tsv: %v", err))
-	}
-	return d.tsv.GetNotificationByID(id)
+	return d.readStorage().GetNotificationByID(id)
 }
 
-// DismissNotification writes to TSV first, then SQLite.
+// DismissNotification writes to TSV then SQLite.
 func (d *DualWriter) DismissNotification(id string) error {
-	tsvErr := d.withTSVWriteMetric(func() error {
-		return d.tsv.DismissNotification(id)
-	})
-	if tsvErr != nil {
-		colors.Warning(fmt.Sprintf("dual writer: tsv dismiss failed for id %s: %v", id, tsvErr))
+	start := time.Now()
+	if err := d.tsv.DismissNotification(id); err != nil {
+		d.recordWrite(start, true, false)
+		return err
 	}
 
-	var sqliteErr error
-	if !d.skipSQLiteWrites() {
-		sqliteErr = d.withSQLiteWriteMetric(func() error {
-			return d.sqlite.DismissNotification(id)
-		})
-		if sqliteErr != nil {
-			d.disableSQLiteWrites(sqliteErr)
+	sqliteFailed := false
+	if !d.verifyOnly {
+		if err := d.sqlite.DismissNotification(id); err != nil {
+			sqliteFailed = true
+			colors.Warning(fmt.Sprintf("dual write: sqlite dismiss failed for id %s, continuing with tsv only: %v", id, err))
 		}
 	}
 
-	if tsvErr != nil && sqliteErr != nil {
-		return fmt.Errorf("dual writer: dismiss failed on both backends: tsv=%v sqlite=%v", tsvErr, sqliteErr)
-	}
-
-	d.afterWrite()
-	if d.opts.ReadFromSQLite && sqliteErr == nil {
-		return nil
-	}
-	if tsvErr == nil {
-		return nil
-	}
-	return sqliteErr
+	d.recordWrite(start, false, sqliteFailed)
+	return nil
 }
 
-// DismissAll writes to TSV first, then SQLite.
+// DismissAll writes to TSV then SQLite.
 func (d *DualWriter) DismissAll() error {
-	tsvErr := d.withTSVWriteMetric(d.tsv.DismissAll)
-	if tsvErr != nil {
-		colors.Warning(fmt.Sprintf("dual writer: tsv dismiss all failed: %v", tsvErr))
+	start := time.Now()
+	if err := d.tsv.DismissAll(); err != nil {
+		d.recordWrite(start, true, false)
+		return err
 	}
 
-	var sqliteErr error
-	if !d.skipSQLiteWrites() {
-		sqliteErr = d.withSQLiteWriteMetric(d.sqlite.DismissAll)
-		if sqliteErr != nil {
-			d.disableSQLiteWrites(sqliteErr)
+	sqliteFailed := false
+	if !d.verifyOnly {
+		if err := d.sqlite.DismissAll(); err != nil {
+			sqliteFailed = true
+			colors.Warning(fmt.Sprintf("dual write: sqlite dismiss all failed, continuing with tsv only: %v", err))
 		}
 	}
 
-	if tsvErr != nil && sqliteErr != nil {
-		return fmt.Errorf("dual writer: dismiss all failed on both backends: tsv=%v sqlite=%v", tsvErr, sqliteErr)
-	}
-
-	d.afterWrite()
-	if tsvErr == nil || sqliteErr == nil {
-		return nil
-	}
-	return tsvErr
+	d.recordWrite(start, false, sqliteFailed)
+	return nil
 }
 
-// MarkNotificationRead writes to TSV first, then SQLite.
+// MarkNotificationRead writes to TSV then SQLite.
 func (d *DualWriter) MarkNotificationRead(id string) error {
-	return d.markNotificationReadState(id, true)
+	start := time.Now()
+	if err := d.tsv.MarkNotificationRead(id); err != nil {
+		d.recordWrite(start, true, false)
+		return err
+	}
+
+	sqliteFailed := false
+	if !d.verifyOnly {
+		if err := d.sqlite.MarkNotificationRead(id); err != nil {
+			sqliteFailed = true
+			colors.Warning(fmt.Sprintf("dual write: sqlite mark-read failed for id %s, continuing with tsv only: %v", id, err))
+		}
+	}
+
+	d.recordWrite(start, false, sqliteFailed)
+	return nil
 }
 
-// MarkNotificationUnread writes to TSV first, then SQLite.
+// MarkNotificationUnread writes to TSV then SQLite.
 func (d *DualWriter) MarkNotificationUnread(id string) error {
-	return d.markNotificationReadState(id, false)
-}
-
-func (d *DualWriter) markNotificationReadState(id string, read bool) error {
-	tsvErr := d.withTSVWriteMetric(func() error {
-		if read {
-			return d.tsv.MarkNotificationRead(id)
-		}
-		return d.tsv.MarkNotificationUnread(id)
-	})
-	if tsvErr != nil {
-		colors.Warning(fmt.Sprintf("dual writer: tsv mark read state failed for id %s: %v", id, tsvErr))
+	start := time.Now()
+	if err := d.tsv.MarkNotificationUnread(id); err != nil {
+		d.recordWrite(start, true, false)
+		return err
 	}
 
-	var sqliteErr error
-	if !d.skipSQLiteWrites() {
-		sqliteErr = d.withSQLiteWriteMetric(func() error {
-			if read {
-				return d.sqlite.MarkNotificationRead(id)
-			}
-			return d.sqlite.MarkNotificationUnread(id)
-		})
-		if sqliteErr != nil {
-			d.disableSQLiteWrites(sqliteErr)
+	sqliteFailed := false
+	if !d.verifyOnly {
+		if err := d.sqlite.MarkNotificationUnread(id); err != nil {
+			sqliteFailed = true
+			colors.Warning(fmt.Sprintf("dual write: sqlite mark-unread failed for id %s, continuing with tsv only: %v", id, err))
 		}
 	}
 
-	if tsvErr != nil && sqliteErr != nil {
-		return fmt.Errorf("dual writer: mark read state failed on both backends: tsv=%v sqlite=%v", tsvErr, sqliteErr)
-	}
-
-	d.afterWrite()
-	if tsvErr == nil || sqliteErr == nil {
-		return nil
-	}
-	return tsvErr
+	d.recordWrite(start, false, sqliteFailed)
+	return nil
 }
 
-// CleanupOldNotifications writes to TSV first, then SQLite.
+// CleanupOldNotifications writes to TSV then SQLite.
 func (d *DualWriter) CleanupOldNotifications(daysThreshold int, dryRun bool) error {
-	tsvErr := d.withTSVWriteMetric(func() error {
-		return d.tsv.CleanupOldNotifications(daysThreshold, dryRun)
-	})
-	if tsvErr != nil {
-		colors.Warning(fmt.Sprintf("dual writer: tsv cleanup failed: %v", tsvErr))
+	start := time.Now()
+	if err := d.tsv.CleanupOldNotifications(daysThreshold, dryRun); err != nil {
+		d.recordWrite(start, true, false)
+		return err
 	}
 
-	var sqliteErr error
-	if !d.skipSQLiteWrites() {
-		sqliteErr = d.withSQLiteWriteMetric(func() error {
-			return d.sqlite.CleanupOldNotifications(daysThreshold, dryRun)
-		})
-		if sqliteErr != nil {
-			d.disableSQLiteWrites(sqliteErr)
+	sqliteFailed := false
+	if !d.verifyOnly {
+		if err := d.sqlite.CleanupOldNotifications(daysThreshold, dryRun); err != nil {
+			sqliteFailed = true
+			colors.Warning(fmt.Sprintf("dual write: sqlite cleanup failed, continuing with tsv only: %v", err))
 		}
 	}
 
-	if tsvErr != nil && sqliteErr != nil {
-		return fmt.Errorf("dual writer: cleanup failed on both backends: tsv=%v sqlite=%v", tsvErr, sqliteErr)
-	}
-
-	d.afterWrite()
-	if tsvErr == nil || sqliteErr == nil {
-		return nil
-	}
-	return tsvErr
+	d.recordWrite(start, false, sqliteFailed)
+	return nil
 }
 
-// GetActiveCount reads from configured primary backend and falls back on error.
+// GetActiveCount delegates reads to the configured read backend.
 func (d *DualWriter) GetActiveCount() int {
-	if d.opts.ReadFromSQLite {
-		return d.sqlite.GetActiveCount()
-	}
-	return d.tsv.GetActiveCount()
+	return d.readStorage().GetActiveCount()
 }
 
-// VerifyConsistency compares both backends and returns divergence details.
-func (d *DualWriter) VerifyConsistency() (ConsistencyReport, error) {
+// Metrics returns a snapshot of write metrics.
+func (d *DualWriter) Metrics() WriteMetrics {
+	d.metricsMu.Lock()
+	defer d.metricsMu.Unlock()
+	return d.metrics
+}
+
+// VerifyConsistency compares TSV and SQLite data and reports discrepancies.
+func (d *DualWriter) VerifyConsistency(sampleSize int) (ConsistencyReport, error) {
 	tsvLines, err := d.tsv.ListNotifications("all", "", "", "", "", "", "")
 	if err != nil {
-		return ConsistencyReport{}, fmt.Errorf("dual writer: list tsv notifications: %w", err)
+		return ConsistencyReport{}, fmt.Errorf("dual writer consistency: list tsv notifications: %w", err)
 	}
 	sqliteLines, err := d.sqlite.ListNotifications("all", "", "", "", "", "", "")
 	if err != nil {
-		return ConsistencyReport{}, fmt.Errorf("dual writer: list sqlite notifications: %w", err)
+		return ConsistencyReport{}, fmt.Errorf("dual writer consistency: list sqlite notifications: %w", err)
 	}
 
-	tsvMap := parseNotificationMap(tsvLines)
-	sqliteMap := parseNotificationMap(sqliteLines)
+	tsvRecords := parseNotificationLines(tsvLines)
+	sqliteRecords := parseNotificationLines(sqliteLines)
 
 	report := ConsistencyReport{
-		TSVRecordCount:    len(tsvMap),
-		SQLiteRecordCount: len(sqliteMap),
-		TSVActiveCount:    d.tsv.GetActiveCount(),
-		SQLiteActiveCount: d.sqlite.GetActiveCount(),
+		TSVCount:          len(tsvRecords),
+		SQLiteCount:       len(sqliteRecords),
+		TSVActiveCount:    countActive(tsvRecords),
+		SQLiteActiveCount: countActive(sqliteRecords),
 	}
 
-	for id := range tsvMap {
-		if _, ok := sqliteMap[id]; !ok {
-			report.MissingInSQLite = append(report.MissingInSQLite, id)
+	sampleLimit := sampleSize
+	if sampleLimit <= 0 {
+		sampleLimit = d.sampleSize
+	}
+
+	report.MissingInTSV, report.MissingInSQLite = findMissingIDs(tsvRecords, sqliteRecords)
+	for _, id := range report.MissingInTSV {
+		colors.Warning(fmt.Sprintf("dual writer consistency discrepancy: id %s missing in tsv", id))
+	}
+	for _, id := range report.MissingInSQLite {
+		colors.Warning(fmt.Sprintf("dual writer consistency discrepancy: id %s missing in sqlite", id))
+	}
+
+	sampledIDs := sampledIntersectionIDs(tsvRecords, sqliteRecords, sampleLimit)
+	report.SampledRecords = len(sampledIDs)
+
+	for _, id := range sampledIDs {
+		tsvFields := tsvRecords[id]
+		sqliteFields := sqliteRecords[id]
+		diffs := diffFields(tsvFields, sqliteFields)
+		if len(diffs) == 0 {
+			continue
+		}
+		report.RecordDiffs = append(report.RecordDiffs, ConsistencyRecordDiff{
+			ID:         id,
+			FieldDiffs: diffs,
+		})
+		for _, diff := range diffs {
+			colors.Warning(fmt.Sprintf("dual writer consistency discrepancy: id %s field %s differs (tsv=%q sqlite=%q)", id, diff.Field, diff.TSVValue, diff.SQLiteValue))
 		}
 	}
-	for id := range sqliteMap {
-		if _, ok := tsvMap[id]; !ok {
-			report.MissingInTSV = append(report.MissingInTSV, id)
-		}
-	}
 
-	sort.Strings(report.MissingInSQLite)
-	sort.Strings(report.MissingInTSV)
-
-	sharedIDs := intersectSortedIDs(tsvMap, sqliteMap)
-	for _, id := range d.sampleIDs(sharedIDs, d.opts.ConsistencySampleSize) {
-		if tsvMap[id] != sqliteMap[id] {
-			report.MismatchedIDs = append(report.MismatchedIDs, id)
-		}
-	}
-
-	if report.HasCriticalDifferences() {
-		colors.Warning(fmt.Sprintf("dual writer consistency mismatch: tsv_count=%d sqlite_count=%d tsv_active=%d sqlite_active=%d missing_in_sqlite=%v missing_in_tsv=%v mismatched_ids=%v",
-			report.TSVRecordCount,
-			report.SQLiteRecordCount,
-			report.TSVActiveCount,
-			report.SQLiteActiveCount,
-			report.MissingInSQLite,
-			report.MissingInTSV,
-			report.MismatchedIDs,
-		))
-		return report, fmt.Errorf("dual writer: critical consistency differences detected")
-	}
+	report.Consistent =
+		report.TSVCount == report.SQLiteCount &&
+			report.TSVActiveCount == report.SQLiteActiveCount &&
+			len(report.MissingInTSV) == 0 &&
+			len(report.MissingInSQLite) == 0 &&
+			len(report.RecordDiffs) == 0
 
 	return report, nil
 }
 
-// Metrics returns a point-in-time copy of write metrics.
-func (d *DualWriter) Metrics() WriteMetrics {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	return d.metrics
-}
+func (d *DualWriter) recordWrite(start time.Time, tsvFailed, sqliteFailed bool) {
+	d.metricsMu.Lock()
+	defer d.metricsMu.Unlock()
 
-func (d *DualWriter) withTSVWriteMetric(fn func() error) error {
-	start := time.Now()
-	err := fn()
-	d.mu.Lock()
-	d.metrics.TSVWriteLatency += time.Since(start)
-	d.mu.Unlock()
-	return err
-}
-
-func (d *DualWriter) withSQLiteWriteMetric(fn func() error) error {
-	start := time.Now()
-	err := fn()
-	d.mu.Lock()
-	d.metrics.SQLiteWriteLatency += time.Since(start)
-	d.mu.Unlock()
-	return err
-}
-
-func (d *DualWriter) afterWrite() {
-	d.mu.Lock()
+	latency := time.Since(start)
 	d.metrics.WriteOperations++
-	shouldVerify := d.opts.VerifyEveryNWrites > 0 && d.metrics.WriteOperations%int64(d.opts.VerifyEveryNWrites) == 0
-	d.mu.Unlock()
-
-	if !shouldVerify {
-		return
+	d.metrics.TotalWriteLatency += latency
+	if latency > d.metrics.MaxWriteLatency {
+		d.metrics.MaxWriteLatency = latency
 	}
-	if _, err := d.VerifyConsistency(); err != nil {
-		colors.Warning(fmt.Sprintf("dual writer periodic consistency verification failed: %v", err))
+	if tsvFailed {
+		d.metrics.TSVWriteFailures++
+	}
+	if sqliteFailed {
+		d.metrics.SQLiteWriteFailure++
 	}
 }
 
-func (d *DualWriter) skipSQLiteWrites() bool {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	return d.opts.ReadOnlyVerificationMode || d.sqliteWriteDisabled
+func (d *DualWriter) readStorage() Storage {
+	if d.readBackend == ReadBackendTSV {
+		return d.tsv
+	}
+	return d.sqlite
 }
 
-func (d *DualWriter) disableSQLiteWrites(err error) {
-	d.mu.Lock()
-	d.sqliteWriteDisabled = true
-	d.mu.Unlock()
-	colors.Warning(fmt.Sprintf("dual writer: sqlite write failed, falling back to tsv-only mode: %v", err))
-}
-
-func parseNotificationMap(content string) map[string]string {
-	result := make(map[string]string)
+func parseNotificationLines(content string) map[string][]string {
+	records := make(map[string][]string)
 	if strings.TrimSpace(content) == "" {
-		return result
+		return records
 	}
 
 	for _, line := range strings.Split(strings.TrimSpace(content), "\n") {
-		normalized, ok := normalizeNotificationLine(line)
-		if !ok {
+		fields := strings.Split(line, "\t")
+		if len(fields) < NumFields {
+			for len(fields) < NumFields {
+				fields = append(fields, "")
+			}
+		}
+		if len(fields) <= FieldID {
 			continue
 		}
-		id := strings.SplitN(normalized, "\t", 2)[0]
-		result[id] = normalized
+		records[fields[FieldID]] = fields
 	}
-	return result
+	return records
 }
 
-func normalizeNotificationLine(line string) (string, bool) {
-	parts := strings.Split(line, "\t")
-	if len(parts) == 0 {
-		return "", false
+func countActive(records map[string][]string) int {
+	count := 0
+	for _, fields := range records {
+		if len(fields) > FieldState && fields[FieldState] == "active" {
+			count++
+		}
 	}
-	id := strings.TrimSpace(parts[0])
-	if id == "" {
-		return "", false
-	}
-	if _, err := strconv.Atoi(id); err != nil {
-		return "", false
-	}
-	for len(parts) < notificationFieldCount {
-		parts = append(parts, "")
-	}
-	return strings.Join(parts[:notificationFieldCount], "\t"), true
+	return count
 }
 
-func intersectSortedIDs(a, b map[string]string) []string {
-	ids := make([]string, 0, len(a))
-	for id := range a {
-		if _, ok := b[id]; ok {
+func findMissingIDs(tsvRecords, sqliteRecords map[string][]string) ([]string, []string) {
+	missingInTSV := make([]string, 0)
+	missingInSQLite := make([]string, 0)
+
+	for id := range sqliteRecords {
+		if _, ok := tsvRecords[id]; !ok {
+			missingInTSV = append(missingInTSV, id)
+		}
+	}
+	for id := range tsvRecords {
+		if _, ok := sqliteRecords[id]; !ok {
+			missingInSQLite = append(missingInSQLite, id)
+		}
+	}
+
+	sortIDs(missingInTSV)
+	sortIDs(missingInSQLite)
+	return missingInTSV, missingInSQLite
+}
+
+func sampledIntersectionIDs(tsvRecords, sqliteRecords map[string][]string, sampleSize int) []string {
+	ids := make([]string, 0)
+	for id := range tsvRecords {
+		if _, ok := sqliteRecords[id]; ok {
 			ids = append(ids, id)
 		}
 	}
-	sort.Strings(ids)
+	sortIDs(ids)
+	if sampleSize > 0 && len(ids) > sampleSize {
+		return ids[:sampleSize]
+	}
 	return ids
 }
 
-func (d *DualWriter) sampleIDs(ids []string, sampleSize int) []string {
-	if len(ids) <= sampleSize {
-		return ids
+func diffFields(tsvFields, sqliteFields []string) []ConsistencyFieldDiff {
+	diffs := make([]ConsistencyFieldDiff, 0)
+	for i := 0; i < NumFields; i++ {
+		tsvValue := ""
+		sqliteValue := ""
+		if i < len(tsvFields) {
+			tsvValue = tsvFields[i]
+		}
+		if i < len(sqliteFields) {
+			sqliteValue = sqliteFields[i]
+		}
+		if tsvValue != sqliteValue {
+			diffs = append(diffs, ConsistencyFieldDiff{
+				Field:       fieldNames[i],
+				TSVValue:    tsvValue,
+				SQLiteValue: sqliteValue,
+			})
+		}
 	}
-	if sampleSize <= 0 {
-		return nil
-	}
+	return diffs
+}
 
-	indices := d.rand.Perm(len(ids))[:sampleSize]
-	selection := make([]string, 0, sampleSize)
-	for _, idx := range indices {
-		selection = append(selection, ids[idx])
-	}
-	sort.Strings(selection)
-	return selection
+func sortIDs(ids []string) {
+	sort.Slice(ids, func(i, j int) bool {
+		left, leftErr := strconv.Atoi(ids[i])
+		right, rightErr := strconv.Atoi(ids[j])
+		if leftErr == nil && rightErr == nil {
+			return left < right
+		}
+		return ids[i] < ids[j]
+	})
 }
