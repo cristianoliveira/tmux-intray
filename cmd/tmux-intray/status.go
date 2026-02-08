@@ -71,7 +71,7 @@ func printStatus(format string, w io.Writer) {
 	case "json":
 		formatJSON(w)
 	default:
-		fmt.Fprintf(w, "Unknown format: %s\n", format)
+		fmt.Fprintf(w, "status: unknown format: %s\n", format)
 	}
 }
 
@@ -182,7 +182,7 @@ func init() {
 func runStatus(cmd *cobra.Command, args []string) error {
 	// Ensure tmux is running (mirror bash script behavior)
 	if !core.EnsureTmuxRunning() {
-		return fmt.Errorf("tmux is not running")
+		return fmt.Errorf("tmux not running")
 	}
 
 	// Determine format: flag > environment variable > default
@@ -201,7 +201,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		"json":    true,
 	}
 	if !validFormats[format] {
-		return fmt.Errorf("Unknown format: %s", format)
+		return fmt.Errorf("status: unknown format: %s", format)
 	}
 
 	PrintStatus(format)

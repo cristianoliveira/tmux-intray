@@ -75,7 +75,7 @@ type JumpResult struct {
 // Returns jump result and error.
 func Jump(id string) (*JumpResult, error) {
 	if !ensureTmuxRunningFunc() {
-		return nil, fmt.Errorf("tmux is not running")
+		return nil, fmt.Errorf("tmux not running")
 	}
 
 	line, err := getNotificationLineFunc(id)
@@ -86,7 +86,7 @@ func Jump(id string) (*JumpResult, error) {
 	fields := strings.Split(line, "\t")
 	// Ensure at least 7 fields (up to pane)
 	if len(fields) <= storage.FieldPane {
-		return nil, fmt.Errorf("invalid notification line format")
+		return nil, fmt.Errorf("jump: invalid notification line format")
 	}
 	state := fields[storage.FieldState]
 	session := fields[storage.FieldSession]
@@ -108,7 +108,7 @@ func Jump(id string) (*JumpResult, error) {
 		}
 
 		return nil, fmt.Errorf(
-			"notification %s is incomplete for jump:\n"+
+			"jump: notification %s missing required fields:\n"+
 				"  missing: %s\n"+
 				"  required fields: session, window, pane\n"+
 				"  hint: notifications must be created from within an active tmux session for jump to work",
@@ -121,7 +121,7 @@ func Jump(id string) (*JumpResult, error) {
 	// Jump to pane - returns false only if it completely fails (window selection failed)
 	// Returns true even if pane doesn't exist (falls back to window)
 	if !jumpToPaneFunc(session, window, pane) {
-		return nil, fmt.Errorf("failed to jump: pane or window does not exist")
+		return nil, fmt.Errorf("jump: failed to jump because pane or window does not exist")
 	}
 
 	return &JumpResult{
@@ -151,7 +151,7 @@ func init() {
 
 func runJump(cmd *cobra.Command, args []string) {
 	if len(args) != 1 {
-		colors.Error("'jump' requires a notification ID")
+		colors.Error("jump: requires a notification id")
 		fmt.Fprintf(os.Stderr, "Usage: tmux-intray jump <id>\n")
 		return
 	}
@@ -159,7 +159,7 @@ func runJump(cmd *cobra.Command, args []string) {
 
 	// Ensure tmux is running (mirror bash script behavior)
 	if !core.EnsureTmuxRunning() {
-		colors.Error("tmux is not running")
+		colors.Error("tmux not running")
 		return
 	}
 

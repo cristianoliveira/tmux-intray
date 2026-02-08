@@ -69,7 +69,7 @@ func (c *Core) AddTrayItem(item, session, window, pane, paneCreated string, noAu
 	// Add notification with empty timestamp (auto-generated)
 	id, err := storage.AddNotification(item, "", session, window, pane, paneCreated, level)
 	if err != nil {
-		return "", fmt.Errorf("AddTrayItem: failed to add notification: %w", err)
+		return "", fmt.Errorf("add tray item: failed to add notification: %w", err)
 	}
 	return id, nil
 }

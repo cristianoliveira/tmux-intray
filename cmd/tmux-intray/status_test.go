@@ -192,7 +192,7 @@ func TestPrintStatusUnknownFormat(t *testing.T) {
 
 	PrintStatus("unknown")
 	output := buf.String()
-	expected := "Unknown format: unknown"
+	expected := "status: unknown format: unknown"
 	if !strings.Contains(output, expected) {
 		t.Errorf("Expected unknown format error, got %q", output)
 	}

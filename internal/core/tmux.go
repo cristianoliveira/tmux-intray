@@ -53,7 +53,7 @@ func EnsureTmuxRunning() bool {
 func (c *Core) GetCurrentTmuxContext() TmuxContext {
 	ctx, err := c.client.GetCurrentContext()
 	if err != nil {
-		colors.Error("GetCurrentTmuxContext: failed to get tmux context: " + err.Error())
+		colors.Error("get current tmux context: failed to get tmux context: " + err.Error())
 		return TmuxContext{}
 	}
 
@@ -106,7 +106,7 @@ func (c *Core) JumpToPane(sessionID, windowID, paneID string) bool {
 		if paneID == "" {
 			missing = append(missing, "paneID")
 		}
-		colors.Error(fmt.Sprintf("JumpToPane: invalid parameters (empty %s)", strings.Join(missing, ", ")))
+		colors.Error(fmt.Sprintf("jump to pane: invalid parameters (empty %s)", strings.Join(missing, ", ")))
 		return false
 	}
 
@@ -129,7 +129,7 @@ func (c *Core) JumpToPane(sessionID, windowID, paneID string) bool {
 		colors.Debug(fmt.Sprintf("JumpToPane: switching client to session %s", sessionID))
 		_, stderr, err = c.client.Run("switch-client", "-t", sessionID)
 		if err != nil {
-			colors.Error(fmt.Sprintf("JumpToPane: failed to switch client to session %s: %v", sessionID, err))
+			colors.Error(fmt.Sprintf("jump to pane: failed to switch client to session %s: %v", sessionID, err))
 			if stderr != "" {
 				colors.Debug("JumpToPane: stderr: " + stderr)
 			}
@@ -142,7 +142,7 @@ func (c *Core) JumpToPane(sessionID, windowID, paneID string) bool {
 	colors.Debug(fmt.Sprintf("JumpToPane: selecting window %s", targetWindow))
 	_, stderr, err = c.client.Run("select-window", "-t", targetWindow)
 	if err != nil {
-		colors.Error(fmt.Sprintf("JumpToPane: failed to select window %s: %v", targetWindow, err))
+		colors.Error(fmt.Sprintf("jump to pane: failed to select window %s: %v", targetWindow, err))
 		if stderr != "" {
 			colors.Debug("JumpToPane: stderr: " + stderr)
 		}
@@ -163,7 +163,7 @@ func (c *Core) JumpToPane(sessionID, windowID, paneID string) bool {
 	_, stderr, err = c.client.Run("select-pane", "-t", targetPane)
 	if err != nil {
 		// Fail-fast: don't swallow errors, return false to indicate failure
-		colors.Error(fmt.Sprintf("JumpToPane: failed to select pane %s: %v", targetPane, err))
+		colors.Error(fmt.Sprintf("jump to pane: failed to select pane %s: %v", targetPane, err))
 		if stderr != "" {
 			colors.Debug("JumpToPane: stderr: " + stderr)
 		}
@@ -200,7 +200,7 @@ func GetTmuxVisibility() string {
 func (c *Core) SetTmuxVisibility(value string) (bool, error) {
 	err := c.client.SetEnvironment("TMUX_INTRAY_VISIBLE", value)
 	if err != nil {
-		colors.Error(fmt.Sprintf("SetTmuxVisibility: failed to set TMUX_INTRAY_VISIBLE to '%s': %v", value, err))
+		colors.Error(fmt.Sprintf("set tmux visibility: failed to set TMUX_INTRAY_VISIBLE to '%s': %v", value, err))
 		return false, err
 	}
 	return true, nil

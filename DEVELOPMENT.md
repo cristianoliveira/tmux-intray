@@ -334,6 +334,12 @@ func TestJumpToPane(t *testing.T) {
 - `Info(msg)` - Output to stdout in blue
 - `Debug(msg)` - Output to stderr in cyan (only when TMUX_INTRAY_DEBUG set)
 
+### Error Message Format
+- Use lower-case messages with no trailing punctuation.
+- When adding context, use the format `<component>: <message>` (component is a short, lower-case command, package, or function name).
+- Prefer `id` over `ID` in messages unless part of a literal identifier.
+- Wrap underlying errors with `%w` and keep the outer message lower-case.
+
 ### Hooks Subsystem (internal/hooks)
 - Async background operations
 - `Init()` to start, `Shutdown()` to stop
