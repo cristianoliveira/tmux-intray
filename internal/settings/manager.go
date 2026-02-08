@@ -16,7 +16,7 @@ type TUIState struct {
 	// Filters contains active filter criteria.
 	Filters Filter `json:"filters"`
 
-	// ViewMode specifies the display layout: "compact" or "detailed".
+	// ViewMode specifies the display layout: "compact", "detailed", or "grouped".
 	ViewMode string `json:"viewMode"`
 
 	// GroupBy specifies the grouping mode: "none", "session", "window", or "pane".
