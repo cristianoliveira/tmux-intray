@@ -31,7 +31,7 @@ func (c *Core) GetTrayItems(stateFilter string) (string, error) {
 			continue
 		}
 		fields := strings.Split(line, "\t")
-// TODO: Duplicate of storage.normalizeFields logic. Consider exporting helper.
+		// TODO: Duplicate of storage.normalizeFields logic. Consider exporting helper.
 		if len(fields) < storage.NumFields {
 			for len(fields) < storage.NumFields {
 				fields = append(fields, "")

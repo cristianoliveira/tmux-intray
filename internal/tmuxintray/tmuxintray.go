@@ -2,12 +2,11 @@ package tmuxintray
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
-	"github.com/cristianoliveira/tmux-intray/internal/core"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/core"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 )
 
@@ -96,18 +95,21 @@ func ParseNotification(tsvLine string) (Notification, error) {
 func ValidateIndex(idx string) (int, error) {
 	// Check for invalid characters
 	if !strings.ContainsAny(idx, "0123456789") {
-		return 0, colors.Error("invalid index: must be a number")
+		colors.Error("invalid index: must be a number")
+		return 0, fmt.Errorf("invalid index: must be a number")
 	}
 
 	// Parse as integer
 	num, err := strconv.Atoi(idx)
 	if err != nil {
-		return 0, colors.Error("invalid index: %v", err)
+		colors.Error("invalid index: ", fmt.Sprintf("%v", err))
+		return 0, fmt.Errorf("invalid index: %w", err)
 	}
 
 	// Check bounds
 	if num <= 0 {
-		return 0, colors.Error("invalid index: must be greater than 0")
+		colors.Error("invalid index: must be greater than 0")
+		return 0, fmt.Errorf("invalid index: must be greater than 0")
 	}
 
 	return num, nil
@@ -169,8 +171,15 @@ func ValidateLevel(level string) error {
 	if level == "" {
 		level = "info"
 	}
-	if !storage.ValidLevels[level] {
-		return colors.Error("invalid level: %s (valid: info, warning, error, critical)", level)
+	validLevels := map[string]bool{
+		"info":     true,
+		"warning":  true,
+		"error":    true,
+		"critical": true,
+	}
+	if !validLevels[level] {
+		colors.Error("invalid level: ", fmt.Sprintf("%s (valid: info, warning, error, critical)", level))
+		return fmt.Errorf("invalid level: %s (valid: info, warning, error, critical)", level)
 	}
 	return nil
 }
@@ -180,8 +189,14 @@ func ValidateState(state string) error {
 	if state == "" {
 		state = "active"
 	}
-	if !storage.ValidStates[state] {
-		return colors.Error("invalid state: %s (valid: active, dismissed)", state)
+	validStates := map[string]bool{
+		"active":    true,
+		"dismissed": true,
+		"all":       true,
+	}
+	if !validStates[state] {
+		colors.Error("invalid state: ", fmt.Sprintf("%s (valid: active, dismissed)", state))
+		return fmt.Errorf("invalid state: %s (valid: active, dismissed)", state)
 	}
 	return nil
 }
@@ -193,8 +208,5 @@ func DebugLog(msg string) {
 
 // GetStateDir returns the state directory path.
 func GetStateDir() string {
-	if dir := os.Getenv("TMUX_INTRAY_STATE_DIR"); dir != "" {
-		return dir
-	}
-	return storage.DefaultStateDir
+	return storage.GetStateDir()
 }

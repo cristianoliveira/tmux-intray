@@ -64,10 +64,10 @@ variable TMUX_INTRAY_VISIBLE to "1" (visible) or "0" (hidden).`,
 		// Get current visibility
 		oldVisible, err := core.GetVisibility()
 		if err != nil {
-			colors.Error("Failed to get current visibility: %v", err)
+			colors.Error(fmt.Sprintf("Failed to get current visibility: %v", err))
 			return err
 		}
-		
+
 		var newVisible bool
 		var msg string
 		if oldVisible == "1" {

@@ -73,6 +73,7 @@ var (
 var (
 	notificationsFile string
 	lockDir           string
+	stateDir          string
 	initOnce          = &sync.Once{}
 	initialized       bool
 	initMu            sync.RWMutex
@@ -89,7 +90,7 @@ func Init() error {
 		config.Load()
 
 		// Prefer environment variable directly (should match config.Load but ensure it works)
-		stateDir := os.Getenv("TMUX_INTRAY_STATE_DIR")
+		stateDir = os.Getenv("TMUX_INTRAY_STATE_DIR")
 		if stateDir == "" {
 			stateDir = config.Get("state_dir", "")
 		}
@@ -1392,10 +1393,23 @@ func Reset() {
 
 	notificationsFile = ""
 	lockDir = ""
+	stateDir = ""
 	initialized = false
 	initErr = nil
 
 	// Reset sync.Once by creating a new one
 	// This is safe because Reset() should only be called in tests
 	initOnce = &sync.Once{}
+}
+
+// GetStateDir returns the state directory path.
+func GetStateDir() string {
+	if stateDir != "" {
+		return stateDir
+	}
+	if dir := os.Getenv("TMUX_INTRAY_STATE_DIR"); dir != "" {
+		return dir
+	}
+	config.Load()
+	return config.Get("state_dir", "")
 }

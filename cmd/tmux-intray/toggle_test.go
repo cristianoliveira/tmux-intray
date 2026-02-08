@@ -49,8 +49,8 @@ func TestToggleCommand(t *testing.T) {
 			}()
 
 			// Mock get visibility to return our test value
-			toggleGetVisibilityFunc = func() string {
-				return tt.initial
+			toggleGetVisibilityFunc = func() (string, error) {
+				return tt.initial, nil
 			}
 
 			// Mock set visibility to capture the value
