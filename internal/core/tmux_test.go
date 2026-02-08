@@ -121,6 +121,7 @@ func TestTmuxFunctions(t *testing.T) {
 
 		result = c.JumpToPane("$0", "1", "")
 		require.False(t, result)
+		mockClient.AssertExpectations(t)
 	})
 
 	t.Run("GetTmuxVisibility", func(t *testing.T) {
