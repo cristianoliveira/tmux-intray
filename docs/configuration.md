@@ -18,6 +18,7 @@ All configuration options are controlled by environment variables with the `TMUX
 |----------|---------|-------------|
 | `TMUX_INTRAY_STATE_DIR` | `$XDG_STATE_HOME/tmux-intray` (`~/.local/state/tmux-intray`) | Directory where notification data is stored. Follows XDG Base Directory Specification. |
 | `TMUX_INTRAY_CONFIG_DIR` | `$XDG_CONFIG_HOME/tmux-intray` (`~/.config/tmux-intray`) | Directory for configuration files and hooks. |
+| `TMUX_INTRAY_STORAGE_BACKEND` | `tsv` | Storage backend: `tsv`, `sqlite`, or `dual` (writes TSV + SQLite and reads from SQLite for rollout verification). |
 | `TMUX_INTRAY_MAX_NOTIFICATIONS` | `1000` | Maximum number of notifications to keep (oldest are automatically cleaned up). |
 | `TMUX_INTRAY_AUTO_CLEANUP_DAYS` | `30` | Automatically clean up notifications that have been dismissed for more than this many days. |
 

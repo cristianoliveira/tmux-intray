@@ -63,6 +63,17 @@ func TestEnvironmentOverrides(t *testing.T) {
 	require.Equal(t, "5", Get("max_hooks", ""))
 }
 
+func TestStorageBackendAcceptsDualValue(t *testing.T) {
+	reset()
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "DUAL")
+
+	Load()
+
+	require.Equal(t, "dual", Get("storage_backend", ""))
+}
+
 func TestConfigFileTOML(t *testing.T) {
 	reset()
 	tmpDir := t.TempDir()

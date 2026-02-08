@@ -17,6 +17,8 @@ const (
 	BackendTSV = "tsv"
 	// BackendSQLite selects SQLite-backed storage.
 	BackendSQLite = "sqlite"
+	// BackendDual selects dual-write TSV+SQLite storage for rollout verification.
+	BackendDual = "dual"
 
 	notificationsTSVFileName = "notifications.tsv"
 	notificationsDBFileName  = "notifications.db"
@@ -56,6 +58,37 @@ func NewForBackend(backend string) (Storage, error) {
 			return NewFileStorage()
 		}
 		return sqliteStorage, nil
+	case BackendDual:
+		stateDir := GetStateDir()
+		dbPath := filepath.Join(stateDir, notificationsDBFileName)
+		tsvPath := filepath.Join(stateDir, notificationsTSVFileName)
+
+		tsvStorage, err := NewFileStorage()
+		if err != nil {
+			return nil, err
+		}
+
+		if err := maybeMigrateTSVToSQLite(tsvPath, dbPath); err != nil {
+			colors.Warning(fmt.Sprintf("sqlite migration failed for dual writer, using tsv only: %v", err))
+			return tsvStorage, nil
+		}
+
+		sqliteStorage, err := sqlite.NewSQLiteStorage(dbPath)
+		if err != nil {
+			colors.Warning(fmt.Sprintf("failed to initialize sqlite backend for dual writer, using tsv only: %v", err))
+			return tsvStorage, nil
+		}
+
+		dualWriter, err := NewDualWriter(tsvStorage, sqliteStorage, DualWriterOptions{
+			ReadFromSQLite:     true,
+			VerifyEveryNWrites: defaultVerifyEveryNWrites,
+		})
+		if err != nil {
+			colors.Warning(fmt.Sprintf("failed to initialize dual writer, using tsv only: %v", err))
+			return tsvStorage, nil
+		}
+
+		return dualWriter, nil
 	default:
 		colors.Warning(fmt.Sprintf("unknown storage backend '%s', falling back to tsv", backend))
 		return NewFileStorage()

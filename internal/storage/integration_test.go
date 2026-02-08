@@ -308,3 +308,30 @@ func TestSQLiteStorageLargeDatasetIntegration(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, strings.Split(strings.TrimSpace(list), "\n"), 1000)
 }
+
+func TestDualWriterIntegrationConsistency(t *testing.T) {
+	t.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "0")
+
+	tsvStore, _ := newTSVBackendForIntegration(t)
+	sqliteStore, _ := newSQLiteBackendForIntegration(t)
+
+	dw, err := NewDualWriter(tsvStore, sqliteStore, DualWriterOptions{
+		ReadFromSQLite:        true,
+		ConsistencySampleSize: 10,
+		VerifyEveryNWrites:    1,
+	})
+	require.NoError(t, err)
+
+	id, err := dw.AddNotification("dual writer", "2026-01-01T00:00:00Z", "s", "w", "p", "", "info")
+	require.NoError(t, err)
+	require.Equal(t, "1", id)
+
+	require.NoError(t, dw.MarkNotificationRead(id))
+	require.NoError(t, dw.MarkNotificationUnread(id))
+	require.NoError(t, dw.DismissNotification(id))
+
+	report, err := dw.VerifyConsistency()
+	require.NoError(t, err)
+	require.False(t, report.HasCriticalDifferences())
+	require.Equal(t, report.TSVRecordCount, report.SQLiteRecordCount)
+}
