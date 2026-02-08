@@ -39,30 +39,33 @@ func (p *RegexProvider) Match(notif notification.Notification, query string) boo
 
 	// Check each configured field
 	for _, field := range p.opts.Fields {
-		var fieldValue string
+		var fieldValues []string
 		switch field {
 		case "message":
-			fieldValue = notif.Message
+			fieldValues = []string{notif.Message}
 		case "session":
-			fieldValue = notif.Session
+			fieldValues = p.getFieldValuesWithNames(notif.Session, p.opts.SessionNames)
 		case "window":
-			fieldValue = notif.Window
+			fieldValues = p.getFieldValuesWithNames(notif.Window, p.opts.WindowNames)
 		case "pane":
-			fieldValue = notif.Pane
+			fieldValues = p.getFieldValuesWithNames(notif.Pane, p.opts.PaneNames)
 		case "level":
-			fieldValue = notif.Level
+			fieldValues = []string{notif.Level}
 		case "state":
-			fieldValue = notif.State
+			fieldValues = []string{notif.State}
 		}
 
-		// Skip empty fields
-		if fieldValue == "" {
-			continue
-		}
+		// Check all field values (ID and name)
+		for _, fieldValue := range fieldValues {
+			// Skip empty fields
+			if fieldValue == "" {
+				continue
+			}
 
-		// Check for regex match
-		if re.MatchString(fieldValue) {
-			return true
+			// Check for regex match
+			if re.MatchString(fieldValue) {
+				return true
+			}
 		}
 	}
 
@@ -102,4 +105,23 @@ func (p *RegexProvider) getRegex(pattern string) (*regexp.Regexp, error) {
 // Name returns the provider name.
 func (p *RegexProvider) Name() string {
 	return "regex"
+}
+
+// getFieldValuesWithNames returns a slice containing both the ID and resolved name.
+// If nameMap is nil or ID not found, returns only the ID.
+func (p *RegexProvider) getFieldValuesWithNames(id string, nameMap map[string]string) []string {
+	if id == "" {
+		return []string{}
+	}
+
+	values := []string{id}
+
+	// If name map is provided and ID exists in map, add the name
+	if nameMap != nil {
+		if name, ok := nameMap[id]; ok {
+			values = append(values, name)
+		}
+	}
+
+	return values
 }
