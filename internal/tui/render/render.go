@@ -183,6 +183,7 @@ func Footer(state FooterState) string {
 		help = append(help, ":: command")
 		if state.Grouped {
 			help = append(help, "h/l: collapse/expand")
+			help = append(help, "za: toggle fold")
 		}
 	}
 	help = append(help, "d: dismiss")

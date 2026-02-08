@@ -35,6 +35,7 @@ type Model struct {
 	searchMode    bool
 	commandMode   bool
 	commandQuery  string
+	pendingKey    string
 	viewport      viewport.Model
 	width         int
 	height        int
@@ -68,6 +69,18 @@ func (m *Model) Init() tea.Cmd {
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if m.searchMode || m.commandMode {
+			m.pendingKey = ""
+		} else if m.pendingKey != "" {
+			if msg.String() == "a" && m.pendingKey == "z" && m.isGroupedView() {
+				m.pendingKey = ""
+				m.toggleFold()
+				return m, nil
+			}
+			if msg.String() != "z" {
+				m.pendingKey = ""
+			}
+		}
 		switch msg.Type {
 		case tea.KeyCtrlC:
 			// Save settings before exiting
@@ -177,6 +190,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "l":
 			// Expand selected group node
 			m.expandNode(m.selectedVisibleNode())
+		case "z":
+			if !m.searchMode && m.isGroupedView() {
+				m.pendingKey = "z"
+			}
 		case "i":
 			// In search mode, 'i' is handled by KeyRunes
 			// This is a no-op but kept for documentation
@@ -744,6 +761,100 @@ func (m *Model) toggleNodeExpansion() bool {
 	}
 	m.expandNode(node)
 	return true
+}
+
+func (m *Model) toggleFold() {
+	if !m.isGroupedView() {
+		return
+	}
+	node := m.selectedVisibleNode()
+	if node == nil || node.Kind == NodeKindNotification {
+		return
+	}
+	if m.allGroupsCollapsed() {
+		m.applyDefaultExpansion()
+		return
+	}
+	if node.Expanded {
+		m.collapseNode(node)
+		return
+	}
+	m.expandNode(node)
+}
+
+func (m *Model) allGroupsCollapsed() bool {
+	if m.treeRoot == nil {
+		return false
+	}
+	collapsed := true
+	seen := false
+	var walk func(node *Node)
+	walk = func(node *Node) {
+		if node == nil || !collapsed {
+			return
+		}
+		if isGroupNode(node) {
+			seen = true
+			if node.Expanded {
+				collapsed = false
+				return
+			}
+		}
+		for _, child := range node.Children {
+			walk(child)
+			if !collapsed {
+				return
+			}
+		}
+	}
+	walk(m.treeRoot)
+	return seen && collapsed
+}
+
+func (m *Model) applyDefaultExpansion() {
+	if m.treeRoot == nil {
+		return
+	}
+	selected := m.selectedVisibleNode()
+	level := m.defaultExpandLevel
+	if level < settings.MinExpandLevel {
+		level = settings.MinExpandLevel
+	}
+	if level > settings.MaxExpandLevel {
+		level = settings.MaxExpandLevel
+	}
+
+	var walk func(node *Node)
+	walk = func(node *Node) {
+		if node == nil {
+			return
+		}
+		if isGroupNode(node) {
+			nodeLevel := getTreeLevel(node) + 1
+			expanded := nodeLevel <= level
+			node.Expanded = expanded
+			m.updateExpansionState(node, expanded)
+		}
+		for _, child := range node.Children {
+			walk(child)
+		}
+	}
+	walk(m.treeRoot)
+
+	m.visibleNodes = m.computeVisibleNodes()
+	if selected != nil {
+		if index := indexOfNode(m.visibleNodes, selected); index >= 0 {
+			m.cursor = index
+		}
+	}
+	if m.cursor >= len(m.visibleNodes) {
+		m.cursor = len(m.visibleNodes) - 1
+	}
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+	m.updateViewportContent()
+	m.ensureCursorVisible()
 }
 
 func (m *Model) expandNode(node *Node) {
