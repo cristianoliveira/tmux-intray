@@ -145,11 +145,13 @@ func unescapeMessage(msg string) string {
 // ParseNotification parses a TSV line into a Notification struct.
 func ParseNotification(tsvLine string) (Notification, error) {
 	fields := strings.Split(tsvLine, "\t")
-	if len(fields) < numFields {
-		// Pad missing fields
-		for len(fields) < numFields {
-			fields = append(fields, "")
-		}
+	switch len(fields) {
+	case numFields - 1:
+		fields = append(fields, "")
+	case numFields:
+		// OK
+	default:
+		return Notification{}, fmt.Errorf("invalid notification field count: %d", len(fields))
 	}
 	return Notification{
 		ID:            fields[fieldID],

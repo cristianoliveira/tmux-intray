@@ -171,6 +171,12 @@ func TestParseNotification(t *testing.T) {
 	require.Equal(t, "test message", notif.Message)
 	require.Equal(t, "123", notif.PaneCreated)
 	require.Equal(t, "info", notif.Level)
+	require.Empty(t, notif.ReadTimestamp)
+
+	withRead := "2\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tread message\t123\tinfo\t2025-01-02T01:02:03Z"
+	notifRead, err := ParseNotification(withRead)
+	require.NoError(t, err)
+	require.Equal(t, "2025-01-02T01:02:03Z", notifRead.ReadTimestamp)
 
 	// Test with escaped characters
 	escapedLine := "2\t2025-01-01T12:00:00Z\tdismissed\t\tt\t\tline1\\nline2\\ttab\t0\twarning"
