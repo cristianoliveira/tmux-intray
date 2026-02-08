@@ -173,6 +173,35 @@ func TestLoadInvalidJSON(t *testing.T) {
 	assert.Equal(t, expected.ExpansionState, settings.ExpansionState)
 }
 
+func TestLoadInvalidExpansionStateType(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+	t.Setenv("HOME", tmpDir)
+
+	configDir := filepath.Join(tmpDir, "tmux-intray")
+	require.NoError(t, os.MkdirAll(configDir, 0755))
+
+	settingsPath := filepath.Join(configDir, "settings.json")
+	invalidJSON := `{
+	  "viewMode": "grouped",
+	  "groupBy": "window",
+	  "expansionState": {
+	    "window:$1:@1": "collapsed"
+	  }
+	}`
+	require.NoError(t, os.WriteFile(settingsPath, []byte(invalidJSON), 0644))
+	defer os.Remove(settingsPath)
+
+	settings, err := Load()
+	require.NoError(t, err)
+	require.NotNil(t, settings)
+
+	expected := DefaultSettings()
+	assert.Equal(t, expected.ViewMode, settings.ViewMode)
+	assert.Equal(t, expected.GroupBy, settings.GroupBy)
+	assert.Equal(t, expected.ExpansionState, settings.ExpansionState)
+}
+
 func TestLoadInvalidColumn(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", tmpDir)
