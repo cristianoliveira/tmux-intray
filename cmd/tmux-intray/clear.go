@@ -37,7 +37,7 @@ EXAMPLES:
 }
 
 var clearAllFunc = func() error {
-	return storageStore.DismissAll()
+	return fileStorage.DismissAll()
 }
 
 func ClearAll() error {

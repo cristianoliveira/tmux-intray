@@ -36,11 +36,11 @@ var (
 )
 
 var dismissFunc = func(id string) error {
-	return storageStore.DismissNotification(id)
+	return fileStorage.DismissNotification(id)
 }
 
 var dismissAllFunc = func() error {
-	return storageStore.DismissAll()
+	return fileStorage.DismissAll()
 }
 
 func Dismiss(id string) error {

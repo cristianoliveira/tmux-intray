@@ -44,9 +44,6 @@ func init() {
 }
 
 func runTUI(cmd *cobra.Command, args []string) {
-	// Initialize storage
-	storageStore.Init()
-
 	// Create TmuxClient
 	client := tmux.NewDefaultClient()
 

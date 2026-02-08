@@ -35,12 +35,12 @@ var statusPanelEnsureTmuxRunningFunc = func() bool {
 
 // statusPanelGetActiveCountFunc is the function used to get active notification count.
 var statusPanelGetActiveCountFunc = func() int {
-	return storageStore.GetActiveCount()
+	return fileStorage.GetActiveCount()
 }
 
 // statusPanelListNotificationsFunc is the function used to list notifications.
 var statusPanelListNotificationsFunc = func(stateFilter string) string {
-	result, _ := storageStore.ListNotifications(stateFilter, "", "", "", "", "", "")
+	result, _ := fileStorage.ListNotifications(stateFilter, "", "", "", "", "", "")
 	return result
 }
 
