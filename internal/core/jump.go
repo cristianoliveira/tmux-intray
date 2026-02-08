@@ -36,7 +36,7 @@ func NewJumpServiceWithDeps(tmuxClient tmux.TmuxClient, stor storage.Storage) *J
 		tmuxClient = tmux.NewDefaultClient()
 	}
 	if stor == nil {
-		fileStor, err := storage.NewFileStorage()
+		fileStor, err := storage.NewFromConfig()
 		if err != nil {
 			// FIXME: If storage init fails, storage will be nil, causing panics when storage methods are called.
 			// This allows tests to work without fully initialized storage but is dangerous for production.
