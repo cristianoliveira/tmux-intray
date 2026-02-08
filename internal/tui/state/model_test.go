@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
@@ -535,6 +536,81 @@ func TestApplySearchFilterReadStatus(t *testing.T) {
 	model.applySearchFilter()
 	require.Len(t, model.filtered, 1)
 	assert.Equal(t, "Alpha", model.filtered[0].Message)
+}
+
+// TestApplySearchFilterWithMockProvider tests that applySearchFilter correctly
+// uses a custom mock search provider when set.
+func TestApplySearchFilterWithMockProvider(t *testing.T) {
+	mockProvider := new(search.MockProvider)
+
+	notifications := []notification.Notification{
+		{ID: 1, Message: "First notification"},
+		{ID: 2, Message: "Second notification"},
+		{ID: 3, Message: "Third notification"},
+	}
+
+	// Set up mock to match only ID 1 and 3
+	mockProvider.On("Match", notifications[0], "test").Return(true)
+	mockProvider.On("Match", notifications[1], "test").Return(false)
+	mockProvider.On("Match", notifications[2], "test").Return(true)
+
+	model := &Model{
+		notifications:  notifications,
+		filtered:       []notification.Notification{},
+		searchQuery:    "test",
+		searchProvider: mockProvider,
+		width:          80,
+		viewport:       viewport.New(80, 22),
+	}
+
+	model.applySearchFilter()
+
+	require.Len(t, model.filtered, 2)
+	assert.Equal(t, notifications[0].ID, model.filtered[0].ID)
+	assert.Equal(t, notifications[2].ID, model.filtered[1].ID)
+
+	mockProvider.AssertExpectations(t)
+}
+
+// TestApplySearchFilterUsesDefaultTokenProvider tests that applySearchFilter
+// falls back to TokenProvider when no custom provider is set.
+func TestApplySearchFilterUsesDefaultTokenProvider(t *testing.T) {
+	model := &Model{
+		notifications: []notification.Notification{
+			{ID: 1, Message: "Error: file not found", Level: "error"},
+			{ID: 2, Message: "Warning: low memory", Level: "warning"},
+			{ID: 3, Message: "Error: connection failed", Level: "error"},
+		},
+		filtered: []notification.Notification{},
+		width:    80,
+		viewport: viewport.New(80, 22),
+	}
+
+	// No custom searchProvider set, should use default TokenProvider
+	assert.Nil(t, model.searchProvider)
+
+	// Test case-insensitive matching (default behavior)
+	model.searchQuery = "error"
+	model.applySearchFilter()
+
+	require.Len(t, model.filtered, 2)
+	assert.Contains(t, model.filtered[0].Message, "Error")
+	assert.Contains(t, model.filtered[1].Message, "Error")
+
+	// Test token-based matching (all tokens must match)
+	model.searchQuery = "error file"
+	model.applySearchFilter()
+
+	require.Len(t, model.filtered, 1)
+	assert.Contains(t, model.filtered[0].Message, "file not found")
+
+	// Test read/unread filtering
+	model.notifications[0].ReadTimestamp = "2024-01-01T12:00:00Z"
+	model.searchQuery = "read error"
+	model.applySearchFilter()
+
+	require.Len(t, model.filtered, 1)
+	assert.Equal(t, 1, model.filtered[0].ID)
 }
 
 func TestModelUpdateHandlesQuit(t *testing.T) {
