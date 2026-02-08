@@ -32,6 +32,8 @@ KEY BINDINGS:
     :           Enter command mode
     ESC         Exit search/command mode, or quit TUI
     d           Dismiss selected notification
+    r           Mark selected notification as read
+    u           Mark selected notification as unread
     Enter       Jump to pane (or execute command in command mode)
     :w          Save settings
     q           Quit TUI`,
