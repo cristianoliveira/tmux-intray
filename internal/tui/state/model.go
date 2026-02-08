@@ -21,6 +21,8 @@ import (
 )
 
 const (
+	viewModeCompact       = settings.ViewModeCompact
+	viewModeDetailed      = settings.ViewModeDetailed
 	viewModeGrouped       = settings.ViewModeGrouped
 	headerFooterLines     = 2
 	defaultViewportWidth  = 80
@@ -192,6 +194,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "u":
 			// Mark selected notification as unread
 			return m, m.markSelectedUnread()
+		case "v":
+			if !m.searchMode && !m.commandMode {
+				m.cycleViewMode()
+			}
 		case "h":
 			// Collapse selected group node
 			m.collapseNode(m.selectedVisibleNode())
@@ -268,6 +274,7 @@ func (m *Model) View() string {
 		SearchQuery:  m.searchQuery,
 		CommandQuery: m.commandQuery,
 		Grouped:      m.isGroupedView(),
+		ViewMode:     m.viewMode,
 	}))
 
 	return s.String()
@@ -744,6 +751,44 @@ func (m *Model) loadNotifications() error {
 
 func (m *Model) isGroupedView() bool {
 	return m.viewMode == viewModeGrouped
+}
+
+// cycleViewMode cycles through available view modes (compact → detailed → grouped).
+func (m *Model) cycleViewMode() {
+	nextMode := nextViewMode(m.viewMode)
+	if nextMode == m.viewMode {
+		return
+	}
+
+	m.viewMode = nextMode
+	m.applySearchFilter()
+
+	if err := m.saveSettings(); err != nil {
+		colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+	}
+	colors.Info(fmt.Sprintf("View mode: %s", m.viewMode))
+}
+
+// nextViewMode returns the next view mode in the cycle.
+func nextViewMode(current string) string {
+	availableModes := []string{viewModeCompact, viewModeDetailed}
+	if isViewModeAvailable(viewModeGrouped) {
+		availableModes = append(availableModes, viewModeGrouped)
+	}
+
+	for i, mode := range availableModes {
+		if mode == current {
+			return availableModes[(i+1)%len(availableModes)]
+		}
+	}
+
+	return availableModes[0]
+}
+
+// isViewModeAvailable returns true if the given mode is a valid view mode.
+
+func isViewModeAvailable(mode string) bool {
+	return mode == viewModeCompact || mode == viewModeDetailed || mode == viewModeGrouped
 }
 
 func (m *Model) computeVisibleNodes() []*Node {

@@ -506,6 +506,65 @@ func TestModelUpdateHandlesSearch(t *testing.T) {
 	assert.Len(t, model.filtered, 3)
 }
 
+func TestModelUpdateCyclesViewModesWithPersistence(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	model := &Model{
+		viewMode: settings.ViewModeCompact,
+		width:    80,
+		viewport: viewport.New(80, 22),
+	}
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}}
+
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, settings.ViewModeDetailed, model.viewMode)
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
+
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, settings.ViewModeGrouped, model.viewMode)
+	loaded, err = settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.ViewModeGrouped, loaded.ViewMode)
+
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, settings.ViewModeCompact, model.viewMode)
+	loaded, err = settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.ViewModeCompact, loaded.ViewMode)
+}
+
+func TestModelUpdateIgnoresViewModeCycleInSearchAndCommandModes(t *testing.T) {
+	model := &Model{
+		viewMode:     settings.ViewModeCompact,
+		searchMode:   true,
+		commandMode:  false,
+		searchQuery:  "",
+		commandQuery: "",
+		width:        80,
+		viewport:     viewport.New(80, 22),
+	}
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, settings.ViewModeCompact, model.viewMode)
+	assert.Equal(t, "v", model.searchQuery)
+
+	model.searchMode = false
+	model.commandMode = true
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, settings.ViewModeCompact, model.viewMode)
+	assert.Equal(t, "v", model.commandQuery)
+}
+
 func TestApplySearchFilterReadStatus(t *testing.T) {
 	model := &Model{
 		notifications: []notification.Notification{
