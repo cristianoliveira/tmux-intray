@@ -143,7 +143,7 @@ type Filter struct {
 //	    "window": "",
 //	    "pane": ""
 //	  },
-//	  "viewMode": "compact",
+//	  "viewMode": "grouped",
 //	  "groupBy": "none",
 //	  "defaultExpandLevel": 1,
 //	  "expansionState": {}
@@ -171,7 +171,7 @@ type Settings struct {
 	Filters Filter `json:"filters"`
 
 	// ViewMode specifies the display layout: "compact", "detailed", or "grouped".
-	// Empty string means use default view mode (compact).
+	// Empty string means use default view mode (grouped).
 	ViewMode string `json:"viewMode"`
 
 	// GroupBy specifies the grouping mode: "none", "session", "window", or "pane".
@@ -199,7 +199,7 @@ func DefaultSettings() *Settings {
 			Window:  "",
 			Pane:    "",
 		},
-		ViewMode:           ViewModeCompact,
+		ViewMode:           ViewModeGrouped,
 		GroupBy:            GroupByNone,
 		DefaultExpandLevel: 1,
 		ExpansionState:     map[string]bool{},

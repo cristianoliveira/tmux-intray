@@ -392,7 +392,7 @@ EXAMPLES:
         "window": "",
         "pane": ""
       },
-      "viewMode": "compact",
+      "viewMode": "grouped",
       "groupBy": "none",
       "defaultExpandLevel": 1,
       "expansionState": {}

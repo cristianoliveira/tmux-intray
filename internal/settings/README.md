@@ -20,7 +20,7 @@ Settings are persisted to `~/.config/tmux-intray/settings.json` as JSON:
     "window": "",
     "pane": ""
   },
-  "viewMode": "compact"
+  "viewMode": "grouped"
 }
 ```
 
@@ -83,6 +83,7 @@ Returns a Settings struct with all default values populated.
 ### View Mode
 - `ViewModeCompact` = "compact"
 - `ViewModeDetailed` = "detailed"
+- `ViewModeGrouped` = "grouped"
 
 ### Filter Levels
 - `LevelFilterInfo` = "info"
