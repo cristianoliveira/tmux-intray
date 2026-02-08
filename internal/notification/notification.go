@@ -23,7 +23,6 @@ type Notification struct {
 // ParseNotification parses a TSV line into a Notification.
 func ParseNotification(line string) (Notification, error) {
 	fields := strings.Split(line, "\t")
-
 	switch len(fields) {
 	case 9:
 		fields = append(fields, "")

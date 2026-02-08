@@ -505,6 +505,38 @@ func TestModelUpdateHandlesSearch(t *testing.T) {
 	assert.Len(t, model.filtered, 3)
 }
 
+func TestApplySearchFilterReadStatus(t *testing.T) {
+	model := &Model{
+		notifications: []notification.Notification{
+			{ID: 1, Message: "Alpha", ReadTimestamp: "2024-01-01T12:00:00Z"},
+			{ID: 2, Message: "Beta"},
+		},
+		filtered: []notification.Notification{},
+		width:    80,
+		viewport: viewport.New(80, 22),
+	}
+
+	model.searchQuery = "read"
+	model.applySearchFilter()
+	require.Len(t, model.filtered, 1)
+	assert.True(t, model.filtered[0].IsRead())
+
+	model.searchQuery = "unread"
+	model.applySearchFilter()
+	require.Len(t, model.filtered, 1)
+	assert.False(t, model.filtered[0].IsRead())
+
+	model.searchQuery = "unread beta"
+	model.applySearchFilter()
+	require.Len(t, model.filtered, 1)
+	assert.Equal(t, "Beta", model.filtered[0].Message)
+
+	model.searchQuery = "read alpha"
+	model.applySearchFilter()
+	require.Len(t, model.filtered, 1)
+	assert.Equal(t, "Alpha", model.filtered[0].Message)
+}
+
 func TestModelUpdateHandlesQuit(t *testing.T) {
 	tmpDir := t.TempDir()
 	setupConfig(t, tmpDir)
@@ -789,6 +821,60 @@ func TestHandleDismiss(t *testing.T) {
 	model, err = NewModel(mockClient)
 	require.NoError(t, err)
 	assert.Empty(t, model.filtered)
+}
+
+func TestMarkSelectedRead(t *testing.T) {
+	setupStorage(t)
+	mockClient := stubSessionFetchers(t)
+
+	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "", "", "", "", "info")
+	require.NoError(t, err)
+	require.NotEmpty(t, id)
+
+	model, err := NewModel(mockClient)
+	require.NoError(t, err)
+	require.Len(t, model.filtered, 1)
+
+	cmd := model.markSelectedRead()
+	assert.Nil(t, cmd)
+
+	lines, err := storage.ListNotifications("active", "", "", "", "", "", "")
+	require.NoError(t, err)
+
+	parts := strings.Split(lines, "\n")
+	require.Len(t, parts, 1)
+	loaded, err := notification.ParseNotification(parts[0])
+	require.NoError(t, err)
+	assert.True(t, loaded.IsRead())
+	assert.True(t, model.filtered[0].IsRead())
+}
+
+func TestMarkSelectedUnread(t *testing.T) {
+	setupStorage(t)
+	mockClient := stubSessionFetchers(t)
+
+	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "", "", "", "", "info")
+	require.NoError(t, err)
+	require.NotEmpty(t, id)
+	require.NoError(t, storage.MarkNotificationRead(id))
+
+	model, err := NewModel(mockClient)
+	require.NoError(t, err)
+	require.Len(t, model.filtered, 1)
+	require.True(t, model.filtered[0].IsRead())
+
+	cmd := model.markSelectedUnread()
+	assert.Nil(t, cmd)
+
+	lines, err := storage.ListNotifications("active", "", "", "", "", "", "")
+	require.NoError(t, err)
+
+	parts := strings.Split(lines, "\n")
+	require.Len(t, parts, 1)
+	loaded, err := notification.ParseNotification(parts[0])
+	require.NoError(t, err)
+	assert.False(t, loaded.IsRead())
+	assert.False(t, model.filtered[0].IsRead())
 }
 
 func TestHandleDismissGroupedViewUsesVisibleNodes(t *testing.T) {
