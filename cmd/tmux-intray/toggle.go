@@ -15,7 +15,7 @@ import (
 )
 
 // toggleGetVisibilityFunc is the function used to get visibility. Can be changed for testing.
-var toggleGetVisibilityFunc = func() string {
+var toggleGetVisibilityFunc = func() (string, error) {
 	return core.GetVisibility()
 }
 
@@ -27,22 +27,26 @@ var toggleSetVisibilityFunc = func(visible bool) error {
 // GetCurrentVisibility returns the current visibility as a boolean.
 // Returns true if tray is visible, false if hidden.
 func GetCurrentVisibility() bool {
-	return toggleGetVisibilityFunc() == "1"
+	visible, _ := toggleGetVisibilityFunc()
+	return visible == "1"
 }
 
-// Toggle toggles the tray visibility and returns the new visibility state.
+// Toggle toggles tray visibility and returns the new visibility state.
 // Returns true if tray is now visible, false if hidden, and any error.
 func Toggle() (bool, error) {
-	visible := toggleGetVisibilityFunc()
+	visible, err := toggleGetVisibilityFunc()
+	if err != nil {
+		return false, err
+	}
 	newVisible := visible != "1"
-	err := toggleSetVisibilityFunc(newVisible)
+	err = toggleSetVisibilityFunc(newVisible)
 	return newVisible, err
 }
 
 // toggleCmd represents the toggle command
 var toggleCmd = &cobra.Command{
 	Use:   "toggle",
-	Short: "Toggle the tray visibility",
+	Short: "Toggle tray visibility",
 	Long: `Toggle the visibility of the tmux-intray tray.
 
 This command shows or hides the tray by setting the global tmux environment
@@ -58,7 +62,12 @@ variable TMUX_INTRAY_VISIBLE to "1" (visible) or "0" (hidden).`,
 		}
 
 		// Get current visibility
-		oldVisible := core.GetVisibility()
+		oldVisible, err := core.GetVisibility()
+		if err != nil {
+			colors.Error("Failed to get current visibility: %v", err)
+			return err
+		}
+		
 		var newVisible bool
 		var msg string
 		if oldVisible == "1" {
