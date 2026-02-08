@@ -416,8 +416,7 @@ func (m *Model) applySearchFilter() {
 		}
 	}
 	if m.isGroupedView() {
-		m.treeRoot = BuildTree(m.filtered)
-		expandTree(m.treeRoot)
+		m.treeRoot = m.buildFilteredTree(m.filtered)
 		m.visibleNodes = m.computeVisibleNodes()
 	} else {
 		m.treeRoot = nil
@@ -1075,6 +1074,75 @@ func expandTree(node *Node) {
 	}
 	for _, child := range node.Children {
 		expandTree(child)
+	}
+}
+
+// buildFilteredTree builds a tree from filtered notifications and applies saved expansion state.
+// Returns a tree where group counts reflect only matching notifications.
+func (m *Model) buildFilteredTree(notifications []notification.Notification) *Node {
+	if len(notifications) == 0 {
+		return nil
+	}
+
+	root := BuildTree(notifications)
+
+	// Prune empty groups (groups with no matching notifications)
+	m.pruneEmptyGroups(root)
+
+	// Apply saved expansion state where possible
+	if m.expansionState != nil {
+		m.applyExpansionState(root)
+	} else {
+		// If no saved state, expand all by default
+		expandTree(root)
+	}
+
+	return root
+}
+
+// pruneEmptyGroups removes groups from the tree that have no children or count of 0.
+// This ensures that empty groups created by filtering don't appear in the UI.
+func (m *Model) pruneEmptyGroups(node *Node) {
+	if node == nil {
+		return
+	}
+
+	// Recursively prune children first
+	var filteredChildren []*Node
+	for _, child := range node.Children {
+		m.pruneEmptyGroups(child)
+		// Keep the child if it has children (even if it's a leaf with notifications)
+		// or if it's a notification node
+		if len(child.Children) > 0 || child.Kind == NodeKindNotification {
+			filteredChildren = append(filteredChildren, child)
+		}
+	}
+	node.Children = filteredChildren
+}
+
+// applyExpansionState applies the saved expansion state to the tree nodes.
+// Only applies state to nodes that still exist in the tree (after pruning).
+func (m *Model) applyExpansionState(node *Node) {
+	if node == nil {
+		return
+	}
+
+	// Apply expansion state to group nodes
+	if isGroupNode(node) {
+		key := m.nodeExpansionKey(node)
+		if key != "" {
+			if expanded, ok := m.expansionState[key]; ok {
+				node.Expanded = expanded
+			} else {
+				// Default to expanded for nodes without saved state
+				node.Expanded = true
+			}
+		}
+	}
+
+	// Recursively apply to children
+	for _, child := range node.Children {
+		m.applyExpansionState(child)
 	}
 }
 
