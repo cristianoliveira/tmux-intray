@@ -2,6 +2,7 @@
 package sqlite
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/hooks"
+	"github.com/cristianoliveira/tmux-intray/internal/storage/sqlite/sqlcgen"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	_ "modernc.org/sqlite"
 )
@@ -43,7 +45,8 @@ var tmuxClient tmux.TmuxClient = tmux.NewDefaultClient()
 
 // SQLiteStorage implements the storage.Storage interface using SQLite.
 type SQLiteStorage struct {
-	db *sql.DB
+	db      *sql.DB
+	queries *sqlcgen.Queries
 }
 
 // NewSQLiteStorage creates a SQLite-backed storage at the provided path.
@@ -61,7 +64,7 @@ func NewSQLiteStorage(dbPath string) (*SQLiteStorage, error) {
 		return nil, fmt.Errorf("sqlite storage: open db: %w", err)
 	}
 
-	storage := &SQLiteStorage{db: db}
+	storage := &SQLiteStorage{db: db, queries: sqlcgen.New(db)}
 	if err := storage.init(); err != nil {
 		_ = db.Close()
 		return nil, err
@@ -83,30 +86,7 @@ func (s *SQLiteStorage) init() error {
 		return fmt.Errorf("sqlite storage: set busy timeout: %w", err)
 	}
 
-	const schema = `
-CREATE TABLE IF NOT EXISTS notifications (
-	id INTEGER PRIMARY KEY,
-	timestamp TEXT NOT NULL CHECK (strftime('%s', timestamp) IS NOT NULL),
-	state TEXT NOT NULL CHECK (state IN ('active', 'dismissed')),
-	session TEXT NOT NULL DEFAULT '',
-	window TEXT NOT NULL DEFAULT '',
-	pane TEXT NOT NULL DEFAULT '',
-	message TEXT NOT NULL,
-	pane_created TEXT NOT NULL DEFAULT '' CHECK (pane_created = '' OR strftime('%s', pane_created) IS NOT NULL),
-	level TEXT NOT NULL CHECK (level IN ('info', 'warning', 'error', 'critical')),
-	read_timestamp TEXT NOT NULL DEFAULT '' CHECK (read_timestamp = '' OR strftime('%s', read_timestamp) IS NOT NULL),
-	updated_at TEXT NOT NULL CHECK (strftime('%s', updated_at) IS NOT NULL)
-);
-
-CREATE INDEX IF NOT EXISTS idx_notifications_state ON notifications(state);
-CREATE INDEX IF NOT EXISTS idx_notifications_level ON notifications(level);
-CREATE INDEX IF NOT EXISTS idx_notifications_session ON notifications(session);
-CREATE INDEX IF NOT EXISTS idx_notifications_timestamp ON notifications(timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_notifications_state_timestamp ON notifications(state, timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_notifications_session_state_timestamp ON notifications(session, state, timestamp DESC);
-`
-
-	if _, err := s.db.Exec(schema); err != nil {
+	if _, err := s.db.Exec(schemaSQL); err != nil {
 		return fmt.Errorf("sqlite storage: create schema: %w", err)
 	}
 
@@ -132,11 +112,17 @@ func (s *SQLiteStorage) AddNotification(message, timestamp, session, window, pan
 	}
 
 	now := utcNow()
-	_, err = s.db.Exec(
-		`INSERT INTO notifications (id, timestamp, state, session, window, pane, message, pane_created, level, read_timestamp, updated_at)
-		 VALUES (?, ?, 'active', ?, ?, ?, ?, ?, ?, '', ?)`,
-		id, timestamp, session, window, pane, message, paneCreated, level, now,
-	)
+	err = s.queries.CreateNotification(context.Background(), sqlcgen.CreateNotificationParams{
+		ID:          id,
+		Timestamp:   timestamp,
+		Session:     session,
+		Window:      window,
+		Pane:        pane,
+		Message:     message,
+		PaneCreated: paneCreated,
+		Level:       level,
+		UpdatedAt:   now,
+	})
 	if err != nil {
 		return "", fmt.Errorf("sqlite storage: add notification: %w", err)
 	}
@@ -154,58 +140,33 @@ func (s *SQLiteStorage) ListNotifications(stateFilter, levelFilter, sessionFilte
 		return "", err
 	}
 
-	query := `SELECT id, timestamp, state, session, window, pane, message, pane_created, level, read_timestamp
-		FROM notifications WHERE 1=1`
-	args := []any{}
-
-	if stateFilter != "" && stateFilter != "all" {
-		query += " AND state = ?"
-		args = append(args, stateFilter)
-	}
-	if levelFilter != "" {
-		query += " AND level = ?"
-		args = append(args, levelFilter)
-	}
-	if sessionFilter != "" {
-		query += " AND session = ?"
-		args = append(args, sessionFilter)
-	}
-	if windowFilter != "" {
-		query += " AND window = ?"
-		args = append(args, windowFilter)
-	}
-	if paneFilter != "" {
-		query += " AND pane = ?"
-		args = append(args, paneFilter)
-	}
-	if olderThanCutoff != "" {
-		query += " AND timestamp < ?"
-		args = append(args, olderThanCutoff)
-	}
-	if newerThanCutoff != "" {
-		query += " AND timestamp > ?"
-		args = append(args, newerThanCutoff)
-	}
-
-	query += " ORDER BY id ASC"
-
-	rows, err := s.db.Query(query, args...)
+	rows, err := s.queries.ListNotifications(context.Background(), sqlcgen.ListNotificationsParams{
+		StateFilter:     stateFilter,
+		LevelFilter:     levelFilter,
+		SessionFilter:   sessionFilter,
+		WindowFilter:    windowFilter,
+		PaneFilter:      paneFilter,
+		OlderThanCutoff: olderThanCutoff,
+		NewerThanCutoff: newerThanCutoff,
+	})
 	if err != nil {
 		return "", fmt.Errorf("sqlite storage: list notifications: %w", err)
 	}
-	defer rows.Close()
 
-	lines := make([]string, 0)
-	for rows.Next() {
-		line, err := scanNotificationLine(rows)
-		if err != nil {
-			return "", err
-		}
-		lines = append(lines, line)
-	}
-
-	if err := rows.Err(); err != nil {
-		return "", fmt.Errorf("sqlite storage: iterate notifications: %w", err)
+	lines := make([]string, 0, len(rows))
+	for _, row := range rows {
+		lines = append(lines, formatNotificationLine(
+			row.ID,
+			row.Timestamp,
+			row.State,
+			row.Session,
+			row.Window,
+			row.Pane,
+			row.Message,
+			row.PaneCreated,
+			row.Level,
+			row.ReadTimestamp,
+		))
 	}
 
 	return strings.Join(lines, "\n"), nil
@@ -218,21 +179,26 @@ func (s *SQLiteStorage) GetNotificationByID(id string) (string, error) {
 		return "", err
 	}
 
-	row := s.db.QueryRow(
-		`SELECT id, timestamp, state, session, window, pane, message, pane_created, level, read_timestamp
-		 FROM notifications WHERE id = ?`,
-		idInt,
-	)
-
-	line, err := scanNotificationLine(row)
+	row, err := s.queries.GetNotificationLineByID(context.Background(), idInt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", fmt.Errorf("sqlite storage: get notification: %w: id %s", ErrNotificationNotFound, id)
 		}
-		return "", err
+		return "", fmt.Errorf("sqlite storage: get notification: %w", err)
 	}
 
-	return line, nil
+	return formatNotificationLine(
+		row.ID,
+		row.Timestamp,
+		row.State,
+		row.Session,
+		row.Window,
+		row.Pane,
+		row.Message,
+		row.PaneCreated,
+		row.Level,
+		row.ReadTimestamp,
+	), nil
 }
 
 // DismissNotification marks a notification as dismissed.
@@ -263,11 +229,10 @@ func (s *SQLiteStorage) DismissNotification(id string) error {
 		return err
 	}
 
-	if _, err := s.db.Exec(
-		"UPDATE notifications SET state = 'dismissed', updated_at = ? WHERE id = ?",
-		utcNow(),
-		idInt,
-	); err != nil {
+	if _, err := s.queries.DismissNotificationByID(context.Background(), sqlcgen.DismissNotificationByIDParams{
+		UpdatedAt: utcNow(),
+		ID:        idInt,
+	}); err != nil {
 		return fmt.Errorf("sqlite storage: update dismissed state: %w", err)
 	}
 	if err := hooks.Run("post-dismiss", envVars...); err != nil {
@@ -302,11 +267,10 @@ func (s *SQLiteStorage) DismissAll() error {
 		if err := hooks.Run("pre-dismiss", envVars...); err != nil {
 			return err
 		}
-		if _, err := s.db.Exec(
-			"UPDATE notifications SET state = 'dismissed', updated_at = ? WHERE id = ?",
-			utcNow(),
-			notification.id,
-		); err != nil {
+		if _, err := s.queries.DismissNotificationByID(context.Background(), sqlcgen.DismissNotificationByIDParams{
+			UpdatedAt: utcNow(),
+			ID:        notification.id,
+		}); err != nil {
 			return fmt.Errorf("sqlite storage: dismiss all notifications: %w", err)
 		}
 		if err := hooks.Run("post-dismiss", envVars...); err != nil {
@@ -333,12 +297,11 @@ func (s *SQLiteStorage) markNotificationReadState(id, readTimestamp string) erro
 		return err
 	}
 
-	res, err := s.db.Exec(
-		"UPDATE notifications SET read_timestamp = ?, updated_at = ? WHERE id = ?",
-		readTimestamp,
-		utcNow(),
-		idInt,
-	)
+	res, err := s.queries.UpdateReadTimestampByID(context.Background(), sqlcgen.UpdateReadTimestampByIDParams{
+		ReadTimestamp: readTimestamp,
+		UpdatedAt:     utcNow(),
+		ID:            idInt,
+	})
 	if err != nil {
 		return fmt.Errorf("sqlite storage: update read state: %w", err)
 	}
@@ -369,15 +332,13 @@ func (s *SQLiteStorage) CleanupOldNotifications(daysThreshold int, dryRun bool) 
 		return fmt.Errorf("pre-cleanup hook failed: %w", err)
 	}
 
-	countQuery := "SELECT COUNT(1) FROM notifications WHERE state = 'dismissed'"
-	countArgs := []any{}
-	if daysThreshold != 0 {
-		countQuery += " AND timestamp < ?"
-		countArgs = append(countArgs, cutoff)
+	countCutoff := cutoff
+	if daysThreshold == 0 {
+		countCutoff = ""
 	}
 
-	var deletedCount int
-	if err := s.db.QueryRow(countQuery, countArgs...).Scan(&deletedCount); err != nil {
+	deletedCount, err := s.queries.CountDismissedForCleanup(context.Background(), countCutoff)
+	if err != nil {
 		return fmt.Errorf("sqlite storage: count notifications for cleanup: %w", err)
 	}
 	if deletedCount == 0 {
@@ -396,23 +357,12 @@ func (s *SQLiteStorage) CleanupOldNotifications(daysThreshold int, dryRun bool) 
 		return nil
 	}
 
+	deleteCutoff := cutoff
 	if daysThreshold == 0 {
-		_, err := s.db.Exec("DELETE FROM notifications WHERE state = 'dismissed'")
-		if err != nil {
-			return fmt.Errorf("sqlite storage: cleanup dismissed notifications: %w", err)
-		}
-		postEnv := append(envVars, fmt.Sprintf("DELETED_COUNT=%d", deletedCount))
-		if err := hooks.Run("post-cleanup", postEnv...); err != nil {
-			return fmt.Errorf("post-cleanup hook failed: %w", err)
-		}
-		return nil
+		deleteCutoff = ""
 	}
 
-	_, err := s.db.Exec(
-		"DELETE FROM notifications WHERE state = 'dismissed' AND timestamp < ?",
-		cutoff,
-	)
-	if err != nil {
+	if err := s.queries.DeleteDismissedForCleanup(context.Background(), deleteCutoff); err != nil {
 		return fmt.Errorf("sqlite storage: cleanup old notifications: %w", err)
 	}
 	postEnv := append(envVars, fmt.Sprintf("DELETED_COUNT=%d", deletedCount))
@@ -433,12 +383,11 @@ func SetTmuxClient(client tmux.TmuxClient) {
 
 // GetActiveCount returns the number of active notifications.
 func (s *SQLiteStorage) GetActiveCount() int {
-	var count int
-	err := s.db.QueryRow("SELECT COUNT(1) FROM notifications WHERE state = 'active'").Scan(&count)
+	count, err := s.queries.CountActiveNotifications(context.Background())
 	if err != nil {
 		return 0
 	}
-	return count
+	return int(count)
 }
 
 func validateNotificationInputs(message, timestamp, session, window, pane, level string) error {
@@ -489,20 +438,7 @@ func validateListInputs(stateFilter, levelFilter, olderThanCutoff, newerThanCuto
 	return nil
 }
 
-type scanner interface {
-	Scan(dest ...any) error
-}
-
-func scanNotificationLine(s scanner) (string, error) {
-	var id int64
-	var timestamp, state, session, window, pane, message, paneCreated, level, readTimestamp string
-	if err := s.Scan(&id, &timestamp, &state, &session, &window, &pane, &message, &paneCreated, &level, &readTimestamp); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", err
-		}
-		return "", fmt.Errorf("sqlite storage: scan notification: %w", err)
-	}
-
+func formatNotificationLine(id int64, timestamp, state, session, window, pane, message, paneCreated, level, readTimestamp string) string {
 	return fmt.Sprintf(
 		"%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s",
 		id,
@@ -515,7 +451,7 @@ func scanNotificationLine(s scanner) (string, error) {
 		paneCreated,
 		level,
 		readTimestamp,
-	), nil
+	)
 }
 
 func parseID(id string) (int64, error) {
@@ -557,69 +493,54 @@ func buildNotificationHookEnv(id int64, level, message, escapedMessage, timestam
 }
 
 func (s *SQLiteStorage) nextNotificationID() (int64, error) {
-	var maxID int64
-	if err := s.db.QueryRow("SELECT COALESCE(MAX(id), 0) FROM notifications").Scan(&maxID); err != nil {
+	id, err := s.queries.NextNotificationID(context.Background())
+	if err != nil {
 		return 0, fmt.Errorf("sqlite storage: get next id: %w", err)
 	}
-	return maxID + 1, nil
+	return id, nil
 }
 
 func (s *SQLiteStorage) getNotificationForHooks(id int64) (hookNotification, error) {
-	notification := hookNotification{}
-	err := s.db.QueryRow(
-		`SELECT id, timestamp, state, session, window, pane, message, pane_created, level
-		 FROM notifications WHERE id = ?`,
-		id,
-	).Scan(
-		&notification.id,
-		&notification.timestamp,
-		&notification.state,
-		&notification.session,
-		&notification.window,
-		&notification.pane,
-		&notification.message,
-		&notification.paneCreated,
-		&notification.level,
-	)
+	row, err := s.queries.GetNotificationForHooksByID(context.Background(), id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return hookNotification{}, fmt.Errorf("sqlite storage: dismiss notification: %w: id %d", ErrNotificationNotFound, id)
 		}
 		return hookNotification{}, fmt.Errorf("sqlite storage: dismiss notification: %w", err)
 	}
-	return notification, nil
+
+	return hookNotification{
+		id:          row.ID,
+		timestamp:   row.Timestamp,
+		state:       row.State,
+		session:     row.Session,
+		window:      row.Window,
+		pane:        row.Pane,
+		message:     row.Message,
+		paneCreated: row.PaneCreated,
+		level:       row.Level,
+	}, nil
 }
 
 func (s *SQLiteStorage) listActiveNotificationsForHooks() ([]hookNotification, error) {
-	rows, err := s.db.Query(
-		`SELECT id, timestamp, state, session, window, pane, message, pane_created, level
-		 FROM notifications WHERE state = 'active' ORDER BY id ASC`,
-	)
+	rows, err := s.queries.ListActiveNotificationsForHooks(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("sqlite storage: list active notifications: %w", err)
 	}
-	defer rows.Close()
 
-	notifications := make([]hookNotification, 0)
-	for rows.Next() {
-		var notification hookNotification
-		if err := rows.Scan(
-			&notification.id,
-			&notification.timestamp,
-			&notification.state,
-			&notification.session,
-			&notification.window,
-			&notification.pane,
-			&notification.message,
-			&notification.paneCreated,
-			&notification.level,
-		); err != nil {
-			return nil, fmt.Errorf("sqlite storage: scan active notification: %w", err)
-		}
-		notifications = append(notifications, notification)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("sqlite storage: iterate active notifications: %w", err)
+	notifications := make([]hookNotification, 0, len(rows))
+	for _, row := range rows {
+		notifications = append(notifications, hookNotification{
+			id:          row.ID,
+			timestamp:   row.Timestamp,
+			state:       row.State,
+			session:     row.Session,
+			window:      row.Window,
+			pane:        row.Pane,
+			message:     row.Message,
+			paneCreated: row.PaneCreated,
+			level:       row.Level,
+		})
 	}
 
 	return notifications, nil
