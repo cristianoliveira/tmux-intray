@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/spf13/cobra"
 )
@@ -74,18 +74,19 @@ var listListFunc = func(state, level, session, window, pane, olderThan, newerTha
 
 // FilterOptions holds all filter parameters for listing notifications.
 type FilterOptions struct {
-	State      string
-	Level      string
-	Session    string
-	Window     string
-	Pane       string
-	OlderThan  string // timestamp cutoff (>=)
-	NewerThan  string // timestamp cutoff (<=)
-	Search     string
-	Regex      bool
-	GroupBy    string
-	GroupCount bool
-	Format     string // legacy, table, compact, json
+	State          string
+	Level          string
+	Session        string
+	Window         string
+	Pane           string
+	OlderThan      string // timestamp cutoff (>=)
+	NewerThan      string // timestamp cutoff (<=)
+	Search         string
+	Regex          bool
+	GroupBy        string
+	GroupCount     bool
+	Format         string          // legacy, table, compact, json
+	SearchProvider search.Provider // Optional custom search provider (for testing/extension)
 }
 
 // PrintList prints notifications according to the provided filter options.
@@ -104,6 +105,20 @@ func printList(opts FilterOptions, w io.Writer) {
 		return
 	}
 
+	// Determine search provider
+	var searchProvider search.Provider
+	if opts.SearchProvider != nil {
+		// Use custom provider if provided
+		searchProvider = opts.SearchProvider
+	} else if opts.Search != "" {
+		// Create default provider based on Regex flag
+		if opts.Regex {
+			searchProvider = search.NewRegexProvider(search.WithCaseInsensitive(false))
+		} else {
+			searchProvider = search.NewSubstringProvider(search.WithCaseInsensitive(false))
+		}
+	}
+
 	// Parse lines into notifications
 	var notifications []notification.Notification
 	for _, line := range strings.Split(lines, "\n") {
@@ -114,24 +129,10 @@ func printList(opts FilterOptions, w io.Writer) {
 		if err != nil {
 			continue
 		}
-		// Apply search filter
-		if opts.Search != "" {
-			if opts.Regex {
-				re, err := regexp.Compile(opts.Search)
-				if err != nil {
-					// Invalid regex, treat as literal substring
-					if !strings.Contains(notif.Message, opts.Search) {
-						continue
-					}
-				} else {
-					if !re.MatchString(notif.Message) {
-						continue
-					}
-				}
-			} else {
-				if !strings.Contains(notif.Message, opts.Search) {
-					continue
-				}
+		// Apply search filter using search provider
+		if searchProvider != nil {
+			if !searchProvider.Match(notif, opts.Search) {
+				continue
 			}
 		}
 		notifications = append(notifications, notif)
