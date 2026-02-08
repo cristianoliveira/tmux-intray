@@ -568,6 +568,212 @@ func TestModelUpdateHandlesSearchEscape(t *testing.T) {
 	assert.Equal(t, "", model.searchQuery)
 }
 
+// TestApplySearchFilterGroupedView tests that search filtering works correctly
+// in grouped view mode, including tree rebuilding and empty group pruning.
+func TestApplySearchFilterGroupedView(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Error: connection failed", Timestamp: "2024-01-03T10:00:00Z"},
+			{ID: 2, Session: "$1", Window: "@1", Pane: "%2", Message: "Warning: low memory", Timestamp: "2024-01-02T10:00:00Z"},
+			{ID: 3, Session: "$2", Window: "@1", Pane: "%1", Message: "Error: file not found", Timestamp: "2024-01-01T10:00:00Z"},
+			{ID: 4, Session: "$2", Window: "@2", Pane: "%1", Message: "Info: task completed", Timestamp: "2024-01-04T10:00:00Z"},
+		},
+		viewport:       viewport.New(80, 22),
+		width:          80,
+		expansionState: map[string]bool{},
+	}
+
+	// Search for "Error"
+	model.searchQuery = "Error"
+	model.applySearchFilter()
+
+	require.Len(t, model.filtered, 2)
+	require.NotNil(t, model.treeRoot)
+	require.NotEmpty(t, model.visibleNodes)
+
+	// Verify that only error notifications are in filtered list
+	assert.Contains(t, model.filtered[0].Message, "Error")
+	assert.Contains(t, model.filtered[1].Message, "Error")
+
+	// Verify tree root count matches filtered count
+	assert.Equal(t, 2, model.treeRoot.Count)
+
+	// Verify only sessions with matching errors are in the tree
+	sessionCount := 0
+	for _, node := range model.visibleNodes {
+		if node != nil && node.Kind == NodeKindSession {
+			sessionCount++
+		}
+	}
+	assert.Equal(t, 2, sessionCount)
+}
+
+// TestBuildFilteredTreePrunesEmptyGroups tests that empty groups are removed
+// from the tree after filtering.
+func TestBuildFilteredTreePrunesEmptyGroups(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Unique message here", Timestamp: "2024-01-01T10:00:00Z"},
+			{ID: 2, Session: "$2", Window: "@1", Pane: "%1", Message: "Different message", Timestamp: "2024-01-02T10:00:00Z"},
+		},
+		viewport:       viewport.New(80, 22),
+		width:          80,
+		expansionState: map[string]bool{},
+	}
+
+	// Search for "Unique"
+	model.searchQuery = "Unique"
+	model.applySearchFilter()
+
+	require.Len(t, model.filtered, 1)
+	require.NotNil(t, model.treeRoot)
+
+	// Verify tree has only one session (the one with matching notification)
+	sessionCount := 0
+	var sessionNode *Node
+	for _, node := range model.treeRoot.Children {
+		if node != nil && node.Kind == NodeKindSession {
+			sessionCount++
+			sessionNode = node
+		}
+	}
+	assert.Equal(t, 1, sessionCount)
+	require.NotNil(t, sessionNode)
+
+	// Verify session count is 1 (only matching notification)
+	assert.Equal(t, 1, sessionNode.Count)
+}
+
+// TestBuildFilteredTreePreservesExpansionState tests that expansion state
+// is preserved across searches when possible.
+func TestBuildFilteredTreePreservesExpansionState(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Test message 1", Timestamp: "2024-01-01T10:00:00Z"},
+			{ID: 2, Session: "$1", Window: "@2", Pane: "%1", Message: "Test message 2", Timestamp: "2024-01-02T10:00:00Z"},
+			{ID: 3, Session: "$2", Window: "@1", Pane: "%1", Message: "Test message 3", Timestamp: "2024-01-03T10:00:00Z"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	// First search - build initial tree
+	model.searchQuery = ""
+	model.applySearchFilter()
+	require.NotNil(t, model.treeRoot)
+
+	// Collapse session $2
+	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$2")
+	require.NotNil(t, sessionNode)
+	sessionNode.Expanded = false
+	model.updateExpansionState(sessionNode, false)
+
+	// Second search - should preserve expansion state
+	model.searchQuery = "message"
+	model.applySearchFilter()
+
+	// Find session $2 again in new tree
+	sessionNode = findChildByTitle(model.treeRoot, NodeKindSession, "$2")
+	require.NotNil(t, sessionNode)
+	assert.False(t, sessionNode.Expanded, "expansion state should be preserved")
+}
+
+// TestBuildFilteredTreeHandlesNoMatches tests the edge case where search
+// returns no matches.
+func TestBuildFilteredTreeHandlesNoMatches(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Test message", Timestamp: "2024-01-01T10:00:00Z"},
+		},
+		viewport:       viewport.New(80, 22),
+		width:          80,
+		expansionState: map[string]bool{},
+	}
+
+	// Search for something that doesn't exist
+	model.searchQuery = "nonexistent"
+	model.applySearchFilter()
+
+	require.Empty(t, model.filtered)
+	assert.Nil(t, model.treeRoot)
+	assert.Empty(t, model.visibleNodes)
+
+	// Verify viewport shows "No notifications found"
+	view := model.viewport.View()
+	assert.Contains(t, view, "No notifications found")
+}
+
+// TestBuildFilteredTreeWithEmptyQuery tests that empty query
+// shows all notifications.
+func TestBuildFilteredTreeWithEmptyQuery(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "First", Timestamp: "2024-01-01T10:00:00Z"},
+			{ID: 2, Session: "$1", Window: "@2", Pane: "%1", Message: "Second", Timestamp: "2024-01-02T10:00:00Z"},
+		},
+		viewport:       viewport.New(80, 22),
+		width:          80,
+		expansionState: map[string]bool{},
+	}
+
+	// Empty search
+	model.searchQuery = ""
+	model.applySearchFilter()
+
+	require.Len(t, model.filtered, 2)
+	require.NotNil(t, model.treeRoot)
+	assert.Equal(t, 2, model.treeRoot.Count)
+}
+
+// TestBuildFilteredTreeGroupCounts tests that group counts reflect
+// only matching notifications.
+func TestBuildFilteredTreeGroupCounts(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Error: connection failed", Timestamp: "2024-01-01T10:00:00Z"},
+			{ID: 2, Session: "$1", Window: "@1", Pane: "%1", Message: "Warning: low memory", Timestamp: "2024-01-02T10:00:00Z"},
+			{ID: 3, Session: "$1", Window: "@1", Pane: "%2", Message: "Error: timeout", Timestamp: "2024-01-03T10:00:00Z"},
+		},
+		viewport:       viewport.New(80, 22),
+		width:          80,
+		expansionState: map[string]bool{},
+	}
+
+	// Search for "Error"
+	model.searchQuery = "Error"
+	model.applySearchFilter()
+
+	require.Len(t, model.filtered, 2)
+	require.NotNil(t, model.treeRoot)
+
+	// Verify root count
+	assert.Equal(t, 2, model.treeRoot.Count)
+
+	// Verify session count
+	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$1")
+	require.NotNil(t, sessionNode)
+	assert.Equal(t, 2, sessionNode.Count)
+
+	// Verify window count
+	windowNode := findChildByTitle(sessionNode, NodeKindWindow, "@1")
+	require.NotNil(t, windowNode)
+	assert.Equal(t, 2, windowNode.Count)
+
+	// Pane %1 should have 1 error, Pane %2 should have 1 error
+	pane1 := findChildByTitle(windowNode, NodeKindPane, "%1")
+	pane2 := findChildByTitle(windowNode, NodeKindPane, "%2")
+	require.NotNil(t, pane1)
+	require.NotNil(t, pane2)
+	assert.Equal(t, 1, pane1.Count)
+	assert.Equal(t, 1, pane2.Count)
+}
+
 func TestModelUpdateHandlesCommandMode(t *testing.T) {
 	tmpDir := t.TempDir()
 	setupConfig(t, tmpDir)
