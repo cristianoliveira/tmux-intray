@@ -92,6 +92,8 @@ type DualWriter struct {
 	verifyOnly  bool
 	sampleSize  int
 
+	backendMu sync.RWMutex
+
 	metricsMu sync.Mutex
 	metrics   WriteMetrics
 }
@@ -160,7 +162,7 @@ func (d *DualWriter) AddNotification(message, timestamp, session, window, pane, 
 		sqliteID, sqliteErr := d.sqlite.AddNotification(message, timestamp, session, window, pane, paneCreated, level)
 		if sqliteErr != nil {
 			sqliteFailed = true
-			colors.Warning(fmt.Sprintf("dual write: sqlite add failed for id %s, continuing with tsv only: %v", id, sqliteErr))
+			d.handleSQLiteWriteFailure(fmt.Sprintf("add failed for id %s", id), sqliteErr)
 		} else if sqliteID != id {
 			colors.Warning(fmt.Sprintf("dual write: id mismatch after add (tsv=%s sqlite=%s)", id, sqliteID))
 		}
@@ -192,7 +194,7 @@ func (d *DualWriter) DismissNotification(id string) error {
 	if !d.verifyOnly {
 		if err := d.sqlite.DismissNotification(id); err != nil {
 			sqliteFailed = true
-			colors.Warning(fmt.Sprintf("dual write: sqlite dismiss failed for id %s, continuing with tsv only: %v", id, err))
+			d.handleSQLiteWriteFailure(fmt.Sprintf("dismiss failed for id %s", id), err)
 		}
 	}
 
@@ -212,7 +214,7 @@ func (d *DualWriter) DismissAll() error {
 	if !d.verifyOnly {
 		if err := d.sqlite.DismissAll(); err != nil {
 			sqliteFailed = true
-			colors.Warning(fmt.Sprintf("dual write: sqlite dismiss all failed, continuing with tsv only: %v", err))
+			d.handleSQLiteWriteFailure("dismiss all failed", err)
 		}
 	}
 
@@ -232,7 +234,7 @@ func (d *DualWriter) MarkNotificationRead(id string) error {
 	if !d.verifyOnly {
 		if err := d.sqlite.MarkNotificationRead(id); err != nil {
 			sqliteFailed = true
-			colors.Warning(fmt.Sprintf("dual write: sqlite mark-read failed for id %s, continuing with tsv only: %v", id, err))
+			d.handleSQLiteWriteFailure(fmt.Sprintf("mark-read failed for id %s", id), err)
 		}
 	}
 
@@ -252,7 +254,7 @@ func (d *DualWriter) MarkNotificationUnread(id string) error {
 	if !d.verifyOnly {
 		if err := d.sqlite.MarkNotificationUnread(id); err != nil {
 			sqliteFailed = true
-			colors.Warning(fmt.Sprintf("dual write: sqlite mark-unread failed for id %s, continuing with tsv only: %v", id, err))
+			d.handleSQLiteWriteFailure(fmt.Sprintf("mark-unread failed for id %s", id), err)
 		}
 	}
 
@@ -272,7 +274,7 @@ func (d *DualWriter) CleanupOldNotifications(daysThreshold int, dryRun bool) err
 	if !d.verifyOnly {
 		if err := d.sqlite.CleanupOldNotifications(daysThreshold, dryRun); err != nil {
 			sqliteFailed = true
-			colors.Warning(fmt.Sprintf("dual write: sqlite cleanup failed, continuing with tsv only: %v", err))
+			d.handleSQLiteWriteFailure("cleanup failed", err)
 		}
 	}
 
@@ -374,10 +376,26 @@ func (d *DualWriter) recordWrite(start time.Time, tsvFailed, sqliteFailed bool) 
 }
 
 func (d *DualWriter) readStorage() Storage {
+	d.backendMu.RLock()
+	defer d.backendMu.RUnlock()
+
 	if d.readBackend == ReadBackendTSV {
 		return d.tsv
 	}
 	return d.sqlite
+}
+
+func (d *DualWriter) handleSQLiteWriteFailure(operation string, err error) {
+	d.backendMu.Lock()
+	defer d.backendMu.Unlock()
+
+	if d.readBackend == ReadBackendSQLite {
+		d.readBackend = ReadBackendTSV
+		colors.Warning(fmt.Sprintf("dual write: sqlite %s; switching reads to tsv: %v", operation, err))
+		return
+	}
+
+	colors.Warning(fmt.Sprintf("dual write: sqlite %s, continuing with tsv only: %v", operation, err))
 }
 
 func parseNotificationLines(content string) map[string][]string {

@@ -189,3 +189,20 @@ func TestDualWriterTracksWriteMetrics(t *testing.T) {
 	require.Equal(t, int64(1), metrics.SQLiteWriteFailure)
 	require.GreaterOrEqual(t, metrics.TotalWriteLatency, metrics.AverageWriteLatency())
 }
+
+func TestDualWriterFallsBackToTSVReadsAfterSQLiteWriteFailure(t *testing.T) {
+	tsv := &fakeStorage{addID: "1", listResult: "tsv"}
+	sql := &fakeStorage{addErr: fmt.Errorf("sqlite failed"), listResult: "sqlite"}
+
+	dw, err := NewDualWriterWithBackends(tsv, sql, DualWriterOptions{})
+	require.NoError(t, err)
+
+	_, err = dw.AddNotification("message", "", "", "", "", "", "info")
+	require.NoError(t, err)
+
+	list, err := dw.ListNotifications("all", "", "", "", "", "", "")
+	require.NoError(t, err)
+	require.Equal(t, "tsv", list)
+	require.Equal(t, 1, tsv.listCalls)
+	require.Equal(t, 0, sql.listCalls)
+}
