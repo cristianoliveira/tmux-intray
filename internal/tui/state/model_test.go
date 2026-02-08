@@ -681,6 +681,29 @@ func TestModelSaveOnQuit(t *testing.T) {
 	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
 }
 
+func TestTUISaveOnExit(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	model := &Model{
+		sortBy:    settings.SortByLevel,
+		sortOrder: settings.SortOrderAsc,
+		columns:   []string{settings.ColumnID, settings.ColumnMessage},
+		viewMode:  settings.ViewModeDetailed,
+	}
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}}
+	_, cmd := model.Update(msg)
+	assert.NotNil(t, cmd)
+
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.SortByLevel, loaded.SortBy)
+	assert.Equal(t, settings.SortOrderAsc, loaded.SortOrder)
+	assert.Equal(t, []string{settings.ColumnID, settings.ColumnMessage}, loaded.Columns)
+	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
+}
+
 func TestModelSaveOnCtrlC(t *testing.T) {
 	tmpDir := t.TempDir()
 	setupConfig(t, tmpDir)
@@ -699,6 +722,38 @@ func TestModelSaveOnCtrlC(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, settings.SortByTimestamp, loaded.SortBy)
 	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
+}
+
+func TestTUILoadOnStart(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	original := &settings.Settings{
+		Columns:   []string{settings.ColumnID, settings.ColumnMessage, settings.ColumnLevel},
+		SortBy:    settings.SortByLevel,
+		SortOrder: settings.SortOrderAsc,
+		Filters: settings.Filter{
+			Level:   settings.LevelFilterWarning,
+			State:   settings.StateFilterActive,
+			Session: "session-1",
+		},
+		ViewMode: settings.ViewModeDetailed,
+	}
+
+	require.NoError(t, settings.Save(original))
+
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+
+	model := &Model{}
+	model.SetLoadedSettings(loaded)
+	require.NoError(t, model.FromState(settings.FromSettings(loaded)))
+
+	assert.Equal(t, original.Columns, model.columns)
+	assert.Equal(t, original.SortBy, model.sortBy)
+	assert.Equal(t, original.SortOrder, model.sortOrder)
+	assert.Equal(t, original.Filters, model.filters)
+	assert.Equal(t, original.ViewMode, model.viewMode)
 }
 
 func TestModelSaveOnCommandQ(t *testing.T) {

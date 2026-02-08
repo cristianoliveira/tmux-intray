@@ -340,3 +340,64 @@ func TestPartialTUIStateConversion(t *testing.T) {
 	assert.Equal(t, "%1", result.Filters.Pane)
 	assert.Equal(t, original.ViewMode, result.ViewMode)
 }
+
+func TestExtractFromModel(t *testing.T) {
+	settingsData := &Settings{
+		Columns:   []string{ColumnID, ColumnMessage, ColumnLevel},
+		SortBy:    SortByLevel,
+		SortOrder: SortOrderAsc,
+		Filters: Filter{
+			Level:   LevelFilterWarning,
+			State:   StateFilterActive,
+			Session: "session-1",
+		},
+		ViewMode: ViewModeDetailed,
+	}
+
+	state := FromSettings(settingsData)
+
+	assert.Equal(t, settingsData.Columns, state.Columns)
+	assert.Equal(t, settingsData.SortBy, state.SortBy)
+	assert.Equal(t, settingsData.SortOrder, state.SortOrder)
+	assert.Equal(t, settingsData.Filters, state.Filters)
+	assert.Equal(t, settingsData.ViewMode, state.ViewMode)
+}
+
+func TestApplyToModel(t *testing.T) {
+	state := TUIState{
+		Columns:   []string{ColumnID, ColumnMessage},
+		SortBy:    SortByTimestamp,
+		SortOrder: SortOrderDesc,
+		Filters: Filter{
+			Level: LevelFilterError,
+			State: StateFilterDismissed,
+		},
+		ViewMode: ViewModeCompact,
+	}
+
+	settingsData := state.ToSettings()
+
+	assert.Equal(t, state.Columns, settingsData.Columns)
+	assert.Equal(t, state.SortBy, settingsData.SortBy)
+	assert.Equal(t, state.SortOrder, settingsData.SortOrder)
+	assert.Equal(t, state.Filters, settingsData.Filters)
+	assert.Equal(t, state.ViewMode, settingsData.ViewMode)
+}
+
+func TestPartialUpdates(t *testing.T) {
+	state := TUIState{
+		SortBy: SortByLevel,
+		Filters: Filter{
+			Level: LevelFilterWarning,
+		},
+	}
+
+	settingsData := state.ToSettings()
+
+	assert.Equal(t, SortByLevel, settingsData.SortBy)
+	assert.Empty(t, settingsData.Columns)
+	assert.Equal(t, "", settingsData.SortOrder)
+	assert.Equal(t, LevelFilterWarning, settingsData.Filters.Level)
+	assert.Equal(t, "", settingsData.Filters.State)
+	assert.Equal(t, "", settingsData.ViewMode)
+}
