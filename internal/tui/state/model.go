@@ -212,7 +212,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// In search mode, 'i' is handled by KeyRunes
 			// This is a no-op but kept for documentation
 		case "q":
-			// Save settings before quitting
 			if err := m.saveSettings(); err != nil {
 				colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 			}
@@ -437,23 +436,107 @@ func (m *Model) applySearchFilter() {
 // executeCommand executes the current command query and returns a command to run.
 func (m *Model) executeCommand() tea.Cmd {
 	cmd := strings.TrimSpace(m.commandQuery)
-	switch cmd {
+	if cmd == "" {
+		colors.Warning("Command is empty")
+		return nil
+	}
+
+	parts := strings.Fields(cmd)
+	command := strings.ToLower(parts[0])
+	args := parts[1:]
+
+	switch command {
+	// FIXME: Consider extracting argument validation and settings persistence into helper functions to reduce duplication.
 	case "q":
-		// Save settings before quitting
+		if len(args) > 0 {
+			colors.Warning("Invalid usage: q")
+			return nil
+		}
 		if err := m.saveSettings(); err != nil {
 			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 		}
 		return tea.Quit
 	case "w":
-		// Save settings and continue TUI
+		if len(args) > 0 {
+			colors.Warning("Invalid usage: w")
+			return nil
+		}
 		return func() tea.Msg {
 			if err := m.saveSettings(); err != nil {
 				return saveSettingsFailedMsg{err: err}
 			}
 			return saveSettingsSuccessMsg{}
 		}
+	case "group-by":
+		if len(args) != 1 {
+			colors.Warning("Invalid usage: group-by <none|session|window|pane>")
+			return nil
+		}
+
+		groupBy := strings.ToLower(args[0])
+		if !settings.IsValidGroupBy(groupBy) {
+			colors.Warning(fmt.Sprintf("Invalid group-by value: %s (expected one of: none, session, window, pane)", args[0]))
+			return nil
+		}
+
+		if m.groupBy == groupBy {
+			return nil
+		}
+
+		m.groupBy = groupBy
+		m.applySearchFilter()
+		if err := m.saveSettings(); err != nil {
+			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+			return nil
+		}
+		colors.Info(fmt.Sprintf("Group by: %s", m.groupBy))
+		return nil
+	case "expand-level":
+		if len(args) != 1 {
+			colors.Warning("Invalid usage: expand-level <0|1|2|3>")
+			return nil
+		}
+
+		level, err := strconv.Atoi(args[0])
+		if err != nil || level < settings.MinExpandLevel || level > settings.MaxExpandLevel {
+			colors.Warning(fmt.Sprintf("Invalid expand-level value: %s (expected %d-%d)", args[0], settings.MinExpandLevel, settings.MaxExpandLevel))
+			return nil
+		}
+
+		if m.defaultExpandLevel == level {
+			return nil
+		}
+
+		m.defaultExpandLevel = level
+		if m.isGroupedView() {
+			m.applyDefaultExpansion()
+		}
+		if err := m.saveSettings(); err != nil {
+			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+			return nil
+		}
+		colors.Info(fmt.Sprintf("Default expand level: %d", m.defaultExpandLevel))
+		return nil
+	case "toggle-view":
+		if len(args) > 0 {
+			colors.Warning("Invalid usage: toggle-view")
+			return nil
+		}
+
+		if m.isGroupedView() {
+			m.viewMode = viewModeDetailed
+		} else {
+			m.viewMode = viewModeGrouped
+		}
+		m.applySearchFilter()
+		if err := m.saveSettings(); err != nil {
+			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+			return nil
+		}
+		colors.Info(fmt.Sprintf("View mode: %s", m.viewMode))
+		return nil
 	default:
-		// Unknown command - ignore
+		colors.Warning(fmt.Sprintf("Unknown command: %s", command))
 		return nil
 	}
 }
