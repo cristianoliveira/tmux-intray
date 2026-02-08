@@ -2,6 +2,7 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/storage/sqlite"
+	"github.com/cristianoliveira/tmux-intray/internal/storage/sqlite/sqlcgen"
 )
 
 const (
@@ -113,7 +115,17 @@ func NewDualWriter(opts DualWriterOptions) (*DualWriter, error) {
 		return nil, fmt.Errorf("dual writer: initialize sqlite backend: %w", err)
 	}
 
-	return NewDualWriterWithBackends(tsvStorage, sqliteStorage, opts)
+	dw, err := NewDualWriterWithBackends(tsvStorage, sqliteStorage, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Perform automatic migration if SQLite is empty and TSV has data
+	if err := dw.migrateTSVToSQLiteIfNeeded(); err != nil {
+		colors.Warning(fmt.Sprintf("dual writer: automatic tsv to sqlite migration failed: %v", err))
+	}
+
+	return dw, nil
 }
 
 // NewDualWriterWithBackends creates a DualWriter from explicit backend instances.
@@ -285,6 +297,107 @@ func (d *DualWriter) CleanupOldNotifications(daysThreshold int, dryRun bool) err
 // GetActiveCount delegates reads to the configured read backend.
 func (d *DualWriter) GetActiveCount() int {
 	return d.readStorage().GetActiveCount()
+}
+
+// migrateTSVToSQLiteIfNeeded performs automatic migration if SQLite is empty and TSV has data.
+// This ensures existing TSV data is visible in dual mode with SQLite read preference.
+func (d *DualWriter) migrateTSVToSQLiteIfNeeded() error {
+	// Check if SQLite is empty
+	sqliteCount := d.sqlite.GetActiveCount()
+	tsvCount := d.tsv.GetActiveCount()
+
+	colors.Debug(fmt.Sprintf("dual writer migration check: sqlite_count=%d tsv_count=%d", sqliteCount, tsvCount))
+
+	// No migration needed if SQLite has data or TSV is empty
+	if sqliteCount > 0 || tsvCount == 0 {
+		colors.Debug("dual writer: skipping migration (sqlite has data or tsv is empty)")
+		return nil
+	}
+
+	colors.Info(fmt.Sprintf("dual writer: migrating %d notifications from tsv to sqlite", tsvCount))
+
+	// Get all notifications from TSV (including dismissed ones)
+	tsvLines, err := d.tsv.ListNotifications("all", "", "", "", "", "", "")
+	if err != nil {
+		return fmt.Errorf("dual writer: list tsv notifications: %w", err)
+	}
+
+	// Parse TSV lines and migrate to SQLite
+	return d.migrateNotificationLines(tsvLines)
+}
+
+// migrateNotificationLines parses TSV lines and upserts them to SQLite using sqlc.
+func (d *DualWriter) migrateNotificationLines(tsvContent string) error {
+	if strings.TrimSpace(tsvContent) == "" {
+		return nil
+	}
+
+	// Type assertion to access SQLite storage methods
+	sqliteStorage, ok := d.sqlite.(*sqlite.SQLiteStorage)
+	if !ok {
+		return fmt.Errorf("dual writer: sqlite backend is not sqlite.SQLiteStorage type")
+	}
+
+	// Parse TSV lines
+	records := parseNotificationLines(tsvContent)
+
+	// Collect IDs for sorted migration
+	ids := make([]string, 0, len(records))
+	for id := range records {
+		ids = append(ids, id)
+	}
+	sortIDs(ids)
+
+	// Migrate each notification using sqlc-backed UpsertNotification
+	for _, idStr := range ids {
+		fields := records[idStr]
+		if len(fields) < NumFields {
+			continue
+		}
+
+		// Parse ID as int64 for sqlc
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			colors.Warning(fmt.Sprintf("dual writer: skipping invalid id %s during migration", idStr))
+			continue
+		}
+
+		// Build parameters for UpsertNotification
+		// TSV messages are stored in escaped form in the TSV file.
+		// We store them as-is (still escaped) in SQLite for consistency with the source of truth.
+		// This ensures that messages migrated from TSV appear identical to those added directly via SQLite.
+		params := sqlcgen.UpsertNotificationParams{
+			ID:            id,
+			Timestamp:     fields[FieldTimestamp],
+			State:         fields[FieldState],
+			Session:       fields[FieldSession],
+			Window:        fields[FieldWindow],
+			Pane:          fields[FieldPane],
+			Message:       fields[FieldMessage],
+			PaneCreated:   fields[FieldPaneCreated],
+			Level:         fields[FieldLevel],
+			ReadTimestamp: fields[FieldReadTimestamp],
+			UpdatedAt:     time.Now().UTC().Format("2006-01-02T15:04:05Z"),
+		}
+
+		// Validate state and level before upsert
+		if params.State != "active" && params.State != "dismissed" {
+			colors.Warning(fmt.Sprintf("dual writer: skipping notification id %s with invalid state '%s'", idStr, params.State))
+			continue
+		}
+		if params.Level != "info" && params.Level != "warning" && params.Level != "error" && params.Level != "critical" {
+			colors.Warning(fmt.Sprintf("dual writer: skipping notification id %s with invalid level '%s'", idStr, params.Level))
+			continue
+		}
+
+		if err := sqliteStorage.UpsertNotification(context.Background(), params); err != nil {
+			colors.Warning(fmt.Sprintf("dual writer: failed to migrate notification id %s: %v", idStr, err))
+			continue
+		}
+	}
+
+	colors.Success(fmt.Sprintf("dual writer: successfully migrated notifications from tsv to sqlite"))
+	return nil
 }
 
 // Metrics returns a snapshot of write metrics.
