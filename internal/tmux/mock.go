@@ -111,6 +111,26 @@ func (m *MockClient) GetSessionName(sessionID string) (string, error) {
 	return args.String(0), args.Error(1)
 }
 
+// ListWindows returns a mocked map of window IDs to names.
+// Configure the return value using:
+//
+//	windows := map[string]string{"@0": "main"}
+//	mock.On("ListWindows").Return(windows, nil)
+func (m *MockClient) ListWindows() (map[string]string, error) {
+	args := m.Called()
+	return args.Get(0).(map[string]string), args.Error(1)
+}
+
+// ListPanes returns a mocked map of pane IDs to names.
+// Configure the return value using:
+//
+//	panes := map[string]string{"%0": "terminal"}
+//	mock.On("ListPanes").Return(panes, nil)
+func (m *MockClient) ListPanes() (map[string]string, error) {
+	args := m.Called()
+	return args.Get(0).(map[string]string), args.Error(1)
+}
+
 // GetTmuxVisibility returns a mocked visibility state.
 // Configure the return value using:
 //

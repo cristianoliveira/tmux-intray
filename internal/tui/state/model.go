@@ -43,6 +43,8 @@ type Model struct {
 	width         int
 	height        int
 	sessionNames  map[string]string
+	windowNames   map[string]string
+	paneNames     map[string]string
 	client        tmux.TmuxClient // TmuxClient for tmux operations
 
 	// Settings fields
@@ -379,9 +381,23 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 		sessionNames = make(map[string]string)
 	}
 
+	// Fetch all window names from tmux
+	windowNames, err := client.ListWindows()
+	if err != nil {
+		windowNames = make(map[string]string)
+	}
+
+	// Fetch all pane names from tmux
+	paneNames, err := client.ListPanes()
+	if err != nil {
+		paneNames = make(map[string]string)
+	}
+
 	m := Model{
 		viewport:          viewport.New(defaultViewportWidth, defaultViewportHeight), // Default dimensions, will be updated on WindowSizeMsg
 		sessionNames:      sessionNames,
+		windowNames:       windowNames,
+		paneNames:         paneNames,
 		client:            client,
 		expansionState:    map[string]bool{},
 		ensureTmuxRunning: core.EnsureTmuxRunning,
@@ -415,8 +431,13 @@ func (m *Model) applySearchFilter() {
 		if m.searchProvider != nil {
 			provider = m.searchProvider
 		} else {
-			// Default: token-based search with case-insensitivity (backward compatible)
-			provider = search.NewTokenProvider(search.WithCaseInsensitive(true))
+			// Default: token-based search with case-insensitivity and name maps (backward compatible)
+			provider = search.NewTokenProvider(
+				search.WithCaseInsensitive(true),
+				search.WithSessionNames(m.sessionNames),
+				search.WithWindowNames(m.windowNames),
+				search.WithPaneNames(m.paneNames),
+			)
 		}
 
 		// Filter using the provider
@@ -1416,4 +1437,34 @@ func (m *Model) getSessionName(sessionID string) string {
 		return name
 	}
 	return sessionID // fallback to session ID if not found
+}
+
+// getWindowName returns the window name for a window ID.
+// Uses cached window names from initial fetch.
+func (m *Model) getWindowName(windowID string) string {
+	if windowID == "" {
+		return ""
+	}
+	if m.windowNames == nil {
+		return windowID
+	}
+	if name, ok := m.windowNames[windowID]; ok {
+		return name
+	}
+	return windowID // fallback to window ID if not found
+}
+
+// getPaneName returns the pane name for a pane ID.
+// Uses cached pane names from initial fetch.
+func (m *Model) getPaneName(paneID string) string {
+	if paneID == "" {
+		return ""
+	}
+	if m.paneNames == nil {
+		return paneID
+	}
+	if name, ok := m.paneNames[paneID]; ok {
+		return name
+	}
+	return paneID // fallback to pane ID if not found
 }
