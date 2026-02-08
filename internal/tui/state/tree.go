@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/settings"
 )
 
 // NodeKind represents the type of a tree node.
@@ -30,8 +31,10 @@ type Node struct {
 	LatestEvent  *notification.Notification
 }
 
-// BuildTree groups notifications into a session/window/pane hierarchy.
-func BuildTree(notifications []notification.Notification) *Node {
+// BuildTree groups notifications according to the configured groupBy depth.
+func BuildTree(notifications []notification.Notification, groupBy string) *Node {
+	resolvedGroupBy := resolveGroupBy(groupBy)
+
 	root := &Node{
 		Kind:     NodeKindRoot,
 		Title:    "root",
@@ -45,17 +48,27 @@ func BuildTree(notifications []notification.Notification) *Node {
 
 	for _, notif := range notifications {
 		current := notif
+		parent := root
 
-		sessionNode := getOrCreateGroupNode(root, sessionNodes, NodeKindSession, current.Session)
-		incrementGroupStats(sessionNode, current)
+		if resolvedGroupBy == settings.GroupBySession || resolvedGroupBy == settings.GroupByWindow || resolvedGroupBy == settings.GroupByPane {
+			sessionNode := getOrCreateGroupNode(root, sessionNodes, NodeKindSession, current.Session)
+			incrementGroupStats(sessionNode, current)
+			parent = sessionNode
+		}
 
-		windowKey := current.Session + "\x00" + current.Window
-		windowNode := getOrCreateGroupNode(sessionNode, windowNodes, NodeKindWindow, windowKey, current.Window)
-		incrementGroupStats(windowNode, current)
+		if resolvedGroupBy == settings.GroupByWindow || resolvedGroupBy == settings.GroupByPane {
+			windowKey := current.Session + "\x00" + current.Window
+			windowNode := getOrCreateGroupNode(parent, windowNodes, NodeKindWindow, windowKey, current.Window)
+			incrementGroupStats(windowNode, current)
+			parent = windowNode
+		}
 
-		paneKey := current.Session + "\x00" + current.Window + "\x00" + current.Pane
-		paneNode := getOrCreateGroupNode(windowNode, paneNodes, NodeKindPane, paneKey, current.Pane)
-		incrementGroupStats(paneNode, current)
+		if resolvedGroupBy == settings.GroupByPane {
+			paneKey := current.Session + "\x00" + current.Window + "\x00" + current.Pane
+			paneNode := getOrCreateGroupNode(parent, paneNodes, NodeKindPane, paneKey, current.Pane)
+			incrementGroupStats(paneNode, current)
+			parent = paneNode
+		}
 
 		leaf := &Node{
 			Kind:         NodeKindNotification,
@@ -63,7 +76,7 @@ func BuildTree(notifications []notification.Notification) *Node {
 			Display:      current.Message,
 			Notification: &current,
 		}
-		paneNode.Children = append(paneNode.Children, leaf)
+		parent.Children = append(parent.Children, leaf)
 
 		incrementGroupStats(root, current)
 	}
@@ -72,33 +85,42 @@ func BuildTree(notifications []notification.Notification) *Node {
 	return root
 }
 
+func resolveGroupBy(groupBy string) string {
+	if !settings.IsValidGroupBy(groupBy) {
+		return settings.GroupByPane
+	}
+	return groupBy
+}
+
 // FindNotificationPath locates the notification node and returns the path.
 func FindNotificationPath(root *Node, notif notification.Notification) ([]*Node, bool) {
 	if root == nil {
 		return nil, false
 	}
 
-	sessionNode := findChildByTitle(root, NodeKindSession, notif.Session)
-	if sessionNode == nil {
+	path, ok := findNotificationPath(root, notif)
+	if !ok {
 		return nil, false
 	}
 
-	windowNode := findChildByTitle(sessionNode, NodeKindWindow, notif.Window)
-	if windowNode == nil {
+	return path, true
+}
+
+func findNotificationPath(node *Node, notif notification.Notification) ([]*Node, bool) {
+	if node == nil {
 		return nil, false
 	}
-
-	paneNode := findChildByTitle(windowNode, NodeKindPane, notif.Pane)
-	if paneNode == nil {
-		return nil, false
+	if node.Kind == NodeKindNotification && notificationNodeMatches(node, notif) {
+		return []*Node{node}, true
 	}
-
-	leafNode := findChildByNotification(paneNode, notif)
-	if leafNode == nil {
-		return nil, false
+	for _, child := range node.Children {
+		childPath, ok := findNotificationPath(child, notif)
+		if !ok {
+			continue
+		}
+		return append([]*Node{node}, childPath...), true
 	}
-
-	return []*Node{root, sessionNode, windowNode, paneNode, leafNode}, true
+	return nil, false
 }
 
 func getOrCreateGroupNode(parent *Node, cache map[string]*Node, kind NodeKind, key string, titles ...string) *Node {
@@ -167,19 +189,23 @@ func findChildByTitle(node *Node, kind NodeKind, title string) *Node {
 
 func findChildByNotification(node *Node, notif notification.Notification) *Node {
 	for _, child := range node.Children {
-		if child.Kind != NodeKindNotification || child.Notification == nil {
-			continue
-		}
-		if child.Notification.ID == notif.ID {
-			return child
-		}
-		if child.Notification.Timestamp == notif.Timestamp &&
-			child.Notification.Message == notif.Message &&
-			child.Notification.Session == notif.Session &&
-			child.Notification.Window == notif.Window &&
-			child.Notification.Pane == notif.Pane {
+		if notificationNodeMatches(child, notif) {
 			return child
 		}
 	}
 	return nil
+}
+
+func notificationNodeMatches(node *Node, notif notification.Notification) bool {
+	if node == nil || node.Kind != NodeKindNotification || node.Notification == nil {
+		return false
+	}
+	if node.Notification.ID == notif.ID {
+		return true
+	}
+	return node.Notification.Timestamp == notif.Timestamp &&
+		node.Notification.Message == notif.Message &&
+		node.Notification.Session == notif.Session &&
+		node.Notification.Window == notif.Window &&
+		node.Notification.Pane == notif.Pane
 }
