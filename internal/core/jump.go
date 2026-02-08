@@ -31,6 +31,7 @@ func NewJumpService() *JumpService {
 }
 
 // NewJumpServiceWithDeps creates a JumpService with custom dependencies (for testing).
+// Panics if storage initialization fails, which is safer than continuing with nil storage.
 func NewJumpServiceWithDeps(tmuxClient tmux.TmuxClient, stor storage.Storage) *JumpService {
 	if tmuxClient == nil {
 		tmuxClient = tmux.NewDefaultClient()
@@ -38,8 +39,7 @@ func NewJumpServiceWithDeps(tmuxClient tmux.TmuxClient, stor storage.Storage) *J
 	if stor == nil {
 		fileStor, err := storage.NewFromConfig()
 		if err != nil {
-			// FIXME: If storage init fails, storage will be nil, causing panics when storage methods are called.
-			// This allows tests to work without fully initialized storage but is dangerous for production.
+			panic(fmt.Sprintf("failed to initialize storage: %v", err))
 		}
 		stor = fileStor
 	}

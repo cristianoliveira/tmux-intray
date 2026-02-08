@@ -31,19 +31,20 @@ func (c *Core) GetTrayItems(stateFilter string) (string, error) {
 			continue
 		}
 		fields := strings.Split(line, "\t")
-		// TODO: Duplicate of storage.normalizeFields logic. Consider exporting helper.
-		if len(fields) < storage.NumFields {
-			for len(fields) < storage.NumFields {
-				fields = append(fields, "")
-			}
+		// Normalize fields to ensure proper padding
+		normalized, err := storage.NormalizeFields(fields)
+		if err != nil {
+			// Skip malformed lines
+			continue
 		}
+		fields = normalized
 		// Bounds check for fieldMessage
 		if len(fields) <= storage.FieldMessage {
 			continue
 		}
 		message := fields[storage.FieldMessage]
 		// Unescape message
-		message = unescapeMessage(message)
+		message = storage.UnescapeMessage(message)
 		messages = append(messages, message)
 	}
 	return strings.Join(messages, "\n"), nil
@@ -152,27 +153,4 @@ func (c *Core) SetVisibility(visible bool) error {
 	}
 	_, err := c.SetTmuxVisibility(visibleStr)
 	return err
-}
-
-// Helper functions copied from storage package (since they're not exported)
-// TODO: Duplicate of storage.escapeMessage and storage.unescapeMessage. Consider exporting them from storage package.
-
-func escapeMessage(msg string) string {
-	// Escape backslashes first
-	msg = strings.ReplaceAll(msg, "\\", "\\\\")
-	// Escape newlines
-	msg = strings.ReplaceAll(msg, "\n", "\\n")
-	// Escape tabs
-	msg = strings.ReplaceAll(msg, "\t", "\\t")
-	return msg
-}
-
-func unescapeMessage(msg string) string {
-	// Unescape tabs first (to avoid unescaping \n in \t)
-	msg = strings.ReplaceAll(msg, "\\t", "\t")
-	// Unescape newlines
-	msg = strings.ReplaceAll(msg, "\\n", "\n")
-	// Unescape backslashes last
-	msg = strings.ReplaceAll(msg, "\\\\", "\\")
-	return msg
 }

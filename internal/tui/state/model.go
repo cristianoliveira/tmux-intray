@@ -473,7 +473,6 @@ func (m *Model) executeCommand() tea.Cmd {
 	args := parts[1:]
 
 	switch command {
-	// FIXME: Consider extracting argument validation and settings persistence into helper functions to reduce duplication.
 	case "q":
 		if len(args) > 0 {
 			colors.Warning("Invalid usage: q")

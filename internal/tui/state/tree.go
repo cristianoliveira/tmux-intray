@@ -143,7 +143,7 @@ func getOrCreateGroupNode(parent *Node, cache map[string]*Node, kind NodeKind, k
 	return node
 }
 
-// FIXME: Storing pointer to loop variable is safe due to escape analysis, but consider storing notification by value to avoid heap allocations.
+// incrementGroupStats updates node statistics with notification data.
 func incrementGroupStats(node *Node, notif notification.Notification) {
 	node.Count++
 	if node.LatestEvent == nil || isNewerTimestamp(notif.Timestamp, node.LatestEvent.Timestamp) {
