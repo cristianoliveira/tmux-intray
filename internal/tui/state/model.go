@@ -353,6 +353,7 @@ func (m *Model) FromState(state settings.TUIState) error {
 		}
 	}
 
+	m.applySearchFilter()
 	return nil
 }
 
