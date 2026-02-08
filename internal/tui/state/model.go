@@ -58,6 +58,9 @@ type Model struct {
 	treeRoot     *Node
 	visibleNodes []*Node
 
+	visibleNodesCache []*Node
+	cacheValid        bool
+
 	ensureTmuxRunning func() bool
 	jumpToPane        func(sessionID, windowID, paneID string) bool
 	searchProvider    search.Provider // Optional custom search provider (defaults to token-based search)
@@ -393,6 +396,8 @@ type saveSettingsFailedMsg struct {
 
 // applySearchFilter filters notifications based on the search query.
 func (m *Model) applySearchFilter() {
+	m.invalidateCache()
+
 	query := strings.TrimSpace(m.searchQuery)
 	if query == "" {
 		m.filtered = m.notifications
@@ -419,6 +424,7 @@ func (m *Model) applySearchFilter() {
 		m.visibleNodes = m.computeVisibleNodes()
 	} else {
 		m.treeRoot = nil
+		m.invalidateCache()
 		m.visibleNodes = nil
 	}
 	m.cursor = 0
@@ -797,6 +803,7 @@ func (m *Model) loadNotifications() error {
 		m.notifications = []notification.Notification{}
 		m.filtered = []notification.Notification{}
 		m.treeRoot = nil
+		m.invalidateCache()
 		m.visibleNodes = nil
 		m.updateViewportContent()
 		return nil
@@ -867,7 +874,13 @@ func isViewModeAvailable(mode string) bool {
 }
 
 func (m *Model) computeVisibleNodes() []*Node {
+	if m.cacheValid {
+		return m.visibleNodesCache
+	}
+
 	if m.treeRoot == nil {
+		m.visibleNodesCache = nil
+		m.cacheValid = true
 		return nil
 	}
 
@@ -892,7 +905,14 @@ func (m *Model) computeVisibleNodes() []*Node {
 	}
 
 	walk(m.treeRoot)
+	m.visibleNodesCache = visible
+	m.cacheValid = true
 	return visible
+}
+
+func (m *Model) invalidateCache() {
+	m.visibleNodesCache = nil
+	m.cacheValid = false
 }
 
 func isGroupNode(node *Node) bool {
@@ -1043,6 +1063,7 @@ func (m *Model) applyDefaultExpansion() {
 	}
 	walk(m.treeRoot)
 
+	m.invalidateCache()
 	m.visibleNodes = m.computeVisibleNodes()
 	if selected != nil {
 		if index := indexOfNode(m.visibleNodes, selected); index >= 0 {
@@ -1071,6 +1092,7 @@ func (m *Model) expandNode(node *Node) {
 
 	node.Expanded = true
 	m.updateExpansionState(node, true)
+	m.invalidateCache()
 	m.visibleNodes = m.computeVisibleNodes()
 	m.updateViewportContent()
 	m.ensureCursorVisible()
@@ -1090,6 +1112,7 @@ func (m *Model) collapseNode(node *Node) {
 	selected := m.selectedVisibleNode()
 	node.Expanded = false
 	m.updateExpansionState(node, false)
+	m.invalidateCache()
 	m.visibleNodes = m.computeVisibleNodes()
 	if selected != nil && nodeContains(node, selected) {
 		if index := indexOfNode(m.visibleNodes, node); index >= 0 {
@@ -1114,6 +1137,10 @@ func (m *Model) updateExpansionState(node *Node, expanded bool) {
 	if m.expansionState == nil {
 		m.expansionState = map[string]bool{}
 	}
+	legacyKey := m.nodeExpansionLegacyKey(node)
+	if legacyKey != "" && legacyKey != key {
+		delete(m.expansionState, legacyKey)
+	}
 	m.expansionState[key] = expanded
 }
 
@@ -1121,29 +1148,98 @@ func (m *Model) nodeExpansionKey(node *Node) string {
 	if node == nil || node.Kind == NodeKindNotification || node.Kind == NodeKindRoot {
 		return ""
 	}
-	if m.treeRoot == nil {
-		return fmt.Sprintf("%s:%s", node.Kind, node.Title)
+	path, ok := findNodePath(m.treeRoot, node)
+	if !ok || len(path) == 0 {
+		return ""
+	}
+
+	session, window, pane := nodePathSegments(path)
+
+	switch node.Kind {
+	case NodeKindSession:
+		return serializeNodeExpansionPath(NodeKindSession, session)
+	case NodeKindWindow:
+		if session == "" {
+			return ""
+		}
+		return serializeNodeExpansionPath(NodeKindWindow, session, window)
+	case NodeKindPane:
+		if session == "" || window == "" {
+			return ""
+		}
+		return serializeNodeExpansionPath(NodeKindPane, session, window, pane)
+	default:
+		return ""
+	}
+}
+
+func (m *Model) nodeExpansionLegacyKey(node *Node) string {
+	if node == nil || node.Kind == NodeKindNotification || node.Kind == NodeKindRoot {
+		return ""
 	}
 	path, ok := findNodePath(m.treeRoot, node)
 	if !ok || len(path) == 0 {
 		return ""
 	}
+
+	session, window, pane := nodePathSegments(path)
+
 	switch node.Kind {
 	case NodeKindSession:
-		return fmt.Sprintf("session:%s", node.Title)
+		return serializeLegacyNodeExpansionPath(NodeKindSession, session)
 	case NodeKindWindow:
-		if len(path) < 3 {
-			return fmt.Sprintf("window:%s", node.Title)
+		if session == "" {
+			return ""
 		}
-		return fmt.Sprintf("window:%s:%s", path[1].Title, node.Title)
+		return serializeLegacyNodeExpansionPath(NodeKindWindow, session, window)
 	case NodeKindPane:
-		if len(path) < 4 {
-			return fmt.Sprintf("pane:%s", node.Title)
+		if session == "" || window == "" {
+			return ""
 		}
-		return fmt.Sprintf("pane:%s:%s:%s", path[1].Title, path[2].Title, node.Title)
+		return serializeLegacyNodeExpansionPath(NodeKindPane, session, window, pane)
 	default:
 		return ""
 	}
+}
+
+func serializeNodeExpansionPath(kind NodeKind, parts ...string) string {
+	if len(parts) == 0 {
+		return ""
+	}
+	encoded := make([]string, 0, len(parts))
+	for _, part := range parts {
+		encoded = append(encoded, escapeExpansionPathSegment(part))
+	}
+	return fmt.Sprintf("%s:%s", kind, strings.Join(encoded, ":"))
+}
+
+func escapeExpansionPathSegment(value string) string {
+	replacer := strings.NewReplacer(
+		"%", "%25",
+		":", "%3A",
+	)
+	return replacer.Replace(value)
+}
+
+func serializeLegacyNodeExpansionPath(kind NodeKind, parts ...string) string {
+	if len(parts) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%s:%s", kind, strings.Join(parts, ":"))
+}
+
+func nodePathSegments(path []*Node) (session string, window string, pane string) {
+	for _, current := range path {
+		switch current.Kind {
+		case NodeKindSession:
+			session = current.Title
+		case NodeKindWindow:
+			window = current.Title
+		case NodeKindPane:
+			pane = current.Title
+		}
+	}
+	return session, window, pane
 }
 
 func findNodePath(root *Node, target *Node) ([]*Node, bool) {
@@ -1201,6 +1297,8 @@ func expandTree(node *Node) {
 // buildFilteredTree builds a tree from filtered notifications and applies saved expansion state.
 // Returns a tree where group counts reflect only matching notifications.
 func (m *Model) buildFilteredTree(notifications []notification.Notification) *Node {
+	m.invalidateCache()
+
 	if len(notifications) == 0 {
 		return nil
 	}
@@ -1254,14 +1352,11 @@ func (m *Model) applyExpansionState(node *Node) {
 
 	// Apply expansion state to group nodes
 	if isGroupNode(node) {
-		key := m.nodeExpansionKey(node)
-		if key != "" {
-			if expanded, ok := m.expansionState[key]; ok {
-				node.Expanded = expanded
-			} else {
-				// Default to expanded for nodes without saved state
-				node.Expanded = true
-			}
+		if expanded, ok := m.expansionStateValue(node); ok {
+			node.Expanded = expanded
+		} else {
+			// Default to expanded for nodes without saved state
+			node.Expanded = true
 		}
 	}
 
@@ -1271,11 +1366,43 @@ func (m *Model) applyExpansionState(node *Node) {
 	}
 }
 
-// getSessionName returns the session name for a notification.
-// Uses stored SessionName field, falling back to Session ID if not set.
-func (m *Model) getSessionName(notif notification.Notification) string {
-	if notif.SessionName != "" {
-		return notif.SessionName
+func (m *Model) expansionStateValue(node *Node) (bool, bool) {
+	if m.expansionState == nil {
+		return false, false
+	}
+
+	key := m.nodeExpansionKey(node)
+	if key != "" {
+		expanded, ok := m.expansionState[key]
+		if ok {
+			return expanded, true
+		}
+	}
+
+	legacyKey := m.nodeExpansionLegacyKey(node)
+	if legacyKey == "" {
+		return false, false
+	}
+
+	expanded, ok := m.expansionState[legacyKey]
+	if !ok {
+		return false, false
+	}
+	if key != "" {
+		m.expansionState[key] = expanded
+		delete(m.expansionState, legacyKey)
+	}
+	return expanded, true
+}
+
+// getSessionName returns the session name for a session ID.
+// Uses cached session names from initial fetch.
+func (m *Model) getSessionName(sessionID string) string {
+	if sessionID == "" {
+		return ""
+	}
+	if m.sessionNames == nil {
+		return sessionID
 	}
 	if notif.Session != "" {
 		return notif.Session

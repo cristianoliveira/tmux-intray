@@ -1,4 +1,4 @@
-.PHONY: all tests fmt check-fmt lint clean install install-docker install-npm install-go install-all verify-install security-check docs test
+.PHONY: all tests fmt check-fmt lint clean install install-docker install-npm install-go install-all verify-install security-check docs test bench-tui
 
 # tmux-intray is a pure Go implementation
 
@@ -7,13 +7,17 @@ VERSION ?= 1.0.0
 COMMIT ?= $(shell git rev-parse --short HEAD)
 LDFLAGS = -ldflags "-X github.com/cristianoliveira/tmux-intray/internal/version.Version=$(VERSION) -X github.com/cristianoliveira/tmux-intray/internal/version.Commit=$(COMMIT)"
 
-all: tests
-	@echo "✓ Build and test complete" lint
+all: tests lint
+	@echo "✓ Build and test complete"
 
 tests:
 	@echo "Running tests..."
 	go test ./...
 	bats tests
+
+bench-tui:
+	@echo "Running TUI benchmarks..."
+	go test ./internal/tui/state -bench 'Benchmark(BuildTree|ComputeVisibleNodes|UpdateViewportContentGrouped|ApplySearchFilterGrouped)$$' -benchmem -run '^$$'
 
 fmt:
 	@echo "Formatting shell scripts..."
