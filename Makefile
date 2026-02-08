@@ -1,4 +1,4 @@
-.PHONY: all tests fmt check-fmt lint clean install install-docker install-npm install-go install-all verify-install security-check docs test
+.PHONY: all tests fmt check-fmt lint clean install install-docker install-npm install-go install-all verify-install security-check docs test sqlc-generate sqlc-check
 
 # tmux-intray is a pure Go implementation
 
@@ -83,6 +83,13 @@ docs:
 	@echo "Generating documentation..."
 	./scripts/generate-docs.sh
 	@echo "✓ Documentation generated"
+
+sqlc-generate:
+	@echo "Generating SQLite query code with sqlc..."
+	go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0 generate -f internal/storage/sqlite/sqlc.yaml
+
+sqlc-check: sqlc-generate
+	@git diff --exit-code -- internal/storage/sqlite/sqlcgen || (echo "sqlc output is out of date. Run 'make sqlc-generate'." && exit 1)
 
 security-check:
 	@echo "Running security checks..."

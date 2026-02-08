@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/cristianoliveira/tmux-intray/internal/storage/sqlite/sqlcgen"
 )
 
 const (
@@ -245,30 +248,12 @@ func parseTSVLine(line string) (migrationRow, string, error) {
 }
 
 func upsertRows(s *SQLiteStorage, rowsByID map[int64]migrationRow) error {
+	ctx := context.Background()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("migration: begin transaction: %w", err)
 	}
-
-	stmt, err := tx.Prepare(`
-INSERT INTO notifications (id, timestamp, state, session, window, pane, message, pane_created, level, read_timestamp, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT(id) DO UPDATE SET
-	timestamp = excluded.timestamp,
-	state = excluded.state,
-	session = excluded.session,
-	window = excluded.window,
-	pane = excluded.pane,
-	message = excluded.message,
-	pane_created = excluded.pane_created,
-	level = excluded.level,
-	read_timestamp = excluded.read_timestamp,
-	updated_at = excluded.updated_at`)
-	if err != nil {
-		_ = tx.Rollback()
-		return fmt.Errorf("migration: prepare upsert: %w", err)
-	}
-	defer stmt.Close()
+	qtx := s.queries.WithTx(tx)
 
 	ids := make([]int64, 0, len(rowsByID))
 	for id := range rowsByID {
@@ -278,19 +263,19 @@ ON CONFLICT(id) DO UPDATE SET
 
 	for _, id := range ids {
 		row := rowsByID[id]
-		if _, err := stmt.Exec(
-			row.id,
-			row.timestamp,
-			row.state,
-			row.session,
-			row.window,
-			row.pane,
-			row.message,
-			row.paneCreated,
-			row.level,
-			row.readTimestamp,
-			row.updatedAt,
-		); err != nil {
+		if err := qtx.UpsertNotification(ctx, sqlcgen.UpsertNotificationParams{
+			ID:            row.id,
+			Timestamp:     row.timestamp,
+			State:         row.state,
+			Session:       row.session,
+			Window:        row.window,
+			Pane:          row.pane,
+			Message:       row.message,
+			PaneCreated:   row.paneCreated,
+			Level:         row.level,
+			ReadTimestamp: row.readTimestamp,
+			UpdatedAt:     row.updatedAt,
+		}); err != nil {
 			_ = tx.Rollback()
 			return fmt.Errorf("migration: upsert id %d: %w", id, err)
 		}

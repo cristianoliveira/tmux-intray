@@ -374,6 +374,12 @@ make all
 
 # Format all code
 make fmt
+
+# Regenerate SQLite sqlc code
+make sqlc-generate
+
+# Verify generated sqlc output is up to date
+make sqlc-check
 ```
 
 ## CI/CD Pipeline
