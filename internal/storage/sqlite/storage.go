@@ -13,7 +13,6 @@ import (
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/hooks"
-	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	_ "modernc.org/sqlite"
 )
@@ -46,8 +45,6 @@ var tmuxClient tmux.TmuxClient = tmux.NewDefaultClient()
 type SQLiteStorage struct {
 	db *sql.DB
 }
-
-var _ storage.Storage = (*SQLiteStorage)(nil)
 
 // NewSQLiteStorage creates a SQLite-backed storage at the provided path.
 func NewSQLiteStorage(dbPath string) (*SQLiteStorage, error) {
