@@ -1,17 +1,24 @@
-// Package core provides core tmux interaction and tray management.
 package core
 
 import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/cristianoliveira/tmux-intray/internal/storage"
 )
 
 // GetTrayItems returns tray items for a given state filter.
 // Returns newline-separated messages (unescaped).
+func GetTrayItems(stateFilter string) (string, error) {
+	return defaultCore.GetTrayItems(stateFilter)
+}
+
+// GetTrayItems returns tray items for a given state filter using this Core instance.
+// Returns newline-separated messages (unescaped).
 func (c *Core) GetTrayItems(stateFilter string) (string, error) {
 	// Use storage.ListNotifications with only state filter
-	lines, err := c.store.ListNotifications(stateFilter, "", "", "", "", "", "")
+	lines, err := c.storage.ListNotifications(stateFilter, "", "", "", "", "", "")
 	if err != nil {
 		return "", err
 	}
@@ -24,6 +31,7 @@ func (c *Core) GetTrayItems(stateFilter string) (string, error) {
 			continue
 		}
 		fields := strings.Split(line, "\t")
+		// TODO: Duplicate of storage.normalizeFields logic. Consider exporting helper.
 		if len(fields) < storage.NumFields {
 			for len(fields) < storage.NumFields {
 				fields = append(fields, "")
@@ -41,116 +49,130 @@ func (c *Core) GetTrayItems(stateFilter string) (string, error) {
 	return strings.Join(messages, "\n"), nil
 }
 
-// GetTrayItems returns tray items for a given state filter using the default core.
-func GetTrayItems(stateFilter string) (string, error) {
-	return defaultCore.GetTrayItems(stateFilter)
-}
-
 // AddTrayItem adds a tray item.
 // If session, window, pane are empty and noAuto is false, current tmux context is used.
 // Returns the notification ID or an error if validation fails.
 func (c *Core) AddTrayItem(item, session, window, pane, paneCreated string, noAuto bool, level string) (string, error) {
 	// Treat empty/whitespace context same as not provided for resilience
-	// This handles cases where plugin passes empty strings as flags
-	session = strings.TrimSpace(session)
-	window = strings.TrimSpace(window)
-	pane = strings.TrimSpace(pane)
+	item = strings.TrimSpace(item)
+	if item == "" {
+		return "", errors.New("add tray item: message cannot be empty")
+	}
 
-	// If auto context allowed and session/window/pane empty, get current tmux context
-	if !noAuto && session == "" && window == "" && pane == "" {
+	// Get current tmux context if needed
+	if !noAuto && (session == "" || window == "" || pane == "") {
 		ctx := c.GetCurrentTmuxContext()
-		if ctx.SessionID != "" {
+		if session == "" {
 			session = ctx.SessionID
+		}
+		if window == "" {
 			window = ctx.WindowID
+		}
+		if pane == "" {
 			pane = ctx.PaneID
-			if paneCreated == "" {
-				paneCreated = ctx.PaneCreated
-			}
+		}
+		if paneCreated == "" {
+			paneCreated = ctx.PaneCreated
 		}
 	}
 
 	// Add notification with empty timestamp (auto-generated)
-	id, err := c.store.AddNotification(item, "", session, window, pane, paneCreated, level)
+	id, err := c.storage.AddNotification(item, "", session, window, pane, paneCreated, level)
 	if err != nil {
 		return "", fmt.Errorf("add tray item: failed to add notification: %w", err)
 	}
 	return id, nil
 }
 
-// AddTrayItem adds a tray item using the default client.
+// AddTrayItem adds a tray item using the default core instance.
+// Returns the notification ID or an error if validation fails.
 func AddTrayItem(item, session, window, pane, paneCreated string, noAuto bool, level string) (string, error) {
 	return defaultCore.AddTrayItem(item, session, window, pane, paneCreated, noAuto, level)
 }
 
 // ClearTrayItems dismisses all active tray items.
-func (c *Core) ClearTrayItems() error {
-	return c.store.DismissAll()
-}
-
-// ClearTrayItems dismisses all active tray items using the default core.
 func ClearTrayItems() error {
 	return defaultCore.ClearTrayItems()
 }
 
+// ClearTrayItems dismisses all active tray items using this Core instance.
+func (c *Core) ClearTrayItems() error {
+	return c.storage.DismissAll()
+}
+
 // MarkNotificationRead marks a notification as read.
 func MarkNotificationRead(id string) error {
-	return storage.MarkNotificationRead(id)
+	return defaultCore.MarkNotificationRead(id)
+}
+
+// MarkNotificationRead marks a notification as read using this Core instance.
+func (c *Core) MarkNotificationRead(id string) error {
+	return c.storage.MarkNotificationRead(id)
 }
 
 // MarkNotificationUnread marks a notification as unread.
 func MarkNotificationUnread(id string) error {
-	return storage.MarkNotificationUnread(id)
+	return defaultCore.MarkNotificationUnread(id)
+}
+
+// MarkNotificationUnread marks a notification as unread using this Core instance.
+func (c *Core) MarkNotificationUnread(id string) error {
+	return c.storage.MarkNotificationUnread(id)
 }
 
 // GetVisibility returns the visibility state as "0" or "1".
-func (c *Core) GetVisibility() string {
-	return c.GetTmuxVisibility()
-}
-
-// GetVisibility returns the visibility state as "0" or "1" using the default client.
-func GetVisibility() string {
+func GetVisibility() (string, error) {
 	return defaultCore.GetVisibility()
 }
 
-// SetVisibility sets the visibility state.
-func (c *Core) SetVisibility(visible bool) error {
-	value := "0"
-	if visible {
-		value = "1"
+// GetVisibility returns the visibility state using this Core instance.
+func (c *Core) GetVisibility() (string, error) {
+	// Try tmux first
+	if visible := c.GetTmuxVisibility(); visible != "" {
+		return visible, nil
 	}
-	_, err := c.SetTmuxVisibility(value)
-	if err != nil {
-		return fmt.Errorf("set visibility: %w", err)
-	}
-	return nil
+
+	// Fall back to "0" (default)
+	return "0", nil
 }
 
-// SetVisibility sets the visibility state using the default client.
+// SetVisibility sets the visibility state.
+// Returns true on success, false on failure.
 func SetVisibility(visible bool) error {
 	return defaultCore.SetVisibility(visible)
 }
 
+// SetVisibility sets the visibility state using this Core instance.
+// Returns true on success, false on failure.
+func (c *Core) SetVisibility(visible bool) error {
+	// Set in tmux for other processes
+	visibleStr := "0"
+	if visible {
+		visibleStr = "1"
+	}
+	_, err := c.SetTmuxVisibility(visibleStr)
+	return err
+}
+
 // Helper functions copied from storage package (since they're not exported)
+// TODO: Duplicate of storage.escapeMessage and storage.unescapeMessage. Consider exporting them from storage package.
 
 func escapeMessage(msg string) string {
 	// Escape backslashes first
 	msg = strings.ReplaceAll(msg, "\\", "\\\\")
-	// Escape tabs
-	msg = strings.ReplaceAll(msg, "\t", "\\t")
 	// Escape newlines
 	msg = strings.ReplaceAll(msg, "\n", "\\n")
+	// Escape tabs
+	msg = strings.ReplaceAll(msg, "\t", "\\t")
 	return msg
 }
 
 func unescapeMessage(msg string) string {
-	// Unescape newlines first
-	msg = strings.ReplaceAll(msg, "\\n", "\n")
-	// Unescape tabs
+	// Unescape tabs first (to avoid unescaping \n in \t)
 	msg = strings.ReplaceAll(msg, "\\t", "\t")
-	// Unescape backslashes
+	// Unescape newlines
+	msg = strings.ReplaceAll(msg, "\\n", "\n")
+	// Unescape backslashes last
 	msg = strings.ReplaceAll(msg, "\\\\", "\\")
 	return msg
 }
-
-// ErrTmuxOperationFailed is returned when tmux operation fails.
-var ErrTmuxOperationFailed = errors.New("tmux operation failed")

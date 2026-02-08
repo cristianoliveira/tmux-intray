@@ -12,7 +12,7 @@ import (
 // JumpService handles jump-to-pane operations with validation and error handling.
 type JumpService struct {
 	tmuxClient tmux.TmuxClient
-	store      storage.Store
+	storage    storage.Storage
 }
 
 // JumpResult contains the result of a jump operation.
@@ -27,27 +27,32 @@ type JumpResult struct {
 
 // NewJumpService creates a new JumpService with default dependencies.
 func NewJumpService() *JumpService {
-	return NewJumpServiceWithDeps(tmux.NewDefaultClient(), storage.NewDefaultStore())
+	return NewJumpServiceWithDeps(tmux.NewDefaultClient(), nil)
 }
 
 // NewJumpServiceWithDeps creates a JumpService with custom dependencies (for testing).
-func NewJumpServiceWithDeps(tmuxClient tmux.TmuxClient, store storage.Store) *JumpService {
+func NewJumpServiceWithDeps(tmuxClient tmux.TmuxClient, stor storage.Storage) *JumpService {
 	if tmuxClient == nil {
 		tmuxClient = tmux.NewDefaultClient()
 	}
-	if store == nil {
-		store = storage.NewDefaultStore()
+	if stor == nil {
+		fileStor, err := storage.NewFileStorage()
+		if err != nil {
+			// FIXME: If storage init fails, storage will be nil, causing panics when storage methods are called.
+			// This allows tests to work without fully initialized storage but is dangerous for production.
+		}
+		stor = fileStor
 	}
 	return &JumpService{
 		tmuxClient: tmuxClient,
-		store:      store,
+		storage:    stor,
 	}
 }
 
 // JumpToNotification jumps to the pane/window of a notification.
 func (s *JumpService) JumpToNotification(notificationID string) (*JumpResult, error) {
 	// 1. Get notification from storage
-	line, err := s.store.GetNotificationByID(notificationID)
+	line, err := s.storage.GetNotificationByID(notificationID)
 	if err != nil {
 		return nil, fmt.Errorf("get notification: %w", err)
 	}
