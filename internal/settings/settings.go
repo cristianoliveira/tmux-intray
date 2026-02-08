@@ -22,6 +22,10 @@ const (
 	// FileModeFile is the permission for data files (rw-r--r--)
 	// Owner: read/write, Group/others: read only
 	FileModeFile os.FileMode = 0644
+
+	// FileExtJSON is the file extension for JSON files.
+	// Used for user settings persistence.
+	FileExtJSON = ".json"
 )
 
 // Default column values.
@@ -258,6 +262,7 @@ func Load() (*Settings, error) {
 // Save writes settings to the config directory.
 // Creates the config directory if it doesn't exist.
 // Uses atomic writes to prevent corruption.
+// Preconditions: settings must be non-nil and valid.
 func Save(settings *Settings) error {
 	// Load config to ensure config_dir is set
 	config.Load()
@@ -379,6 +384,7 @@ func Reset() (*Settings, error) {
 }
 
 // Validate checks that settings values are valid.
+// Preconditions: settings must be non-nil.
 func Validate(settings *Settings) error {
 	// Validate columns
 	validColumns := map[string]bool{
@@ -469,5 +475,5 @@ func getSettingsPath() string {
 		}
 		configDir = filepath.Join(xdgConfigHome, "tmux-intray")
 	}
-	return filepath.Join(configDir, "settings.json")
+	return filepath.Join(configDir, "settings"+FileExtJSON)
 }

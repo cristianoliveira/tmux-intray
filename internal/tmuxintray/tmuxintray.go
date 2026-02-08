@@ -127,6 +127,7 @@ func unescapeMessage(msg string) string {
 }
 
 // ParseNotification parses a TSV line into a Notification struct.
+// Preconditions: tsvLine must be a valid TSV line with NumFields or NumFields-1 fields.
 func ParseNotification(tsvLine string) (Notification, error) {
 	fields := strings.Split(tsvLine, "\t")
 	switch len(fields) {

@@ -29,6 +29,10 @@ const (
 	// FileModeScript is the permission for executable scripts (rwxr-xr-x)
 	// Owner: read/write/execute, Group/others: read/execute
 	FileModeScript os.FileMode = 0755
+
+	// FileExtTSV is the file extension for TSV (Tab-Separated Values) files.
+	// Used for notifications storage.
+	FileExtTSV = ".tsv"
 )
 
 // Valid notification levels
@@ -94,7 +98,7 @@ func Init() error {
 			err = fmt.Errorf("storage initialization failed: TMUX_INTRAY_STATE_DIR not configured")
 			return
 		}
-		notificationsFile = filepath.Join(stateDir, "notifications.tsv")
+		notificationsFile = filepath.Join(stateDir, "notifications"+FileExtTSV)
 		lockDir = filepath.Join(stateDir, "lock")
 
 		// Ensure directories exist
@@ -138,6 +142,7 @@ func Init() error {
 
 // SetTmuxClient sets the tmux client for the storage package.
 // This is primarily used for testing with mock implementations.
+// Preconditions: client must be non-nil.
 func SetTmuxClient(client tmux.TmuxClient) {
 	tmuxClient = client
 }
@@ -219,6 +224,8 @@ func validateListInputs(stateFilter, levelFilter, olderThanCutoff, newerThanCuto
 
 // AddNotification adds a notification and returns its ID.
 // Returns an error if validation fails or initialization fails.
+// Preconditions: message must be non-empty; level must be one of "info", "warning", "error", or "critical";
+// timestamp must be RFC3339 format if provided.
 func AddNotification(message, timestamp, session, window, pane, paneCreated, level string) (string, error) {
 	// Validate inputs first (Fail-Fast)
 	if err := validateNotificationInputs(message, timestamp, session, window, pane, paneCreated, level); err != nil {
@@ -304,6 +311,9 @@ func AddNotification(message, timestamp, session, window, pane, paneCreated, lev
 // Valid level values: "info", "warning", "error", "critical", or "" (no filter)
 // Valid timestamp formats for olderThanCutoff and newerThanCutoff: RFC3339 (e.g., "2006-01-02T15:04:05Z")
 // Returns TSV lines as a string and an error if validation fails.
+// Preconditions: if stateFilter is non-empty, it must be one of "active", "dismissed", or "all";
+// if levelFilter is non-empty, it must be one of "info", "warning", "error", or "critical";
+// if olderThanCutoff or newerThanCutoff are non-empty, they must be RFC3339 format.
 func ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff string) (string, error) {
 	// Validate inputs first (Fail-Fast)
 	if err := validateListInputs(stateFilter, levelFilter, olderThanCutoff, newerThanCutoff); err != nil {
@@ -335,6 +345,7 @@ func ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, pa
 // GetNotificationByID retrieves a single notification by its ID.
 // This is an optimized version that avoids reading all notifications when possible.
 // Returns the notification line as a TSV string or an error if not found.
+// Preconditions: id must be non-empty.
 func GetNotificationByID(id string) (string, error) {
 	if err := Init(); err != nil {
 		return "", fmt.Errorf("get notification by id: %w", err)
@@ -378,6 +389,7 @@ func GetNotificationByID(id string) (string, error) {
 }
 
 // DismissNotification dismisses a notification by ID.
+// Preconditions: id must be non-empty and reference an existing notification.
 func DismissNotification(id string) error {
 	if err := Init(); err != nil {
 		return fmt.Errorf("dismiss notification: %w", err)
@@ -505,11 +517,13 @@ func DismissNotification(id string) error {
 }
 
 // MarkNotificationRead marks a notification as read by setting read_timestamp.
+// Preconditions: id must be non-empty and reference an existing notification.
 func MarkNotificationRead(id string) error {
 	return markNotificationReadState(id, time.Now().UTC().Format(time.RFC3339))
 }
 
 // MarkNotificationUnread marks a notification as unread by clearing read_timestamp.
+// Preconditions: id must be non-empty and reference an existing notification.
 func MarkNotificationUnread(id string) error {
 	return markNotificationReadState(id, "")
 }
@@ -717,6 +731,7 @@ func DismissAll() error {
 }
 
 // CleanupOldNotifications cleans up notifications older than the threshold.
+// Preconditions: daysThreshold must be >= 0; if 0, all dismissed notifications are cleaned up.
 func CleanupOldNotifications(daysThreshold int, dryRun bool) error {
 	if err := Init(); err != nil {
 		return fmt.Errorf("cleanup old notifications: %w", err)

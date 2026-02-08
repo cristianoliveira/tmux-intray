@@ -88,11 +88,7 @@ func ValidatePaneExists(sessionID, windowID, paneID string) bool {
 
 // JumpToPane jumps to a specific pane. It returns true if the jump succeeded
 // (either to the pane or fallback to window), false if the jump completely failed.
-// INVARIANTS:
-//   - SessionID, windowID, and paneID must be non-empty (Power of 10 Rule 5)
-//   - Pane reference format must be "sessionID:windowID.paneID" (tmux pane target syntax)
-//   - If select-window fails, return false immediately (fail-fast)
-//   - If select-pane fails, return false (don't swallow errors)
+// Preconditions: sessionID, windowID, and paneID must be non-empty.
 func (c *Core) JumpToPane(sessionID, windowID, paneID string) bool {
 	// ASSERTION: Validate input parameters are non-empty
 	if sessionID == "" || windowID == "" || paneID == "" {
