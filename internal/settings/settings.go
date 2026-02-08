@@ -262,6 +262,7 @@ func Load() (*Settings, error) {
 // Save writes settings to the config directory.
 // Creates the config directory if it doesn't exist.
 // Uses atomic writes to prevent corruption.
+// Preconditions: settings must be non-nil and valid.
 func Save(settings *Settings) error {
 	// Load config to ensure config_dir is set
 	config.Load()
@@ -383,6 +384,7 @@ func Reset() (*Settings, error) {
 }
 
 // Validate checks that settings values are valid.
+// Preconditions: settings must be non-nil.
 func Validate(settings *Settings) error {
 	// Validate columns
 	validColumns := map[string]bool{
