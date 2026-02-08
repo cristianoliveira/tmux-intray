@@ -12,12 +12,13 @@ import (
 )
 
 const (
+	readStatusWidth      = 2
 	typeWidth            = 8
 	statusWidth          = 8
 	sessionWidth         = 25
 	paneWidth            = 7
 	ageWidth             = 5
-	spacesBetweenColumns = 10
+	spacesBetweenColumns = 12
 	defaultMessageWidth  = 50
 	groupIndentSize      = 2
 	groupCollapsedSymbol = "▸"
@@ -73,7 +74,8 @@ func Header(width int) string {
 
 	messageWidth := calculateMessageWidth(width)
 
-	header := fmt.Sprintf("%-*s  %-*s  %-*s  %-*s  %-*s  %-*s",
+	header := fmt.Sprintf("%-*s  %-*s  %-*s  %-*s  %-*s  %-*s  %-*s",
+		readStatusWidth, "RD",
 		typeWidth, "TYPE",
 		statusWidth, "STATUS",
 		sessionWidth, "SESSION",
@@ -87,13 +89,9 @@ func Header(width int) string {
 
 // Row renders a single notification row.
 func Row(state RowState) string {
-	rowStyle := lipgloss.NewStyle()
-	if state.Selected {
-		rowStyle = rowStyle.Background(lipgloss.Color(ansiColorNumber(colors.Blue))).Foreground(lipgloss.Color("0"))
-	}
-
 	levelIcon := levelIcon(state.Notification.Level)
 	statusIcon := statusIcon(state.Notification.State)
+	readIndicator := ReadStatusIndicator(state.Notification.IsRead(), state.Selected)
 
 	message := state.Notification.Message
 	if len(message) > defaultMessageWidth {
@@ -122,16 +120,34 @@ func Row(state RowState) string {
 		message = message[:messageWidth-3] + "..."
 	}
 
-	row := fmt.Sprintf("%-*s  %-*s  %-*s  %-*s  %-*s  %-*s",
-		typeWidth, levelIcon,
-		statusWidth, statusIcon,
-		sessionWidth, session,
-		messageWidth, message,
-		paneWidth, pane,
-		ageWidth, age,
-	)
+	columns := []string{
+		readIndicator,
+		fmt.Sprintf("%-*s", typeWidth, levelIcon),
+		fmt.Sprintf("%-*s", statusWidth, statusIcon),
+		fmt.Sprintf("%-*s", sessionWidth, session),
+		fmt.Sprintf("%-*s", messageWidth, message),
+		fmt.Sprintf("%-*s", paneWidth, pane),
+		fmt.Sprintf("%-*s", ageWidth, age),
+	}
 
-	return rowStyle.Render(row)
+	if !state.Selected {
+		return strings.Join(columns, "  ")
+	}
+
+	selectedStyle := lipgloss.NewStyle().Background(lipgloss.Color(ansiColorNumber(colors.Blue))).Foreground(lipgloss.Color("0"))
+	var row strings.Builder
+	for index, column := range columns {
+		if index > 0 {
+			row.WriteString(selectedStyle.Render("  "))
+		}
+		if index == 0 {
+			row.WriteString(column)
+			continue
+		}
+		row.WriteString(selectedStyle.Render(column))
+	}
+
+	return row.String()
 }
 
 // RenderGroupRow renders a single group row.
@@ -202,7 +218,7 @@ func Footer(state FooterState) string {
 }
 
 func calculateMessageWidth(width int) int {
-	totalFixedWidth := typeWidth + statusWidth + sessionWidth + paneWidth + ageWidth
+	totalFixedWidth := readStatusWidth + typeWidth + statusWidth + sessionWidth + paneWidth + ageWidth
 	return width - totalFixedWidth - spacesBetweenColumns
 }
 
@@ -254,6 +270,20 @@ func statusIcon(state string) string {
 	default:
 		return "?"
 	}
+}
+
+// ReadStatusIndicator renders the read/unread indicator with color.
+func ReadStatusIndicator(isRead bool, isSelected bool) string {
+	symbol := "●"
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color(ansiColorNumber(colors.Red)))
+	if isRead {
+		symbol = "○"
+		style = style.Foreground(lipgloss.Color("241"))
+	}
+	if isSelected {
+		style = style.Background(lipgloss.Color(ansiColorNumber(colors.Blue))).Bold(true)
+	}
+	return style.Width(readStatusWidth).Align(lipgloss.Left).Render(symbol)
 }
 
 func calculateAge(timestamp string, now time.Time) string {

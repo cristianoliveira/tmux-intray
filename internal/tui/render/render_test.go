@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/stretchr/testify/assert"
 )
@@ -51,6 +52,39 @@ func TestStatusIcon(t *testing.T) {
 	}
 }
 
+func TestReadStatusIndicator(t *testing.T) {
+	expectedUnread := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(ansiColorNumber(colors.Red))).
+		Width(readStatusWidth).
+		Align(lipgloss.Left).
+		Render("●")
+	assert.Equal(t, expectedUnread, ReadStatusIndicator(false, false))
+
+	expectedRead := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("241")).
+		Width(readStatusWidth).
+		Align(lipgloss.Left).
+		Render("○")
+	assert.Equal(t, expectedRead, ReadStatusIndicator(true, false))
+
+	expectedUnreadSelected := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(ansiColorNumber(colors.Red))).
+		Background(lipgloss.Color(ansiColorNumber(colors.Blue))).
+		Bold(true).
+		Width(readStatusWidth).
+		Align(lipgloss.Left).
+		Render("●")
+	assert.Equal(t, expectedUnreadSelected, ReadStatusIndicator(false, true))
+	expectedReadSelected := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("241")).
+		Background(lipgloss.Color(ansiColorNumber(colors.Blue))).
+		Bold(true).
+		Width(readStatusWidth).
+		Align(lipgloss.Left).
+		Render("○")
+	assert.Equal(t, expectedReadSelected, ReadStatusIndicator(true, true))
+}
+
 func TestCalculateAge(t *testing.T) {
 	now := time.Date(2024, 1, 1, 12, 0, 30, 0, time.UTC)
 
@@ -77,6 +111,7 @@ func TestRowSessionAndPaneColumns(t *testing.T) {
 		Now:         time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC),
 	})
 
+	assert.True(t, strings.HasPrefix(row, ReadStatusIndicator(false, false)))
 	assert.True(t, strings.Contains(row, "main-session"))
 	assert.True(t, strings.Contains(row, "%3"))
 	assert.False(t, strings.Contains(row, "@2:%3"))
