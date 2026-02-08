@@ -1130,7 +1130,7 @@ func (m *Model) buildFilteredTree(notifications []notification.Notification) *No
 		return nil
 	}
 
-	root := BuildTree(notifications)
+	root := BuildTree(notifications, m.groupBy)
 
 	// Prune empty groups (groups with no matching notifications)
 	m.pruneEmptyGroups(root)

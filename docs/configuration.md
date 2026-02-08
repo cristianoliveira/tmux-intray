@@ -162,6 +162,13 @@ The settings file uses the following JSON schema:
 | `defaultExpandLevel` | number | Default grouping expansion depth | `1` | `0`-`3` |
 | `expansionState` | object | Explicit expansion overrides by node path | `{}` | Object of string to boolean |
 
+`groupBy` controls the depth of grouped view hierarchy:
+
+- `none`: no group rows; notifications are listed directly in grouped view
+- `session`: session groups with notifications directly under each session
+- `window`: session -> window -> notification
+- `pane`: session -> window -> pane -> notification
+
 ### Default Settings
 
 If the settings file doesn't exist or is corrupted, the TUI uses these defaults:
