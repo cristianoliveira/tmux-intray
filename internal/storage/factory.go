@@ -3,6 +3,7 @@ package storage
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -42,6 +43,11 @@ func NewForBackend(backend string) (Storage, error) {
 			colors.Warning(fmt.Sprintf("failed to initialize sqlite backend, falling back to tsv: %v", err))
 			return NewFileStorage()
 		}
+		if err := autoMigrateTSVOnSQLiteOptIn(sqliteStorage, dbPath); err != nil {
+			_ = sqliteStorage.Close()
+			colors.Warning(fmt.Sprintf("failed to auto-migrate tsv data, falling back to tsv: %v", err))
+			return NewFileStorage()
+		}
 		return sqliteStorage, nil
 	case BackendDual:
 		opts := DualWriterOptions{
@@ -59,4 +65,42 @@ func NewForBackend(backend string) (Storage, error) {
 		colors.Warning(fmt.Sprintf("unknown storage backend '%s', falling back to tsv", backend))
 		return NewFileStorage()
 	}
+}
+
+func autoMigrateTSVOnSQLiteOptIn(sqliteStorage *sqlite.SQLiteStorage, dbPath string) error {
+	tsvPath := filepath.Join(GetStateDir(), "notifications.tsv")
+
+	hasTSVData, err := fileHasContent(tsvPath)
+	if err != nil {
+		return fmt.Errorf("inspect tsv data: %w", err)
+	}
+	if !hasTSVData {
+		return nil
+	}
+
+	sqliteRows, err := sqliteStorage.ListNotifications("all", "", "", "", "", "", "")
+	if err != nil {
+		return fmt.Errorf("inspect sqlite data: %w", err)
+	}
+	if strings.TrimSpace(sqliteRows) != "" {
+		return nil
+	}
+
+	if _, err := sqlite.MigrateTSVToSQLite(sqlite.MigrationOptions{TSVPath: tsvPath, SQLitePath: dbPath}); err != nil {
+		return fmt.Errorf("migrate tsv to sqlite: %w", err)
+	}
+
+	return nil
+}
+
+func fileHasContent(path string) (bool, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return strings.TrimSpace(string(data)) != "", nil
 }
