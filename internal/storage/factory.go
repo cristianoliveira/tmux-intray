@@ -16,9 +16,12 @@ const (
 	BackendTSV = "tsv"
 	// BackendSQLite selects SQLite-backed storage.
 	BackendSQLite = "sqlite"
+	// BackendDual selects dual-write storage (TSV + SQLite).
+	BackendDual = "dual"
 )
 
 var _ Storage = (*sqlite.SQLiteStorage)(nil)
+var _ Storage = (*DualWriter)(nil)
 
 // NewFromConfig creates a storage backend based on configuration.
 func NewFromConfig() (Storage, error) {
@@ -40,6 +43,18 @@ func NewForBackend(backend string) (Storage, error) {
 			return NewFileStorage()
 		}
 		return sqliteStorage, nil
+	case BackendDual:
+		opts := DualWriterOptions{
+			ReadBackend: config.Get("dual_read_backend", ReadBackendSQLite),
+			VerifyOnly:  config.GetBool("dual_verify_only", false),
+			SampleSize:  config.GetInt("dual_verify_sample_size", 25),
+		}
+		dualWriter, err := NewDualWriter(opts)
+		if err != nil {
+			colors.Warning(fmt.Sprintf("failed to initialize dual backend, falling back to tsv: %v", err))
+			return NewFileStorage()
+		}
+		return dualWriter, nil
 	default:
 		colors.Warning(fmt.Sprintf("unknown storage backend '%s', falling back to tsv", backend))
 		return NewFileStorage()

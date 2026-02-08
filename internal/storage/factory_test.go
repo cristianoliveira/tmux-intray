@@ -45,3 +45,15 @@ func TestNewFromConfigFallsBackToTSVForInvalidBackend(t *testing.T) {
 	require.NoError(t, err)
 	require.IsType(t, &FileStorage{}, stor)
 }
+
+func TestNewFromConfigSelectsDualBackend(t *testing.T) {
+	Reset()
+	t.Cleanup(Reset)
+
+	t.Setenv("TMUX_INTRAY_STATE_DIR", t.TempDir())
+	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "dual")
+
+	stor, err := NewFromConfig()
+	require.NoError(t, err)
+	require.IsType(t, &DualWriter{}, stor)
+}
