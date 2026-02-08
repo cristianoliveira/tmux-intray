@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,8 +11,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"database/sql"
 
 	sqlitebackend "github.com/cristianoliveira/tmux-intray/internal/storage/sqlite"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
@@ -359,41 +358,6 @@ func (n normalizedNotification) toTSVLine() string {
 	)
 }
 
-func parseTSVLines(t *testing.T, raw string) []normalizedNotification {
-	t.Helper()
-
-	if strings.TrimSpace(raw) == "" {
-		return []normalizedNotification{}
-	}
-
-	lines := strings.Split(strings.TrimSpace(raw), "\n")
-	out := make([]normalizedNotification, 0, len(lines))
-	for _, line := range lines {
-		fields := strings.Split(line, "\t")
-		for len(fields) < numFields {
-			fields = append(fields, "")
-		}
-		out = append(out, normalizedNotification{
-			ID:            fields[fieldID],
-			Timestamp:     fields[fieldTimestamp],
-			State:         fields[fieldState],
-			Session:       fields[fieldSession],
-			Window:        fields[fieldWindow],
-			Pane:          fields[fieldPane],
-			Message:       fields[fieldMessage],
-			PaneCreated:   fields[fieldPaneCreated],
-			Level:         fields[fieldLevel],
-			ReadTimestamp: normalizeReadTimestamp(t, fields[fieldReadTimestamp]),
-		})
-	}
-	sort.Slice(out, func(i, j int) bool {
-		left, _ := strconv.Atoi(out[i].ID)
-		right, _ := strconv.Atoi(out[j].ID)
-		return left < right
-	})
-	return out
-}
-
 func normalizeReadTimestamp(t *testing.T, value string) string {
 	t.Helper()
 	if value == "" {
@@ -445,6 +409,41 @@ func addParity(t *testing.T, tsv parityBackend, sqlite parityBackend, message, t
 	require.Equal(t, idTSV, idSQLite)
 
 	return idTSV
+}
+
+func parseTSVLines(t *testing.T, raw string) []normalizedNotification {
+	t.Helper()
+
+	if strings.TrimSpace(raw) == "" {
+		return []normalizedNotification{}
+	}
+
+	lines := strings.Split(strings.TrimSpace(raw), "\n")
+	out := make([]normalizedNotification, 0, len(lines))
+	for _, line := range lines {
+		fields := strings.Split(line, "\t")
+		for len(fields) < numFields {
+			fields = append(fields, "")
+		}
+		out = append(out, normalizedNotification{
+			ID:            fields[fieldID],
+			Timestamp:     fields[fieldTimestamp],
+			State:         fields[fieldState],
+			Session:       fields[fieldSession],
+			Window:        fields[fieldWindow],
+			Pane:          fields[fieldPane],
+			Message:       fields[fieldMessage],
+			PaneCreated:   fields[fieldPaneCreated],
+			Level:         fields[fieldLevel],
+			ReadTimestamp: normalizeReadTimestamp(t, fields[fieldReadTimestamp]),
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		left, _ := strconv.Atoi(out[i].ID)
+		right, _ := strconv.Atoi(out[j].ID)
+		return left < right
+	})
+	return out
 }
 
 func TestStorageBackendParityIntegration(t *testing.T) {
