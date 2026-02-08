@@ -1,0 +1,29 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/cristianoliveira/tmux-intray/internal/storage
+cpu: Apple M4 Pro
+BenchmarkStorage_AddSequential1000/tsv-12      	       1	12143949584 ns/op	852924728 B/op	 3131432 allocs/op
+BenchmarkStorage_AddSequential1000/sqlite-12   	       1	1153924376 ns/op	69084768 B/op	  599612 allocs/op
+BenchmarkStorage_ListActive10000/tsv-12        	       1	   7915500 ns/op	 9027072 B/op	   20165 allocs/op
+BenchmarkStorage_ListActive10000/sqlite-12     	       1	  15589709 ns/op	13606528 B/op	  339555 allocs/op
+BenchmarkStorage_FilterByState/tsv-12          	       1	   7185917 ns/op	 8240640 B/op	   20162 allocs/op
+BenchmarkStorage_FilterByState/sqlite-12       	       1	   8284083 ns/op	 7241888 B/op	  169552 allocs/op
+BenchmarkStorage_FilterByLevel/tsv-12          	       1	   7451167 ns/op	 7855616 B/op	   20160 allocs/op
+BenchmarkStorage_FilterByLevel/sqlite-12       	       1	   4692541 ns/op	 3095984 B/op	   84932 allocs/op
+BenchmarkStorage_FilterBySession/tsv-12        	       1	   7230916 ns/op	 7634432 B/op	   20157 allocs/op
+BenchmarkStorage_FilterBySession/sqlite-12     	       1	   1791708 ns/op	  561760 B/op	   17031 allocs/op
+BenchmarkStorage_MarkRead100/tsv-12            	       1	 998909416 ns/op	59389688 B/op	  118110 allocs/op
+BenchmarkStorage_MarkRead100/sqlite-12         	       1	  41569208 ns/op	  432800 B/op	    4600 allocs/op
+BenchmarkStorage_Dismiss100/tsv-12             	       1	1148794667 ns/op	141217360 B/op	  382201 allocs/op
+BenchmarkStorage_Dismiss100/sqlite-12          	       1	  90749792 ns/op	 6888240 B/op	   61334 allocs/op
+[0;34mCleaning up notifications dismissed before 2026-01-09T18:05:35Z[0m
+[0;34mFound 10000 notification(s) to clean up[0m
+[0;34mSuccessfully cleaned up 10000 notification(s)[0m
+BenchmarkStorage_CleanupOld10000/tsv-12        	       1	  21723417 ns/op	12138656 B/op	   30530 allocs/op
+BenchmarkStorage_CleanupOld10000/sqlite-12     	       1	  32354000 ns/op	   49512 B/op	     383 allocs/op
+BenchmarkStorage_ConcurrentAccess10x100/tsv-12 	       1	 848057375 ns/op	7629603888 B/op	20160687 allocs/op
+BenchmarkStorage_ConcurrentAccess10x100/sqlite-12         	       1	4956782958 ns/op	552792240 B/op	17033819 allocs/op
+BenchmarkStorage_LargeDatasetQuery100000/tsv-12           	       1	  38961292 ns/op	79799680 B/op	  200642 allocs/op
+BenchmarkStorage_LargeDatasetQuery100000/sqlite-12        	       1	  18008958 ns/op	 5538432 B/op	  136043 allocs/op
+PASS
+ok  	github.com/cristianoliveira/tmux-intray/internal/storage	407.440s

@@ -1,4 +1,4 @@
-.PHONY: all tests fmt check-fmt lint clean install install-docker install-npm install-go install-all verify-install security-check docs test sqlc-generate sqlc-check
+.PHONY: all tests benchmarks fmt check-fmt lint clean install install-docker install-npm install-go install-all verify-install security-check docs test sqlc-generate sqlc-check
 
 # tmux-intray is a pure Go implementation
 
@@ -14,6 +14,11 @@ tests:
 	@echo "Running tests..."
 	go test ./...
 	bats tests
+
+benchmarks:
+	@echo "Running storage benchmarks..."
+	@mkdir -p benchmarks
+	go test ./internal/storage -run '^$$' -bench '^BenchmarkStorage_' -benchmem -benchtime=1x | tee benchmarks/benchmarks.txt
 
 fmt:
 	@echo "Formatting shell scripts..."

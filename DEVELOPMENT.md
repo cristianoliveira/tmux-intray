@@ -380,6 +380,9 @@ make sqlc-generate
 
 # Verify generated sqlc output is up to date
 make sqlc-check
+
+# Run storage benchmarks and refresh baseline artifact
+make benchmarks
 ```
 
 ## CI/CD Pipeline
@@ -395,6 +398,7 @@ Key workflows:
 - [Go Package Structure](./docs/design/go-package-structure.md)
 - [Testing Strategy](./docs/testing/testing-strategy.md)
 - [Configuration Guide](./docs/configuration.md)
+- [Storage Benchmarks](./docs/storage-benchmarks.md)
 - [CLI Reference](./docs/cli/CLI_REFERENCE.md)
 - [Hooks Documentation](./docs/hooks.md)
 - [Troubleshooting Guide](./docs/troubleshooting.md)
