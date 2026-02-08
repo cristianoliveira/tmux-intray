@@ -604,9 +604,9 @@ func TestModelViewRendersContent(t *testing.T) {
 			{ID: 1, Message: "Test notification", Timestamp: "2024-01-01T12:00:00Z", Level: "info", State: "active"},
 		},
 		cursor:   0,
-		width:    80,
+		width:    84,
 		height:   24,
-		viewport: viewport.New(80, 22),
+		viewport: viewport.New(84, 22),
 	}
 	model.updateViewportContent()
 
