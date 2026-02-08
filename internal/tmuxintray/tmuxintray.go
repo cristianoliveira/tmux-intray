@@ -12,22 +12,6 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 )
 
-// Field indices matching storage package.
-// TSV schema: id, timestamp, state, session, window, pane, message, pane_created, level, read_timestamp.
-const (
-	fieldID            = 0
-	fieldTimestamp     = 1
-	fieldState         = 2
-	fieldSession       = 3
-	fieldWindow        = 4
-	fieldPane          = 5
-	fieldMessage       = 6
-	fieldPaneCreated   = 7
-	fieldLevel         = 8
-	fieldReadTimestamp = 9
-	numFields          = 10
-)
-
 // Init initializes all internal packages in the correct order.
 // It loads configuration, sets up colors debugging, initializes storage,
 // and starts the hooks subsystem.
@@ -146,23 +130,23 @@ func unescapeMessage(msg string) string {
 func ParseNotification(tsvLine string) (Notification, error) {
 	fields := strings.Split(tsvLine, "\t")
 	switch len(fields) {
-	case numFields - 1:
+	case storage.NumFields - 1:
 		fields = append(fields, "")
-	case numFields:
+	case storage.NumFields:
 		// OK
 	default:
 		return Notification{}, fmt.Errorf("invalid notification field count: %d", len(fields))
 	}
 	return Notification{
-		ID:            fields[fieldID],
-		Timestamp:     fields[fieldTimestamp],
-		State:         fields[fieldState],
-		Session:       fields[fieldSession],
-		Window:        fields[fieldWindow],
-		Pane:          fields[fieldPane],
-		Message:       unescapeMessage(fields[fieldMessage]),
-		PaneCreated:   fields[fieldPaneCreated],
-		Level:         fields[fieldLevel],
-		ReadTimestamp: fields[fieldReadTimestamp],
+		ID:            fields[storage.FieldID],
+		Timestamp:     fields[storage.FieldTimestamp],
+		State:         fields[storage.FieldState],
+		Session:       fields[storage.FieldSession],
+		Window:        fields[storage.FieldWindow],
+		Pane:          fields[storage.FieldPane],
+		Message:       unescapeMessage(fields[storage.FieldMessage]),
+		PaneCreated:   fields[storage.FieldPaneCreated],
+		Level:         fields[storage.FieldLevel],
+		ReadTimestamp: fields[storage.FieldReadTimestamp],
 	}, nil
 }
