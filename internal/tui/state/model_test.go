@@ -2245,6 +2245,95 @@ func TestExpansionStateAppliedWithGroupByWindow(t *testing.T) {
 	assert.True(t, model.expansionState["window:$1:@1"])
 }
 
+func TestNodeExpansionKeySerializesPathSegments(t *testing.T) {
+	model := &Model{
+		viewMode: settings.ViewModeGrouped,
+		groupBy:  settings.GroupByPane,
+		notifications: []notification.Notification{
+			{
+				ID:      1,
+				Session: "dev:one",
+				Window:  "@main:1",
+				Pane:    "%pane:2",
+				Message: "One",
+			},
+		},
+		expansionState: map[string]bool{},
+		viewport:       viewport.New(80, 22),
+		width:          80,
+	}
+
+	model.applySearchFilter()
+
+	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "dev:one")
+	require.NotNil(t, sessionNode)
+	windowNode := findChildByTitle(sessionNode, NodeKindWindow, "@main:1")
+	require.NotNil(t, windowNode)
+	paneNode := findChildByTitle(windowNode, NodeKindPane, "%pane:2")
+	require.NotNil(t, paneNode)
+
+	assert.Equal(t, "session:dev%3Aone", model.nodeExpansionKey(sessionNode))
+	assert.Equal(t, "window:dev%3Aone:@main%3A1", model.nodeExpansionKey(windowNode))
+	assert.Equal(t, "pane:dev%3Aone:@main%3A1:%25pane%3A2", model.nodeExpansionKey(paneNode))
+}
+
+func TestLoadNotificationsRestoresSavedExpansionState(t *testing.T) {
+	setupStorage(t)
+
+	_, err := storage.AddNotification("Message 1", "2024-01-01T10:00:00Z", "$1", "@1", "%1", "", "info")
+	require.NoError(t, err)
+
+	model := &Model{
+		viewMode:       settings.ViewModeGrouped,
+		groupBy:        settings.GroupByWindow,
+		expansionState: map[string]bool{},
+		viewport:       viewport.New(80, 22),
+		width:          80,
+	}
+
+	require.NoError(t, model.loadNotifications())
+
+	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$1")
+	require.NotNil(t, sessionNode)
+	windowNode := findChildByTitle(sessionNode, NodeKindWindow, "@1")
+	require.NotNil(t, windowNode)
+
+	model.collapseNode(windowNode)
+	assert.False(t, windowNode.Expanded)
+
+	require.NoError(t, model.loadNotifications())
+
+	sessionNode = findChildByTitle(model.treeRoot, NodeKindSession, "$1")
+	require.NotNil(t, sessionNode)
+	windowNode = findChildByTitle(sessionNode, NodeKindWindow, "@1")
+	require.NotNil(t, windowNode)
+	assert.False(t, windowNode.Expanded)
+}
+
+func TestApplyExpansionStateIgnoresStaleKeys(t *testing.T) {
+	model := &Model{
+		viewMode: settings.ViewModeGrouped,
+		groupBy:  settings.GroupByWindow,
+		expansionState: map[string]bool{
+			"window:$99:@77": false,
+		},
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+
+	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$1")
+	require.NotNil(t, sessionNode)
+	windowNode := findChildByTitle(sessionNode, NodeKindWindow, "@1")
+	require.NotNil(t, windowNode)
+
+	assert.True(t, windowNode.Expanded)
+}
+
 func TestGroupedViewWithGroupByNone(t *testing.T) {
 	setupStorage(t)
 	mockClient := stubSessionFetchers(t)
