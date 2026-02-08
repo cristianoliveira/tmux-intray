@@ -114,10 +114,21 @@ func (c *Core) JumpToPane(sessionID, windowID, paneID string) bool {
 	paneExists := c.ValidatePaneExists(sessionID, windowID, paneID)
 	colors.Debug(fmt.Sprintf("JumpToPane: pane validation for %s:%s in window %s:%s - exists: %v", sessionID, paneID, sessionID, windowID, paneExists))
 
+	// Switch client to target session before selecting window/pane
+	colors.Debug(fmt.Sprintf("JumpToPane: switching client to session %s", sessionID))
+	_, stderr, err := c.client.Run("switch-client", "-t", sessionID)
+	if err != nil {
+		colors.Error(fmt.Sprintf("JumpToPane: failed to switch client to session %s: %v", sessionID, err))
+		if stderr != "" {
+			colors.Debug("JumpToPane: stderr: " + stderr)
+		}
+		return false
+	}
+
 	// Select the window (this happens regardless of whether the pane exists)
 	targetWindow := sessionID + ":" + windowID
 	colors.Debug(fmt.Sprintf("JumpToPane: selecting window %s", targetWindow))
-	_, stderr, err := c.client.Run("select-window", "-t", targetWindow)
+	_, stderr, err = c.client.Run("select-window", "-t", targetWindow)
 	if err != nil {
 		colors.Error(fmt.Sprintf("JumpToPane: failed to select window %s: %v", targetWindow, err))
 		if stderr != "" {

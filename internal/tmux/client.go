@@ -180,10 +180,20 @@ func (c *DefaultClient) JumpToPane(sessionID, windowID, paneID string) (bool, er
 
 	// paneID is optional - if empty, jump to window only
 	if paneID == "" {
+		// Switch client to target session before selecting window
+		colors.Debug(fmt.Sprintf("JumpToPane: switching client to session %s (window-only jump)", sessionID))
+		_, stderr, err := c.Run("switch-client", "-t", sessionID)
+		if err != nil {
+			if stderr != "" {
+				colors.Debug("stderr: " + stderr)
+			}
+			return false, fmt.Errorf("switch client to session %s: %w", sessionID, err)
+		}
+
 		// Window-only jump: select-window
 		targetWindow := sessionID + ":" + windowID
 		colors.Debug(fmt.Sprintf("JumpToPane: selecting window %s (window-only jump)", targetWindow))
-		_, stderr, err := c.Run("select-window", "-t", targetWindow)
+		_, stderr, err = c.Run("select-window", "-t", targetWindow)
 		if err != nil {
 			if stderr != "" {
 				colors.Debug("stderr: " + stderr)
@@ -202,10 +212,20 @@ func (c *DefaultClient) JumpToPane(sessionID, windowID, paneID string) (bool, er
 
 	colors.Debug(fmt.Sprintf("JumpToPane: pane validation for %s:%s - exists: %v", sessionID, windowID, paneExists))
 
+	// Switch client to target session before selecting window/pane
+	colors.Debug(fmt.Sprintf("JumpToPane: switching client to session %s", sessionID))
+	_, stderr, err := c.Run("switch-client", "-t", sessionID)
+	if err != nil {
+		if stderr != "" {
+			colors.Debug("stderr: " + stderr)
+		}
+		return false, fmt.Errorf("switch client to session %s: %w", sessionID, err)
+	}
+
 	// Select the window first
 	targetWindow := sessionID + ":" + windowID
 	colors.Debug(fmt.Sprintf("JumpToPane: selecting window %s", targetWindow))
-	_, stderr, err := c.Run("select-window", "-t", targetWindow)
+	_, stderr, err = c.Run("select-window", "-t", targetWindow)
 	if err != nil {
 		if stderr != "" {
 			colors.Debug("stderr: " + stderr)
