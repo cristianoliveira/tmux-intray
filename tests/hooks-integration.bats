@@ -58,31 +58,39 @@ setup() {
 
         # Start a tmux server for testing
         if tmux -L "$TMUX_SOCKET_NAME" new-session -d -s test 2>/dev/null; then
-            # Wait for server to be ready and socket path to exist
-            local max_retries=5
+            # Wait for server to be ready (avoid race)
+            local max_retries=12
             local retry=0
-            local socket_path=""
+            local session_id=""
+            local window_id=""
+            local pane_id=""
+            local pane_created=""
+            local ready=0
             while [[ $retry -lt $max_retries ]]; do
                 sleep 0.2
-                socket_path=$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{socket_path}' 2>/dev/null)
-                if [[ -n "$socket_path" && -S "$socket_path" ]]; then
+                session_id=$(tmux -L "$TMUX_SOCKET_NAME" display -p -t test '#{session_id}' 2>/dev/null || true)
+                window_id=$(tmux -L "$TMUX_SOCKET_NAME" display -p -t test '#{window_id}' 2>/dev/null || true)
+                pane_id=$(tmux -L "$TMUX_SOCKET_NAME" display -p -t test '#{pane_id}' 2>/dev/null || true)
+                pane_created=$(tmux -L "$TMUX_SOCKET_NAME" display -p -t test '#{pane_start_time}' 2>/dev/null || true)
+                if [[ -n "$session_id" && -n "$window_id" && -n "$pane_id" && -n "$pane_created" ]]; then
+                    ready=1
                     break
                 fi
                 retry=$((retry + 1))
             done
-            if [[ -n "$socket_path" && -S "$socket_path" ]]; then
+            if [[ $ready -eq 1 ]]; then
                 # Capture session, window, pane IDs for use in tests
-                TMUX_TEST_SESSION_ID=$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{session_id}')
+                TMUX_TEST_SESSION_ID="$session_id"
                 export TMUX_TEST_SESSION_ID
-                TMUX_TEST_WINDOW_ID=$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{window_id}')
+                TMUX_TEST_WINDOW_ID="$window_id"
                 export TMUX_TEST_WINDOW_ID
-                TMUX_TEST_PANE_ID=$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{pane_id}')
+                TMUX_TEST_PANE_ID="$pane_id"
                 export TMUX_TEST_PANE_ID
-                TMUX_TEST_PANE_CREATED=$(tmux -L "$TMUX_SOCKET_NAME" display -p '#{pane_start_time}')
+                TMUX_TEST_PANE_CREATED="$pane_created"
                 export TMUX_TEST_PANE_CREATED
                 export TMUX_AVAILABLE=1
             else
-                echo "warning: tmux socket path missing or not a socket, disabling tmux support" >&2
+                echo "warning: tmux server not ready, disabling tmux support" >&2
                 export TMUX_AVAILABLE=0
                 tmux -L "$TMUX_SOCKET_NAME" kill-server 2>/dev/null || true
             fi
