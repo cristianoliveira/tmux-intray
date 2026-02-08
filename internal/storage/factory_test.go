@@ -34,12 +34,36 @@ func TestNewFromConfigSelectsSQLiteBackend(t *testing.T) {
 	}
 }
 
+func TestNewFromConfigFallsBackToTSVForNonCanonicalBackendValue(t *testing.T) {
+	Reset()
+	t.Cleanup(Reset)
+
+	t.Setenv("TMUX_INTRAY_STATE_DIR", t.TempDir())
+	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "  SQlite  ")
+
+	stor, err := NewFromConfig()
+	require.NoError(t, err)
+	require.IsType(t, &FileStorage{}, stor)
+}
+
 func TestNewFromConfigFallsBackToTSVForInvalidBackend(t *testing.T) {
 	Reset()
 	t.Cleanup(Reset)
 
 	t.Setenv("TMUX_INTRAY_STATE_DIR", t.TempDir())
 	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "unknown")
+
+	stor, err := NewFromConfig()
+	require.NoError(t, err)
+	require.IsType(t, &FileStorage{}, stor)
+}
+
+func TestNewFromConfigFallsBackToTSVForEmptyBackendValue(t *testing.T) {
+	Reset()
+	t.Cleanup(Reset)
+
+	t.Setenv("TMUX_INTRAY_STATE_DIR", t.TempDir())
+	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "")
 
 	stor, err := NewFromConfig()
 	require.NoError(t, err)
