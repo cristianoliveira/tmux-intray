@@ -23,13 +23,12 @@ type Notification struct {
 // ParseNotification parses a TSV line into a Notification.
 func ParseNotification(line string) (Notification, error) {
 	fields := strings.Split(line, "\t")
-	switch len(fields) {
-	case 9:
-		fields = append(fields, "")
-	case 10:
-		// OK
-	default:
+	if len(fields) < 9 {
 		return Notification{}, fmt.Errorf("invalid notification field count: %d", len(fields))
+	}
+	// Ensure at least 10 fields
+	for len(fields) < 10 {
+		fields = append(fields, "")
 	}
 	id := 0
 	if fields[0] != "" {
