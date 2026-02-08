@@ -22,6 +22,7 @@ func TestPrintHelp(t *testing.T) {
 	dismissCmd := &cobra.Command{Use: "dismiss ID", Short: "Dismiss a notification"}
 	clearCmd := &cobra.Command{Use: "clear", Short: "Clear all items from the tray"}
 	cleanupCmd := &cobra.Command{Use: "cleanup", Short: "Clean up old dismissed notifications"}
+	migrateCmd := &cobra.Command{Use: "migrate", Short: "Migrate notifications from TSV to SQLite"}
 	toggleCmd := &cobra.Command{Use: "toggle", Short: "Toggle the tray visibility"}
 	jumpCmd := &cobra.Command{Use: "jump", Short: "Jump to the pane of a notification"}
 	statusCmd := &cobra.Command{Use: "status", Short: "Show notification status summary"}
@@ -30,7 +31,7 @@ func TestPrintHelp(t *testing.T) {
 	helpCmd := &cobra.Command{Use: "help", Short: "Show this help message"}
 	versionCmd := &cobra.Command{Use: "version", Short: "Show version information"}
 
-	rootCmd.AddCommand(addCmd, listCmd, dismissCmd, clearCmd, cleanupCmd, toggleCmd, jumpCmd, statusCmd, statusPanelCmd, followCmd, helpCmd, versionCmd)
+	rootCmd.AddCommand(addCmd, listCmd, dismissCmd, clearCmd, cleanupCmd, migrateCmd, toggleCmd, jumpCmd, statusCmd, statusPanelCmd, followCmd, helpCmd, versionCmd)
 
 	// Capture output
 	var buf bytes.Buffer
@@ -57,7 +58,7 @@ func TestPrintHelp(t *testing.T) {
 		t.Error("Help output should contain OPTIONS section")
 	}
 	// Check that each command appears
-	for _, cmd := range []string{"add", "list", "dismiss", "clear", "cleanup", "toggle", "jump", "status", "status-panel", "follow", "help", "version"} {
+	for _, cmd := range []string{"add", "list", "dismiss", "clear", "cleanup", "migrate", "toggle", "jump", "status", "status-panel", "follow", "help", "version"} {
 		if !strings.Contains(output, cmd) {
 			t.Errorf("Help output should contain command %q", cmd)
 		}

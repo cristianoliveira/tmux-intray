@@ -68,6 +68,7 @@ func TestNewModelInitialState(t *testing.T) {
 func TestModelGroupedModeBuildsVisibleNodes(t *testing.T) {
 	model := &Model{
 		viewMode: viewModeGrouped,
+		groupBy:  settings.GroupByPane,
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 			{ID: 2, Session: "$2", Window: "@1", Pane: "%2", Message: "Two"},
@@ -88,6 +89,166 @@ func TestModelGroupedModeBuildsVisibleNodes(t *testing.T) {
 	assert.Equal(t, NodeKindWindow, model.visibleNodes[5].Kind)
 	assert.Equal(t, NodeKindPane, model.visibleNodes[6].Kind)
 	assert.Equal(t, NodeKindNotification, model.visibleNodes[7].Kind)
+}
+
+func TestComputeVisibleNodesUsesCacheWhenValid(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		groupBy:  settings.GroupByPane,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+	require.True(t, model.cacheValid)
+	require.Len(t, model.visibleNodes, 4)
+
+	groupNode := model.visibleNodes[0]
+	require.NotNil(t, groupNode)
+	require.True(t, groupNode.Expanded)
+
+	groupNode.Expanded = false
+	visible := model.computeVisibleNodes()
+
+	assert.Len(t, visible, 4)
+	assert.Equal(t, NodeKindNotification, visible[len(visible)-1].Kind)
+}
+
+func TestInvalidateCacheForcesVisibleNodesRecompute(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		groupBy:  settings.GroupByPane,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+	require.True(t, model.cacheValid)
+	require.Len(t, model.visibleNodes, 4)
+
+	groupNode := model.visibleNodes[0]
+	groupNode.Expanded = false
+
+	model.invalidateCache()
+	assert.False(t, model.cacheValid)
+	assert.Nil(t, model.visibleNodesCache)
+
+	visible := model.computeVisibleNodes()
+	assert.True(t, model.cacheValid)
+	assert.Len(t, visible, 1)
+	assert.Equal(t, NodeKindSession, visible[0].Kind)
+}
+
+func TestCacheInvalidationOnSearchAndExpansionChanges(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		groupBy:  settings.GroupBySession,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "alpha message"},
+			{ID: 2, Session: "$2", Window: "@2", Pane: "%2", Message: "beta message"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+	require.True(t, model.cacheValid)
+	require.Len(t, model.visibleNodes, 4)
+
+	model.searchQuery = "alpha"
+	model.applySearchFilter()
+	require.True(t, model.cacheValid)
+	require.Len(t, model.visibleNodes, 2)
+
+	groupNode := model.visibleNodes[0]
+	model.cursor = 0
+	require.True(t, groupNode.Expanded)
+
+	handled := model.toggleNodeExpansion()
+	require.True(t, handled)
+	assert.False(t, groupNode.Expanded)
+	assert.True(t, model.cacheValid)
+	assert.Len(t, model.visibleNodes, 1)
+}
+
+func BenchmarkComputeVisibleNodesCache(b *testing.B) {
+	notifications := make([]notification.Notification, 0, 1000)
+	for i := 0; i < 1000; i++ {
+		notifications = append(notifications, notification.Notification{
+			ID:      i + 1,
+			Session: "$1",
+			Window:  "@1",
+			Pane:    "%1",
+			Message: "bench message",
+		})
+	}
+
+	model := &Model{
+		viewMode:       viewModeGrouped,
+		groupBy:        settings.GroupByPane,
+		notifications:  notifications,
+		expansionState: map[string]bool{},
+		viewport:       viewport.New(80, 22),
+		width:          80,
+	}
+	model.applySearchFilter()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = model.computeVisibleNodes()
+	}
+}
+
+func TestModelGroupedModeRespectsGroupByDepth(t *testing.T) {
+	tests := []struct {
+		name                 string
+		groupBy              string
+		expectedVisibleKinds []NodeKind
+	}{
+		{
+			name:                 "session",
+			groupBy:              settings.GroupBySession,
+			expectedVisibleKinds: []NodeKind{NodeKindSession, NodeKindNotification, NodeKindSession, NodeKindNotification},
+		},
+		{
+			name:                 "window",
+			groupBy:              settings.GroupByWindow,
+			expectedVisibleKinds: []NodeKind{NodeKindSession, NodeKindWindow, NodeKindNotification, NodeKindSession, NodeKindWindow, NodeKindNotification},
+		},
+		{
+			name:                 "none",
+			groupBy:              settings.GroupByNone,
+			expectedVisibleKinds: []NodeKind{NodeKindNotification, NodeKindNotification},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			model := &Model{
+				viewMode: viewModeGrouped,
+				groupBy:  tt.groupBy,
+				notifications: []notification.Notification{
+					{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+					{ID: 2, Session: "$2", Window: "@2", Pane: "%2", Message: "Two"},
+				},
+				viewport: viewport.New(80, 22),
+				width:    80,
+			}
+
+			model.applySearchFilter()
+
+			require.Len(t, model.visibleNodes, len(tt.expectedVisibleKinds))
+			for i, kind := range tt.expectedVisibleKinds {
+				assert.Equal(t, kind, model.visibleNodes[i].Kind)
+			}
+		})
+	}
 }
 
 func TestModelSwitchesViewModes(t *testing.T) {
@@ -504,6 +665,65 @@ func TestModelUpdateHandlesSearch(t *testing.T) {
 	model.applySearchFilter()
 
 	assert.Len(t, model.filtered, 3)
+}
+
+func TestModelUpdateCyclesViewModesWithPersistence(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	model := &Model{
+		viewMode: settings.ViewModeCompact,
+		width:    80,
+		viewport: viewport.New(80, 22),
+	}
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}}
+
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, settings.ViewModeDetailed, model.viewMode)
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
+
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, settings.ViewModeGrouped, model.viewMode)
+	loaded, err = settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.ViewModeGrouped, loaded.ViewMode)
+
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, settings.ViewModeCompact, model.viewMode)
+	loaded, err = settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.ViewModeCompact, loaded.ViewMode)
+}
+
+func TestModelUpdateIgnoresViewModeCycleInSearchAndCommandModes(t *testing.T) {
+	model := &Model{
+		viewMode:     settings.ViewModeCompact,
+		searchMode:   true,
+		commandMode:  false,
+		searchQuery:  "",
+		commandQuery: "",
+		width:        80,
+		viewport:     viewport.New(80, 22),
+	}
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, settings.ViewModeCompact, model.viewMode)
+	assert.Equal(t, "v", model.searchQuery)
+
+	model.searchMode = false
+	model.commandMode = true
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, settings.ViewModeCompact, model.viewMode)
+	assert.Equal(t, "v", model.commandQuery)
 }
 
 func TestApplySearchFilterReadStatus(t *testing.T) {
@@ -1842,6 +2062,138 @@ func TestModelSaveCommandW(t *testing.T) {
 	assert.Equal(t, settings.GroupBySession, loaded.GroupBy)
 }
 
+func TestExecuteCommandGroupByPersistsSettings(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	model := &Model{
+		viewMode: settings.ViewModeGrouped,
+		groupBy:  settings.GroupBySession,
+		viewport: viewport.New(80, 22),
+		width:    80,
+		height:   24,
+		filtered: []notification.Notification{},
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "one"},
+		},
+	}
+
+	model.commandQuery = "group-by window"
+	cmd := model.executeCommand()
+	assert.Nil(t, cmd)
+	assert.Equal(t, settings.GroupByWindow, model.groupBy)
+
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.GroupByWindow, loaded.GroupBy)
+}
+
+func TestExecuteCommandExpandLevelPersistsSettings(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	model := &Model{
+		viewMode:           settings.ViewModeGrouped,
+		groupBy:            settings.GroupBySession,
+		defaultExpandLevel: 1,
+		expansionState:     map[string]bool{},
+		viewport:           viewport.New(80, 22),
+		width:              80,
+		height:             24,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "one"},
+		},
+	}
+	model.applySearchFilter()
+
+	model.commandQuery = "expand-level 3"
+	cmd := model.executeCommand()
+	assert.Nil(t, cmd)
+	assert.Equal(t, 3, model.defaultExpandLevel)
+
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, 3, loaded.DefaultExpandLevel)
+}
+
+func TestExecuteCommandToggleViewPersistsSettings(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	model := &Model{
+		viewMode:       settings.ViewModeDetailed,
+		groupBy:        settings.GroupByNone,
+		expansionState: map[string]bool{},
+		viewport:       viewport.New(80, 22),
+		width:          80,
+		height:         24,
+	}
+
+	model.commandQuery = "toggle-view"
+	cmd := model.executeCommand()
+	assert.Nil(t, cmd)
+	assert.Equal(t, settings.ViewModeGrouped, model.viewMode)
+
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.ViewModeGrouped, loaded.ViewMode)
+
+	model.commandQuery = "toggle-view"
+	cmd = model.executeCommand()
+	assert.Nil(t, cmd)
+	assert.Equal(t, settings.ViewModeDetailed, model.viewMode)
+
+	loaded, err = settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
+}
+
+func TestExecuteCommandValidation(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	model := &Model{
+		viewMode:           settings.ViewModeDetailed,
+		groupBy:            settings.GroupBySession,
+		defaultExpandLevel: 2,
+		viewport:           viewport.New(80, 22),
+		width:              80,
+		height:             24,
+	}
+
+	tests := []struct {
+		name        string
+		query       string
+		wantView    string
+		wantGroupBy string
+		wantLevel   int
+	}{
+		{name: "unknown command", query: "nope", wantView: settings.ViewModeDetailed, wantGroupBy: settings.GroupBySession, wantLevel: 2},
+		{name: "group-by missing arg", query: "group-by", wantView: settings.ViewModeDetailed, wantGroupBy: settings.GroupBySession, wantLevel: 2},
+		{name: "group-by invalid value", query: "group-by team", wantView: settings.ViewModeDetailed, wantGroupBy: settings.GroupBySession, wantLevel: 2},
+		{name: "expand-level invalid value", query: "expand-level 9", wantView: settings.ViewModeDetailed, wantGroupBy: settings.GroupBySession, wantLevel: 2},
+		{name: "expand-level non-number", query: "expand-level two", wantView: settings.ViewModeDetailed, wantGroupBy: settings.GroupBySession, wantLevel: 2},
+		{name: "toggle-view with arg", query: "toggle-view now", wantView: settings.ViewModeDetailed, wantGroupBy: settings.GroupBySession, wantLevel: 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			model.commandQuery = tt.query
+			cmd := model.executeCommand()
+			assert.Nil(t, cmd)
+			assert.Equal(t, tt.wantView, model.viewMode)
+			assert.Equal(t, tt.wantGroupBy, model.groupBy)
+			assert.Equal(t, tt.wantLevel, model.defaultExpandLevel)
+		})
+	}
+
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.DefaultSettings().ViewMode, loaded.ViewMode)
+	assert.Equal(t, settings.DefaultSettings().GroupBy, loaded.GroupBy)
+	assert.Equal(t, settings.DefaultSettings().DefaultExpandLevel, loaded.DefaultExpandLevel)
+}
+
 func TestModelMissingSettingsFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	setupConfig(t, tmpDir)
@@ -1982,38 +2334,143 @@ func TestExpansionStatePreservedAfterActions(t *testing.T) {
 	assert.False(t, newSessionNode.Expanded, "session $1 should remain collapsed after action")
 }
 
+func TestExpansionStateAppliedWithGroupByWindow(t *testing.T) {
+	model := &Model{
+		viewMode:       settings.ViewModeGrouped,
+		groupBy:        settings.GroupByWindow,
+		expansionState: map[string]bool{"window:$1:@1": false},
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+
+	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$1")
+	require.NotNil(t, sessionNode)
+	windowNode := findChildByTitle(sessionNode, NodeKindWindow, "@1")
+	require.NotNil(t, windowNode)
+	assert.False(t, windowNode.Expanded)
+	assert.True(t, sessionNode.Expanded)
+
+	model.expandNode(windowNode)
+	assert.True(t, model.expansionState["window:$1:@1"])
+}
+
+func TestNodeExpansionKeySerializesPathSegments(t *testing.T) {
+	model := &Model{
+		viewMode: settings.ViewModeGrouped,
+		groupBy:  settings.GroupByPane,
+		notifications: []notification.Notification{
+			{
+				ID:      1,
+				Session: "dev:one",
+				Window:  "@main:1",
+				Pane:    "%pane:2",
+				Message: "One",
+			},
+		},
+		expansionState: map[string]bool{},
+		viewport:       viewport.New(80, 22),
+		width:          80,
+	}
+
+	model.applySearchFilter()
+
+	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "dev:one")
+	require.NotNil(t, sessionNode)
+	windowNode := findChildByTitle(sessionNode, NodeKindWindow, "@main:1")
+	require.NotNil(t, windowNode)
+	paneNode := findChildByTitle(windowNode, NodeKindPane, "%pane:2")
+	require.NotNil(t, paneNode)
+
+	assert.Equal(t, "session:dev%3Aone", model.nodeExpansionKey(sessionNode))
+	assert.Equal(t, "window:dev%3Aone:@main%3A1", model.nodeExpansionKey(windowNode))
+	assert.Equal(t, "pane:dev%3Aone:@main%3A1:%25pane%3A2", model.nodeExpansionKey(paneNode))
+}
+
+func TestLoadNotificationsRestoresSavedExpansionState(t *testing.T) {
+	setupStorage(t)
+
+	_, err := storage.AddNotification("Message 1", "2024-01-01T10:00:00Z", "$1", "@1", "%1", "", "info")
+	require.NoError(t, err)
+
+	model := &Model{
+		viewMode:       settings.ViewModeGrouped,
+		groupBy:        settings.GroupByWindow,
+		expansionState: map[string]bool{},
+		viewport:       viewport.New(80, 22),
+		width:          80,
+	}
+
+	require.NoError(t, model.loadNotifications())
+
+	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$1")
+	require.NotNil(t, sessionNode)
+	windowNode := findChildByTitle(sessionNode, NodeKindWindow, "@1")
+	require.NotNil(t, windowNode)
+
+	model.collapseNode(windowNode)
+	assert.False(t, windowNode.Expanded)
+
+	require.NoError(t, model.loadNotifications())
+
+	sessionNode = findChildByTitle(model.treeRoot, NodeKindSession, "$1")
+	require.NotNil(t, sessionNode)
+	windowNode = findChildByTitle(sessionNode, NodeKindWindow, "@1")
+	require.NotNil(t, windowNode)
+	assert.False(t, windowNode.Expanded)
+}
+
+func TestApplyExpansionStateIgnoresStaleKeys(t *testing.T) {
+	model := &Model{
+		viewMode: settings.ViewModeGrouped,
+		groupBy:  settings.GroupByWindow,
+		expansionState: map[string]bool{
+			"window:$99:@77": false,
+		},
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+
+	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$1")
+	require.NotNil(t, sessionNode)
+	windowNode := findChildByTitle(sessionNode, NodeKindWindow, "@1")
+	require.NotNil(t, windowNode)
+
+	assert.True(t, windowNode.Expanded)
+}
+
 func TestGroupedViewWithGroupByNone(t *testing.T) {
-	t.Run("default settings", func(t *testing.T) {
-		setupStorage(t)
-		mockClient := stubSessionFetchers(t)
-		_, err := storage.AddNotification("test message", "", "", "", "", "", "info")
-		require.NoError(t, err)
-		model, err := NewModel(mockClient)
-		require.NoError(t, err)
-		model.viewMode = settings.ViewModeGrouped
-		model.groupBy = settings.GroupByNone
-		model.applySearchFilter()
-		t.Logf("visibleNodes count: %d", len(model.visibleNodes))
-		for i, n := range model.visibleNodes {
-			t.Logf("  [%d] kind=%s title=%s expanded=%v", i, n.Kind, n.Title, n.Expanded)
-		}
-		require.NotEmpty(t, model.visibleNodes)
-	})
-	t.Run("defaultExpandLevel=1", func(t *testing.T) {
-		setupStorage(t)
-		mockClient := stubSessionFetchers(t)
-		_, err := storage.AddNotification("test message", "", "", "", "", "", "info")
-		require.NoError(t, err)
-		model, err := NewModel(mockClient)
-		require.NoError(t, err)
-		model.viewMode = settings.ViewModeGrouped
-		model.groupBy = settings.GroupByNone
-		model.defaultExpandLevel = 1
-		model.applySearchFilter()
-		t.Logf("visibleNodes count: %d", len(model.visibleNodes))
-		for i, n := range model.visibleNodes {
-			t.Logf("  [%d] kind=%s title=%s expanded=%v", i, n.Kind, n.Title, n.Expanded)
-		}
-		require.NotEmpty(t, model.visibleNodes)
-	})
+	setupStorage(t)
+	mockClient := stubSessionFetchers(t)
+	_, err := storage.AddNotification("beta message", "2024-01-02T10:00:00Z", "$1", "@1", "%1", "", "info")
+	require.NoError(t, err)
+	_, err = storage.AddNotification("alpha message", "2024-01-03T10:00:00Z", "$2", "@2", "%2", "", "info")
+	require.NoError(t, err)
+
+	model, err := NewModel(mockClient)
+	require.NoError(t, err)
+	model.viewMode = settings.ViewModeGrouped
+	model.groupBy = settings.GroupByNone
+	model.defaultExpandLevel = 1
+	model.applySearchFilter()
+
+	require.Len(t, model.visibleNodes, 2)
+	assert.Equal(t, NodeKindNotification, model.visibleNodes[0].Kind)
+	assert.Equal(t, NodeKindNotification, model.visibleNodes[1].Kind)
+	assert.Equal(t, "alpha message", model.visibleNodes[0].Title)
+	assert.Equal(t, "beta message", model.visibleNodes[1].Title)
+
+	model.cursor = 0
+	handled := model.toggleNodeExpansion()
+	assert.False(t, handled)
+	assert.Len(t, model.visibleNodes, 2)
 }
