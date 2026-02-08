@@ -24,6 +24,7 @@ const (
 	groupIndentSize      = 2
 	groupCollapsedSymbol = "▸"
 	groupExpandedSymbol  = "▾"
+	commandList          = "q,w,toggle-view,group-by,expand-level"
 )
 
 // FooterState defines the inputs needed to render footer help text.
@@ -196,6 +197,7 @@ func Footer(state FooterState) string {
 		help = append(help, fmt.Sprintf("Search: %s", state.SearchQuery))
 	} else if state.CommandMode {
 		help = append(help, "ESC: cancel")
+		help = append(help, "cmds: "+commandList)
 		help = append(help, fmt.Sprintf(":%s", state.CommandQuery))
 	} else {
 		help = append(help, "/: search")

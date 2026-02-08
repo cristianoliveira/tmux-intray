@@ -1948,6 +1948,138 @@ func TestModelSaveCommandW(t *testing.T) {
 	assert.Equal(t, settings.GroupBySession, loaded.GroupBy)
 }
 
+func TestExecuteCommandGroupByPersistsSettings(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	model := &Model{
+		viewMode: settings.ViewModeGrouped,
+		groupBy:  settings.GroupBySession,
+		viewport: viewport.New(80, 22),
+		width:    80,
+		height:   24,
+		filtered: []notification.Notification{},
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "one"},
+		},
+	}
+
+	model.commandQuery = "group-by window"
+	cmd := model.executeCommand()
+	assert.Nil(t, cmd)
+	assert.Equal(t, settings.GroupByWindow, model.groupBy)
+
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.GroupByWindow, loaded.GroupBy)
+}
+
+func TestExecuteCommandExpandLevelPersistsSettings(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	model := &Model{
+		viewMode:           settings.ViewModeGrouped,
+		groupBy:            settings.GroupBySession,
+		defaultExpandLevel: 1,
+		expansionState:     map[string]bool{},
+		viewport:           viewport.New(80, 22),
+		width:              80,
+		height:             24,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "one"},
+		},
+	}
+	model.applySearchFilter()
+
+	model.commandQuery = "expand-level 3"
+	cmd := model.executeCommand()
+	assert.Nil(t, cmd)
+	assert.Equal(t, 3, model.defaultExpandLevel)
+
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, 3, loaded.DefaultExpandLevel)
+}
+
+func TestExecuteCommandToggleViewPersistsSettings(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	model := &Model{
+		viewMode:       settings.ViewModeDetailed,
+		groupBy:        settings.GroupByNone,
+		expansionState: map[string]bool{},
+		viewport:       viewport.New(80, 22),
+		width:          80,
+		height:         24,
+	}
+
+	model.commandQuery = "toggle-view"
+	cmd := model.executeCommand()
+	assert.Nil(t, cmd)
+	assert.Equal(t, settings.ViewModeGrouped, model.viewMode)
+
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.ViewModeGrouped, loaded.ViewMode)
+
+	model.commandQuery = "toggle-view"
+	cmd = model.executeCommand()
+	assert.Nil(t, cmd)
+	assert.Equal(t, settings.ViewModeDetailed, model.viewMode)
+
+	loaded, err = settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
+}
+
+func TestExecuteCommandValidation(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	model := &Model{
+		viewMode:           settings.ViewModeDetailed,
+		groupBy:            settings.GroupBySession,
+		defaultExpandLevel: 2,
+		viewport:           viewport.New(80, 22),
+		width:              80,
+		height:             24,
+	}
+
+	tests := []struct {
+		name        string
+		query       string
+		wantView    string
+		wantGroupBy string
+		wantLevel   int
+	}{
+		{name: "unknown command", query: "nope", wantView: settings.ViewModeDetailed, wantGroupBy: settings.GroupBySession, wantLevel: 2},
+		{name: "group-by missing arg", query: "group-by", wantView: settings.ViewModeDetailed, wantGroupBy: settings.GroupBySession, wantLevel: 2},
+		{name: "group-by invalid value", query: "group-by team", wantView: settings.ViewModeDetailed, wantGroupBy: settings.GroupBySession, wantLevel: 2},
+		{name: "expand-level invalid value", query: "expand-level 9", wantView: settings.ViewModeDetailed, wantGroupBy: settings.GroupBySession, wantLevel: 2},
+		{name: "expand-level non-number", query: "expand-level two", wantView: settings.ViewModeDetailed, wantGroupBy: settings.GroupBySession, wantLevel: 2},
+		{name: "toggle-view with arg", query: "toggle-view now", wantView: settings.ViewModeDetailed, wantGroupBy: settings.GroupBySession, wantLevel: 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			model.commandQuery = tt.query
+			cmd := model.executeCommand()
+			assert.Nil(t, cmd)
+			assert.Equal(t, tt.wantView, model.viewMode)
+			assert.Equal(t, tt.wantGroupBy, model.groupBy)
+			assert.Equal(t, tt.wantLevel, model.defaultExpandLevel)
+		})
+	}
+
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.DefaultSettings().ViewMode, loaded.ViewMode)
+	assert.Equal(t, settings.DefaultSettings().GroupBy, loaded.GroupBy)
+	assert.Equal(t, settings.DefaultSettings().DefaultExpandLevel, loaded.DefaultExpandLevel)
+}
+
 func TestModelMissingSettingsFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	setupConfig(t, tmpDir)
