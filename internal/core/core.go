@@ -60,6 +60,7 @@ func (c *Core) AddTrayItem(item, session, window, pane, paneCreated string, noAu
 	}
 
 	// Get current tmux context if needed
+	sessionName := ""
 	if !noAuto && (session == "" || window == "" || pane == "") {
 		ctx := c.GetCurrentTmuxContext()
 		if session == "" {
@@ -74,10 +75,16 @@ func (c *Core) AddTrayItem(item, session, window, pane, paneCreated string, noAu
 		if paneCreated == "" {
 			paneCreated = ctx.PaneCreated
 		}
+		// Capture session name for searchability
+		if c.client != nil && session != "" {
+			if name, err := c.client.GetSessionName(session); err == nil && name != "" {
+				sessionName = name
+			}
+		}
 	}
 
 	// Add notification with empty timestamp (auto-generated)
-	id, err := c.storage.AddNotification(item, "", session, window, pane, paneCreated, level)
+	id, err := c.storage.AddNotification(item, "", session, sessionName, window, pane, paneCreated, level)
 	if err != nil {
 		return "", fmt.Errorf("add tray item: failed to add notification: %w", err)
 	}

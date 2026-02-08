@@ -6,7 +6,7 @@ import (
 )
 
 func TestParseNotification(t *testing.T) {
-	line := "1\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\ttest\\tmessage\t123\tinfo\t2025-01-02T01:02:03Z"
+	line := "1\t2025-01-01T12:00:00Z\tactive\tsess\tsessname\twin\tpane\ttest\\tmessage\t123\tinfo\t2025-01-02T01:02:03Z"
 	notif, err := ParseNotification(line)
 	if err != nil {
 		t.Fatal(err)
@@ -19,6 +19,9 @@ func TestParseNotification(t *testing.T) {
 	}
 	if notif.State != "active" {
 		t.Errorf("State mismatch")
+	}
+	if notif.SessionName != "sessname" {
+		t.Errorf("SessionName mismatch")
 	}
 	if notif.Message != "test\tmessage" {
 		t.Errorf("Message not unescaped: %q", notif.Message)

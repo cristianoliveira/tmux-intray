@@ -50,7 +50,7 @@ func TestStorageInit(t *testing.T) {
 func TestAddNotification(t *testing.T) {
 	setupTest(t)
 	require.NoError(t, Init())
-	id, err := AddNotification("test message", "", "session1", "window0", "pane0", "", "info")
+	id, err := AddNotification("test message", "", "", "session1", "window0", "pane0", "", "info")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 	// Should be numeric
@@ -65,7 +65,7 @@ func TestAddNotification(t *testing.T) {
 func TestAddNotificationWithTimestamp(t *testing.T) {
 	setupTest(t)
 	require.NoError(t, Init())
-	id, err := AddNotification("msg", "2025-01-01T12:00:00Z", "", "", "", "", "warning")
+	id, err := AddNotification("msg", "2025-01-01T12:00:00Z", "", "", "", "", "", "warning")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 	list, err := ListNotifications("all", "", "", "", "", "", "")
@@ -78,9 +78,9 @@ func TestListNotificationsFilters(t *testing.T) {
 	setupTest(t)
 	require.NoError(t, Init())
 	// Add multiple notifications with different attributes
-	id1, err := AddNotification("error msg", "", "session1", "window1", "pane1", "", "error")
+	id1, err := AddNotification("error msg", "", "", "session1", "window1", "pane1", "", "error")
 	require.NoError(t, err)
-	id2, err := AddNotification("info msg", "", "session2", "window2", "pane2", "", "info")
+	id2, err := AddNotification("info msg", "", "", "session2", "window2", "pane2", "", "info")
 	require.NoError(t, err)
 	require.NotEqual(t, id1, id2)
 
@@ -145,7 +145,7 @@ func TestListNotificationsFilters(t *testing.T) {
 func TestDismissNotification(t *testing.T) {
 	setupTest(t)
 	require.NoError(t, Init())
-	id, err := AddNotification("to dismiss", "", "", "", "", "", "info")
+	id, err := AddNotification("to dismiss", "", "", "", "", "", "", "info")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 	// Should be active
@@ -172,7 +172,7 @@ func TestMarkNotificationReadUnread(t *testing.T) {
 	setupTest(t)
 	require.NoError(t, Init())
 
-	id, err := AddNotification("to read", "", "", "", "", "", "info")
+	id, err := AddNotification("to read", "", "", "", "", "", "", "info")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 
@@ -204,9 +204,9 @@ func TestMarkNotificationReadUnread(t *testing.T) {
 func TestDismissAllFromStorage(t *testing.T) {
 	setupTest(t)
 	require.NoError(t, Init())
-	id1, err := AddNotification("msg1", "", "", "", "", "", "info")
+	id1, err := AddNotification("msg1", "", "", "", "", "", "", "info")
 	require.NoError(t, err)
-	id2, err := AddNotification("msg2", "", "", "", "", "", "warning")
+	id2, err := AddNotification("msg2", "", "", "", "", "", "", "warning")
 	require.NoError(t, err)
 	require.Equal(t, 2, GetActiveCount())
 	err = DismissAll()
@@ -222,7 +222,7 @@ func TestCleanupOldNotifications(t *testing.T) {
 	setupTest(t)
 	require.NoError(t, Init())
 	// Add a notification with old timestamp
-	id, err := AddNotification("old", "2000-01-01T00:00:00Z", "", "", "", "", "info")
+	id, err := AddNotification("old", "2000-01-01T00:00:00Z", "", "", "", "", "", "info")
 	require.NoError(t, err)
 	_ = DismissNotification(id)
 	// Cleanup with threshold 1 day (dry run)
@@ -244,10 +244,10 @@ func TestGetActiveCount(t *testing.T) {
 	setupTest(t)
 	require.NoError(t, Init())
 	require.Equal(t, 0, GetActiveCount())
-	id1, err := AddNotification("msg1", "", "", "", "", "", "info")
+	id1, err := AddNotification("msg1", "", "", "", "", "", "", "info")
 	require.NoError(t, err)
 	require.Equal(t, 1, GetActiveCount())
-	_, err = AddNotification("msg2", "", "", "", "", "", "warning")
+	_, err = AddNotification("msg2", "", "", "", "", "", "", "warning")
 	require.NoError(t, err)
 	require.Equal(t, 2, GetActiveCount())
 	// Dismiss one
@@ -321,7 +321,7 @@ func TestBashStorageCompatibility(t *testing.T) {
 	}
 
 	// Helper to add notification via bash storage
-	bashAddNotification := func(message, timestamp, session, window, pane, paneCreated, level string) (string, error) {
+	bashAddNotification := func(message, timestamp, session, sessionName, window, pane, paneCreated, level string) (string, error) {
 		// Escape single quotes in message for bash
 		// We'll pass arguments via environment variables to avoid quoting hell
 		script := fmt.Sprintf(`
@@ -360,7 +360,7 @@ storage_list_notifications "%s" "%s" "%s" "%s" "%s" "%s" "%s"
 
 	// Test 1: Add via bash, read via Go
 	t.Run("BashAddGoList", func(t *testing.T) {
-		bashID, err := bashAddNotification("hello\nworld", "", "sess1", "win0", "pane0", "", "info")
+		bashID, err := bashAddNotification("hello\nworld", "", "", "sess1", "win0", "pane0", "", "info")
 		require.NoError(t, err)
 		require.NotEmpty(t, bashID)
 
@@ -386,7 +386,7 @@ storage_list_notifications "%s" "%s" "%s" "%s" "%s" "%s" "%s"
 	// Test 2: Add via Go, read via bash (list via bash storage_list_notifications)
 	t.Run("GoAddBashList", func(t *testing.T) {
 		Init()
-		goID, err := AddNotification("test\tmessage", "", "sess2", "win1", "pane1", "", "warning")
+		goID, err := AddNotification("test\tmessage", "", "", "sess2", "win1", "pane1", "", "warning")
 		require.NoError(t, err)
 		require.NotEmpty(t, goID)
 
@@ -421,7 +421,7 @@ storage_list_notifications "%s" "%s" "%s" "%s" "%s" "%s" "%s"
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
 				// Bash -> Go
-				bashID, err := bashAddNotification(tc.msg, "", "", "", "", "", "info")
+				bashID, err := bashAddNotification(tc.msg, "", "", "", "", "", "", "info")
 				require.NoError(t, err)
 				Init()
 				list, err := ListNotifications("all", "", "", "", "", "", "")
@@ -436,7 +436,7 @@ storage_list_notifications "%s" "%s" "%s" "%s" "%s" "%s" "%s"
 					}
 				}
 				// Go -> Bash
-				goID, err := AddNotification(tc.msg, "", "", "", "", "", "info")
+				goID, err := AddNotification(tc.msg, "", "", "", "", "", "", "info")
 				require.NoError(t, err)
 				require.NotEmpty(t, goID)
 				bashList, err := bashListNotifications("all", "", "", "", "", "", "")
@@ -489,7 +489,7 @@ func TestAddNotificationWithHooks(t *testing.T) {
 	Reset()
 
 	// Add notification
-	id, err := AddNotification("test message", "", "", "", "", "", "info")
+	id, err := AddNotification("test message", "", "", "", "", "", "", "info")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 	// Verify notification exists
@@ -525,7 +525,7 @@ func TestAddNotificationHookAbort(t *testing.T) {
 	Reset()
 
 	// Add notification should fail
-	id, err := AddNotification("test message", "", "", "", "", "", "info")
+	id, err := AddNotification("test message", "", "", "", "", "", "", "info")
 	require.Error(t, err)
 	require.Empty(t, id)
 	// Ensure no notification added
@@ -553,7 +553,7 @@ func TestMalformedTSVData(t *testing.T) {
 	Init()
 
 	// Add a valid notification - should succeed
-	id, err := AddNotification("valid message", "", "session1", "window1", "pane1", "", "info")
+	id, err := AddNotification("valid message", "", "", "session1", "window1", "pane1", "", "info")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 
@@ -616,6 +616,7 @@ func TestValidateNotificationInputs(t *testing.T) {
 		message     string
 		timestamp   string
 		session     string
+		sessionName string
 		window      string
 		pane        string
 		paneCreated string
@@ -624,45 +625,45 @@ func TestValidateNotificationInputs(t *testing.T) {
 		errorMsg    string
 	}{
 		// Valid inputs
-		{"valid basic", "test message", "", "", "", "", "", "info", false, ""},
-		{"valid with timestamp", "test", "2025-01-01T12:00:00Z", "", "", "", "", "warning", false, ""},
-		{"valid with all fields", "test", "2025-01-01T12:00:00Z", "sess1", "win0", "pane0", "123", "error", false, ""},
-		{"valid with fractional seconds", "test", "2025-01-01T12:00:00.123Z", "", "", "", "", "critical", false, ""},
-		{"valid RFC3339 with offset", "test", "2025-01-01T12:00:00+00:00", "", "", "", "", "info", false, ""},
+		{"valid basic", "test message", "", "", "", "", "", "", "info", false, ""},
+		{"valid with timestamp", "test", "2025-01-01T12:00:00Z", "", "", "", "", "", "warning", false, ""},
+		{"valid with all fields", "test", "2025-01-01T12:00:00Z", "sess1", "", "win0", "pane0", "123", "error", false, ""},
+		{"valid with fractional seconds", "test", "2025-01-01T12:00:00.123Z", "", "", "", "", "", "critical", false, ""},
+		{"valid RFC3339 with offset", "test", "2025-01-01T12:00:00+00:00", "", "", "", "", "", "info", false, ""},
 
 		// Empty message
-		{"empty message", "", "", "", "", "", "", "info", true, "message cannot be empty"},
-		{"whitespace only message", "   ", "", "", "", "", "", "info", true, "message cannot be empty"},
-		{"tab only message", "\t", "", "", "", "", "", "info", true, "message cannot be empty"},
-		{"newline only message", "\n", "", "", "", "", "", "info", true, "message cannot be empty"},
+		{"empty message", "", "", "", "", "", "", "", "info", true, "message cannot be empty"},
+		{"whitespace only message", "   ", "", "", "", "", "", "", "info", true, "message cannot be empty"},
+		{"tab only message", "\t", "", "", "", "", "", "", "info", true, "message cannot be empty"},
+		{"newline only message", "\n", "", "", "", "", "", "", "info", true, "message cannot be empty"},
 
 		// Empty level (FIX #1: should now be rejected)
-		{"empty level", "test", "", "", "", "", "", "", true, "level cannot be empty"},
-		{"whitespace level", "test", "", "", "", "", "", "   ", true, "invalid level"},
+		{"empty level", "test", "", "", "", "", "", "", "", true, "level cannot be empty"},
+		{"whitespace level", "test", "", "", "", "", "", "", "   ", true, "invalid level"},
 
 		// Invalid level values
-		{"invalid level lowercase", "test", "", "", "", "", "", "debug", true, "invalid level 'debug'"},
-		{"invalid level uppercase", "test", "", "", "", "", "", "INFO", true, "invalid level 'INFO'"},
-		{"invalid level number", "test", "", "", "", "", "", "1", true, "invalid level '1'"},
+		{"invalid level lowercase", "test", "", "", "", "", "", "", "debug", true, "invalid level 'debug'"},
+		{"invalid level uppercase", "test", "", "", "", "", "", "", "INFO", true, "invalid level 'INFO'"},
+		{"invalid level number", "test", "", "", "", "", "", "", "1", true, "invalid level '1'"},
 
 		// Invalid timestamp formats (FIX #2: should accept all RFC3339 formats)
-		{"invalid timestamp no T", "test", "2025-01-01 12:00:00Z", "", "", "", "", "info", true, "invalid timestamp format"},
-		{"invalid timestamp missing Z", "test", "2025-01-01T12:00:00", "", "", "", "", "info", true, "invalid timestamp format"},
-		{"invalid timestamp garbage", "test", "not-a-timestamp", "", "", "", "", "info", true, "invalid timestamp format"},
-		{"invalid timestamp partial", "test", "2025-01-01T12:00", "", "", "", "", "info", true, "invalid timestamp format"},
+		{"invalid timestamp no T", "test", "2025-01-01 12:00:00Z", "", "", "", "", "", "info", true, "invalid timestamp format"},
+		{"invalid timestamp missing Z", "test", "2025-01-01T12:00:00", "", "", "", "", "", "info", true, "invalid timestamp format"},
+		{"invalid timestamp garbage", "test", "not-a-timestamp", "", "", "", "", "", "info", true, "invalid timestamp format"},
+		{"invalid timestamp partial", "test", "2025-01-01T12:00", "", "", "", "", "", "info", true, "invalid timestamp format"},
 
 		// Whitespace-only session/window/pane (should be rejected)
-		{"whitespace session", "test", "", "   ", "", "", "", "info", true, "session cannot be whitespace only"},
-		{"whitespace window", "test", "", "", "  \t  ", "", "", "info", true, "window cannot be whitespace only"},
-		{"whitespace pane", "test", "", "", "", "\n  ", "", "info", true, "pane cannot be whitespace only"},
+		{"whitespace session", "test", "", "   ", "", "", "", "", "info", true, "session cannot be whitespace only"},
+		{"whitespace window", "test", "", "", "", "  	  ", "", "", "info", true, "window cannot be whitespace only"},
+		{"whitespace pane", "test", "", "", "", "", "   ", "", "info", true, "pane cannot be whitespace only"},
 
 		// Valid empty session/window/pane (optional fields)
-		{"empty optional fields", "test", "", "", "", "", "", "info", false, ""},
+		{"empty optional fields", "test", "", "", "", "", "", "", "info", false, ""},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := validateNotificationInputs(tc.message, tc.timestamp, tc.session, tc.window, tc.pane, tc.paneCreated, tc.level)
+			err := validateNotificationInputs(tc.message, tc.timestamp, tc.session, tc.sessionName, tc.window, tc.pane, tc.paneCreated, tc.level)
 			if tc.wantError {
 				require.Error(t, err, "expected error for test case: "+tc.name)
 				if tc.errorMsg != "" {
@@ -698,7 +699,7 @@ func TestAddNotificationValidation(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			id, err := AddNotification(tc.message, tc.timestamp, "", "", "", "", tc.level)
+			id, err := AddNotification(tc.message, tc.timestamp, "", "", "", "", "", tc.level)
 			if tc.wantError {
 				require.Error(t, err, "expected error for test case: "+tc.name)
 				require.Empty(t, id, "ID should be empty on error")
@@ -718,7 +719,7 @@ func TestAppendLine(t *testing.T) {
 	require.NoError(t, Init())
 
 	// Test successful append
-	err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "window0", "pane0", "test message", "123456789", "info", "")
+	err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "", "window0", "pane0", "test message", "123456789", "info", "")
 	require.NoError(t, err)
 
 	// Verify line was written
@@ -743,7 +744,7 @@ func TestAppendLineWriteError(t *testing.T) {
 	require.NoError(t, os.WriteFile(readOnlyFile, []byte("initial"), 0444))
 	notificationsFile = readOnlyFile
 
-	err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "window0", "pane0", "test message", "123456789", "info", "")
+	err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "", "window0", "pane0", "test message", "123456789", "info", "")
 	require.Error(t, err)
 	// The error should be either "open" (permission denied) or "write" in the error message
 	require.True(t, strings.Contains(err.Error(), "open") || strings.Contains(err.Error(), "write"))
@@ -762,7 +763,7 @@ func TestAppendLineOpenError(t *testing.T) {
 	// Set to an invalid path (directory that doesn't exist)
 	notificationsFile = filepath.Join(t.TempDir(), "nonexistent", "file.txt")
 
-	err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "window0", "pane0", "test message", "123456789", "info", "")
+	err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "", "window0", "pane0", "test message", "123456789", "info", "")
 	require.Error(t, err)
 	// Error should mention failed to open notifications file
 	require.Contains(t, err.Error(), "open")
@@ -774,7 +775,7 @@ func TestAppendLineMultipleWrites(t *testing.T) {
 
 	// Test multiple successful writes
 	for i := 1; i <= 5; i++ {
-		err := appendLine(i, "2025-01-01T12:00:00Z", "active", "session1", "window0", "pane0",
+		err := appendLine(i, "2025-01-01T12:00:00Z", "active", "session1", "", "window0", "pane0",
 			fmt.Sprintf("message %d", i), "123456789", "info", "")
 		require.NoError(t, err)
 	}
@@ -808,7 +809,7 @@ func TestAppendLineWithSpecialCharacters(t *testing.T) {
 			require.NoError(t, Init())
 
 			escaped := escapeMessage(tc.message)
-			err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "window0", "pane0",
+			err := appendLine(1, "2025-01-01T12:00:00Z", "active", "session1", "", "window0", "pane0",
 				escaped, "123456789", "info", "")
 			require.NoError(t, err)
 
@@ -940,7 +941,7 @@ func TestUpdateTmuxStatusOption(t *testing.T) {
 func TestDismissNotificationHandlesTmuxError(t *testing.T) {
 	setupTest(t)
 	require.NoError(t, Init())
-	id, err := AddNotification("to dismiss", "", "", "", "", "", "info")
+	id, err := AddNotification("to dismiss", "", "", "", "", "", "", "info")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 
@@ -964,9 +965,9 @@ func TestDismissNotificationHandlesTmuxError(t *testing.T) {
 func TestDismissAllHandlesTmuxError(t *testing.T) {
 	setupTest(t)
 	require.NoError(t, Init())
-	_, err := AddNotification("msg1", "", "", "", "", "", "info")
+	_, err := AddNotification("msg1", "", "", "", "", "", "", "info")
 	require.NoError(t, err)
-	_, err = AddNotification("msg2", "", "", "", "", "", "warning")
+	_, err = AddNotification("msg2", "", "", "", "", "", "", "warning")
 	require.NoError(t, err)
 	require.Equal(t, 2, GetActiveCount())
 
@@ -1086,7 +1087,7 @@ func TestAddNotificationPostAddHookFailureModes(t *testing.T) {
 		os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "abort")
 
 		// AddNotification should fail
-		id, err := AddNotification("test message", "", "", "", "", "", "info")
+		id, err := AddNotification("test message", "", "", "", "", "", "", "info")
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "post-add hook failed")
 		// ID should still be returned (notification was added)
@@ -1119,7 +1120,7 @@ func TestAddNotificationPostAddHookFailureModes(t *testing.T) {
 		os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "warn")
 
 		// AddNotification should succeed
-		id, err := AddNotification("warn test", "", "", "", "", "", "info")
+		id, err := AddNotification("warn test", "", "", "", "", "", "", "info")
 		require.NoError(t, err)
 		require.NotEmpty(t, id)
 		// Verify notification was added
@@ -1150,7 +1151,7 @@ func TestAddNotificationPostAddHookFailureModes(t *testing.T) {
 		os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
 
 		// AddNotification should succeed
-		id, err := AddNotification("ignore test", "", "", "", "", "", "info")
+		id, err := AddNotification("ignore test", "", "", "", "", "", "", "info")
 		require.NoError(t, err)
 		require.NotEmpty(t, id)
 		// Verify notification was added
@@ -1182,7 +1183,7 @@ func TestAddNotificationPostAddHookFailureModes(t *testing.T) {
 
 				os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", mode)
 
-				id, err := AddNotification("success test", "", "", "", "", "", "info")
+				id, err := AddNotification("success test", "", "", "", "", "", "", "info")
 				require.NoError(t, err)
 				require.NotEmpty(t, id)
 				// Verify notification was added
@@ -1210,7 +1211,7 @@ func TestGetNextID(t *testing.T) {
 		require.NoError(t, Init())
 
 		// Add one notification
-		_, err := AddNotification("first message", "", "", "", "", "", "info")
+		_, err := AddNotification("first message", "", "", "", "", "", "", "info")
 		require.NoError(t, err)
 
 		// getNextID should return 2
@@ -1224,11 +1225,11 @@ func TestGetNextID(t *testing.T) {
 		require.NoError(t, Init())
 
 		// Add multiple notifications
-		id1, err := AddNotification("msg1", "", "", "", "", "", "info")
+		id1, err := AddNotification("msg1", "", "", "", "", "", "", "info")
 		require.NoError(t, err)
-		id2, err := AddNotification("msg2", "", "", "", "", "", "info")
+		id2, err := AddNotification("msg2", "", "", "", "", "", "", "info")
 		require.NoError(t, err)
-		id3, err := AddNotification("msg3", "", "", "", "", "", "info")
+		id3, err := AddNotification("msg3", "", "", "", "", "", "", "info")
 		require.NoError(t, err)
 
 		// Verify IDs are sequential
@@ -1252,7 +1253,7 @@ func TestGetNextID(t *testing.T) {
 		require.Greater(t, id, 0, "ID must be greater than 0")
 
 		// Add notification and verify next ID is also > 0
-		_, err = AddNotification("test", "", "", "", "", "", "info")
+		_, err = AddNotification("test", "", "", "", "", "", "", "info")
 		require.NoError(t, err)
 
 		id, err = getNextID()
@@ -1278,7 +1279,7 @@ func TestGetNextID(t *testing.T) {
 			ids = append(ids, id)
 
 			// Add a notification to increment the max ID
-			_, err = AddNotification(fmt.Sprintf("message %d", i), "", "", "", "", "", "info")
+			_, err = AddNotification(fmt.Sprintf("message %d", i), "", "", "", "", "", "", "info")
 			require.NoError(t, err)
 		}
 
@@ -1339,15 +1340,15 @@ func TestGetNextID(t *testing.T) {
 		require.NoError(t, Init())
 
 		// Add and dismiss some notifications
-		id1, err := AddNotification("msg1", "", "", "", "", "", "info")
+		id1, err := AddNotification("msg1", "", "", "", "", "", "", "info")
 		require.NoError(t, err)
 		err = DismissNotification(id1)
 		require.NoError(t, err)
 
-		_, err = AddNotification("msg2", "", "", "", "", "", "info")
+		_, err = AddNotification("msg2", "", "", "", "", "", "", "info")
 		require.NoError(t, err)
 
-		_, err = AddNotification("msg3", "", "", "", "", "", "info")
+		_, err = AddNotification("msg3", "", "", "", "", "", "", "info")
 		require.NoError(t, err)
 
 		// getNextID should return 4 (max ID 3 + 1)
@@ -1363,7 +1364,7 @@ func TestGetNextID(t *testing.T) {
 
 		// Add multiple notifications
 		for i := 0; i < 5; i++ {
-			_, err := AddNotification(fmt.Sprintf("msg%d", i), "", "", "", "", "", "info")
+			_, err := AddNotification(fmt.Sprintf("msg%d", i), "", "", "", "", "", "", "info")
 			require.NoError(t, err)
 		}
 

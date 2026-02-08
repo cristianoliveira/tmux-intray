@@ -13,8 +13,8 @@ func NewFileStorage() (*FileStorage, error) {
 }
 
 // AddNotification adds a notification and returns its ID.
-func (fs *FileStorage) AddNotification(message, timestamp, session, window, pane, paneCreated, level string) (string, error) {
-	return AddNotification(message, timestamp, session, window, pane, paneCreated, level)
+func (fs *FileStorage) AddNotification(message, timestamp, session, sessionName, window, pane, paneCreated, level string) (string, error) {
+	return AddNotification(message, timestamp, session, sessionName, window, pane, paneCreated, level)
 }
 
 // ListNotifications returns TSV lines for notifications matching the specified filters.

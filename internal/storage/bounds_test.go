@@ -139,7 +139,7 @@ func TestBoundsChecking(t *testing.T) {
 
 	t.Run("AddNotificationAfterMalformedData", func(t *testing.T) {
 		// Should be able to add valid notification after malformed data
-		id, err := AddNotification("valid after malformed", "", "sess2", "win2", "pane2", "", "info")
+		id, err := AddNotification("valid after malformed", "", "sess2", "sessname", "win2", "pane2", "", "info")
 		require.NoError(t, err)
 		require.NotEmpty(t, id)
 

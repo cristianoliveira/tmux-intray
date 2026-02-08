@@ -3,6 +3,7 @@ package state
 import (
 	"testing"
 
+	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	"github.com/stretchr/testify/require"
@@ -27,7 +28,7 @@ func TestTUIWithRealTmuxClient(t *testing.T) {
 	}
 
 	// Add a test notification
-	_, err = storage.AddNotification("Test notification for TUI", "", "$1", "@1", "%1", "", "info")
+	_, err = storage.AddNotification("Test notification for TUI", "", "$1", "", "@1", "%1", "", "info")
 	require.NoError(t, err)
 
 	// Create TUI model with real client
@@ -35,16 +36,24 @@ func TestTUIWithRealTmuxClient(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, model)
 
-	// Verify session names were loaded
-	require.NotEmpty(t, model.sessionNames, "session names should be loaded from tmux")
-
 	// Verify notification was loaded
 	require.NotEmpty(t, model.notifications, "notifications should be loaded from storage")
 	require.NotEmpty(t, model.filtered, "filtered notifications should not be empty")
 
-	// Verify session name lookup works
-	sessionName := model.getSessionName("$1")
-	require.NotEmpty(t, sessionName, "session name should be found")
+	// Find the notification we added
+	var foundNotif *notification.Notification
+	for i := range model.notifications {
+		if model.notifications[i].ID == 1 {
+			foundNotif = &model.notifications[i]
+			break
+		}
+	}
+	require.NotNil(t, foundNotif, "notification should be found")
+
+	// Verify session name lookup works (returns session ID as fallback since SessionName is empty)
+	sessionName := model.getSessionName(*foundNotif)
+	// Session name should return session ID as fallback when SessionName is empty
+	require.Equal(t, "$1", sessionName, "session name should return session ID when SessionName is empty")
 }
 
 // TestTUIClientNilDefaults tests that NewModel creates a default client when nil is passed.

@@ -28,7 +28,7 @@ type Options struct {
 func DefaultOptions() Options {
 	return Options{
 		CaseInsensitive: false,
-		Fields:          []string{"message", "session", "window", "pane"},
+		Fields:          []string{"message", "session_name", "session", "window", "pane"},
 	}
 }
 
@@ -43,7 +43,7 @@ func WithCaseInsensitive(enabled bool) Option {
 }
 
 // WithFields sets the fields to search in.
-// Valid fields: "message", "session", "window", "pane", "level", "state".
+// Valid fields: "message", "session_name", "session", "window", "pane", "level", "state".
 func WithFields(fields []string) Option {
 	return func(o *Options) {
 		o.Fields = fields

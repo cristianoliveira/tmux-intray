@@ -1118,7 +1118,7 @@ func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 
 	expectedLeafRow := render.Row(render.RowState{
 		Notification: *leafNode.Notification,
-		SessionName:  model.getSessionName(leafNode.Notification.Session),
+		SessionName:  model.getSessionName(*leafNode.Notification),
 		Width:        model.width,
 		Selected:     leafIndex == model.cursor,
 		Now:          time.Time{},
@@ -1169,7 +1169,7 @@ func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
 	content := model.viewport.View()
 	expectedLeafRow := render.Row(render.RowState{
 		Notification: *leafNode.Notification,
-		SessionName:  model.getSessionName(leafNode.Notification.Session),
+		SessionName:  model.getSessionName(*leafNode.Notification),
 		Width:        model.width,
 		Selected:     true,
 		Now:          time.Time{},
@@ -1194,7 +1194,7 @@ func TestHandleDismiss(t *testing.T) {
 	setupStorage(t)
 	mockClient := stubSessionFetchers(t)
 
-	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "", "", "", "1234", "info")
+	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "", "", "", "", "1234", "info")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 
@@ -1215,7 +1215,7 @@ func TestMarkSelectedRead(t *testing.T) {
 	setupStorage(t)
 	mockClient := stubSessionFetchers(t)
 
-	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "", "", "", "", "info")
+	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "", "", "", "", "", "info")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 
@@ -1241,7 +1241,7 @@ func TestMarkSelectedUnread(t *testing.T) {
 	setupStorage(t)
 	mockClient := stubSessionFetchers(t)
 
-	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "", "", "", "", "info")
+	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "", "", "", "", "", "info")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 	require.NoError(t, storage.MarkNotificationRead(id))
@@ -1269,9 +1269,9 @@ func TestHandleDismissGroupedViewUsesVisibleNodes(t *testing.T) {
 	setupStorage(t)
 	mockClient := stubSessionFetchers(t)
 
-	_, err := storage.AddNotification("B msg", "2024-02-02T12:00:00Z", "b", "@1", "%1", "", "info")
+	_, err := storage.AddNotification("B msg", "2024-02-02T12:00:00Z", "b", "", "@1", "%1", "", "info")
 	require.NoError(t, err)
-	_, err = storage.AddNotification("A msg", "2024-01-01T12:00:00Z", "a", "@1", "%1", "", "info")
+	_, err = storage.AddNotification("A msg", "2024-01-01T12:00:00Z", "a", "", "@1", "%1", "", "info")
 	require.NoError(t, err)
 
 	model, err := NewModel(mockClient)
@@ -1451,19 +1451,32 @@ func TestModelUpdateHandlesEnterKey(t *testing.T) {
 	assert.NotNil(t, updated.(*Model))
 }
 
-func TestGetSessionNameCachesFetcher(t *testing.T) {
-	model := &Model{
-		sessionNames: map[string]string{
-			"$1": "$1-name",
-		},
+func TestGetSessionNameUsesNotificationField(t *testing.T) {
+	notif := notification.Notification{
+		ID:            1,
+		Timestamp:     "2024-01-01T12:00:00Z",
+		State:         "active",
+		Session:       "$1",
+		SessionName:   "$1-name",
+		Window:        "@1",
+		Pane:          "%1",
+		Message:       "test message",
+		PaneCreated:   "2024-01-01T11:00:00Z",
+		Level:         "info",
+		ReadTimestamp: "",
 	}
 
-	name := model.getSessionName("$1")
+	model := &Model{}
+
+	// Should return session name from notification
+	name := model.getSessionName(notif)
 	assert.Equal(t, "$1-name", name)
 
-	// Call again - should return cached value
-	name = model.getSessionName("$1")
-	assert.Equal(t, "$1-name", name)
+	// Test fallback to session ID when SessionName is empty
+	notifNoName := notif
+	notifNoName.SessionName = ""
+	name = model.getSessionName(notifNoName)
+	assert.Equal(t, "$1", name)
 }
 
 func TestToState(t *testing.T) {

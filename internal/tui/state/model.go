@@ -42,7 +42,6 @@ type Model struct {
 	viewport      viewport.Model
 	width         int
 	height        int
-	sessionNames  map[string]string
 	client        tmux.TmuxClient // TmuxClient for tmux operations
 
 	// Settings fields
@@ -370,21 +369,14 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 		client = tmux.NewDefaultClient()
 	}
 
-	// Fetch all session names from tmux
-	sessionNames, err := client.ListSessions()
-	if err != nil {
-		sessionNames = make(map[string]string)
-	}
-
 	m := Model{
 		viewport:          viewport.New(defaultViewportWidth, defaultViewportHeight), // Default dimensions, will be updated on WindowSizeMsg
-		sessionNames:      sessionNames,
 		client:            client,
 		expansionState:    map[string]bool{},
 		ensureTmuxRunning: core.EnsureTmuxRunning,
 		jumpToPane:        core.JumpToPane,
 	}
-	err = m.loadNotifications()
+	err := m.loadNotifications()
 	if err != nil {
 		return &Model{}, err
 	}
@@ -589,7 +581,7 @@ func (m *Model) updateViewportContent() {
 				notif := *node.Notification
 				content.WriteString(render.Row(render.RowState{
 					Notification: notif,
-					SessionName:  m.getSessionName(notif.Session),
+					SessionName:  m.getSessionName(notif),
 					Width:        m.width,
 					Selected:     rowIndex == m.cursor,
 					Now:          now,
@@ -611,7 +603,7 @@ func (m *Model) updateViewportContent() {
 			}
 			content.WriteString(render.Row(render.RowState{
 				Notification: notif,
-				SessionName:  m.getSessionName(notif.Session),
+				SessionName:  m.getSessionName(notif),
 				Width:        m.width,
 				Selected:     i == m.cursor,
 				Now:          now,
@@ -1279,17 +1271,14 @@ func (m *Model) applyExpansionState(node *Node) {
 	}
 }
 
-// getSessionName returns the session name for a session ID.
-// Uses cached session names from initial fetch.
-func (m *Model) getSessionName(sessionID string) string {
-	if sessionID == "" {
-		return ""
+// getSessionName returns the session name for a notification.
+// Uses stored SessionName field, falling back to Session ID if not set.
+func (m *Model) getSessionName(notif notification.Notification) string {
+	if notif.SessionName != "" {
+		return notif.SessionName
 	}
-	if m.sessionNames == nil {
-		return sessionID
+	if notif.Session != "" {
+		return notif.Session
 	}
-	if name, ok := m.sessionNames[sessionID]; ok {
-		return name
-	}
-	return sessionID // fallback to session ID if not found
+	return ""
 }

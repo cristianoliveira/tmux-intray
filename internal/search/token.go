@@ -84,6 +84,8 @@ func (p *TokenProvider) Match(notif notification.Notification, query string) boo
 			switch field {
 			case "message":
 				fieldValue = notif.Message
+			case "session_name":
+				fieldValue = notif.SessionName
 			case "session":
 				fieldValue = notif.Session
 			case "window":

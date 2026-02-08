@@ -37,6 +37,8 @@ func (p *SubstringProvider) Match(notif notification.Notification, query string)
 		switch field {
 		case "message":
 			fieldValue = notif.Message
+		case "session_name":
+			fieldValue = notif.SessionName
 		case "session":
 			fieldValue = notif.Session
 		case "window":

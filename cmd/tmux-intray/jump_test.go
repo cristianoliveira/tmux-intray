@@ -29,8 +29,8 @@ func TestJumpSuccess(t *testing.T) {
 		if id != "42" {
 			return "", errors.New("notification with ID 42 not found")
 		}
-		// Simulate TSV line: ID, timestamp, state, session, window, pane, message, pane_created, level
-		return "42\t2025-02-04T10:00:00Z\tactive\t$0\t%0\t:0.0\thello\t1234567890\tinfo", nil
+		// Simulate TSV line: ID, timestamp, state, session, sessionName, window, pane, message, pane_created, level
+		return "42\t2025-02-04T10:00:00Z\tactive\t$0\t\t%0\t:0.0\thello\t1234567890\tinfo", nil
 	}
 	validatePaneExistsFunc = func(session, window, pane string) bool { return true }
 	jumpToPaneFunc = func(session, window, pane string) bool { return true }
@@ -106,7 +106,7 @@ func TestJumpNoPaneAssociation(t *testing.T) {
 	ensureTmuxRunningFunc = func() bool { return true }
 	getNotificationLineFunc = func(id string) (string, error) {
 		// Missing session/window/pane fields (empty)
-		return "42\t2025-02-04T10:00:00Z\tactive\t\t\t\thello\t\tinfo", nil
+		return "42\t2025-02-04T10:00:00Z\tactive\t\t\t\t\thello\t\tinfo", nil
 	}
 
 	_, err := Jump("42")
@@ -136,7 +136,7 @@ func TestJumpPaneDoesNotExistButWindowSelected(t *testing.T) {
 	// ASSERTION 2: Should mark PaneExists as false to indicate fallback occurred
 	ensureTmuxRunningFunc = func() bool { return true }
 	getNotificationLineFunc = func(id string) (string, error) {
-		return "42\t2025-02-04T10:00:00Z\tactive\t$0\t%0\t:0.0\thello\t1234567890\tinfo", nil
+		return "42\t2025-02-04T10:00:00Z\tactive\t$0\t\t%0\t:0.0\thello\t1234567890\tinfo", nil
 	}
 	validatePaneExistsFunc = func(session, window, pane string) bool { return false }
 	jumpToPaneFunc = func(session, window, pane string) bool { return true }
@@ -167,7 +167,7 @@ func TestJumpWindowDoesNotExist(t *testing.T) {
 	// ASSERTION 2: Error message should clearly indicate what failed
 	ensureTmuxRunningFunc = func() bool { return true }
 	getNotificationLineFunc = func(id string) (string, error) {
-		return "42\t2025-02-04T10:00:00Z\tactive\t$0\t%0\t:0.0\thello\t1234567890\tinfo", nil
+		return "42\t2025-02-04T10:00:00Z\tactive\t\t$0\t%0\t:0.0\thello\t1234567890\tinfo", nil
 	}
 	validatePaneExistsFunc = func(session, window, pane string) bool { return true }
 	jumpToPaneFunc = func(session, window, pane string) bool { return false }
@@ -230,7 +230,7 @@ func TestJumpOptimizedRetrieval(t *testing.T) {
 	storage.Init()
 
 	// Add a test notification
-	id, err := storage.AddNotification("test message", "2025-02-04T10:00:00Z", "session1", "window1", "pane1", "123456", "info")
+	id, err := storage.AddNotification("test message", "2025-02-04T10:00:00Z", "session1", "", "window1", "pane1", "123456", "info")
 	if err != nil {
 		t.Fatalf("Failed to add notification: %v", err)
 	}
@@ -285,7 +285,7 @@ func TestJumpToPaneReturnsCorrectBooleans(t *testing.T) {
 
 	ensureTmuxRunningFunc = func() bool { return true }
 	getNotificationLineFunc = func(id string) (string, error) {
-		return "1\t2025-02-04T10:00:00Z\tactive\t$0\t%0\t%1\thello\t1234567890\tinfo", nil
+		return "1\t2025-02-04T10:00:00Z\tactive\t\t$0\t%0\t%1\thello\t1234567890\tinfo", nil
 	}
 	validatePaneExistsFunc = func(session, window, pane string) bool { return true }
 
@@ -323,7 +323,7 @@ func TestJumpInvalidFieldData(t *testing.T) {
 
 	// Test missing session
 	getNotificationLineFunc = func(id string) (string, error) {
-		return "42\t2025-02-04T10:00:00Z\tactive\t\t%0\t%1\thello\t1234567890\tinfo", nil
+		return "42\t2025-02-04T10:00:00Z\tactive\t\t\t%0\t%1\thello\t1234567890\tinfo", nil
 	}
 	_, err := Jump("42")
 	assert.Error(t, err, "Should error when session is missing")
@@ -331,14 +331,14 @@ func TestJumpInvalidFieldData(t *testing.T) {
 
 	// Test missing window
 	getNotificationLineFunc = func(id string) (string, error) {
-		return "42\t2025-02-04T10:00:00Z\tactive\t$0\t\t%1\thello\t1234567890\tinfo", nil
+		return "42\t2025-02-04T10:00:00Z\tactive\t\t$0\t\t%1\thello\t1234567890\tinfo", nil
 	}
 	_, err = Jump("42")
 	assert.Error(t, err, "Should error when window is missing")
 
 	// Test missing pane
 	getNotificationLineFunc = func(id string) (string, error) {
-		return "42\t2025-02-04T10:00:00Z\tactive\t$0\t%0\t\thello\t1234567890\tinfo", nil
+		return "42\t2025-02-04T10:00:00Z\tactive\t\t$0\t%0\t\thello\t1234567890\tinfo", nil
 	}
 	_, err = Jump("42")
 	assert.Error(t, err, "Should error when pane is missing")

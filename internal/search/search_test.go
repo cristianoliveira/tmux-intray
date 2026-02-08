@@ -13,6 +13,7 @@ var testNotification = notification.Notification{
 	Timestamp:     "2024-01-01T12:00:00Z",
 	State:         "active",
 	Session:       "$1",
+	SessionName:   "my-session",
 	Window:        "@0",
 	Pane:          "%0",
 	Message:       "error: failed to connect to database",
@@ -39,8 +40,8 @@ func TestDefaultOptions(t *testing.T) {
 	opts := DefaultOptions()
 
 	assert.False(t, opts.CaseInsensitive, "default should be case-sensitive")
-	assert.Equal(t, []string{"message", "session", "window", "pane"}, opts.Fields,
-		"default fields should include message, session, window, pane")
+	assert.Equal(t, []string{"message", "session_name", "session", "window", "pane"}, opts.Fields,
+		"default fields should include message, session_name, session, window, pane")
 }
 
 // TestOptions verifies option application.

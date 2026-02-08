@@ -12,6 +12,7 @@ type Notification struct {
 	Timestamp     string
 	State         string
 	Session       string
+	SessionName   string
 	Window        string
 	Pane          string
 	Message       string
@@ -25,9 +26,14 @@ func ParseNotification(line string) (Notification, error) {
 	fields := strings.Split(line, "\t")
 	switch len(fields) {
 	case 9:
-		fields = append(fields, "")
+		// Old format without ReadTimestamp
+		fields = append(fields, "") // Add empty ReadTimestamp
+		fields = append(fields, "") // Add empty SessionName
 	case 10:
-		// OK
+		// Format with ReadTimestamp but without SessionName
+		fields = append(fields, "") // Add empty SessionName
+	case 11:
+		// OK - new format with SessionName
 	default:
 		return Notification{}, fmt.Errorf("invalid notification field count: %d", len(fields))
 	}
@@ -40,12 +46,13 @@ func ParseNotification(line string) (Notification, error) {
 		Timestamp:     fields[1],
 		State:         fields[2],
 		Session:       fields[3],
-		Window:        fields[4],
-		Pane:          fields[5],
-		Message:       unescapeMessage(fields[6]),
-		PaneCreated:   fields[7],
-		Level:         fields[8],
-		ReadTimestamp: fields[9],
+		SessionName:   fields[4],
+		Window:        fields[5],
+		Pane:          fields[6],
+		Message:       unescapeMessage(fields[7]),
+		PaneCreated:   fields[8],
+		Level:         fields[9],
+		ReadTimestamp: fields[10],
 	}, nil
 }
 

@@ -65,6 +65,7 @@ func TestCore(t *testing.T) {
 			PaneID:    "%pane",
 			PanePID:   "1748987643",
 		}, nil).Once()
+		mockClient.On("GetSessionName", "$0").Return("my-session", nil).Once()
 		c := NewCore(mockClient, fileStorage)
 
 		id, err := c.AddTrayItem("auto message", "", "", "", "", false, "info")

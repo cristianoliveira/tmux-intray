@@ -150,7 +150,7 @@ func SetTmuxClient(client tmux.TmuxClient) {
 
 // validateNotificationInputs validates all parameters for AddNotification.
 // Returns an error if validation fails, nil otherwise.
-func validateNotificationInputs(message, timestamp, session, window, pane, paneCreated, level string) error {
+func validateNotificationInputs(message, timestamp, session, sessionName, window, pane, paneCreated, level string) error {
 	// Validate message is non-empty
 	if strings.TrimSpace(message) == "" {
 		return fmt.Errorf("validation error: message cannot be empty")
@@ -173,10 +173,13 @@ func validateNotificationInputs(message, timestamp, session, window, pane, paneC
 		}
 	}
 
-	// Validate session, window, pane are non-empty if provided (not just whitespace)
+	// Validate session, sessionName, window, pane are non-empty if provided (not just whitespace)
 	// These are optional fields, but if provided they should contain actual content
 	if session != "" && strings.TrimSpace(session) == "" {
 		return fmt.Errorf("validation error: session cannot be whitespace only")
+	}
+	if sessionName != "" && strings.TrimSpace(sessionName) == "" {
+		return fmt.Errorf("validation error: session name cannot be whitespace only")
 	}
 	if window != "" && strings.TrimSpace(window) == "" {
 		return fmt.Errorf("validation error: window cannot be whitespace only")
@@ -227,9 +230,9 @@ func validateListInputs(stateFilter, levelFilter, olderThanCutoff, newerThanCuto
 // Returns an error if validation fails or initialization fails.
 // Preconditions: message must be non-empty; level must be one of "info", "warning", "error", or "critical";
 // timestamp must be RFC3339 format if provided.
-func AddNotification(message, timestamp, session, window, pane, paneCreated, level string) (string, error) {
+func AddNotification(message, timestamp, session, sessionName, window, pane, paneCreated, level string) (string, error) {
 	// Validate inputs first (Fail-Fast)
-	if err := validateNotificationInputs(message, timestamp, session, window, pane, paneCreated, level); err != nil {
+	if err := validateNotificationInputs(message, timestamp, session, sessionName, window, pane, paneCreated, level); err != nil {
 		return "", err
 	}
 
@@ -260,6 +263,7 @@ func AddNotification(message, timestamp, session, window, pane, paneCreated, lev
 		fmt.Sprintf("ESCAPED_MESSAGE=%s", escapedMessage),
 		fmt.Sprintf("TIMESTAMP=%s", timestamp),
 		fmt.Sprintf("SESSION=%s", session),
+		fmt.Sprintf("SESSION_NAME=%s", sessionName),
 		fmt.Sprintf("WINDOW=%s", window),
 		fmt.Sprintf("PANE=%s", pane),
 		fmt.Sprintf("PANE_CREATED=%s", paneCreated),
@@ -271,7 +275,7 @@ func AddNotification(message, timestamp, session, window, pane, paneCreated, lev
 
 	// Append line with lock
 	if err := WithLock(lockDir, func() error {
-		return appendLine(id, timestamp, "active", session, window, pane, escapedMessage, paneCreated, level, "")
+		return appendLine(id, timestamp, "active", session, sessionName, window, pane, escapedMessage, paneCreated, level, "")
 	}); err != nil {
 		colors.Error(fmt.Sprintf("failed to add notification: %v", err))
 		return "", fmt.Errorf("failed to add notification: %w", err)
@@ -440,6 +444,11 @@ func DismissNotification(id string) error {
 		if err != nil {
 			return fmt.Errorf("dismiss notification: failed to get session field: %w", err)
 		}
+		sessionName, err := getField(fields, fieldSessionName)
+		if err != nil {
+			// Session name might not exist in old records, use empty string
+			sessionName = ""
+		}
 		window, err := getField(fields, fieldWindow)
 		if err != nil {
 			return fmt.Errorf("dismiss notification: failed to get window field: %w", err)
@@ -467,6 +476,7 @@ func DismissNotification(id string) error {
 			fmt.Sprintf("ESCAPED_MESSAGE=%s", message),
 			fmt.Sprintf("TIMESTAMP=%s", timestamp),
 			fmt.Sprintf("SESSION=%s", session),
+			fmt.Sprintf("SESSION_NAME=%s", sessionName),
 			fmt.Sprintf("WINDOW=%s", window),
 			fmt.Sprintf("PANE=%s", pane),
 			fmt.Sprintf("PANE_CREATED=%s", paneCreated),
@@ -483,6 +493,7 @@ func DismissNotification(id string) error {
 			timestamp,
 			"dismissed",
 			session,
+			sessionName,
 			window,
 			pane,
 			message,
@@ -566,6 +577,11 @@ func markNotificationReadState(id, readTimestamp string) error {
 		if err != nil {
 			return fmt.Errorf("markNotificationReadState: failed to get session field: %w", err)
 		}
+		sessionName, err := getField(fields, fieldSessionName)
+		if err != nil {
+			// Session name might not exist in old records, use empty string
+			sessionName = ""
+		}
 		window, err := getField(fields, fieldWindow)
 		if err != nil {
 			return fmt.Errorf("markNotificationReadState: failed to get window field: %w", err)
@@ -599,6 +615,7 @@ func markNotificationReadState(id, readTimestamp string) error {
 			timestamp,
 			state,
 			session,
+			sessionName,
 			window,
 			pane,
 			message,
@@ -657,6 +674,11 @@ func DismissAll() error {
 			if err != nil {
 				return fmt.Errorf("dismiss all: failed to get session field: %w", err)
 			}
+			sessionName, err := getField(fields, fieldSessionName)
+			if err != nil {
+				// Session name might not exist in old records, use empty string
+				sessionName = ""
+			}
 			window, err := getField(fields, fieldWindow)
 			if err != nil {
 				return fmt.Errorf("dismiss all: failed to get window field: %w", err)
@@ -680,6 +702,7 @@ func DismissAll() error {
 				fmt.Sprintf("ESCAPED_MESSAGE=%s", message),
 				fmt.Sprintf("TIMESTAMP=%s", timestamp),
 				fmt.Sprintf("SESSION=%s", session),
+				fmt.Sprintf("SESSION_NAME=%s", sessionName),
 				fmt.Sprintf("WINDOW=%s", window),
 				fmt.Sprintf("PANE=%s", pane),
 				fmt.Sprintf("PANE_CREATED=%s", paneCreated),
@@ -696,6 +719,7 @@ func DismissAll() error {
 				timestamp,
 				"dismissed",
 				session,
+				sessionName,
 				window,
 				pane,
 				message,
@@ -884,9 +908,9 @@ func unescapeMessage(msg string) string {
 	return msg
 }
 
-func appendLine(id int, timestamp, state, session, window, pane, message, paneCreated, level, readTimestamp string) error {
-	line := fmt.Sprintf("%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-		id, timestamp, state, session, window, pane, message, paneCreated, level, readTimestamp)
+func appendLine(id int, timestamp, state, session, sessionName, window, pane, message, paneCreated, level, readTimestamp string) error {
+	line := fmt.Sprintf("%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		id, timestamp, state, session, sessionName, window, pane, message, paneCreated, level, readTimestamp)
 	f, err := os.OpenFile(notificationsFile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, FileModeFile)
 	if err != nil {
 		return fmt.Errorf("appendLine: failed to open notifications file %s: %w", notificationsFile, err)
@@ -1082,6 +1106,11 @@ func dismissByID(id string) error {
 	if err != nil {
 		return fmt.Errorf("dismissByID: failed to get session field: %w", err)
 	}
+	sessionName, err := getField(fields, fieldSessionName)
+	if err != nil {
+		// Session name might not exist in old records, use empty string
+		sessionName = ""
+	}
 	window, err := getField(fields, fieldWindow)
 	if err != nil {
 		return fmt.Errorf("dismissByID: failed to get window field: %w", err)
@@ -1116,6 +1145,7 @@ func dismissByID(id string) error {
 		timestamp,
 		"dismissed",
 		session,
+		sessionName,
 		window,
 		pane,
 		message,
@@ -1155,6 +1185,11 @@ func dismissAllActive() error {
 		if err != nil {
 			return fmt.Errorf("dismissAllActive: failed to get session field: %w", err)
 		}
+		sessionName, err := getField(fields, fieldSessionName)
+		if err != nil {
+			// Session name might not exist in old records, use empty string
+			sessionName = ""
+		}
 		window, err := getField(fields, fieldWindow)
 		if err != nil {
 			return fmt.Errorf("dismissAllActive: failed to get window field: %w", err)
@@ -1189,6 +1224,7 @@ func dismissAllActive() error {
 			timestamp,
 			"dismissed",
 			session,
+			sessionName,
 			window,
 			pane,
 			message,
