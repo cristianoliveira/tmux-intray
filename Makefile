@@ -1,4 +1,4 @@
-.PHONY: all tests benchmarks fmt check-fmt lint clean install install-docker install-npm install-go install-all verify-install security-check docs test sqlc-generate sqlc-check
+.PHONY: all tests benchmarks benchmarks-quick fmt check-fmt lint clean install install-docker install-npm install-go install-all verify-install security-check docs test sqlc-generate sqlc-check
 
 # tmux-intray is a pure Go implementation
 
@@ -18,7 +18,11 @@ tests:
 benchmarks:
 	@echo "Running storage benchmarks..."
 	@mkdir -p benchmarks
-	go test ./internal/storage -run '^$$' -bench '^BenchmarkStorage_' -benchmem -benchtime=1x | tee benchmarks/benchmarks.txt
+	GOMAXPROCS=1 go test ./internal/storage -run '^$$' -bench '^BenchmarkStorage_' -benchmem -benchtime=1x -count=1 -cpu=1 | tee benchmarks/benchmarks.txt
+
+benchmarks-quick:
+	@echo "Running quick storage benchmark sanity check..."
+	TMUX_INTRAY_BENCH_ADD_SEQUENTIAL_COUNT=200 TMUX_INTRAY_BENCH_LIST_ACTIVE_COUNT=2000 TMUX_INTRAY_BENCH_MARK_READ_OPS=50 TMUX_INTRAY_BENCH_DISMISS_OPS=50 TMUX_INTRAY_BENCH_CLEANUP_OLD_COUNT=2000 TMUX_INTRAY_BENCH_CONCURRENT_OPS_PER_ROUTINE=25 TMUX_INTRAY_BENCH_LARGE_DATASET_COUNT=10000 GOMAXPROCS=1 go test ./internal/storage -run '^$$' -bench '^BenchmarkStorage_' -benchmem -benchtime=1x -count=1 -cpu=1
 
 fmt:
 	@echo "Formatting shell scripts..."

@@ -381,8 +381,11 @@ make sqlc-generate
 # Verify generated sqlc output is up to date
 make sqlc-check
 
-# Run storage benchmarks and refresh baseline artifact
+# Run deterministic storage benchmarks and refresh baseline artifact
 make benchmarks
+
+# Run quick benchmark sanity check during development
+make benchmarks-quick
 ```
 
 ## CI/CD Pipeline

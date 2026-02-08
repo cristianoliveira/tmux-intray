@@ -8,7 +8,15 @@ Use storage benchmarks to compare TSV and SQLite backends on common operations.
 make benchmarks
 ```
 
-This runs benchmark scenarios in `internal/storage/benchmarks_test.go` with `-benchmem` and `-benchtime=1x` so each scenario executes once with fixed workload sizes.
+This runs benchmark scenarios in `internal/storage/benchmarks_test.go` with deterministic settings (`GOMAXPROCS=1`, `-cpu=1`, `-count=1`, `-benchtime=1x`) so each scenario executes once with fixed workload sizes.
+
+For a faster sanity check while iterating:
+
+```bash
+make benchmarks-quick
+```
+
+The quick target uses smaller fixed dataset sizes through benchmark env vars while still exercising both backends.
 
 ## Scenarios
 
@@ -18,8 +26,10 @@ This runs benchmark scenarios in `internal/storage/benchmarks_test.go` with `-be
 - Mark 100 notifications as read
 - Dismiss 100 notifications
 - Cleanup old notifications from a 10,000 dismissed row dataset
-- Concurrent add workload (10 goroutines x 100 operations)
+- Concurrent list workload (10 goroutines x 100 operations)
 - Query a large dataset (100,000 rows)
+
+SQLite benchmark runs use the production `internal/storage/sqlite` implementation backed by sqlc-generated queries.
 
 ## Interpreting results
 

@@ -15,15 +15,15 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-const (
-	addSequentialCount      = 1000
-	listActiveCount         = 10000
-	markReadOps             = 100
-	dismissOps              = 100
-	cleanupOldCount         = 10000
-	concurrentGoroutines    = 10
-	concurrentOpsPerRoutine = 100
-	largeDatasetCount       = 100000
+var (
+	addSequentialCount      = benchmarkEnvInt("TMUX_INTRAY_BENCH_ADD_SEQUENTIAL_COUNT", 1000)
+	listActiveCount         = benchmarkEnvInt("TMUX_INTRAY_BENCH_LIST_ACTIVE_COUNT", 10000)
+	markReadOps             = benchmarkEnvInt("TMUX_INTRAY_BENCH_MARK_READ_OPS", 100)
+	dismissOps              = benchmarkEnvInt("TMUX_INTRAY_BENCH_DISMISS_OPS", 100)
+	cleanupOldCount         = benchmarkEnvInt("TMUX_INTRAY_BENCH_CLEANUP_OLD_COUNT", 10000)
+	concurrentGoroutines    = benchmarkEnvInt("TMUX_INTRAY_BENCH_CONCURRENT_GOROUTINES", 10)
+	concurrentOpsPerRoutine = benchmarkEnvInt("TMUX_INTRAY_BENCH_CONCURRENT_OPS_PER_ROUTINE", 100)
+	largeDatasetCount       = benchmarkEnvInt("TMUX_INTRAY_BENCH_LARGE_DATASET_COUNT", 100000)
 )
 
 type benchmarkBackend struct {
@@ -48,7 +48,7 @@ var benchmarkBackends = []benchmarkBackend{
 		seed:     seedTSVDirect,
 	},
 	{
-		name:     "sqlite",
+		name:     "sqlite_sqlc",
 		newStore: newSQLiteBenchmarkStore,
 		seed:     seedSQLiteDirect,
 	},
@@ -157,7 +157,7 @@ func BenchmarkStorage_CleanupOld10000(b *testing.B) {
 	})
 }
 
-func BenchmarkStorage_ConcurrentAccess10x100(b *testing.B) {
+func BenchmarkStorage_ConcurrentList10x100(b *testing.B) {
 	benchmarkBothBackends(b, func(b *testing.B, backend benchmarkBackend, store Storage) {
 		backend.seed(b, store, seedConfig{count: listActiveCount, sessionMod: 20, levelMod: 4})
 		b.ResetTimer()
@@ -372,4 +372,16 @@ func minInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func benchmarkEnvInt(key string, fallback int) int {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(raw)
+	if err != nil || parsed <= 0 {
+		return fallback
+	}
+	return parsed
 }
