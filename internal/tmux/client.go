@@ -52,6 +52,12 @@ type TmuxClient interface {
 	// GetSessionName returns the name of a session by its ID.
 	GetSessionName(sessionID string) (string, error)
 
+	// ListWindows returns all tmux windows as a map of window ID to name.
+	ListWindows() (map[string]string, error)
+
+	// ListPanes returns all tmux panes as a map of pane ID to name.
+	ListPanes() (map[string]string, error)
+
 	// GetTmuxVisibility gets the tmux visibility state from environment variable.
 	GetTmuxVisibility() (bool, error)
 
@@ -378,6 +384,54 @@ func (c *DefaultClient) GetSessionName(sessionID string) (string, error) {
 	}
 
 	return sessionName, nil
+}
+
+// ListWindows returns all tmux windows as a map of window ID to name.
+func (c *DefaultClient) ListWindows() (map[string]string, error) {
+	stdout, stderr, err := c.Run("list-windows", "-a", "-F", "#{window_id}\t#{window_name}")
+	if err != nil {
+		if stderr != "" {
+			colors.Debug("stderr: " + stderr)
+		}
+		return nil, fmt.Errorf("failed to list windows: %w", err)
+	}
+
+	windows := make(map[string]string)
+	lines := strings.Split(strings.TrimSpace(stdout), "\n")
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 2)
+		if len(parts) == 2 {
+			windows[parts[0]] = parts[1]
+		}
+	}
+	return windows, nil
+}
+
+// ListPanes returns all tmux panes as a map of pane ID to name.
+func (c *DefaultClient) ListPanes() (map[string]string, error) {
+	stdout, stderr, err := c.Run("list-panes", "-a", "-F", "#{pane_id}\t#{pane_title}")
+	if err != nil {
+		if stderr != "" {
+			colors.Debug("stderr: " + stderr)
+		}
+		return nil, fmt.Errorf("failed to list panes: %w", err)
+	}
+
+	panes := make(map[string]string)
+	lines := strings.Split(strings.TrimSpace(stdout), "\n")
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 2)
+		if len(parts) == 2 {
+			panes[parts[0]] = parts[1]
+		}
+	}
+	return panes, nil
 }
 
 // GetTmuxVisibility gets the tmux visibility state from environment variable.

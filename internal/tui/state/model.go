@@ -21,6 +21,8 @@ import (
 )
 
 const (
+	viewModeCompact       = settings.ViewModeCompact
+	viewModeDetailed      = settings.ViewModeDetailed
 	viewModeGrouped       = settings.ViewModeGrouped
 	headerFooterLines     = 2
 	defaultViewportWidth  = 80
@@ -41,6 +43,8 @@ type Model struct {
 	width         int
 	height        int
 	sessionNames  map[string]string
+	windowNames   map[string]string
+	paneNames     map[string]string
 	client        tmux.TmuxClient // TmuxClient for tmux operations
 
 	// Settings fields
@@ -56,6 +60,9 @@ type Model struct {
 
 	treeRoot     *Node
 	visibleNodes []*Node
+
+	visibleNodesCache []*Node
+	cacheValid        bool
 
 	ensureTmuxRunning func() bool
 	jumpToPane        func(sessionID, windowID, paneID string) bool
@@ -192,6 +199,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "u":
 			// Mark selected notification as unread
 			return m, m.markSelectedUnread()
+		case "v":
+			if !m.searchMode && !m.commandMode {
+				m.cycleViewMode()
+			}
 		case "h":
 			// Collapse selected group node
 			m.collapseNode(m.selectedVisibleNode())
@@ -206,7 +217,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// In search mode, 'i' is handled by KeyRunes
 			// This is a no-op but kept for documentation
 		case "q":
-			// Save settings before quitting
 			if err := m.saveSettings(); err != nil {
 				colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 			}
@@ -268,6 +278,7 @@ func (m *Model) View() string {
 		SearchQuery:  m.searchQuery,
 		CommandQuery: m.commandQuery,
 		Grouped:      m.isGroupedView(),
+		ViewMode:     m.viewMode,
 	}))
 
 	return s.String()
@@ -370,9 +381,23 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 		sessionNames = make(map[string]string)
 	}
 
+	// Fetch all window names from tmux
+	windowNames, err := client.ListWindows()
+	if err != nil {
+		windowNames = make(map[string]string)
+	}
+
+	// Fetch all pane names from tmux
+	paneNames, err := client.ListPanes()
+	if err != nil {
+		paneNames = make(map[string]string)
+	}
+
 	m := Model{
 		viewport:          viewport.New(defaultViewportWidth, defaultViewportHeight), // Default dimensions, will be updated on WindowSizeMsg
 		sessionNames:      sessionNames,
+		windowNames:       windowNames,
+		paneNames:         paneNames,
 		client:            client,
 		expansionState:    map[string]bool{},
 		ensureTmuxRunning: core.EnsureTmuxRunning,
@@ -395,6 +420,8 @@ type saveSettingsFailedMsg struct {
 
 // applySearchFilter filters notifications based on the search query.
 func (m *Model) applySearchFilter() {
+	m.invalidateCache()
+
 	query := strings.TrimSpace(m.searchQuery)
 	if query == "" {
 		m.filtered = m.notifications
@@ -404,8 +431,13 @@ func (m *Model) applySearchFilter() {
 		if m.searchProvider != nil {
 			provider = m.searchProvider
 		} else {
-			// Default: token-based search with case-insensitivity (backward compatible)
-			provider = search.NewTokenProvider(search.WithCaseInsensitive(true))
+			// Default: token-based search with case-insensitivity and name maps (backward compatible)
+			provider = search.NewTokenProvider(
+				search.WithCaseInsensitive(true),
+				search.WithSessionNames(m.sessionNames),
+				search.WithWindowNames(m.windowNames),
+				search.WithPaneNames(m.paneNames),
+			)
 		}
 
 		// Filter using the provider
@@ -421,6 +453,7 @@ func (m *Model) applySearchFilter() {
 		m.visibleNodes = m.computeVisibleNodes()
 	} else {
 		m.treeRoot = nil
+		m.invalidateCache()
 		m.visibleNodes = nil
 	}
 	m.cursor = 0
@@ -430,23 +463,107 @@ func (m *Model) applySearchFilter() {
 // executeCommand executes the current command query and returns a command to run.
 func (m *Model) executeCommand() tea.Cmd {
 	cmd := strings.TrimSpace(m.commandQuery)
-	switch cmd {
+	if cmd == "" {
+		colors.Warning("Command is empty")
+		return nil
+	}
+
+	parts := strings.Fields(cmd)
+	command := strings.ToLower(parts[0])
+	args := parts[1:]
+
+	switch command {
+	// FIXME: Consider extracting argument validation and settings persistence into helper functions to reduce duplication.
 	case "q":
-		// Save settings before quitting
+		if len(args) > 0 {
+			colors.Warning("Invalid usage: q")
+			return nil
+		}
 		if err := m.saveSettings(); err != nil {
 			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 		}
 		return tea.Quit
 	case "w":
-		// Save settings and continue TUI
+		if len(args) > 0 {
+			colors.Warning("Invalid usage: w")
+			return nil
+		}
 		return func() tea.Msg {
 			if err := m.saveSettings(); err != nil {
 				return saveSettingsFailedMsg{err: err}
 			}
 			return saveSettingsSuccessMsg{}
 		}
+	case "group-by":
+		if len(args) != 1 {
+			colors.Warning("Invalid usage: group-by <none|session|window|pane>")
+			return nil
+		}
+
+		groupBy := strings.ToLower(args[0])
+		if !settings.IsValidGroupBy(groupBy) {
+			colors.Warning(fmt.Sprintf("Invalid group-by value: %s (expected one of: none, session, window, pane)", args[0]))
+			return nil
+		}
+
+		if m.groupBy == groupBy {
+			return nil
+		}
+
+		m.groupBy = groupBy
+		m.applySearchFilter()
+		if err := m.saveSettings(); err != nil {
+			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+			return nil
+		}
+		colors.Info(fmt.Sprintf("Group by: %s", m.groupBy))
+		return nil
+	case "expand-level":
+		if len(args) != 1 {
+			colors.Warning("Invalid usage: expand-level <0|1|2|3>")
+			return nil
+		}
+
+		level, err := strconv.Atoi(args[0])
+		if err != nil || level < settings.MinExpandLevel || level > settings.MaxExpandLevel {
+			colors.Warning(fmt.Sprintf("Invalid expand-level value: %s (expected %d-%d)", args[0], settings.MinExpandLevel, settings.MaxExpandLevel))
+			return nil
+		}
+
+		if m.defaultExpandLevel == level {
+			return nil
+		}
+
+		m.defaultExpandLevel = level
+		if m.isGroupedView() {
+			m.applyDefaultExpansion()
+		}
+		if err := m.saveSettings(); err != nil {
+			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+			return nil
+		}
+		colors.Info(fmt.Sprintf("Default expand level: %d", m.defaultExpandLevel))
+		return nil
+	case "toggle-view":
+		if len(args) > 0 {
+			colors.Warning("Invalid usage: toggle-view")
+			return nil
+		}
+
+		if m.isGroupedView() {
+			m.viewMode = viewModeDetailed
+		} else {
+			m.viewMode = viewModeGrouped
+		}
+		m.applySearchFilter()
+		if err := m.saveSettings(); err != nil {
+			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+			return nil
+		}
+		colors.Info(fmt.Sprintf("View mode: %s", m.viewMode))
+		return nil
 	default:
-		// Unknown command - ignore
+		colors.Warning(fmt.Sprintf("Unknown command: %s", command))
 		return nil
 	}
 }
@@ -715,6 +832,7 @@ func (m *Model) loadNotifications() error {
 		m.notifications = []notification.Notification{}
 		m.filtered = []notification.Notification{}
 		m.treeRoot = nil
+		m.invalidateCache()
 		m.visibleNodes = nil
 		m.updateViewportContent()
 		return nil
@@ -746,8 +864,52 @@ func (m *Model) isGroupedView() bool {
 	return m.viewMode == viewModeGrouped
 }
 
+// cycleViewMode cycles through available view modes (compact → detailed → grouped).
+func (m *Model) cycleViewMode() {
+	nextMode := nextViewMode(m.viewMode)
+	if nextMode == m.viewMode {
+		return
+	}
+
+	m.viewMode = nextMode
+	m.applySearchFilter()
+
+	if err := m.saveSettings(); err != nil {
+		colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+	}
+	colors.Info(fmt.Sprintf("View mode: %s", m.viewMode))
+}
+
+// nextViewMode returns the next view mode in the cycle.
+func nextViewMode(current string) string {
+	availableModes := []string{viewModeCompact, viewModeDetailed}
+	if isViewModeAvailable(viewModeGrouped) {
+		availableModes = append(availableModes, viewModeGrouped)
+	}
+
+	for i, mode := range availableModes {
+		if mode == current {
+			return availableModes[(i+1)%len(availableModes)]
+		}
+	}
+
+	return availableModes[0]
+}
+
+// isViewModeAvailable returns true if the given mode is a valid view mode.
+
+func isViewModeAvailable(mode string) bool {
+	return mode == viewModeCompact || mode == viewModeDetailed || mode == viewModeGrouped
+}
+
 func (m *Model) computeVisibleNodes() []*Node {
+	if m.cacheValid {
+		return m.visibleNodesCache
+	}
+
 	if m.treeRoot == nil {
+		m.visibleNodesCache = nil
+		m.cacheValid = true
 		return nil
 	}
 
@@ -772,7 +934,14 @@ func (m *Model) computeVisibleNodes() []*Node {
 	}
 
 	walk(m.treeRoot)
+	m.visibleNodesCache = visible
+	m.cacheValid = true
 	return visible
+}
+
+func (m *Model) invalidateCache() {
+	m.visibleNodesCache = nil
+	m.cacheValid = false
 }
 
 func isGroupNode(node *Node) bool {
@@ -923,6 +1092,7 @@ func (m *Model) applyDefaultExpansion() {
 	}
 	walk(m.treeRoot)
 
+	m.invalidateCache()
 	m.visibleNodes = m.computeVisibleNodes()
 	if selected != nil {
 		if index := indexOfNode(m.visibleNodes, selected); index >= 0 {
@@ -951,6 +1121,7 @@ func (m *Model) expandNode(node *Node) {
 
 	node.Expanded = true
 	m.updateExpansionState(node, true)
+	m.invalidateCache()
 	m.visibleNodes = m.computeVisibleNodes()
 	m.updateViewportContent()
 	m.ensureCursorVisible()
@@ -970,6 +1141,7 @@ func (m *Model) collapseNode(node *Node) {
 	selected := m.selectedVisibleNode()
 	node.Expanded = false
 	m.updateExpansionState(node, false)
+	m.invalidateCache()
 	m.visibleNodes = m.computeVisibleNodes()
 	if selected != nil && nodeContains(node, selected) {
 		if index := indexOfNode(m.visibleNodes, node); index >= 0 {
@@ -994,6 +1166,10 @@ func (m *Model) updateExpansionState(node *Node, expanded bool) {
 	if m.expansionState == nil {
 		m.expansionState = map[string]bool{}
 	}
+	legacyKey := m.nodeExpansionLegacyKey(node)
+	if legacyKey != "" && legacyKey != key {
+		delete(m.expansionState, legacyKey)
+	}
 	m.expansionState[key] = expanded
 }
 
@@ -1001,29 +1177,98 @@ func (m *Model) nodeExpansionKey(node *Node) string {
 	if node == nil || node.Kind == NodeKindNotification || node.Kind == NodeKindRoot {
 		return ""
 	}
-	if m.treeRoot == nil {
-		return fmt.Sprintf("%s:%s", node.Kind, node.Title)
+	path, ok := findNodePath(m.treeRoot, node)
+	if !ok || len(path) == 0 {
+		return ""
+	}
+
+	session, window, pane := nodePathSegments(path)
+
+	switch node.Kind {
+	case NodeKindSession:
+		return serializeNodeExpansionPath(NodeKindSession, session)
+	case NodeKindWindow:
+		if session == "" {
+			return ""
+		}
+		return serializeNodeExpansionPath(NodeKindWindow, session, window)
+	case NodeKindPane:
+		if session == "" || window == "" {
+			return ""
+		}
+		return serializeNodeExpansionPath(NodeKindPane, session, window, pane)
+	default:
+		return ""
+	}
+}
+
+func (m *Model) nodeExpansionLegacyKey(node *Node) string {
+	if node == nil || node.Kind == NodeKindNotification || node.Kind == NodeKindRoot {
+		return ""
 	}
 	path, ok := findNodePath(m.treeRoot, node)
 	if !ok || len(path) == 0 {
 		return ""
 	}
+
+	session, window, pane := nodePathSegments(path)
+
 	switch node.Kind {
 	case NodeKindSession:
-		return fmt.Sprintf("session:%s", node.Title)
+		return serializeLegacyNodeExpansionPath(NodeKindSession, session)
 	case NodeKindWindow:
-		if len(path) < 3 {
-			return fmt.Sprintf("window:%s", node.Title)
+		if session == "" {
+			return ""
 		}
-		return fmt.Sprintf("window:%s:%s", path[1].Title, node.Title)
+		return serializeLegacyNodeExpansionPath(NodeKindWindow, session, window)
 	case NodeKindPane:
-		if len(path) < 4 {
-			return fmt.Sprintf("pane:%s", node.Title)
+		if session == "" || window == "" {
+			return ""
 		}
-		return fmt.Sprintf("pane:%s:%s:%s", path[1].Title, path[2].Title, node.Title)
+		return serializeLegacyNodeExpansionPath(NodeKindPane, session, window, pane)
 	default:
 		return ""
 	}
+}
+
+func serializeNodeExpansionPath(kind NodeKind, parts ...string) string {
+	if len(parts) == 0 {
+		return ""
+	}
+	encoded := make([]string, 0, len(parts))
+	for _, part := range parts {
+		encoded = append(encoded, escapeExpansionPathSegment(part))
+	}
+	return fmt.Sprintf("%s:%s", kind, strings.Join(encoded, ":"))
+}
+
+func escapeExpansionPathSegment(value string) string {
+	replacer := strings.NewReplacer(
+		"%", "%25",
+		":", "%3A",
+	)
+	return replacer.Replace(value)
+}
+
+func serializeLegacyNodeExpansionPath(kind NodeKind, parts ...string) string {
+	if len(parts) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%s:%s", kind, strings.Join(parts, ":"))
+}
+
+func nodePathSegments(path []*Node) (session string, window string, pane string) {
+	for _, current := range path {
+		switch current.Kind {
+		case NodeKindSession:
+			session = current.Title
+		case NodeKindWindow:
+			window = current.Title
+		case NodeKindPane:
+			pane = current.Title
+		}
+	}
+	return session, window, pane
 }
 
 func findNodePath(root *Node, target *Node) ([]*Node, bool) {
@@ -1081,11 +1326,13 @@ func expandTree(node *Node) {
 // buildFilteredTree builds a tree from filtered notifications and applies saved expansion state.
 // Returns a tree where group counts reflect only matching notifications.
 func (m *Model) buildFilteredTree(notifications []notification.Notification) *Node {
+	m.invalidateCache()
+
 	if len(notifications) == 0 {
 		return nil
 	}
 
-	root := BuildTree(notifications)
+	root := BuildTree(notifications, m.groupBy)
 
 	// Prune empty groups (groups with no matching notifications)
 	m.pruneEmptyGroups(root)
@@ -1134,14 +1381,11 @@ func (m *Model) applyExpansionState(node *Node) {
 
 	// Apply expansion state to group nodes
 	if isGroupNode(node) {
-		key := m.nodeExpansionKey(node)
-		if key != "" {
-			if expanded, ok := m.expansionState[key]; ok {
-				node.Expanded = expanded
-			} else {
-				// Default to expanded for nodes without saved state
-				node.Expanded = true
-			}
+		if expanded, ok := m.expansionStateValue(node); ok {
+			node.Expanded = expanded
+		} else {
+			// Default to expanded for nodes without saved state
+			node.Expanded = true
 		}
 	}
 
@@ -1149,6 +1393,35 @@ func (m *Model) applyExpansionState(node *Node) {
 	for _, child := range node.Children {
 		m.applyExpansionState(child)
 	}
+}
+
+func (m *Model) expansionStateValue(node *Node) (bool, bool) {
+	if m.expansionState == nil {
+		return false, false
+	}
+
+	key := m.nodeExpansionKey(node)
+	if key != "" {
+		expanded, ok := m.expansionState[key]
+		if ok {
+			return expanded, true
+		}
+	}
+
+	legacyKey := m.nodeExpansionLegacyKey(node)
+	if legacyKey == "" {
+		return false, false
+	}
+
+	expanded, ok := m.expansionState[legacyKey]
+	if !ok {
+		return false, false
+	}
+	if key != "" {
+		m.expansionState[key] = expanded
+		delete(m.expansionState, legacyKey)
+	}
+	return expanded, true
 }
 
 // getSessionName returns the session name for a session ID.
@@ -1164,4 +1437,34 @@ func (m *Model) getSessionName(sessionID string) string {
 		return name
 	}
 	return sessionID // fallback to session ID if not found
+}
+
+// getWindowName returns the window name for a window ID.
+// Uses cached window names from initial fetch.
+func (m *Model) getWindowName(windowID string) string {
+	if windowID == "" {
+		return ""
+	}
+	if m.windowNames == nil {
+		return windowID
+	}
+	if name, ok := m.windowNames[windowID]; ok {
+		return name
+	}
+	return windowID // fallback to window ID if not found
+}
+
+// getPaneName returns the pane name for a pane ID.
+// Uses cached pane names from initial fetch.
+func (m *Model) getPaneName(paneID string) string {
+	if paneID == "" {
+		return ""
+	}
+	if m.paneNames == nil {
+		return paneID
+	}
+	if name, ok := m.paneNames[paneID]; ok {
+		return name
+	}
+	return paneID // fallback to pane ID if not found
 }

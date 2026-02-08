@@ -80,35 +80,42 @@ func (p *TokenProvider) Match(notif notification.Notification, query string) boo
 	for _, token := range textTokens {
 		matched := false
 		for _, field := range p.opts.Fields {
-			var fieldValue string
+			var fieldValues []string
 			switch field {
 			case "message":
-				fieldValue = notif.Message
+				fieldValues = []string{notif.Message}
 			case "session":
-				fieldValue = notif.Session
+				fieldValues = p.getFieldValuesWithNames(notif.Session, p.opts.SessionNames)
 			case "window":
-				fieldValue = notif.Window
+				fieldValues = p.getFieldValuesWithNames(notif.Window, p.opts.WindowNames)
 			case "pane":
-				fieldValue = notif.Pane
+				fieldValues = p.getFieldValuesWithNames(notif.Pane, p.opts.PaneNames)
 			case "level":
-				fieldValue = notif.Level
+				fieldValues = []string{notif.Level}
 			case "state":
-				fieldValue = notif.State
+				fieldValues = []string{notif.State}
 			}
 
-			// Skip empty fields
-			if fieldValue == "" {
-				continue
+			// Check all field values (ID and name)
+			for _, fieldValue := range fieldValues {
+				// Skip empty fields
+				if fieldValue == "" {
+					continue
+				}
+
+				// Apply case sensitivity
+				if p.opts.CaseInsensitive {
+					fieldValue = strings.ToLower(fieldValue)
+				}
+
+				// Check if token is found in field
+				if strings.Contains(fieldValue, token) {
+					matched = true
+					break
+				}
 			}
 
-			// Apply case sensitivity
-			if p.opts.CaseInsensitive {
-				fieldValue = strings.ToLower(fieldValue)
-			}
-
-			// Check if token is found in field
-			if strings.Contains(fieldValue, token) {
-				matched = true
+			if matched {
 				break
 			}
 		}
@@ -126,4 +133,23 @@ func (p *TokenProvider) Match(notif notification.Notification, query string) boo
 // Name returns the provider name.
 func (p *TokenProvider) Name() string {
 	return "token"
+}
+
+// getFieldValuesWithNames returns a slice containing both the ID and resolved name.
+// If nameMap is nil or ID not found, returns only the ID.
+func (p *TokenProvider) getFieldValuesWithNames(id string, nameMap map[string]string) []string {
+	if id == "" {
+		return []string{}
+	}
+
+	values := []string{id}
+
+	// If name map is provided and ID exists in map, add the name
+	if nameMap != nil {
+		if name, ok := nameMap[id]; ok {
+			values = append(values, name)
+		}
+	}
+
+	return values
 }
