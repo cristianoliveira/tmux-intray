@@ -1122,6 +1122,10 @@ func (m *Model) updateExpansionState(node *Node, expanded bool) {
 	if m.expansionState == nil {
 		m.expansionState = map[string]bool{}
 	}
+	legacyKey := m.nodeExpansionLegacyKey(node)
+	if legacyKey != "" && legacyKey != key {
+		delete(m.expansionState, legacyKey)
+	}
 	m.expansionState[key] = expanded
 }
 
@@ -1129,29 +1133,98 @@ func (m *Model) nodeExpansionKey(node *Node) string {
 	if node == nil || node.Kind == NodeKindNotification || node.Kind == NodeKindRoot {
 		return ""
 	}
-	if m.treeRoot == nil {
-		return fmt.Sprintf("%s:%s", node.Kind, node.Title)
+	path, ok := findNodePath(m.treeRoot, node)
+	if !ok || len(path) == 0 {
+		return ""
+	}
+
+	session, window, pane := nodePathSegments(path)
+
+	switch node.Kind {
+	case NodeKindSession:
+		return serializeNodeExpansionPath(NodeKindSession, session)
+	case NodeKindWindow:
+		if session == "" {
+			return ""
+		}
+		return serializeNodeExpansionPath(NodeKindWindow, session, window)
+	case NodeKindPane:
+		if session == "" || window == "" {
+			return ""
+		}
+		return serializeNodeExpansionPath(NodeKindPane, session, window, pane)
+	default:
+		return ""
+	}
+}
+
+func (m *Model) nodeExpansionLegacyKey(node *Node) string {
+	if node == nil || node.Kind == NodeKindNotification || node.Kind == NodeKindRoot {
+		return ""
 	}
 	path, ok := findNodePath(m.treeRoot, node)
 	if !ok || len(path) == 0 {
 		return ""
 	}
+
+	session, window, pane := nodePathSegments(path)
+
 	switch node.Kind {
 	case NodeKindSession:
-		return fmt.Sprintf("session:%s", node.Title)
+		return serializeLegacyNodeExpansionPath(NodeKindSession, session)
 	case NodeKindWindow:
-		if len(path) < 3 {
-			return fmt.Sprintf("window:%s", node.Title)
+		if session == "" {
+			return ""
 		}
-		return fmt.Sprintf("window:%s:%s", path[1].Title, node.Title)
+		return serializeLegacyNodeExpansionPath(NodeKindWindow, session, window)
 	case NodeKindPane:
-		if len(path) < 4 {
-			return fmt.Sprintf("pane:%s", node.Title)
+		if session == "" || window == "" {
+			return ""
 		}
-		return fmt.Sprintf("pane:%s:%s:%s", path[1].Title, path[2].Title, node.Title)
+		return serializeLegacyNodeExpansionPath(NodeKindPane, session, window, pane)
 	default:
 		return ""
 	}
+}
+
+func serializeNodeExpansionPath(kind NodeKind, parts ...string) string {
+	if len(parts) == 0 {
+		return ""
+	}
+	encoded := make([]string, 0, len(parts))
+	for _, part := range parts {
+		encoded = append(encoded, escapeExpansionPathSegment(part))
+	}
+	return fmt.Sprintf("%s:%s", kind, strings.Join(encoded, ":"))
+}
+
+func escapeExpansionPathSegment(value string) string {
+	replacer := strings.NewReplacer(
+		"%", "%25",
+		":", "%3A",
+	)
+	return replacer.Replace(value)
+}
+
+func serializeLegacyNodeExpansionPath(kind NodeKind, parts ...string) string {
+	if len(parts) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%s:%s", kind, strings.Join(parts, ":"))
+}
+
+func nodePathSegments(path []*Node) (session string, window string, pane string) {
+	for _, current := range path {
+		switch current.Kind {
+		case NodeKindSession:
+			session = current.Title
+		case NodeKindWindow:
+			window = current.Title
+		case NodeKindPane:
+			pane = current.Title
+		}
+	}
+	return session, window, pane
 }
 
 func findNodePath(root *Node, target *Node) ([]*Node, bool) {
@@ -1262,14 +1335,11 @@ func (m *Model) applyExpansionState(node *Node) {
 
 	// Apply expansion state to group nodes
 	if isGroupNode(node) {
-		key := m.nodeExpansionKey(node)
-		if key != "" {
-			if expanded, ok := m.expansionState[key]; ok {
-				node.Expanded = expanded
-			} else {
-				// Default to expanded for nodes without saved state
-				node.Expanded = true
-			}
+		if expanded, ok := m.expansionStateValue(node); ok {
+			node.Expanded = expanded
+		} else {
+			// Default to expanded for nodes without saved state
+			node.Expanded = true
 		}
 	}
 
@@ -1277,6 +1347,35 @@ func (m *Model) applyExpansionState(node *Node) {
 	for _, child := range node.Children {
 		m.applyExpansionState(child)
 	}
+}
+
+func (m *Model) expansionStateValue(node *Node) (bool, bool) {
+	if m.expansionState == nil {
+		return false, false
+	}
+
+	key := m.nodeExpansionKey(node)
+	if key != "" {
+		expanded, ok := m.expansionState[key]
+		if ok {
+			return expanded, true
+		}
+	}
+
+	legacyKey := m.nodeExpansionLegacyKey(node)
+	if legacyKey == "" {
+		return false, false
+	}
+
+	expanded, ok := m.expansionState[legacyKey]
+	if !ok {
+		return false, false
+	}
+	if key != "" {
+		m.expansionState[key] = expanded
+		delete(m.expansionState, legacyKey)
+	}
+	return expanded, true
 }
 
 // getSessionName returns the session name for a session ID.
