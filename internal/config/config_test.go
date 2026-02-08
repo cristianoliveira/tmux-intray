@@ -28,6 +28,7 @@ func TestDefaultConfig(t *testing.T) {
 	// Check some default values.
 	require.Equal(t, "1000", Get("max_notifications", ""))
 	require.Equal(t, "30", Get("auto_cleanup_days", ""))
+	require.Equal(t, "tsv", Get("storage_backend", ""))
 	require.Equal(t, "default", Get("table_format", ""))
 	require.Equal(t, "compact", Get("status_format", ""))
 	require.Equal(t, "true", Get("status_enabled", ""))
@@ -50,6 +51,7 @@ func TestEnvironmentOverrides(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", tmpDir)
 	t.Setenv("TMUX_INTRAY_MAX_NOTIFICATIONS", "500")
 	t.Setenv("TMUX_INTRAY_STATUS_ENABLED", "0")
+	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "SQLITE")
 	t.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
 	t.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "60")
 	t.Setenv("TMUX_INTRAY_MAX_HOOKS", "5")
@@ -58,6 +60,7 @@ func TestEnvironmentOverrides(t *testing.T) {
 
 	require.Equal(t, "500", Get("max_notifications", ""))
 	require.Equal(t, "false", Get("status_enabled", ""))
+	require.Equal(t, "sqlite", Get("storage_backend", ""))
 	require.Equal(t, "ignore", Get("hooks_failure_mode", ""))
 	require.Equal(t, "60", Get("hooks_async_timeout", ""))
 	require.Equal(t, "5", Get("max_hooks", ""))
@@ -70,6 +73,7 @@ func TestConfigFileTOML(t *testing.T) {
 	data := `
 max_notifications = 200
 status_enabled = false
+storage_backend = "sqlite"
 table_format = "minimal"
 `
 	err := os.WriteFile(configPath, []byte(data), 0644)
@@ -80,6 +84,7 @@ table_format = "minimal"
 
 	require.Equal(t, "200", Get("max_notifications", ""))
 	require.Equal(t, "false", Get("status_enabled", ""))
+	require.Equal(t, "sqlite", Get("storage_backend", ""))
 	require.Equal(t, "minimal", Get("table_format", ""))
 }
 
@@ -191,7 +196,7 @@ func TestValidation(t *testing.T) {
 	reset()
 	tmpDir6 := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", tmpDir6)
-	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "unknown")
+	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "csv")
 	Load()
 	require.Equal(t, "tsv", Get("storage_backend", ""))
 }
@@ -233,6 +238,7 @@ func TestSampleConfigCreation(t *testing.T) {
 	// Should contain expected keys.
 	require.Contains(t, cfg, "max_notifications")
 	require.Contains(t, cfg, "state_dir")
+	require.Contains(t, cfg, "storage_backend")
 }
 
 func TestLoadWithoutConfigFile(t *testing.T) {
