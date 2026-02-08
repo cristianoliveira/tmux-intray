@@ -62,15 +62,15 @@ func init() {
 func runDismiss(cmd *cobra.Command, args []string) {
 	// Validate arguments
 	if dismissAll && len(args) > 0 {
-		colors.Error("Cannot specify both --all and ID")
+		colors.Error("dismiss: cannot specify both --all and id")
 		return
 	}
 	if !dismissAll && len(args) == 0 {
-		colors.Error("Either specify an ID or use --all")
+		colors.Error("dismiss: either specify an id or use --all")
 		return
 	}
 	if len(args) > 1 {
-		colors.Error("Too many arguments")
+		colors.Error("dismiss: too many arguments")
 		return
 	}
 

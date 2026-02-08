@@ -54,7 +54,7 @@ variable TMUX_INTRAY_VISIBLE to "1" (visible) or "0" (hidden).`,
 				colors.Warning("tmux not running; skipping toggle")
 				return nil
 			}
-			return fmt.Errorf("No tmux session running")
+			return fmt.Errorf("tmux not running")
 		}
 
 		// Get current visibility

@@ -660,12 +660,12 @@ func (m *Model) markSelectedUnread() tea.Cmd {
 
 	id := strconv.Itoa(selected.ID)
 	if err := storage.MarkNotificationUnread(id); err != nil {
-		colors.Error(fmt.Sprintf("Failed to mark notification unread: %v", err))
+		colors.Error(fmt.Sprintf("tui: failed to mark notification unread: %v", err))
 		return nil
 	}
 
 	if err := m.loadNotifications(); err != nil {
-		colors.Error(fmt.Sprintf("Failed to reload notifications: %v", err))
+		colors.Error(fmt.Sprintf("tui: failed to reload notifications: %v", err))
 		return nil
 	}
 
@@ -695,7 +695,7 @@ func (m *Model) handleJump() tea.Cmd {
 
 	// Check if notification has valid session, window, pane
 	if selected.Session == "" || selected.Window == "" || selected.Pane == "" {
-		colors.Error("Cannot jump: notification is missing session, window, or pane information")
+		colors.Error("jump: notification missing session, window, or pane information")
 		return nil
 	}
 
@@ -705,7 +705,7 @@ func (m *Model) handleJump() tea.Cmd {
 		ensureTmuxRunning = core.EnsureTmuxRunning
 	}
 	if !ensureTmuxRunning() {
-		colors.Error("tmux is not running")
+		colors.Error("tmux not running")
 		return nil
 	}
 
@@ -715,7 +715,7 @@ func (m *Model) handleJump() tea.Cmd {
 		jumpToPane = core.JumpToPane
 	}
 	if !jumpToPane(selected.Session, selected.Window, selected.Pane) {
-		colors.Error("Failed to jump to pane")
+		colors.Error("jump: failed to jump to pane")
 		return nil
 	}
 

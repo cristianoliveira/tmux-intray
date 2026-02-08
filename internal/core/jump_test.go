@@ -65,7 +65,7 @@ func TestJumpService_JumpToNotification(t *testing.T) {
 			expectError:        false,
 			expectedSuccess:    false,
 			expectedJumpToPane: false,
-			expectedMessage:    "Notification has no tmux session context",
+			expectedMessage:    "notification has no tmux session context",
 		},
 		{
 			name:             "tmux not running",
@@ -76,7 +76,7 @@ func TestJumpService_JumpToNotification(t *testing.T) {
 			expectError:        false,
 			expectedSuccess:    false,
 			expectedJumpToPane: false,
-			expectedMessage:    "tmux is not running",
+			expectedMessage:    "tmux not running",
 		},
 		{
 			name:             "tmux HasSession error",
@@ -241,7 +241,7 @@ func TestJumpService_JumpToContext(t *testing.T) {
 			expectError:        false,
 			expectedSuccess:    false,
 			expectedJumpToPane: false,
-			expectedMessage:    "Session ID cannot be empty",
+			expectedMessage:    "session id cannot be empty",
 		},
 		{
 			name:      "tmux not running",
@@ -254,7 +254,7 @@ func TestJumpService_JumpToContext(t *testing.T) {
 			expectError:        false,
 			expectedSuccess:    false,
 			expectedJumpToPane: false,
-			expectedMessage:    "tmux is not running",
+			expectedMessage:    "tmux not running",
 		},
 		{
 			name:      "tmux HasSession error",

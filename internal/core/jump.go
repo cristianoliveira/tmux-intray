@@ -67,7 +67,7 @@ func (s *JumpService) jumpToNotificationInternal(notif *notification.Notificatio
 	if notif.Session == "" {
 		return &JumpResult{
 			Success: false,
-			Message: "Notification has no tmux session context",
+			Message: "notification has no tmux session context",
 		}, nil
 	}
 
@@ -79,7 +79,7 @@ func (s *JumpService) jumpToNotificationInternal(notif *notification.Notificatio
 	if !running {
 		return &JumpResult{
 			Success: false,
-			Message: "tmux is not running",
+			Message: "tmux not running",
 		}, nil
 	}
 
@@ -126,7 +126,7 @@ func (s *JumpService) JumpToContext(sessionID, windowID, paneID string) (*JumpRe
 	if sessionID == "" {
 		return &JumpResult{
 			Success: false,
-			Message: "Session ID cannot be empty",
+			Message: "session id cannot be empty",
 		}, nil
 	}
 
@@ -138,7 +138,7 @@ func (s *JumpService) JumpToContext(sessionID, windowID, paneID string) (*JumpRe
 	if !running {
 		return &JumpResult{
 			Success: false,
-			Message: "tmux is not running",
+			Message: "tmux not running",
 		}, nil
 	}
 

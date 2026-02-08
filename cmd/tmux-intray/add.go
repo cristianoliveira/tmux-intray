@@ -62,7 +62,7 @@ the current tmux pane (if inside tmux). Use --no-associate to skip.`,
 				colors.Warning("tmux not running; adding notification without pane association")
 				noAssociateFlag = true
 			} else {
-				return fmt.Errorf("No tmux session running")
+				return fmt.Errorf("tmux not running")
 			}
 		}
 
@@ -91,7 +91,7 @@ the current tmux pane (if inside tmux). Use --no-associate to skip.`,
 		// Add tray item
 		_, err := core.AddTrayItem(formattedMessage, sessionFlag, windowFlag, paneFlag, paneCreatedFlag, noAssociateFlag, level)
 		if err != nil {
-			return fmt.Errorf("Failed to add tray item: %w", err)
+			return fmt.Errorf("add: failed to add tray item: %w", err)
 		}
 
 		colors.Success("added")
@@ -115,12 +115,12 @@ func init() {
 func validateMessage(message string) error {
 	// Check length
 	if len(message) > 1000 {
-		return fmt.Errorf("Message too long (max 1000 characters)")
+		return fmt.Errorf("add: message too long (max 1000 characters)")
 	}
 	// Check if empty after stripping whitespace
 	trimmed := strings.TrimSpace(message)
 	if trimmed == "" {
-		return fmt.Errorf("Message cannot be empty")
+		return fmt.Errorf("add: message cannot be empty")
 	}
 	return nil
 }

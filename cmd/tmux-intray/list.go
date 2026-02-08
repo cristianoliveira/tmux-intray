@@ -166,7 +166,7 @@ func printList(opts FilterOptions, w io.Writer) {
 	case "json":
 		fmt.Fprintln(w, "JSON format not yet implemented")
 	default:
-		fmt.Fprintf(w, "Unknown format: %s\n", opts.Format)
+		fmt.Fprintf(w, "list: unknown format: %s\n", opts.Format)
 	}
 }
 

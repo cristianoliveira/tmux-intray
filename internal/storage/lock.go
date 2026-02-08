@@ -55,7 +55,7 @@ func (l *Lock) Release() error {
 func WithLock(dir string, fn func() error) error {
 	lock := NewLock(dir)
 	if err := lock.Acquire(); err != nil {
-		return fmt.Errorf("WithLock: failed to acquire lock for %s: %w", dir, err)
+		return fmt.Errorf("with lock: failed to acquire lock for %s: %w", dir, err)
 	}
 	defer lock.Release()
 	return fn()

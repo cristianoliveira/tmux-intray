@@ -71,8 +71,8 @@ func TestJumpTmuxNotRunning(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error when tmux not running")
 	}
-	if err.Error() != "tmux is not running" {
-		t.Errorf("Expected 'tmux is not running', got %v", err)
+	if err.Error() != "tmux not running" {
+		t.Errorf("Expected 'tmux not running', got %v", err)
 	}
 }
 
@@ -114,7 +114,7 @@ func TestJumpNoPaneAssociation(t *testing.T) {
 		t.Error("Expected error when no pane association")
 	}
 	// Updated error message is now more descriptive with which fields are missing
-	if !strings.Contains(err.Error(), "incomplete for jump") {
+	if !strings.Contains(err.Error(), "missing required fields") {
 		t.Errorf("Expected error message about incomplete context, got %v", err)
 	}
 }
@@ -176,8 +176,8 @@ func TestJumpWindowDoesNotExist(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error when window does not exist")
 	}
-	if err.Error() != "failed to jump: pane or window does not exist" {
-		t.Errorf("Expected 'failed to jump: pane or window does not exist', got %v", err)
+	if err.Error() != "jump: failed to jump because pane or window does not exist" {
+		t.Errorf("Expected 'jump: failed to jump because pane or window does not exist', got %v", err)
 	}
 }
 
@@ -327,7 +327,7 @@ func TestJumpInvalidFieldData(t *testing.T) {
 	}
 	_, err := Jump("42")
 	assert.Error(t, err, "Should error when session is missing")
-	assert.Contains(t, err.Error(), "incomplete for jump", "Error message should indicate incomplete context")
+	assert.Contains(t, err.Error(), "missing required fields", "Error message should indicate incomplete context")
 
 	// Test missing window
 	getNotificationLineFunc = func(id string) (string, error) {
