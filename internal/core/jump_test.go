@@ -128,7 +128,7 @@ func TestJumpService_JumpToNotification(t *testing.T) {
 				tt.setupMock(mockClient)
 			}
 
-			service := NewJumpServiceWithDeps(mockClient)
+			service := NewJumpServiceWithDeps(mockClient, nil)
 
 			result, err := service.JumpToNotificationParsed(&notification.Notification{
 				ID:          42,
@@ -314,7 +314,7 @@ func TestJumpService_JumpToContext(t *testing.T) {
 				tt.setupMock(mockClient)
 			}
 
-			service := NewJumpServiceWithDeps(mockClient)
+			service := NewJumpServiceWithDeps(mockClient, nil)
 
 			result, err := service.JumpToContext(tt.sessionID, tt.windowID, tt.paneID)
 
@@ -346,7 +346,7 @@ func TestJumpService_NewJumpService(t *testing.T) {
 
 	t.Run("NewJumpServiceWithDeps creates service with custom client", func(t *testing.T) {
 		mockClient := new(tmux.MockClient)
-		service := NewJumpServiceWithDeps(mockClient)
+		service := NewJumpServiceWithDeps(mockClient, nil)
 		require.NotNil(t, service)
 		assert.Same(t, mockClient, service.tmuxClient)
 	})

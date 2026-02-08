@@ -47,7 +47,7 @@ var ensureTmuxRunningFunc = func() bool {
 // Uses optimized retrieval to improve performance with large datasets.
 var getNotificationLineFunc = func(id string) (string, error) {
 	// Use the optimized function that directly retrieves by ID
-	return storage.GetNotificationByID(id)
+	return fileStorage.GetNotificationByID(id)
 }
 
 // validatePaneExistsFunc is the function used to validate pane exists.

@@ -11,7 +11,6 @@ import (
 
 	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
-	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -49,8 +48,7 @@ than the configured auto-cleanup days. This helps prevent storage bloat.`,
 
 		cmd.Printf("Starting cleanup of notifications dismissed more than %d days ago\n", days)
 
-		storage.Init()
-		err := storage.CleanupOldNotifications(days, dryRunFlag)
+		err := fileStorage.CleanupOldNotifications(days, dryRunFlag)
 		if err != nil {
 			return fmt.Errorf("cleanup failed: %w", err)
 		}
