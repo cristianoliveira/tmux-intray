@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -11,6 +12,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
+	"github.com/cristianoliveira/tmux-intray/internal/tui/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -74,9 +76,15 @@ func TestModelGroupedModeBuildsVisibleNodes(t *testing.T) {
 	model.applySearchFilter()
 
 	require.NotNil(t, model.treeRoot)
-	require.Len(t, model.visibleNodes, 2)
-	assert.Equal(t, NodeKindNotification, model.visibleNodes[0].Kind)
-	assert.Equal(t, NodeKindNotification, model.visibleNodes[1].Kind)
+	require.Len(t, model.visibleNodes, 8)
+	assert.Equal(t, NodeKindSession, model.visibleNodes[0].Kind)
+	assert.Equal(t, NodeKindWindow, model.visibleNodes[1].Kind)
+	assert.Equal(t, NodeKindPane, model.visibleNodes[2].Kind)
+	assert.Equal(t, NodeKindNotification, model.visibleNodes[3].Kind)
+	assert.Equal(t, NodeKindSession, model.visibleNodes[4].Kind)
+	assert.Equal(t, NodeKindWindow, model.visibleNodes[5].Kind)
+	assert.Equal(t, NodeKindPane, model.visibleNodes[6].Kind)
+	assert.Equal(t, NodeKindNotification, model.visibleNodes[7].Kind)
 }
 
 func TestModelSwitchesViewModes(t *testing.T) {
@@ -111,7 +119,18 @@ func TestModelSelectedNotificationGroupedView(t *testing.T) {
 	}
 
 	model.applySearchFilter()
-	model.cursor = 0
+	cursorIndex := -1
+	for idx, node := range model.visibleNodes {
+		if node == nil || node.Kind != NodeKindNotification || node.Notification == nil {
+			continue
+		}
+		if node.Notification.Session == "a" {
+			cursorIndex = idx
+			break
+		}
+	}
+	require.NotEqual(t, -1, cursorIndex)
+	model.cursor = cursorIndex
 
 	selected, ok := model.selectedNotification()
 
@@ -357,6 +376,136 @@ func TestModelViewWithNoNotifications(t *testing.T) {
 	assert.Contains(t, view, "No notifications found")
 }
 
+func TestUpdateViewportContentGroupedViewWithEmptyTree(t *testing.T) {
+	model := &Model{
+		viewMode:      viewModeGrouped,
+		notifications: []notification.Notification{},
+		viewport:      viewport.New(80, 22),
+		width:         80,
+	}
+
+	model.applySearchFilter()
+
+	assert.Contains(t, model.viewport.View(), "No notifications found")
+}
+
+func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One", Level: "info", State: "active"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+	require.NotEmpty(t, model.visibleNodes)
+	model.cursor = 0
+	model.updateViewportContent()
+
+	content := model.viewport.View()
+	groupNode := model.visibleNodes[0]
+	require.NotNil(t, groupNode)
+
+	expectedGroupRow := render.RenderGroupRow(render.GroupRow{
+		Node: &render.GroupNode{
+			Title:    groupNode.Title,
+			Display:  groupNode.Display,
+			Expanded: groupNode.Expanded,
+			Count:    groupNode.Count,
+		},
+		Selected: true,
+		Level:    getTreeLevel(groupNode),
+		Width:    model.width,
+	})
+	assert.Contains(t, content, expectedGroupRow)
+
+	var leafNode *Node
+	var leafIndex int
+	for idx, node := range model.visibleNodes {
+		if node != nil && node.Kind == NodeKindNotification && node.Notification != nil {
+			leafNode = node
+			leafIndex = idx
+			break
+		}
+	}
+	require.NotNil(t, leafNode)
+
+	expectedLeafRow := render.Row(render.RowState{
+		Notification: *leafNode.Notification,
+		SessionName:  model.getSessionName(leafNode.Notification.Session),
+		Width:        model.width,
+		Selected:     leafIndex == model.cursor,
+		Now:          time.Time{},
+	})
+	assert.Contains(t, content, expectedLeafRow)
+
+	groupIndex := strings.Index(content, expectedGroupRow)
+	leafRowIndex := strings.Index(content, expectedLeafRow)
+	require.NotEqual(t, -1, groupIndex)
+	require.NotEqual(t, -1, leafRowIndex)
+	assert.Less(t, groupIndex, leafRowIndex)
+}
+
+func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "First", Level: "info", State: "active"},
+			{ID: 2, Session: "$1", Window: "@1", Pane: "%1", Message: "Second", Level: "info", State: "active"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+
+	var leafNode *Node
+	var leafIndex int
+	var groupNode *Node
+	for idx, node := range model.visibleNodes {
+		if node == nil {
+			continue
+		}
+		if groupNode == nil && isGroupNode(node) {
+			groupNode = node
+		}
+		if node.Kind == NodeKindNotification && node.Notification != nil {
+			leafNode = node
+			leafIndex = idx
+			break
+		}
+	}
+	require.NotNil(t, leafNode)
+	require.NotNil(t, groupNode)
+	model.cursor = leafIndex
+	model.updateViewportContent()
+
+	content := model.viewport.View()
+	expectedLeafRow := render.Row(render.RowState{
+		Notification: *leafNode.Notification,
+		SessionName:  model.getSessionName(leafNode.Notification.Session),
+		Width:        model.width,
+		Selected:     true,
+		Now:          time.Time{},
+	})
+	assert.Contains(t, content, expectedLeafRow)
+
+	expectedGroupRow := render.RenderGroupRow(render.GroupRow{
+		Node: &render.GroupNode{
+			Title:    groupNode.Title,
+			Display:  groupNode.Display,
+			Expanded: groupNode.Expanded,
+			Count:    groupNode.Count,
+		},
+		Selected: false,
+		Level:    getTreeLevel(groupNode),
+		Width:    model.width,
+	})
+	assert.Contains(t, content, expectedGroupRow)
+}
+
 func TestHandleDismiss(t *testing.T) {
 	setupStorage(t)
 	mockClient := stubSessionFetchers(t)
@@ -391,7 +540,18 @@ func TestHandleDismissGroupedViewUsesVisibleNodes(t *testing.T) {
 	require.NoError(t, err)
 	model.viewMode = viewModeGrouped
 	model.applySearchFilter()
-	model.cursor = 0
+	cursorIndex := -1
+	for idx, node := range model.visibleNodes {
+		if node == nil || node.Kind != NodeKindNotification || node.Notification == nil {
+			continue
+		}
+		if node.Notification.Session == "a" {
+			cursorIndex = idx
+			break
+		}
+	}
+	require.NotEqual(t, -1, cursorIndex)
+	model.cursor = cursorIndex
 
 	cmd := model.handleDismiss()
 
