@@ -19,6 +19,8 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/tui/render"
 )
 
+const viewModeGrouped = "grouped"
+
 // Model represents the TUI model for bubbletea.
 type Model struct {
 	notifications []notification.Notification
@@ -41,6 +43,12 @@ type Model struct {
 	filters        settings.Filter
 	viewMode       string
 	loadedSettings *settings.Settings // Track loaded settings for comparison
+
+	treeRoot     *Node
+	visibleNodes []*Node
+
+	ensureTmuxRunning func() bool
+	jumpToPane        func(sessionID, windowID, paneID string) bool
 }
 
 // Init initializes the TUI model.
@@ -123,7 +131,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "j":
 			// Move cursor down
-			if m.cursor < len(m.filtered)-1 {
+			listLen := m.currentListLen()
+			if m.cursor < listLen-1 {
 				m.cursor++
 				m.updateViewportContent()
 			}
@@ -296,9 +305,11 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 	}
 
 	m := Model{
-		viewport:     viewport.New(80, 22), // Default dimensions, will be updated on WindowSizeMsg
-		sessionNames: sessionNames,
-		client:       client,
+		viewport:          viewport.New(80, 22), // Default dimensions, will be updated on WindowSizeMsg
+		sessionNames:      sessionNames,
+		client:            client,
+		ensureTmuxRunning: core.EnsureTmuxRunning,
+		jumpToPane:        core.JumpToPane,
 	}
 	err = m.loadNotifications()
 	if err != nil {
@@ -319,20 +330,25 @@ type saveSettingsFailedMsg struct {
 func (m *Model) applySearchFilter() {
 	if m.searchQuery == "" {
 		m.filtered = m.notifications
-		m.cursor = 0
-		m.updateViewportContent()
-		return
-	}
-
-	query := strings.ToLower(m.searchQuery)
-	m.filtered = []notification.Notification{}
-	for _, n := range m.notifications {
-		if strings.Contains(strings.ToLower(n.Message), query) ||
-			strings.Contains(strings.ToLower(n.Session), query) ||
-			strings.Contains(strings.ToLower(n.Window), query) ||
-			strings.Contains(strings.ToLower(n.Pane), query) {
-			m.filtered = append(m.filtered, n)
+	} else {
+		query := strings.ToLower(m.searchQuery)
+		m.filtered = []notification.Notification{}
+		for _, n := range m.notifications {
+			if strings.Contains(strings.ToLower(n.Message), query) ||
+				strings.Contains(strings.ToLower(n.Session), query) ||
+				strings.Contains(strings.ToLower(n.Window), query) ||
+				strings.Contains(strings.ToLower(n.Pane), query) {
+				m.filtered = append(m.filtered, n)
+			}
 		}
+	}
+	if m.isGroupedView() {
+		m.treeRoot = BuildTree(m.filtered)
+		expandTree(m.treeRoot)
+		m.visibleNodes = m.computeVisibleNodes()
+	} else {
+		m.treeRoot = nil
+		m.visibleNodes = nil
 	}
 	m.cursor = 0
 	m.updateViewportContent()
@@ -378,6 +394,35 @@ func (m *Model) saveSettings() error {
 func (m *Model) updateViewportContent() {
 	var content strings.Builder
 
+	if m.isGroupedView() {
+		if len(m.visibleNodes) == 0 {
+			content.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("No notifications found"))
+		} else {
+			now := time.Now()
+			rowIndex := 0
+			for _, node := range m.visibleNodes {
+				if node == nil || node.Notification == nil {
+					continue
+				}
+				if rowIndex > 0 {
+					content.WriteString("\n")
+				}
+				notif := *node.Notification
+				content.WriteString(render.Row(render.RowState{
+					Notification: notif,
+					SessionName:  m.getSessionName(notif.Session),
+					Width:        m.width,
+					Selected:     rowIndex == m.cursor,
+					Now:          now,
+				}))
+				rowIndex++
+			}
+		}
+
+		m.viewport.SetContent(content.String())
+		return
+	}
+
 	if len(m.filtered) == 0 {
 		content.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("No notifications found"))
 	} else {
@@ -401,7 +446,7 @@ func (m *Model) updateViewportContent() {
 
 // ensureCursorVisible ensures the cursor is visible in the viewport.
 func (m *Model) ensureCursorVisible() {
-	if len(m.filtered) == 0 {
+	if m.currentListLen() == 0 {
 		return
 	}
 
@@ -424,12 +469,15 @@ func (m *Model) ensureCursorVisible() {
 
 // handleDismiss handles the dismiss action for the selected notification.
 func (m *Model) handleDismiss() tea.Cmd {
-	if len(m.filtered) == 0 {
+	if m.currentListLen() == 0 {
 		return nil
 	}
 
 	// Get the selected notification
-	selected := m.filtered[m.cursor]
+	selected, ok := m.selectedNotification()
+	if !ok {
+		return nil
+	}
 
 	// Dismiss the notification using storage
 	id := strconv.Itoa(selected.ID)
@@ -445,8 +493,9 @@ func (m *Model) handleDismiss() tea.Cmd {
 	}
 
 	// Adjust cursor if necessary
-	if m.cursor >= len(m.filtered) {
-		m.cursor = len(m.filtered) - 1
+	listLen := m.currentListLen()
+	if m.cursor >= listLen {
+		m.cursor = listLen - 1
 	}
 	if m.cursor < 0 {
 		m.cursor = 0
@@ -460,12 +509,15 @@ func (m *Model) handleDismiss() tea.Cmd {
 
 // handleJump handles the jump action for the selected notification.
 func (m *Model) handleJump() tea.Cmd {
-	if len(m.filtered) == 0 {
+	if m.currentListLen() == 0 {
 		return nil
 	}
 
 	// Get the selected notification
-	selected := m.filtered[m.cursor]
+	selected, ok := m.selectedNotification()
+	if !ok {
+		return nil
+	}
 
 	// Check if notification has valid session, window, pane
 	if selected.Session == "" || selected.Window == "" || selected.Pane == "" {
@@ -474,13 +526,21 @@ func (m *Model) handleJump() tea.Cmd {
 	}
 
 	// Ensure tmux is running
-	if !core.EnsureTmuxRunning() {
+	ensureTmuxRunning := m.ensureTmuxRunning
+	if ensureTmuxRunning == nil {
+		ensureTmuxRunning = core.EnsureTmuxRunning
+	}
+	if !ensureTmuxRunning() {
 		colors.Error("tmux is not running")
 		return nil
 	}
 
 	// Jump to the pane
-	if !core.JumpToPane(selected.Session, selected.Window, selected.Pane) {
+	jumpToPane := m.jumpToPane
+	if jumpToPane == nil {
+		jumpToPane = core.JumpToPane
+	}
+	if !jumpToPane(selected.Session, selected.Window, selected.Pane) {
 		colors.Error("Failed to jump to pane")
 		return nil
 	}
@@ -498,6 +558,8 @@ func (m *Model) loadNotifications() error {
 	if lines == "" {
 		m.notifications = []notification.Notification{}
 		m.filtered = []notification.Notification{}
+		m.treeRoot = nil
+		m.visibleNodes = nil
 		m.updateViewportContent()
 		return nil
 	}
@@ -522,6 +584,74 @@ func (m *Model) loadNotifications() error {
 	m.notifications = notifications
 	m.applySearchFilter()
 	return nil
+}
+
+func (m *Model) isGroupedView() bool {
+	return m.viewMode == viewModeGrouped
+}
+
+func (m *Model) computeVisibleNodes() []*Node {
+	if m.treeRoot == nil {
+		return nil
+	}
+
+	var visible []*Node
+	var walk func(node *Node)
+	walk = func(node *Node) {
+		if node == nil {
+			return
+		}
+		if node.Kind == NodeKindNotification {
+			visible = append(visible, node)
+			return
+		}
+		if node.Kind != NodeKindRoot && !node.Expanded {
+			return
+		}
+		for _, child := range node.Children {
+			walk(child)
+		}
+	}
+
+	walk(m.treeRoot)
+	return visible
+}
+
+func (m *Model) currentListLen() int {
+	if m.isGroupedView() {
+		return len(m.visibleNodes)
+	}
+	return len(m.filtered)
+}
+
+func (m *Model) selectedNotification() (notification.Notification, bool) {
+	if m.isGroupedView() {
+		if m.cursor < 0 || m.cursor >= len(m.visibleNodes) {
+			return notification.Notification{}, false
+		}
+		node := m.visibleNodes[m.cursor]
+		if node == nil || node.Notification == nil {
+			return notification.Notification{}, false
+		}
+		return *node.Notification, true
+	}
+
+	if m.cursor < 0 || m.cursor >= len(m.filtered) {
+		return notification.Notification{}, false
+	}
+	return m.filtered[m.cursor], true
+}
+
+func expandTree(node *Node) {
+	if node == nil {
+		return
+	}
+	if node.Kind != NodeKindNotification {
+		node.Expanded = true
+	}
+	for _, child := range node.Children {
+		expandTree(child)
+	}
 }
 
 // getSessionName returns the session name for a session ID.

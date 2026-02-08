@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
@@ -18,6 +19,9 @@ const (
 	ageWidth             = 5
 	spacesBetweenColumns = 10
 	defaultMessageWidth  = 50
+	groupIndentSize      = 2
+	groupCollapsedSymbol = "▸"
+	groupExpandedSymbol  = "▾"
 )
 
 // FooterState defines the inputs needed to render footer help text.
@@ -35,6 +39,29 @@ type RowState struct {
 	Width        int
 	Selected     bool
 	Now          time.Time
+}
+
+// GroupNode defines the inputs needed to render a grouped tree node.
+type GroupNode struct {
+	Title    string
+	Display  string
+	Expanded bool
+	Count    int
+}
+
+// GroupRow defines the inputs needed to render a group row.
+type GroupRow struct {
+	Node     *GroupNode
+	Selected bool
+	Level    int
+	Width    int
+	Styles   *GroupRowStyles
+}
+
+// GroupRowStyles defines styles for group rows.
+type GroupRowStyles struct {
+	Base     lipgloss.Style
+	Selected lipgloss.Style
 }
 
 // Header renders the table header.
@@ -106,6 +133,38 @@ func Row(state RowState) string {
 	return rowStyle.Render(row)
 }
 
+// RenderGroupRow renders a single group row.
+func RenderGroupRow(row GroupRow) string {
+	if row.Node == nil {
+		return ""
+	}
+
+	styles := row.Styles
+	if styles == nil {
+		defaultStyles := defaultGroupRowStyles()
+		styles = &defaultStyles
+	}
+
+	indent := strings.Repeat(" ", groupIndentSize*row.Level)
+	symbol := groupCollapsedSymbol
+	if row.Node.Expanded {
+		symbol = groupExpandedSymbol
+	}
+
+	title := row.Node.Display
+	if title == "" {
+		title = row.Node.Title
+	}
+
+	label := fmt.Sprintf("%s%s %s (%d)", indent, symbol, title, row.Node.Count)
+	label = truncateGroupRow(label, row.Width)
+
+	if row.Selected {
+		return styles.Selected.Render(label)
+	}
+	return styles.Base.Render(label)
+}
+
 // Footer renders the footer with help text.
 func Footer(state FooterState) string {
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
@@ -137,6 +196,30 @@ func Footer(state FooterState) string {
 func calculateMessageWidth(width int) int {
 	totalFixedWidth := typeWidth + statusWidth + sessionWidth + paneWidth + ageWidth
 	return width - totalFixedWidth - spacesBetweenColumns
+}
+
+func defaultGroupRowStyles() GroupRowStyles {
+	base := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(ansiColorNumber(colors.Blue)))
+	selected := lipgloss.NewStyle().
+		Bold(true).
+		Background(lipgloss.Color(ansiColorNumber(colors.Blue))).
+		Foreground(lipgloss.Color("0"))
+	return GroupRowStyles{
+		Base:     base,
+		Selected: selected,
+	}
+}
+
+func truncateGroupRow(value string, width int) string {
+	if width <= 0 {
+		return value
+	}
+	if utf8.RuneCountInString(value) <= width {
+		return value
+	}
+	return string([]rune(value)[:width])
 }
 
 func levelIcon(level string) string {
