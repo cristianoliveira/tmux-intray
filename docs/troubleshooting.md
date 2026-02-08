@@ -175,6 +175,46 @@ This guide covers common issues and how to resolve them. If you encounter a prob
 4. **Avoid running with sudo**  
    tmux-intray should run as your regular user, not root.
 
+### SQLite opt-in issues (beta)
+
+**Symptoms:**
+- You opted into `TMUX_INTRAY_STORAGE_BACKEND=sqlite` or `dual` and see warnings.
+- Behavior differs between TSV and SQLite reads.
+- Backend unexpectedly falls back to TSV.
+
+**Causes:**
+- SQLite initialization failed (invalid/unwritable state directory).
+- Dual mode surfaced parity differences during early rollout.
+- Local source changes to SQLite schema/queries without regenerated sqlc output.
+
+**Solutions:**
+1. **Verify backend configuration**
+   ```bash
+   env | grep TMUX_INTRAY_STORAGE_BACKEND
+   env | grep TMUX_INTRAY_DUAL
+   ```
+
+2. **Check fallback conditions**
+   If backend initialization fails, tmux-intray warns and falls back to TSV to keep commands working.
+
+3. **Roll back quickly when needed**
+   ```bash
+   export TMUX_INTRAY_STORAGE_BACKEND=tsv
+   ```
+
+4. **If developing from source, verify sqlc outputs**
+   ```bash
+   make sqlc-generate
+   make sqlc-check
+   ```
+
+5. **Collect debug output for issue reports**
+   ```bash
+   TMUX_INTRAY_DEBUG=1 tmux-intray list --all 2>&1
+   ```
+
+Use the SQLite feedback template when filing issues: `.github/ISSUE_TEMPLATE/sqlite-opt-in-feedback.yml`.
+
 ### Debugging tips
 
 **Enable verbose output**  

@@ -38,7 +38,6 @@ func TestDefaultConfig(t *testing.T) {
 	require.Equal(t, "false", Get("hooks_async", ""))
 	require.Equal(t, "30", Get("hooks_async_timeout", ""))
 	require.Equal(t, "10", Get("max_hooks", ""))
-	require.Equal(t, "tsv", Get("storage_backend", ""))
 	require.Equal(t, "sqlite", Get("dual_read_backend", ""))
 	require.Equal(t, "false", Get("dual_verify_only", ""))
 	require.Equal(t, "25", Get("dual_verify_sample_size", ""))

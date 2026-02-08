@@ -134,6 +134,52 @@ Set `TMUX_INTRAY_STORAGE_BACKEND=dual` to enable migration-safe dual writes:
 - Reads use `TMUX_INTRAY_DUAL_READ_BACKEND` (`sqlite` by default for performance checks).
 - `TMUX_INTRAY_DUAL_VERIFY_ONLY=1` keeps writes TSV-only while allowing consistency verification tooling.
 
+## SQLite Opt-in Rollout (Beta)
+
+> [!WARNING]
+> SQLite is opt-in during rollout. `TMUX_INTRAY_STORAGE_BACKEND=tsv` remains the default.
+
+Use these backend values during rollout:
+
+- `tsv` (default): Stable baseline.
+- `dual`: Recommended first opt-in step. Writes to TSV and SQLite while preserving TSV as source of truth.
+- `sqlite`: Full SQLite mode after successful validation.
+
+### Recommended staged rollout
+
+1. Keep default `tsv` for unchanged behavior.
+2. Opt in with `dual` for verification:
+   ```bash
+   TMUX_INTRAY_STORAGE_BACKEND="dual"
+   TMUX_INTRAY_DUAL_READ_BACKEND="sqlite"
+   TMUX_INTRAY_DUAL_VERIFY_ONLY=0
+   ```
+3. Promote to full SQLite:
+   ```bash
+   TMUX_INTRAY_STORAGE_BACKEND="sqlite"
+   ```
+4. Roll back immediately if needed:
+   ```bash
+   TMUX_INTRAY_STORAGE_BACKEND="tsv"
+   ```
+
+### Safeguards
+
+- Unknown backend values fall back to TSV.
+- If SQLite or dual backend initialization fails, tmux-intray warns and falls back to TSV.
+- In dual mode, SQLite write failures are non-fatal; TSV continues as the source of truth.
+
+### sqlc-backed query layer notes
+
+SQLite queries are defined in `internal/storage/sqlite/queries.sql` and generated with sqlc into `internal/storage/sqlite/sqlcgen/`.
+
+When changing SQLite schema or query files, regenerate and verify generated code:
+
+```bash
+make sqlc-generate
+make sqlc-check
+```
+
 ## TUI Settings Persistence
 
 The TUI (Terminal User Interface) automatically saves your preferences when you exit. These settings include column order, sort preferences, active filters, view mode, and grouping preferences.
