@@ -29,7 +29,7 @@ func TestDefaultSettings(t *testing.T) {
 	assert.Equal(t, "", s.Filters.Pane)
 
 	// Check view mode
-	assert.Equal(t, ViewModeCompact, s.ViewMode)
+	assert.Equal(t, ViewModeGrouped, s.ViewMode)
 
 	// Check grouping settings
 	assert.Equal(t, GroupByNone, s.GroupBy)
@@ -170,6 +170,35 @@ func TestLoadInvalidJSON(t *testing.T) {
 	assert.Equal(t, expected.ViewMode, settings.ViewMode)
 	assert.Equal(t, expected.GroupBy, settings.GroupBy)
 	assert.Equal(t, expected.DefaultExpandLevel, settings.DefaultExpandLevel)
+	assert.Equal(t, expected.ExpansionState, settings.ExpansionState)
+}
+
+func TestLoadInvalidExpansionStateType(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+	t.Setenv("HOME", tmpDir)
+
+	configDir := filepath.Join(tmpDir, "tmux-intray")
+	require.NoError(t, os.MkdirAll(configDir, 0755))
+
+	settingsPath := filepath.Join(configDir, "settings.json")
+	invalidJSON := `{
+	  "viewMode": "grouped",
+	  "groupBy": "window",
+	  "expansionState": {
+	    "window:$1:@1": "collapsed"
+	  }
+	}`
+	require.NoError(t, os.WriteFile(settingsPath, []byte(invalidJSON), 0644))
+	defer os.Remove(settingsPath)
+
+	settings, err := Load()
+	require.NoError(t, err)
+	require.NotNil(t, settings)
+
+	expected := DefaultSettings()
+	assert.Equal(t, expected.ViewMode, settings.ViewMode)
+	assert.Equal(t, expected.GroupBy, settings.GroupBy)
 	assert.Equal(t, expected.ExpansionState, settings.ExpansionState)
 }
 
@@ -615,7 +644,7 @@ func TestReset(t *testing.T) {
 	assert.Equal(t, DefaultColumns, defaults.Columns)
 	assert.Equal(t, SortByTimestamp, defaults.SortBy)
 	assert.Equal(t, SortOrderDesc, defaults.SortOrder)
-	assert.Equal(t, ViewModeCompact, defaults.ViewMode)
+	assert.Equal(t, ViewModeGrouped, defaults.ViewMode)
 	assert.Equal(t, GroupByNone, defaults.GroupBy)
 	assert.Equal(t, 1, defaults.DefaultExpandLevel)
 }
@@ -634,7 +663,7 @@ func TestResetWhenFileDoesNotExist(t *testing.T) {
 	assert.Equal(t, DefaultColumns, defaults.Columns)
 	assert.Equal(t, SortByTimestamp, defaults.SortBy)
 	assert.Equal(t, SortOrderDesc, defaults.SortOrder)
-	assert.Equal(t, ViewModeCompact, defaults.ViewMode)
+	assert.Equal(t, ViewModeGrouped, defaults.ViewMode)
 	assert.Equal(t, GroupByNone, defaults.GroupBy)
 	assert.Equal(t, 1, defaults.DefaultExpandLevel)
 }

@@ -29,6 +29,7 @@ KEY BINDINGS:
     j/k         Move up/down in the list
     /           Enter search mode
     :           Enter command mode
+    v           Cycle view mode (compact/detailed/grouped)
     ESC         Exit search/command mode, or quit TUI
     d           Dismiss selected notification
     r           Mark selected notification as read

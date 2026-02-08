@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/settings"
 )
 
 const (
@@ -23,6 +24,7 @@ const (
 	groupIndentSize      = 2
 	groupCollapsedSymbol = "▸"
 	groupExpandedSymbol  = "▾"
+	commandList          = "q,w,toggle-view,group-by,expand-level"
 )
 
 // FooterState defines the inputs needed to render footer help text.
@@ -32,6 +34,7 @@ type FooterState struct {
 	SearchQuery  string
 	CommandQuery string
 	Grouped      bool
+	ViewMode     string
 }
 
 // RowState defines the inputs needed to render a notification row.
@@ -187,16 +190,19 @@ func Footer(state FooterState) string {
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 
 	var help []string
+	help = append(help, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
 	help = append(help, "j/k: move")
 	if state.SearchMode {
 		help = append(help, "ESC: exit search")
 		help = append(help, fmt.Sprintf("Search: %s", state.SearchQuery))
 	} else if state.CommandMode {
 		help = append(help, "ESC: cancel")
+		help = append(help, "cmds: "+commandList)
 		help = append(help, fmt.Sprintf(":%s", state.CommandQuery))
 	} else {
 		help = append(help, "/: search")
 		help = append(help, ":: command")
+		help = append(help, "v: cycle view mode")
 		if state.Grouped {
 			help = append(help, "h/l: collapse/expand")
 			help = append(help, "za: toggle fold")
@@ -217,6 +223,19 @@ func Footer(state FooterState) string {
 	help = append(help, ":w: save")
 
 	return helpStyle.Render(strings.Join(help, "  |  "))
+}
+
+func viewModeIndicator(mode string) string {
+	switch mode {
+	case settings.ViewModeCompact:
+		return "[C]"
+	case settings.ViewModeDetailed:
+		return "[D]"
+	case settings.ViewModeGrouped:
+		return "[G]"
+	default:
+		return "[?]"
+	}
 }
 
 func calculateMessageWidth(width int) int {

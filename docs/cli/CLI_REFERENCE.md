@@ -23,6 +23,7 @@ COMMANDS:
     dismiss <id>    Dismiss a notification
     clear           Clear all items from the tray
     cleanup         Clean up old dismissed notifications
+    migrate         Migrate notifications from TSV to SQLite
     toggle          Toggle the tray visibility
     jump <id>       Jump to the pane of a notification
     status          Show notification status summary
@@ -163,6 +164,31 @@ OPTIONS:
 
 Automatically cleans up notifications that have been dismissed and are older
 than the configured auto-cleanup days. This helps prevent storage bloat.
+```
+
+### migrate
+
+Migrate notifications from TSV to SQLite
+
+```
+tmux-intray migrate - Migrate notifications from TSV to SQLite
+
+USAGE:
+    tmux-intray migrate [OPTIONS]
+
+OPTIONS:
+    --tsv-path <path>       Source TSV path (default: $TMUX_INTRAY_STATE_DIR/notifications.tsv)
+    --sqlite-path <path>    Destination SQLite path (default: $TMUX_INTRAY_STATE_DIR/notifications.db)
+    --backup-path <path>    Backup TSV path (default: <tsv-path>.sqlite-migration.bak)
+    --dry-run               Validate and preview migration only
+    --rollback              Restore TSV from backup and remove SQLite DB
+    -h, --help              Show this help
+
+SAFETY:
+    - Creates a TSV backup before SQLite writes.
+    - Validates rows and skips malformed entries with warnings.
+    - Uses transactional upserts and preserves notification IDs.
+    - Dry-run mode performs validation without creating backup or DB files.
 ```
 
 ### toggle
@@ -392,7 +418,7 @@ EXAMPLES:
         "window": "",
         "pane": ""
       },
-      "viewMode": "compact",
+      "viewMode": "grouped",
       "groupBy": "none",
       "defaultExpandLevel": 1,
       "expansionState": {}

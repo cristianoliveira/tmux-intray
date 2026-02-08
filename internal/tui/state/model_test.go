@@ -1,7 +1,6 @@
 package state
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -69,6 +68,7 @@ func TestNewModelInitialState(t *testing.T) {
 func TestModelGroupedModeBuildsVisibleNodes(t *testing.T) {
 	model := &Model{
 		viewMode: viewModeGrouped,
+		groupBy:  settings.GroupByPane,
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 			{ID: 2, Session: "$2", Window: "@1", Pane: "%2", Message: "Two"},
@@ -77,7 +77,7 @@ func TestModelGroupedModeBuildsVisibleNodes(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	require.NotNil(t, model.treeRoot)
 	require.Len(t, model.visibleNodes, 8)
@@ -91,6 +91,166 @@ func TestModelGroupedModeBuildsVisibleNodes(t *testing.T) {
 	assert.Equal(t, NodeKindNotification, model.visibleNodes[7].Kind)
 }
 
+func TestComputeVisibleNodesUsesCacheWhenValid(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		groupBy:  settings.GroupByPane,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+	require.True(t, model.cacheValid)
+	require.Len(t, model.visibleNodes, 4)
+
+	groupNode := model.visibleNodes[0]
+	require.NotNil(t, groupNode)
+	require.True(t, groupNode.Expanded)
+
+	groupNode.Expanded = false
+	visible := model.computeVisibleNodes()
+
+	assert.Len(t, visible, 4)
+	assert.Equal(t, NodeKindNotification, visible[len(visible)-1].Kind)
+}
+
+func TestInvalidateCacheForcesVisibleNodesRecompute(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		groupBy:  settings.GroupByPane,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+	require.True(t, model.cacheValid)
+	require.Len(t, model.visibleNodes, 4)
+
+	groupNode := model.visibleNodes[0]
+	groupNode.Expanded = false
+
+	model.invalidateCache()
+	assert.False(t, model.cacheValid)
+	assert.Nil(t, model.visibleNodesCache)
+
+	visible := model.computeVisibleNodes()
+	assert.True(t, model.cacheValid)
+	assert.Len(t, visible, 1)
+	assert.Equal(t, NodeKindSession, visible[0].Kind)
+}
+
+func TestCacheInvalidationOnSearchAndExpansionChanges(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		groupBy:  settings.GroupBySession,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "alpha message"},
+			{ID: 2, Session: "$2", Window: "@2", Pane: "%2", Message: "beta message"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+	require.True(t, model.cacheValid)
+	require.Len(t, model.visibleNodes, 4)
+
+	model.searchQuery = "alpha"
+	model.applySearchFilter()
+	require.True(t, model.cacheValid)
+	require.Len(t, model.visibleNodes, 2)
+
+	groupNode := model.visibleNodes[0]
+	model.cursor = 0
+	require.True(t, groupNode.Expanded)
+
+	handled := model.toggleNodeExpansion()
+	require.True(t, handled)
+	assert.False(t, groupNode.Expanded)
+	assert.True(t, model.cacheValid)
+	assert.Len(t, model.visibleNodes, 1)
+}
+
+func BenchmarkComputeVisibleNodesCache(b *testing.B) {
+	notifications := make([]notification.Notification, 0, 1000)
+	for i := 0; i < 1000; i++ {
+		notifications = append(notifications, notification.Notification{
+			ID:      i + 1,
+			Session: "$1",
+			Window:  "@1",
+			Pane:    "%1",
+			Message: "bench message",
+		})
+	}
+
+	model := &Model{
+		viewMode:       viewModeGrouped,
+		groupBy:        settings.GroupByPane,
+		notifications:  notifications,
+		expansionState: map[string]bool{},
+		viewport:       viewport.New(80, 22),
+		width:          80,
+	}
+	model.applySearchFilter()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = model.computeVisibleNodes()
+	}
+}
+
+func TestModelGroupedModeRespectsGroupByDepth(t *testing.T) {
+	tests := []struct {
+		name                 string
+		groupBy              string
+		expectedVisibleKinds []NodeKind
+	}{
+		{
+			name:                 "session",
+			groupBy:              settings.GroupBySession,
+			expectedVisibleKinds: []NodeKind{NodeKindSession, NodeKindNotification, NodeKindSession, NodeKindNotification},
+		},
+		{
+			name:                 "window",
+			groupBy:              settings.GroupByWindow,
+			expectedVisibleKinds: []NodeKind{NodeKindSession, NodeKindWindow, NodeKindNotification, NodeKindSession, NodeKindWindow, NodeKindNotification},
+		},
+		{
+			name:                 "none",
+			groupBy:              settings.GroupByNone,
+			expectedVisibleKinds: []NodeKind{NodeKindNotification, NodeKindNotification},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			model := &Model{
+				viewMode: viewModeGrouped,
+				groupBy:  tt.groupBy,
+				notifications: []notification.Notification{
+					{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+					{ID: 2, Session: "$2", Window: "@2", Pane: "%2", Message: "Two"},
+				},
+				viewport: viewport.New(80, 22),
+				width:    80,
+			}
+
+			model.applySearchFilter()
+
+			require.Len(t, model.visibleNodes, len(tt.expectedVisibleKinds))
+			for i, kind := range tt.expectedVisibleKinds {
+				assert.Equal(t, kind, model.visibleNodes[i].Kind)
+			}
+		})
+	}
+}
+
 func TestModelSwitchesViewModes(t *testing.T) {
 	model := &Model{
 		viewMode: viewModeGrouped,
@@ -101,12 +261,12 @@ func TestModelSwitchesViewModes(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 	require.NotNil(t, model.treeRoot)
 	require.NotEmpty(t, model.visibleNodes)
 
 	model.viewMode = "flat"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 	assert.Nil(t, model.treeRoot)
 	assert.Empty(t, model.visibleNodes)
 }
@@ -121,7 +281,7 @@ func TestToggleNodeExpansionGroupedView(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	var groupNode *Node
 	groupIndex := -1
@@ -160,7 +320,7 @@ func TestToggleFoldTogglesGroupNode(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	var groupNode *Node
 	groupIndex := -1
@@ -196,7 +356,7 @@ func TestToggleFoldWorksAtPaneDepth(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	var paneNode *Node
 	paneIndex := -1
@@ -230,7 +390,7 @@ func TestCollapseNodeMovesCursorToParent(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	var leafNode *Node
 	leafIndex := -1
@@ -273,7 +433,7 @@ func TestToggleNodeExpansionIgnoresLeafNodes(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	var leafNode *Node
 	leafIndex := -1
@@ -306,7 +466,7 @@ func TestToggleFoldIgnoresLeafNodes(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	var leafNode *Node
 	leafIndex := -1
@@ -339,7 +499,7 @@ func TestToggleFoldExpandsDefaultWhenAllCollapsed(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	var collapseAll func(node *Node)
 	collapseAll = func(node *Node) {
@@ -384,7 +544,7 @@ func TestModelSelectedNotificationGroupedView(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 	cursorIndex := -1
 	for idx, node := range model.visibleNodes {
 		if node == nil || node.Kind != NodeKindNotification || node.Notification == nil {
@@ -490,21 +650,80 @@ func TestModelUpdateHandlesSearch(t *testing.T) {
 	assert.Len(t, model.filtered, 3)
 
 	model.searchQuery = "error"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	require.Len(t, model.filtered, 2)
 	assert.True(t, strings.Contains(model.filtered[0].Message, "Error"))
 
 	model.searchQuery = "not found"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	require.Len(t, model.filtered, 1)
 	assert.True(t, strings.Contains(strings.ToLower(model.filtered[0].Message), "not found"))
 
 	model.searchQuery = ""
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	assert.Len(t, model.filtered, 3)
+}
+
+func TestModelUpdateCyclesViewModesWithPersistence(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	model := &Model{
+		viewMode: settings.ViewModeCompact,
+		width:    80,
+		viewport: viewport.New(80, 22),
+	}
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}}
+
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, settings.ViewModeDetailed, model.viewMode)
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
+
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, settings.ViewModeGrouped, model.viewMode)
+	loaded, err = settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.ViewModeGrouped, loaded.ViewMode)
+
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, settings.ViewModeCompact, model.viewMode)
+	loaded, err = settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.ViewModeCompact, loaded.ViewMode)
+}
+
+func TestModelUpdateIgnoresViewModeCycleInSearchAndCommandModes(t *testing.T) {
+	model := &Model{
+		viewMode:     settings.ViewModeCompact,
+		searchMode:   true,
+		commandMode:  false,
+		searchQuery:  "",
+		commandQuery: "",
+		width:        80,
+		viewport:     viewport.New(80, 22),
+	}
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, settings.ViewModeCompact, model.viewMode)
+	assert.Equal(t, "v", model.searchQuery)
+
+	model.searchMode = false
+	model.commandMode = true
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, settings.ViewModeCompact, model.viewMode)
+	assert.Equal(t, "v", model.commandQuery)
 }
 
 func TestApplySearchFilterReadStatus(t *testing.T) {
@@ -519,22 +738,22 @@ func TestApplySearchFilterReadStatus(t *testing.T) {
 	}
 
 	model.searchQuery = "read"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 	require.Len(t, model.filtered, 1)
 	assert.True(t, model.filtered[0].IsRead())
 
 	model.searchQuery = "unread"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 	require.Len(t, model.filtered, 1)
 	assert.False(t, model.filtered[0].IsRead())
 
 	model.searchQuery = "unread beta"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 	require.Len(t, model.filtered, 1)
 	assert.Equal(t, "Beta", model.filtered[0].Message)
 
 	model.searchQuery = "read alpha"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 	require.Len(t, model.filtered, 1)
 	assert.Equal(t, "Alpha", model.filtered[0].Message)
 }
@@ -564,7 +783,7 @@ func TestApplySearchFilterWithMockProvider(t *testing.T) {
 		viewport:       viewport.New(80, 22),
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	require.Len(t, model.filtered, 2)
 	assert.Equal(t, notifications[0].ID, model.filtered[0].ID)
@@ -592,7 +811,7 @@ func TestApplySearchFilterUsesDefaultTokenProvider(t *testing.T) {
 
 	// Test case-insensitive matching (default behavior)
 	model.searchQuery = "error"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	require.Len(t, model.filtered, 2)
 	assert.Contains(t, model.filtered[0].Message, "Error")
@@ -600,7 +819,7 @@ func TestApplySearchFilterUsesDefaultTokenProvider(t *testing.T) {
 
 	// Test token-based matching (all tokens must match)
 	model.searchQuery = "error file"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	require.Len(t, model.filtered, 1)
 	assert.Contains(t, model.filtered[0].Message, "file not found")
@@ -608,7 +827,7 @@ func TestApplySearchFilterUsesDefaultTokenProvider(t *testing.T) {
 	// Test read/unread filtering
 	model.notifications[0].ReadTimestamp = "2024-01-01T12:00:00Z"
 	model.searchQuery = "read error"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	require.Len(t, model.filtered, 1)
 	assert.Equal(t, 1, model.filtered[0].ID)
@@ -663,7 +882,7 @@ func TestApplySearchFilterGroupedView(t *testing.T) {
 
 	// Search for "Error"
 	model.searchQuery = "Error"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	require.Len(t, model.filtered, 2)
 	require.NotNil(t, model.treeRoot)
@@ -702,7 +921,7 @@ func TestBuildFilteredTreePrunesEmptyGroups(t *testing.T) {
 
 	// Search for "Unique"
 	model.searchQuery = "Unique"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	require.Len(t, model.filtered, 1)
 	require.NotNil(t, model.treeRoot)
@@ -739,7 +958,7 @@ func TestBuildFilteredTreePreservesExpansionState(t *testing.T) {
 
 	// First search - build initial tree
 	model.searchQuery = ""
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 	require.NotNil(t, model.treeRoot)
 
 	// Collapse session $2
@@ -750,7 +969,7 @@ func TestBuildFilteredTreePreservesExpansionState(t *testing.T) {
 
 	// Second search - should preserve expansion state
 	model.searchQuery = "message"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	// Find session $2 again in new tree
 	sessionNode = findChildByTitle(model.treeRoot, NodeKindSession, "$2")
@@ -773,7 +992,7 @@ func TestBuildFilteredTreeHandlesNoMatches(t *testing.T) {
 
 	// Search for something that doesn't exist
 	model.searchQuery = "nonexistent"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	require.Empty(t, model.filtered)
 	assert.Nil(t, model.treeRoot)
@@ -800,7 +1019,7 @@ func TestBuildFilteredTreeWithEmptyQuery(t *testing.T) {
 
 	// Empty search
 	model.searchQuery = ""
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	require.Len(t, model.filtered, 2)
 	require.NotNil(t, model.treeRoot)
@@ -824,7 +1043,7 @@ func TestBuildFilteredTreeGroupCounts(t *testing.T) {
 
 	// Search for "Error"
 	model.searchQuery = "Error"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	require.Len(t, model.filtered, 2)
 	require.NotNil(t, model.treeRoot)
@@ -963,7 +1182,7 @@ func TestUpdateViewportContentGroupedViewWithEmptyTree(t *testing.T) {
 		width:         80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	assert.Contains(t, model.viewport.View(), "No notifications found")
 }
@@ -978,7 +1197,7 @@ func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 	require.NotEmpty(t, model.visibleNodes)
 	model.cursor = 0
 	model.updateViewportContent()
@@ -1038,7 +1257,7 @@ func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	var leafNode *Node
 	var leafIndex int
@@ -1172,7 +1391,7 @@ func TestHandleDismissGroupedViewUsesVisibleNodes(t *testing.T) {
 	model, err := NewModel(mockClient)
 	require.NoError(t, err)
 	model.viewMode = viewModeGrouped
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 	cursorIndex := -1
 	for idx, node := range model.visibleNodes {
 		if node == nil || node.Kind != NodeKindNotification || node.Notification == nil {
@@ -1262,7 +1481,7 @@ func TestHandleJumpGroupedViewUsesVisibleNodes(t *testing.T) {
 		},
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 	model.cursor = 0
 
 	cmd := model.handleJump()
@@ -1280,219 +1499,6 @@ func TestHandleJumpWithEmptyList(t *testing.T) {
 	cmd := model.handleJump()
 
 	assert.Nil(t, cmd)
-}
-
-// TestCursorPreservedAfterDismiss tests that cursor is preserved after dismissing a notification.
-func TestCursorPreservedAfterDismiss(t *testing.T) {
-	setupStorage(t)
-	mockClient := stubSessionFetchers(t)
-
-	// Add 5 notifications
-	for i := 1; i <= 5; i++ {
-		_, err := storage.AddNotification(fmt.Sprintf("Message %d", i), "2024-01-01T12:00:00Z", "", "", "", "", "info")
-		require.NoError(t, err)
-	}
-
-	model, err := NewModel(mockClient)
-	require.NoError(t, err)
-	require.Len(t, model.filtered, 5)
-
-	// Move cursor to index 2 (third notification)
-	model.cursor = 2
-	selectedBefore, ok := model.selectedNotification()
-	require.True(t, ok)
-	selectedID := selectedBefore.ID
-
-	// Dismiss the notification
-	cmd := model.handleDismiss()
-	assert.Nil(t, cmd)
-
-	// Cursor should remain at index 2 (now pointing to the next notification)
-	// Since we dismissed index 2, the list should have 4 items
-	assert.Len(t, model.filtered, 4)
-	assert.Equal(t, 2, model.cursor)
-
-	// Verify the correct notification is selected
-	selectedAfter, ok := model.selectedNotification()
-	require.True(t, ok)
-	assert.NotEqual(t, selectedID, selectedAfter.ID)
-}
-
-// TestCursorPreservedAfterDismissGroupedView tests that cursor is preserved after dismissing a notification in grouped view.
-func TestCursorPreservedAfterDismissGroupedView(t *testing.T) {
-	setupStorage(t)
-	mockClient := stubSessionFetchers(t)
-
-	// Add notifications in different sessions
-	_, err := storage.AddNotification("Session A msg 1", "2024-01-01T12:00:00Z", "session-a", "@1", "%1", "", "info")
-	require.NoError(t, err)
-	_, err = storage.AddNotification("Session A msg 2", "2024-01-01T12:01:00Z", "session-a", "@1", "%1", "", "info")
-	require.NoError(t, err)
-	_, err = storage.AddNotification("Session B msg 1", "2024-01-01T12:02:00Z", "session-b", "@1", "%1", "", "info")
-	require.NoError(t, err)
-
-	model, err := NewModel(mockClient)
-	require.NoError(t, err)
-	model.viewMode = viewModeGrouped
-	model.applySearchFilter(false)
-
-	require.NotEmpty(t, model.visibleNodes)
-
-	// Find the second notification in session-a and move cursor to it
-	var targetNode *Node
-	var targetIndex int
-	for idx, node := range model.visibleNodes {
-		if node != nil && node.Kind == NodeKindNotification && node.Notification != nil {
-			if node.Notification.Message == "Session A msg 2" {
-				targetNode = node
-				targetIndex = idx
-				break
-			}
-		}
-	}
-	require.NotNil(t, targetNode)
-	model.cursor = targetIndex
-
-	// Dismiss the notification
-	cmd := model.handleDismiss()
-	assert.Nil(t, cmd)
-
-	// Cursor should be preserved at the same position or moved to a valid position
-	// The dismissed notification should be gone, but cursor should not jump to 0
-	assert.GreaterOrEqual(t, model.cursor, 0)
-	assert.Less(t, model.cursor, len(model.visibleNodes))
-
-	// Verify the dismissed notification is no longer visible
-	for _, node := range model.visibleNodes {
-		if node != nil && node.Kind == NodeKindNotification && node.Notification != nil {
-			assert.NotEqual(t, "Session A msg 2", node.Notification.Message)
-		}
-	}
-}
-
-// TestCursorPreservedAfterMarkRead tests that cursor is preserved after marking a notification as read.
-func TestCursorPreservedAfterMarkRead(t *testing.T) {
-	setupStorage(t)
-	mockClient := stubSessionFetchers(t)
-
-	// Add 3 notifications
-	for i := 1; i <= 3; i++ {
-		_, err := storage.AddNotification(fmt.Sprintf("Message %d", i), "2024-01-01T12:00:00Z", "", "", "", "", "info")
-		require.NoError(t, err)
-	}
-
-	model, err := NewModel(mockClient)
-	require.NoError(t, err)
-	require.Len(t, model.filtered, 3)
-
-	// Move cursor to index 1
-	model.cursor = 1
-	selectedBefore, ok := model.selectedNotification()
-	require.True(t, ok)
-	assert.False(t, selectedBefore.IsRead())
-
-	// Mark as read
-	cmd := model.markSelectedRead()
-	assert.Nil(t, cmd)
-
-	// Cursor should remain at index 1
-	assert.Len(t, model.filtered, 3)
-	assert.Equal(t, 1, model.cursor)
-
-	// Verify the same notification is selected and now marked as read
-	selectedAfter, ok := model.selectedNotification()
-	require.True(t, ok)
-	assert.Equal(t, selectedBefore.ID, selectedAfter.ID)
-	assert.True(t, selectedAfter.IsRead())
-}
-
-// TestCursorPreservedAfterMarkUnread tests that cursor is preserved after marking a notification as unread.
-func TestCursorPreservedAfterMarkUnread(t *testing.T) {
-	setupStorage(t)
-	mockClient := stubSessionFetchers(t)
-
-	// Add two notifications at the same time (to have predictable order)
-	id1, err := storage.AddNotification("First message", "2024-01-01T12:00:00Z", "", "", "", "", "info")
-	require.NoError(t, err)
-	require.NoError(t, storage.MarkNotificationRead(id1))
-
-	_, err = storage.AddNotification("Second message", "2024-01-01T12:00:00Z", "", "", "", "", "info")
-	require.NoError(t, err)
-
-	model, err := NewModel(mockClient)
-	require.NoError(t, err)
-	require.Len(t, model.filtered, 2)
-
-	// Move cursor to index 0 (first notification, which is read)
-	model.cursor = 0
-	selectedBefore, ok := model.selectedNotification()
-	require.True(t, ok)
-	assert.True(t, selectedBefore.IsRead())
-	assert.Equal(t, "First message", selectedBefore.Message)
-
-	// Mark as unread
-	cmd := model.markSelectedUnread()
-	assert.Nil(t, cmd)
-
-	// Cursor should remain at index 0
-	assert.Len(t, model.filtered, 2)
-	assert.Equal(t, 0, model.cursor)
-
-	// Verify the same notification is selected and now marked as unread
-	selectedAfter, ok := model.selectedNotification()
-	require.True(t, ok)
-	assert.Equal(t, selectedBefore.ID, selectedAfter.ID)
-	assert.Equal(t, "First message", selectedAfter.Message)
-	assert.False(t, selectedAfter.IsRead())
-}
-
-// TestCursorPreservedAfterMarkReadGroupedView tests that cursor is preserved after marking as read in grouped view.
-func TestCursorPreservedAfterMarkReadGroupedView(t *testing.T) {
-	setupStorage(t)
-	mockClient := stubSessionFetchers(t)
-
-	// Add notifications in the same session
-	_, err := storage.AddNotification("Msg 1", "2024-01-01T12:00:00Z", "session-a", "@1", "%1", "", "info")
-	require.NoError(t, err)
-	_, err = storage.AddNotification("Msg 2", "2024-01-01T12:01:00Z", "session-a", "@1", "%1", "", "info")
-	require.NoError(t, err)
-	_, err = storage.AddNotification("Msg 3", "2024-01-01T12:02:00Z", "session-a", "@1", "%1", "", "info")
-	require.NoError(t, err)
-
-	model, err := NewModel(mockClient)
-	require.NoError(t, err)
-	model.viewMode = viewModeGrouped
-	model.applySearchFilter(false)
-
-	require.NotEmpty(t, model.visibleNodes)
-
-	// Find the second notification and move cursor to it
-	var targetNode *Node
-	var targetIndex int
-	for idx, node := range model.visibleNodes {
-		if node != nil && node.Kind == NodeKindNotification && node.Notification != nil {
-			if node.Notification.Message == "Msg 2" {
-				targetNode = node
-				targetIndex = idx
-				break
-			}
-		}
-	}
-	require.NotNil(t, targetNode)
-	model.cursor = targetIndex
-
-	// Mark as read
-	cmd := model.markSelectedRead()
-	assert.Nil(t, cmd)
-
-	// Cursor should remain at the same position
-	assert.Equal(t, targetIndex, model.cursor)
-
-	// Verify the same notification is selected
-	selectedAfter, ok := model.selectedNotification()
-	require.True(t, ok)
-	assert.Equal(t, "Msg 2", selectedAfter.Message)
-	assert.True(t, selectedAfter.IsRead())
 }
 
 func TestModelUpdateHandlesDismissKey(t *testing.T) {
@@ -1518,7 +1524,7 @@ func TestModelUpdateHandlesZaToggleFold(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	var groupNode *Node
 	groupIndex := -1
@@ -2056,6 +2062,138 @@ func TestModelSaveCommandW(t *testing.T) {
 	assert.Equal(t, settings.GroupBySession, loaded.GroupBy)
 }
 
+func TestExecuteCommandGroupByPersistsSettings(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	model := &Model{
+		viewMode: settings.ViewModeGrouped,
+		groupBy:  settings.GroupBySession,
+		viewport: viewport.New(80, 22),
+		width:    80,
+		height:   24,
+		filtered: []notification.Notification{},
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "one"},
+		},
+	}
+
+	model.commandQuery = "group-by window"
+	cmd := model.executeCommand()
+	assert.Nil(t, cmd)
+	assert.Equal(t, settings.GroupByWindow, model.groupBy)
+
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.GroupByWindow, loaded.GroupBy)
+}
+
+func TestExecuteCommandExpandLevelPersistsSettings(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	model := &Model{
+		viewMode:           settings.ViewModeGrouped,
+		groupBy:            settings.GroupBySession,
+		defaultExpandLevel: 1,
+		expansionState:     map[string]bool{},
+		viewport:           viewport.New(80, 22),
+		width:              80,
+		height:             24,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "one"},
+		},
+	}
+	model.applySearchFilter()
+
+	model.commandQuery = "expand-level 3"
+	cmd := model.executeCommand()
+	assert.Nil(t, cmd)
+	assert.Equal(t, 3, model.defaultExpandLevel)
+
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, 3, loaded.DefaultExpandLevel)
+}
+
+func TestExecuteCommandToggleViewPersistsSettings(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	model := &Model{
+		viewMode:       settings.ViewModeDetailed,
+		groupBy:        settings.GroupByNone,
+		expansionState: map[string]bool{},
+		viewport:       viewport.New(80, 22),
+		width:          80,
+		height:         24,
+	}
+
+	model.commandQuery = "toggle-view"
+	cmd := model.executeCommand()
+	assert.Nil(t, cmd)
+	assert.Equal(t, settings.ViewModeGrouped, model.viewMode)
+
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.ViewModeGrouped, loaded.ViewMode)
+
+	model.commandQuery = "toggle-view"
+	cmd = model.executeCommand()
+	assert.Nil(t, cmd)
+	assert.Equal(t, settings.ViewModeDetailed, model.viewMode)
+
+	loaded, err = settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
+}
+
+func TestExecuteCommandValidation(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	model := &Model{
+		viewMode:           settings.ViewModeDetailed,
+		groupBy:            settings.GroupBySession,
+		defaultExpandLevel: 2,
+		viewport:           viewport.New(80, 22),
+		width:              80,
+		height:             24,
+	}
+
+	tests := []struct {
+		name        string
+		query       string
+		wantView    string
+		wantGroupBy string
+		wantLevel   int
+	}{
+		{name: "unknown command", query: "nope", wantView: settings.ViewModeDetailed, wantGroupBy: settings.GroupBySession, wantLevel: 2},
+		{name: "group-by missing arg", query: "group-by", wantView: settings.ViewModeDetailed, wantGroupBy: settings.GroupBySession, wantLevel: 2},
+		{name: "group-by invalid value", query: "group-by team", wantView: settings.ViewModeDetailed, wantGroupBy: settings.GroupBySession, wantLevel: 2},
+		{name: "expand-level invalid value", query: "expand-level 9", wantView: settings.ViewModeDetailed, wantGroupBy: settings.GroupBySession, wantLevel: 2},
+		{name: "expand-level non-number", query: "expand-level two", wantView: settings.ViewModeDetailed, wantGroupBy: settings.GroupBySession, wantLevel: 2},
+		{name: "toggle-view with arg", query: "toggle-view now", wantView: settings.ViewModeDetailed, wantGroupBy: settings.GroupBySession, wantLevel: 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			model.commandQuery = tt.query
+			cmd := model.executeCommand()
+			assert.Nil(t, cmd)
+			assert.Equal(t, tt.wantView, model.viewMode)
+			assert.Equal(t, tt.wantGroupBy, model.groupBy)
+			assert.Equal(t, tt.wantLevel, model.defaultExpandLevel)
+		})
+	}
+
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.DefaultSettings().ViewMode, loaded.ViewMode)
+	assert.Equal(t, settings.DefaultSettings().GroupBy, loaded.GroupBy)
+	assert.Equal(t, settings.DefaultSettings().DefaultExpandLevel, loaded.DefaultExpandLevel)
+}
+
 func TestModelMissingSettingsFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	setupConfig(t, tmpDir)
@@ -2149,7 +2287,7 @@ func TestExpansionStatePreservedAfterActions(t *testing.T) {
 	model, err := NewModel(mockClient)
 	require.NoError(t, err)
 	model.viewMode = settings.ViewModeGrouped
-	model.applySearchFilter(false)
+	model.applySearchFilter()
 
 	// Find session $1 node
 	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$1")
@@ -2196,38 +2334,143 @@ func TestExpansionStatePreservedAfterActions(t *testing.T) {
 	assert.False(t, newSessionNode.Expanded, "session $1 should remain collapsed after action")
 }
 
+func TestExpansionStateAppliedWithGroupByWindow(t *testing.T) {
+	model := &Model{
+		viewMode:       settings.ViewModeGrouped,
+		groupBy:        settings.GroupByWindow,
+		expansionState: map[string]bool{"window:$1:@1": false},
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+
+	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$1")
+	require.NotNil(t, sessionNode)
+	windowNode := findChildByTitle(sessionNode, NodeKindWindow, "@1")
+	require.NotNil(t, windowNode)
+	assert.False(t, windowNode.Expanded)
+	assert.True(t, sessionNode.Expanded)
+
+	model.expandNode(windowNode)
+	assert.True(t, model.expansionState["window:$1:@1"])
+}
+
+func TestNodeExpansionKeySerializesPathSegments(t *testing.T) {
+	model := &Model{
+		viewMode: settings.ViewModeGrouped,
+		groupBy:  settings.GroupByPane,
+		notifications: []notification.Notification{
+			{
+				ID:      1,
+				Session: "dev:one",
+				Window:  "@main:1",
+				Pane:    "%pane:2",
+				Message: "One",
+			},
+		},
+		expansionState: map[string]bool{},
+		viewport:       viewport.New(80, 22),
+		width:          80,
+	}
+
+	model.applySearchFilter()
+
+	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "dev:one")
+	require.NotNil(t, sessionNode)
+	windowNode := findChildByTitle(sessionNode, NodeKindWindow, "@main:1")
+	require.NotNil(t, windowNode)
+	paneNode := findChildByTitle(windowNode, NodeKindPane, "%pane:2")
+	require.NotNil(t, paneNode)
+
+	assert.Equal(t, "session:dev%3Aone", model.nodeExpansionKey(sessionNode))
+	assert.Equal(t, "window:dev%3Aone:@main%3A1", model.nodeExpansionKey(windowNode))
+	assert.Equal(t, "pane:dev%3Aone:@main%3A1:%25pane%3A2", model.nodeExpansionKey(paneNode))
+}
+
+func TestLoadNotificationsRestoresSavedExpansionState(t *testing.T) {
+	setupStorage(t)
+
+	_, err := storage.AddNotification("Message 1", "2024-01-01T10:00:00Z", "$1", "@1", "%1", "", "info")
+	require.NoError(t, err)
+
+	model := &Model{
+		viewMode:       settings.ViewModeGrouped,
+		groupBy:        settings.GroupByWindow,
+		expansionState: map[string]bool{},
+		viewport:       viewport.New(80, 22),
+		width:          80,
+	}
+
+	require.NoError(t, model.loadNotifications())
+
+	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$1")
+	require.NotNil(t, sessionNode)
+	windowNode := findChildByTitle(sessionNode, NodeKindWindow, "@1")
+	require.NotNil(t, windowNode)
+
+	model.collapseNode(windowNode)
+	assert.False(t, windowNode.Expanded)
+
+	require.NoError(t, model.loadNotifications())
+
+	sessionNode = findChildByTitle(model.treeRoot, NodeKindSession, "$1")
+	require.NotNil(t, sessionNode)
+	windowNode = findChildByTitle(sessionNode, NodeKindWindow, "@1")
+	require.NotNil(t, windowNode)
+	assert.False(t, windowNode.Expanded)
+}
+
+func TestApplyExpansionStateIgnoresStaleKeys(t *testing.T) {
+	model := &Model{
+		viewMode: settings.ViewModeGrouped,
+		groupBy:  settings.GroupByWindow,
+		expansionState: map[string]bool{
+			"window:$99:@77": false,
+		},
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+
+	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$1")
+	require.NotNil(t, sessionNode)
+	windowNode := findChildByTitle(sessionNode, NodeKindWindow, "@1")
+	require.NotNil(t, windowNode)
+
+	assert.True(t, windowNode.Expanded)
+}
+
 func TestGroupedViewWithGroupByNone(t *testing.T) {
-	t.Run("default settings", func(t *testing.T) {
-		setupStorage(t)
-		mockClient := stubSessionFetchers(t)
-		_, err := storage.AddNotification("test message", "", "", "", "", "", "info")
-		require.NoError(t, err)
-		model, err := NewModel(mockClient)
-		require.NoError(t, err)
-		model.viewMode = settings.ViewModeGrouped
-		model.groupBy = settings.GroupByNone
-		model.applySearchFilter(false)
-		t.Logf("visibleNodes count: %d", len(model.visibleNodes))
-		for i, n := range model.visibleNodes {
-			t.Logf("  [%d] kind=%s title=%s expanded=%v", i, n.Kind, n.Title, n.Expanded)
-		}
-		require.NotEmpty(t, model.visibleNodes)
-	})
-	t.Run("defaultExpandLevel=1", func(t *testing.T) {
-		setupStorage(t)
-		mockClient := stubSessionFetchers(t)
-		_, err := storage.AddNotification("test message", "", "", "", "", "", "info")
-		require.NoError(t, err)
-		model, err := NewModel(mockClient)
-		require.NoError(t, err)
-		model.viewMode = settings.ViewModeGrouped
-		model.groupBy = settings.GroupByNone
-		model.defaultExpandLevel = 1
-		model.applySearchFilter(false)
-		t.Logf("visibleNodes count: %d", len(model.visibleNodes))
-		for i, n := range model.visibleNodes {
-			t.Logf("  [%d] kind=%s title=%s expanded=%v", i, n.Kind, n.Title, n.Expanded)
-		}
-		require.NotEmpty(t, model.visibleNodes)
-	})
+	setupStorage(t)
+	mockClient := stubSessionFetchers(t)
+	_, err := storage.AddNotification("beta message", "2024-01-02T10:00:00Z", "$1", "@1", "%1", "", "info")
+	require.NoError(t, err)
+	_, err = storage.AddNotification("alpha message", "2024-01-03T10:00:00Z", "$2", "@2", "%2", "", "info")
+	require.NoError(t, err)
+
+	model, err := NewModel(mockClient)
+	require.NoError(t, err)
+	model.viewMode = settings.ViewModeGrouped
+	model.groupBy = settings.GroupByNone
+	model.defaultExpandLevel = 1
+	model.applySearchFilter()
+
+	require.Len(t, model.visibleNodes, 2)
+	assert.Equal(t, NodeKindNotification, model.visibleNodes[0].Kind)
+	assert.Equal(t, NodeKindNotification, model.visibleNodes[1].Kind)
+	assert.Equal(t, "alpha message", model.visibleNodes[0].Title)
+	assert.Equal(t, "beta message", model.visibleNodes[1].Title)
+
+	model.cursor = 0
+	handled := model.toggleNodeExpansion()
+	assert.False(t, handled)
+	assert.Len(t, model.visibleNodes, 2)
 }
