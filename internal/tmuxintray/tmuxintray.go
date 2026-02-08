@@ -91,9 +91,13 @@ func GetActiveCount() int {
 	return storage.GetActiveCount()
 }
 
+var getVisibilityFunc = func() string {
+	return core.GetVisibility()
+}
+
 // GetVisibility returns the current visibility state as "0" (hidden) or "1" (visible).
 func GetVisibility() string {
-	return core.GetVisibility()
+	return getVisibilityFunc()
 }
 
 // SetVisibility sets the tray visibility.

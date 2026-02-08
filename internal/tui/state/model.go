@@ -687,7 +687,6 @@ func getTreeLevel(node *Node) int {
 		return 0
 	}
 }
-
 func (m *Model) currentListLen() int {
 	if m.isGroupedView() {
 		return len(m.visibleNodes)
