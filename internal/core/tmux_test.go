@@ -58,6 +58,7 @@ func TestTmuxFunctions(t *testing.T) {
 	t.Run("JumpToPane", func(t *testing.T) {
 		// Tiger Style: Test successful jump to existing pane
 		mockClient := new(tmux.MockClient)
+		mockClient.On("GetCurrentContext").Return(tmux.TmuxContext{SessionID: "$0"}, nil).Once()
 		mockClient.On("ValidatePaneExists", "$0", "1", "%1").Return(true, nil).Once()
 		mockClient.On("Run", []string{"select-window", "-t", "$0:1"}).Return("", "", nil).Once()
 		mockClient.On("Run", []string{"select-pane", "-t", "$0:1.%1"}).Return("", "", nil).Once()
@@ -68,6 +69,7 @@ func TestTmuxFunctions(t *testing.T) {
 
 		// Tiger Style: Test jump to non-existing pane (should fall back to window)
 		mockClient = new(tmux.MockClient)
+		mockClient.On("GetCurrentContext").Return(tmux.TmuxContext{SessionID: "$0"}, nil).Once()
 		mockClient.On("ValidatePaneExists", "$0", "1", "%1").Return(false, nil).Once()
 		mockClient.On("Run", []string{"select-window", "-t", "$0:1"}).Return("", "", nil).Once()
 		c = NewCore(mockClient)
@@ -75,8 +77,21 @@ func TestTmuxFunctions(t *testing.T) {
 		require.True(t, result)
 		mockClient.AssertExpectations(t)
 
+		// Tiger Style: Test switching client session for cross-session jump
+		mockClient = new(tmux.MockClient)
+		mockClient.On("GetCurrentContext").Return(tmux.TmuxContext{SessionID: "$1"}, nil).Once()
+		mockClient.On("Run", []string{"switch-client", "-t", "$2"}).Return("", "", nil).Once()
+		mockClient.On("ValidatePaneExists", "$2", "1", "%1").Return(true, nil).Once()
+		mockClient.On("Run", []string{"select-window", "-t", "$2:1"}).Return("", "", nil).Once()
+		mockClient.On("Run", []string{"select-pane", "-t", "$2:1.%1"}).Return("", "", nil).Once()
+		c = NewCore(mockClient)
+		result = c.JumpToPane("$2", "1", "%1")
+		require.True(t, result)
+		mockClient.AssertExpectations(t)
+
 		// Tiger Style: Test that select-window failure returns false (fail-fast)
 		mockClient = new(tmux.MockClient)
+		mockClient.On("GetCurrentContext").Return(tmux.TmuxContext{SessionID: "$999"}, nil).Once()
 		mockClient.On("ValidatePaneExists", "$999", "1", "%1").Return(true, nil).Once()
 		mockClient.On("Run", []string{"select-window", "-t", "$999:1"}).Return("", "invalid target", tmux.ErrInvalidTarget).Once()
 		c = NewCore(mockClient)
@@ -86,6 +101,7 @@ func TestTmuxFunctions(t *testing.T) {
 
 		// Tiger Style: Test that select-pane failure returns false (error not swallowed)
 		mockClient = new(tmux.MockClient)
+		mockClient.On("GetCurrentContext").Return(tmux.TmuxContext{SessionID: "$0"}, nil).Once()
 		mockClient.On("ValidatePaneExists", "$0", "1", "%1").Return(true, nil).Once()
 		mockClient.On("Run", []string{"select-window", "-t", "$0:1"}).Return("", "", nil).Once()
 		mockClient.On("Run", []string{"select-pane", "-t", "$0:1.%1"}).Return("", "invalid pane", tmux.ErrInvalidTarget).Once()

@@ -714,7 +714,6 @@ func getTreeLevel(node *Node) int {
 		return 0
 	}
 }
-
 func (m *Model) currentListLen() int {
 	if m.isGroupedView() {
 		return len(m.visibleNodes)
@@ -856,7 +855,6 @@ func (m *Model) applyDefaultExpansion() {
 	m.updateViewportContent()
 	m.ensureCursorVisible()
 }
-
 func (m *Model) expandNode(node *Node) {
 	if !m.isGroupedView() {
 		return

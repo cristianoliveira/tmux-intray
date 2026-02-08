@@ -6,8 +6,10 @@ import (
 	"testing"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/core"
 	"github.com/cristianoliveira/tmux-intray/internal/hooks"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
+	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	"github.com/stretchr/testify/require"
 )
 
@@ -125,10 +127,19 @@ func TestGetActiveCount(t *testing.T) {
 func TestGetVisibility(t *testing.T) {
 	setupTest(t)
 	Init()
-	// Mock tmux context? This will call core.GetVisibility which calls tmux commands.
-	// For now, just ensure no panic.
+	mockClient := new(tmux.MockClient)
+	mockClient.On("GetEnvironment", "TMUX_INTRAY_VISIBLE").Return("1", nil)
+
+	coreClient := core.NewCore(mockClient)
+	origGetVisibility := getVisibilityFunc
+	t.Cleanup(func() {
+		getVisibilityFunc = origGetVisibility
+	})
+	getVisibilityFunc = coreClient.GetVisibility
+
 	visibility := GetVisibility()
-	require.Contains(t, []string{"0", "1"}, visibility)
+	require.Equal(t, "1", visibility)
+	mockClient.AssertExpectations(t)
 }
 
 func TestSetVisibility(t *testing.T) {

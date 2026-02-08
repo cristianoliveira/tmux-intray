@@ -51,7 +51,7 @@ teardown() {
     id=$(storage_add_notification "test message" "" "$session" "$window" "$pane" "$pane_created")
 
     run ./tmux-intray jump "$id"
-    [[ "$output" == *"Jumped to pane"* ]]
+    [[ "$output" == *"Jumped to session"* ]]
 }
 
 @test "jump to dismissed notification still works" {
@@ -68,7 +68,7 @@ teardown() {
 
     run ./tmux-intray jump "$id"
     [[ "$output" == *"dismissed"* ]]
-    [[ "$output" == *"Jumped to pane"* ]]
+    [[ "$output" == *"Jumped to session"* ]]
 }
 
 @test "jump fails when pane no longer exists" {
@@ -93,5 +93,5 @@ teardown() {
 
     run ./tmux-intray jump "$id"
     # Should NOT show success message when it fails
-    [[ ! "$output" == *"Jumped to pane"* ]]
+    [[ ! "$output" == *"Jumped to session"* ]]
 }
