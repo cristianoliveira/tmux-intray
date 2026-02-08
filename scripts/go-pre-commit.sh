@@ -2,6 +2,16 @@
 
 set -euo pipefail
 
+# Run goimports on staged Go files
+echo "Running goimports..."
+goimports_output=$(goimports -l "$@")
+if [[ -n "$goimports_output" ]]; then
+    echo "The following files have import formatting issues:"
+    echo "$goimports_output"
+    echo "Please run 'goimports -w .'"
+    exit 1
+fi
+
 # Run gofmt on staged Go files
 echo "Running gofmt..."
 gofmt_output=$(gofmt -l "$@")

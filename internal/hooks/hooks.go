@@ -4,8 +4,6 @@ package hooks
 import (
 	"context"
 	"fmt"
-	"github.com/cristianoliveira/tmux-intray/internal/colors"
-	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,6 +12,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/config"
 )
 
 // File permission constants

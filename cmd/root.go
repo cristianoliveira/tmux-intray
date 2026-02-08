@@ -5,9 +5,10 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/cristianoliveira/tmux-intray/internal/hooks"
 	"github.com/spf13/cobra"
-	"os"
 )
 
 // RootCmd represents the base command when called without any subcommands
