@@ -35,6 +35,9 @@ func TestTUIWithRealTmuxClient(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, model)
 
+	// Verify uiState was initialized
+	require.NotNil(t, model.uiState, "uiState should be initialized")
+
 	// Verify session names were loaded
 	require.NotEmpty(t, model.sessionNames, "session names should be loaded from tmux")
 
@@ -55,6 +58,9 @@ func TestTUIClientNilDefaults(t *testing.T) {
 	model, err := NewModel(nil)
 	require.NoError(t, err)
 	require.NotNil(t, model)
+
+	// Verify uiState was initialized
+	require.NotNil(t, model.uiState, "uiState should be initialized")
 
 	// Verify client was created
 	require.NotNil(t, model.client, "default client should be created")

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 )
@@ -81,7 +80,7 @@ func BenchmarkUpdateViewportContentGrouped(b *testing.B) {
 		notifications := benchmarkNotifications(size)
 		model := benchmarkModel(notifications)
 		model.visibleNodes = model.computeVisibleNodes()
-		model.cursor = len(model.visibleNodes) / 2
+		model.uiState.SetCursor(len(model.visibleNodes) / 2)
 
 		b.Run(fmt.Sprintf("n=%d", size), func(b *testing.B) {
 			b.ReportAllocs()
@@ -109,7 +108,7 @@ func BenchmarkApplySearchFilterGrouped(b *testing.B) {
 			name := fmt.Sprintf("n=%d/%s", size, query.name)
 			b.Run(name, func(b *testing.B) {
 				model := benchmarkModel(notifications)
-				model.searchQuery = query.query
+				model.uiState.SetSearchQuery(query.query)
 
 				b.ReportAllocs()
 				b.ResetTimer()
@@ -124,13 +123,15 @@ func BenchmarkApplySearchFilterGrouped(b *testing.B) {
 
 func benchmarkModel(notifications []notification.Notification) *Model {
 	model := &Model{
+		uiState:        NewUIState(),
 		viewMode:       viewModeGrouped,
 		groupBy:        settings.GroupByPane,
 		notifications:  notifications,
 		expansionState: map[string]bool{},
-		viewport:       viewport.New(120, 40),
-		width:          120,
 	}
+	model.uiState.SetWidth(120)
+	model.uiState.SetHeight(40)
+	model.uiState.UpdateViewportSize()
 
 	model.applySearchFilter()
 	model.resetCursor()

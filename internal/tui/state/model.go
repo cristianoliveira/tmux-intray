@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
@@ -33,15 +32,7 @@ const (
 type Model struct {
 	notifications []notification.Notification
 	filtered      []notification.Notification
-	cursor        int
-	searchQuery   string
-	searchMode    bool
-	commandMode   bool
-	commandQuery  string
-	pendingKey    string
-	viewport      viewport.Model
-	width         int
-	height        int
+	uiState       *UIState // Extracted UI state management
 	sessionNames  map[string]string
 	windowNames   map[string]string
 	paneNames     map[string]string
@@ -79,16 +70,16 @@ func (m *Model) Init() tea.Cmd {
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if m.searchMode || m.commandMode {
-			m.pendingKey = ""
-		} else if m.pendingKey != "" {
-			if msg.String() == "a" && m.pendingKey == "z" && m.isGroupedView() {
-				m.pendingKey = ""
+		if m.uiState.IsSearchMode() || m.uiState.IsCommandMode() {
+			m.uiState.ClearPendingKey()
+		} else if m.uiState.GetPendingKey() != "" {
+			if msg.String() == "a" && m.uiState.GetPendingKey() == "z" && m.isGroupedView() {
+				m.uiState.ClearPendingKey()
 				m.toggleFold()
 				return m, nil
 			}
 			if msg.String() != "z" {
-				m.pendingKey = ""
+				m.uiState.ClearPendingKey()
 			}
 		}
 		switch msg.Type {
@@ -100,28 +91,25 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Exit
 			return m, tea.Quit
 		case tea.KeyEsc:
-			if m.searchMode {
-				m.searchMode = false
-				m.searchQuery = ""
+			if m.uiState.IsSearchMode() {
+				m.uiState.SetSearchMode(false)
 				m.applySearchFilter()
-				m.resetCursor()
-			} else if m.commandMode {
-				m.commandMode = false
-				m.commandQuery = ""
+				m.uiState.ResetCursor()
+			} else if m.uiState.IsCommandMode() {
+				m.uiState.SetCommandMode(false)
 			} else {
 				return m, tea.Quit
 			}
 
 		case tea.KeyEnter:
-			if m.searchMode {
-				m.searchMode = false
+			if m.uiState.IsSearchMode() {
+				m.uiState.SetSearchMode(false)
 				return m, nil
 			}
-			if m.commandMode {
+			if m.uiState.IsCommandMode() {
 				// Execute command
 				cmd := m.executeCommand()
-				m.commandMode = false
-				m.commandQuery = ""
+				m.uiState.SetCommandMode(false)
 				return m, cmd
 			}
 			if m.isGroupedView() && m.toggleNodeExpansion() {
@@ -131,30 +119,30 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.handleJump()
 
 		case tea.KeyRunes:
-			if m.searchMode {
+			if m.uiState.IsSearchMode() {
 				// In search mode, append runes to search query
 				for _, r := range msg.Runes {
-					m.searchQuery += string(r)
+					m.uiState.AppendToSearchQuery(r)
 				}
 				m.applySearchFilter()
-				m.resetCursor()
-			} else if m.commandMode {
+				m.uiState.ResetCursor()
+			} else if m.uiState.IsCommandMode() {
 				// In command mode, append runes to command query
 				for _, r := range msg.Runes {
-					m.commandQuery += string(r)
+					m.uiState.AppendToCommandQuery(r)
 				}
 			}
 
 		case tea.KeyBackspace:
-			if m.searchMode {
-				if len(m.searchQuery) > 0 {
-					m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
+			if m.uiState.IsSearchMode() {
+				if len(m.uiState.GetSearchQuery()) > 0 {
+					m.uiState.BackspaceSearchQuery()
 					m.applySearchFilter()
-					m.resetCursor()
+					m.uiState.ResetCursor()
 				}
-			} else if m.commandMode {
-				if len(m.commandQuery) > 0 {
-					m.commandQuery = m.commandQuery[:len(m.commandQuery)-1]
+			} else if m.uiState.IsCommandMode() {
+				if len(m.uiState.GetCommandQuery()) > 0 {
+					m.uiState.BackspaceCommandQuery()
 				}
 			}
 
@@ -164,7 +152,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// If we're in command mode, don't process other key bindings
-		if m.commandMode {
+		if m.uiState.IsCommandMode() {
 			return m, nil
 		}
 
@@ -173,31 +161,26 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "j":
 			// Move cursor down
 			listLen := m.currentListLen()
-			if m.cursor < listLen-1 {
-				m.cursor++
-				m.updateViewportContent()
-			}
+			m.uiState.MoveCursorDown(listLen)
+			m.updateViewportContent()
 			// Auto-scroll viewport if needed
-			m.ensureCursorVisible()
+			m.uiState.EnsureCursorVisible(listLen)
 		case "k":
 			// Move cursor up
-			if m.cursor > 0 {
-				m.cursor--
-				m.updateViewportContent()
-			}
+			listLen := m.currentListLen()
+			m.uiState.MoveCursorUp(listLen)
+			m.updateViewportContent()
 			// Auto-scroll viewport if needed
-			m.ensureCursorVisible()
+			m.uiState.EnsureCursorVisible(listLen)
 		case "/":
 			// Enter search mode
-			m.searchMode = true
-			m.searchQuery = ""
+			m.uiState.SetSearchMode(true)
 			m.applySearchFilter()
-			m.resetCursor()
+			m.uiState.ResetCursor()
 		case ":":
 			// Enter command mode
-			if !m.searchMode && !m.commandMode {
-				m.commandMode = true
-				m.commandQuery = ""
+			if !m.uiState.IsSearchMode() && !m.uiState.IsCommandMode() {
+				m.uiState.SetCommandMode(true)
 			}
 		case "d":
 			// Dismiss selected notification
@@ -209,7 +192,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Mark selected notification as unread
 			return m, m.markSelectedUnread()
 		case "v":
-			if !m.searchMode && !m.commandMode {
+			if !m.uiState.IsSearchMode() && !m.uiState.IsCommandMode() {
 				m.cycleViewMode()
 			}
 		case "h":
@@ -219,8 +202,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Expand selected group node
 			m.expandNode(m.selectedVisibleNode())
 		case "z":
-			if !m.searchMode && m.isGroupedView() {
-				m.pendingKey = "z"
+			if !m.uiState.IsSearchMode() && m.isGroupedView() {
+				m.uiState.SetPendingKey("z")
 			}
 		case "i":
 			// In search mode, 'i' is handled by KeyRunes
@@ -242,11 +225,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
+		m.uiState.SetWidth(msg.Width)
+		m.uiState.SetHeight(msg.Height)
 		// Initialize or update viewport dimensions
-		viewportHeight := m.height - headerFooterLines // Reserve 1 line for header, 1 line for footer
-		m.viewport = viewport.New(msg.Width, viewportHeight)
+		m.uiState.UpdateViewportSize()
 		// Update viewport content
 		m.updateViewportContent()
 	}
@@ -256,36 +238,35 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the TUI.
 func (m *Model) View() string {
-	if m.width == 0 {
-		m.width = defaultViewportWidth
+	if m.uiState.GetWidth() == 0 {
+		m.uiState.SetWidth(defaultViewportWidth)
 	}
-	if m.height == 0 {
-		m.height = 24
+	if m.uiState.GetHeight() == 0 {
+		m.uiState.SetHeight(24)
 	}
 
 	// Ensure viewport is initialized
-	if m.viewport.Height == 0 {
-		viewportHeight := m.height - headerFooterLines // Reserve 1 line for header, 1 line for footer
-		m.viewport = viewport.New(m.width, viewportHeight)
+	if m.uiState.GetViewport().Height == 0 {
+		m.uiState.UpdateViewportSize()
 		m.updateViewportContent()
 	}
 
 	var s strings.Builder
 
 	// Header
-	s.WriteString(render.Header(m.width))
+	s.WriteString(render.Header(m.uiState.GetWidth()))
 
 	// Viewport with table rows
 	s.WriteString("\n")
-	s.WriteString(m.viewport.View())
+	s.WriteString(m.uiState.GetViewport().View())
 
 	// Footer
 	s.WriteString("\n")
 	s.WriteString(render.Footer(render.FooterState{
-		SearchMode:   m.searchMode,
-		CommandMode:  m.commandMode,
-		SearchQuery:  m.searchQuery,
-		CommandQuery: m.commandQuery,
+		SearchMode:   m.uiState.IsSearchMode(),
+		CommandMode:  m.uiState.IsCommandMode(),
+		SearchQuery:  m.uiState.GetSearchQuery(),
+		CommandQuery: m.uiState.GetCommandQuery(),
 		Grouped:      m.isGroupedView(),
 	}))
 
@@ -405,7 +386,7 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 	}
 
 	m := Model{
-		viewport:          viewport.New(defaultViewportWidth, defaultViewportHeight), // Default dimensions, will be updated on WindowSizeMsg
+		uiState:           NewUIState(), // Initialize UI state
 		sessionNames:      sessionNames,
 		windowNames:       windowNames,
 		paneNames:         paneNames,
@@ -435,7 +416,7 @@ type saveSettingsFailedMsg struct {
 func (m *Model) applySearchFilter() {
 	m.invalidateCache()
 
-	query := strings.TrimSpace(m.searchQuery)
+	query := strings.TrimSpace(m.uiState.GetSearchQuery())
 	if query == "" {
 		m.filtered = m.notifications
 	} else {
@@ -522,8 +503,8 @@ func (m *Model) restoreCursor(identifier string) {
 	if targetNode != nil {
 		for i, node := range m.visibleNodes {
 			if node == targetNode {
-				m.cursor = i
-				m.ensureCursorVisible()
+				m.uiState.SetCursor(i)
+				m.uiState.EnsureCursorVisible(len(m.visibleNodes))
 				return
 			}
 		}
@@ -536,22 +517,13 @@ func (m *Model) restoreCursor(identifier string) {
 // adjustCursorBounds ensures the cursor is within valid bounds.
 func (m *Model) adjustCursorBounds() {
 	listLen := m.currentListLen()
-	if listLen == 0 {
-		m.cursor = 0
-		return
-	}
-	if m.cursor >= listLen {
-		m.cursor = listLen - 1
-	}
-	if m.cursor < 0 {
-		m.cursor = 0
-	}
-	m.ensureCursorVisible()
+	m.uiState.AdjustCursorBounds(listLen)
+	m.uiState.EnsureCursorVisible(listLen)
 }
 
 // executeCommand executes the current command query and returns a command to run.
 func (m *Model) executeCommand() tea.Cmd {
-	cmd := strings.TrimSpace(m.commandQuery)
+	cmd := strings.TrimSpace(m.uiState.GetCommandQuery())
 	if cmd == "" {
 		colors.Warning("Command is empty")
 		return nil
@@ -673,6 +645,8 @@ func (m *Model) saveSettings() error {
 // updateViewportContent updates the viewport with the current filtered notifications.
 func (m *Model) updateViewportContent() {
 	var content strings.Builder
+	width := m.uiState.GetWidth()
+	cursor := m.uiState.GetCursor()
 
 	if m.isGroupedView() {
 		if len(m.visibleNodes) == 0 {
@@ -694,9 +668,9 @@ func (m *Model) updateViewportContent() {
 							Expanded: node.Expanded,
 							Count:    node.Count,
 						},
-						Selected: rowIndex == m.cursor,
+						Selected: rowIndex == cursor,
 						Level:    getTreeLevel(node),
-						Width:    m.width,
+						Width:    width,
 					}))
 					continue
 				}
@@ -707,14 +681,14 @@ func (m *Model) updateViewportContent() {
 				content.WriteString(render.Row(render.RowState{
 					Notification: notif,
 					SessionName:  m.getSessionName(notif.Session),
-					Width:        m.width,
-					Selected:     rowIndex == m.cursor,
+					Width:        width,
+					Selected:     rowIndex == cursor,
 					Now:          now,
 				}))
 			}
 		}
 
-		m.viewport.SetContent(content.String())
+		(*m.uiState.GetViewport()).SetContent(content.String())
 		return
 	}
 
@@ -729,37 +703,24 @@ func (m *Model) updateViewportContent() {
 			content.WriteString(render.Row(render.RowState{
 				Notification: notif,
 				SessionName:  m.getSessionName(notif.Session),
-				Width:        m.width,
-				Selected:     i == m.cursor,
+				Width:        width,
+				Selected:     i == cursor,
 				Now:          now,
 			}))
 		}
 	}
 
-	m.viewport.SetContent(content.String())
+	(*m.uiState.GetViewport()).SetContent(content.String())
 }
 
 // ensureCursorVisible ensures the cursor is visible in the viewport.
 func (m *Model) ensureCursorVisible() {
-	if m.currentListLen() == 0 {
+	listLen := m.currentListLen()
+	if listLen == 0 {
 		return
 	}
 
-	// Get the current viewport line offset
-	lineOffset := m.viewport.YOffset
-
-	// Calculate the viewport height
-	viewportHeight := m.viewport.Height
-
-	// If cursor is above viewport, scroll up
-	if m.cursor < lineOffset {
-		m.viewport.LineUp(lineOffset - m.cursor)
-	}
-
-	// If cursor is below viewport, scroll down
-	if m.cursor >= lineOffset+viewportHeight {
-		m.viewport.LineDown(m.cursor - (lineOffset + viewportHeight) + 1)
-	}
+	m.uiState.EnsureCursorVisible(listLen)
 }
 
 // handleDismiss handles the dismiss action for the selected notification.
@@ -782,7 +743,7 @@ func (m *Model) handleDismiss() tea.Cmd {
 	}
 
 	// Save the current cursor position before reload
-	oldCursor := m.cursor
+	oldCursor := m.uiState.GetCursor()
 
 	// Reload notifications to get updated state (preserve cursor)
 	if err := m.loadNotifications(true); err != nil {
@@ -793,9 +754,9 @@ func (m *Model) handleDismiss() tea.Cmd {
 	// Restore cursor to the saved position, adjusting for bounds
 	listLen := m.currentListLen()
 	if listLen == 0 {
-		m.cursor = 0
+		m.uiState.SetCursor(0)
 	} else {
-		m.cursor = oldCursor
+		m.uiState.SetCursor(oldCursor)
 		// Ensure cursor is within bounds
 		m.adjustCursorBounds()
 	}
@@ -916,7 +877,7 @@ func (m *Model) handleJump() tea.Cmd {
 
 // resetCursor resets the cursor to the first item.
 func (m *Model) resetCursor() {
-	m.cursor = 0
+	m.uiState.ResetCursor()
 }
 
 // loadNotifications loads notifications from storage.
@@ -927,11 +888,12 @@ func (m *Model) loadNotifications(preserveCursor bool) error {
 
 	if preserveCursor {
 		// Save current cursor state
-		savedCursorPos = m.cursor
-		if m.isGroupedView() && m.cursor < len(m.visibleNodes) {
-			savedNodeID = m.getNodeIdentifier(m.visibleNodes[m.cursor])
-		} else if !m.isGroupedView() && m.cursor < len(m.filtered) {
-			savedNodeID = fmt.Sprintf("notif:%d", m.filtered[m.cursor].ID)
+		savedCursorPos = m.uiState.GetCursor()
+		cursor := m.uiState.GetCursor()
+		if m.isGroupedView() && cursor < len(m.visibleNodes) {
+			savedNodeID = m.getNodeIdentifier(m.visibleNodes[cursor])
+		} else if !m.isGroupedView() && cursor < len(m.filtered) {
+			savedNodeID = fmt.Sprintf("notif:%d", m.filtered[cursor].ID)
 		}
 	}
 
@@ -980,7 +942,7 @@ func (m *Model) loadNotifications(preserveCursor bool) error {
 			m.restoreCursor(savedNodeID)
 		} else {
 			// If we couldn't save the node ID, just adjust to bounds
-			m.cursor = savedCursorPos
+			m.uiState.SetCursor(savedCursorPos)
 			m.adjustCursorBounds()
 		}
 	} else {
@@ -1105,31 +1067,33 @@ func (m *Model) currentListLen() int {
 }
 
 func (m *Model) selectedNotification() (notification.Notification, bool) {
+	cursor := m.uiState.GetCursor()
 	if m.isGroupedView() {
-		if m.cursor < 0 || m.cursor >= len(m.visibleNodes) {
+		if cursor < 0 || cursor >= len(m.visibleNodes) {
 			return notification.Notification{}, false
 		}
-		node := m.visibleNodes[m.cursor]
+		node := m.visibleNodes[cursor]
 		if node == nil || node.Notification == nil {
 			return notification.Notification{}, false
 		}
 		return *node.Notification, true
 	}
 
-	if m.cursor < 0 || m.cursor >= len(m.filtered) {
+	if cursor < 0 || cursor >= len(m.filtered) {
 		return notification.Notification{}, false
 	}
-	return m.filtered[m.cursor], true
+	return m.filtered[cursor], true
 }
 
 func (m *Model) selectedVisibleNode() *Node {
 	if !m.isGroupedView() {
 		return nil
 	}
-	if m.cursor < 0 || m.cursor >= len(m.visibleNodes) {
+	cursor := m.uiState.GetCursor()
+	if cursor < 0 || cursor >= len(m.visibleNodes) {
 		return nil
 	}
-	return m.visibleNodes[m.cursor]
+	return m.visibleNodes[cursor]
 }
 
 func (m *Model) toggleNodeExpansion() bool {
@@ -1227,14 +1191,14 @@ func (m *Model) applyDefaultExpansion() {
 	m.visibleNodes = m.computeVisibleNodes()
 	if selected != nil {
 		if index := indexOfNode(m.visibleNodes, selected); index >= 0 {
-			m.cursor = index
+			m.uiState.SetCursor(index)
 		}
 	}
-	if m.cursor >= len(m.visibleNodes) {
-		m.cursor = len(m.visibleNodes) - 1
+	if m.uiState.GetCursor() >= len(m.visibleNodes) {
+		m.uiState.SetCursor(len(m.visibleNodes) - 1)
 	}
-	if m.cursor < 0 {
-		m.cursor = 0
+	if m.uiState.GetCursor() < 0 {
+		m.uiState.SetCursor(0)
 	}
 	m.updateViewportContent()
 	m.ensureCursorVisible()
@@ -1276,14 +1240,14 @@ func (m *Model) collapseNode(node *Node) {
 	m.visibleNodes = m.computeVisibleNodes()
 	if selected != nil && nodeContains(node, selected) {
 		if index := indexOfNode(m.visibleNodes, node); index >= 0 {
-			m.cursor = index
+			m.uiState.SetCursor(index)
 		}
 	}
-	if m.cursor >= len(m.visibleNodes) {
-		m.cursor = len(m.visibleNodes) - 1
+	if m.uiState.GetCursor() >= len(m.visibleNodes) {
+		m.uiState.SetCursor(len(m.visibleNodes) - 1)
 	}
-	if m.cursor < 0 {
-		m.cursor = 0
+	if m.uiState.GetCursor() < 0 {
+		m.uiState.SetCursor(0)
 	}
 	m.updateViewportContent()
 	m.ensureCursorVisible()
