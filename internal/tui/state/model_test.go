@@ -2,6 +2,7 @@ package state
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -1212,10 +1213,11 @@ func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 
 	expectedGroupRow := render.RenderGroupRow(render.GroupRow{
 		Node: &render.GroupNode{
-			Title:    groupNode.Title,
-			Display:  groupNode.Display,
-			Expanded: groupNode.Expanded,
-			Count:    groupNode.Count,
+			Title:       groupNode.Title,
+			Display:     groupNode.Display,
+			Expanded:    groupNode.Expanded,
+			Count:       groupNode.Count,
+			UnreadCount: groupNode.UnreadCount,
 		},
 		Selected: true,
 		Level:    getTreeLevel(groupNode),
@@ -1296,10 +1298,11 @@ func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
 
 	expectedGroupRow := render.RenderGroupRow(render.GroupRow{
 		Node: &render.GroupNode{
-			Title:    groupNode.Title,
-			Display:  groupNode.Display,
-			Expanded: groupNode.Expanded,
-			Count:    groupNode.Count,
+			Title:       groupNode.Title,
+			Display:     groupNode.Display,
+			Expanded:    groupNode.Expanded,
+			Count:       groupNode.Count,
+			UnreadCount: groupNode.UnreadCount,
 		},
 		Selected: false,
 		Level:    getTreeLevel(groupNode),
@@ -2215,20 +2218,91 @@ func TestModelMissingSettingsFile(t *testing.T) {
 }
 
 func TestModelCorruptedSettingsFile(t *testing.T) {
-	tmpDir := t.TempDir()
-	setupConfig(t, tmpDir)
-
 	setupStorage(t)
-	stubSessionFetchers(t)
+	mockClient := stubSessionFetchers(t)
 
-	settingsPath := tmpDir + "/settings.json"
-	err := os.WriteFile(settingsPath, []byte("invalid json {{{"), 0644)
+	// Create corrupted settings file
+	configDir := t.TempDir()
+	t.Setenv("CONFIG_DIR", configDir)
+	settingsFile := filepath.Join(configDir, "settings.json")
+	err := os.WriteFile(settingsFile, []byte("{ invalid json }"), 0644)
 	require.NoError(t, err)
 
-	loaded, err := settings.Load()
+	model, err := NewModel(mockClient)
 	require.NoError(t, err)
-	assert.NotNil(t, loaded)
-	assert.NotEmpty(t, loaded.SortBy)
+	assert.NotNil(t, model)
+}
+
+func TestAutoExpandUnread(t *testing.T) {
+	setupStorage(t)
+	mockClient := stubSessionFetchers(t)
+
+	// Create notifications with mixed read states
+	_, err := storage.AddNotification("Unread message 1", "2024-01-01T12:00:00Z", "$1", "@1", "%1", "pane1", "info")
+	require.NoError(t, err)
+	id2, err := storage.AddNotification("Read message 1", "2024-01-02T12:00:00Z", "$1", "@1", "%1", "pane1", "info")
+	require.NoError(t, err)
+	storage.MarkNotificationRead(id2)
+	_, err = storage.AddNotification("Unread message 2", "2024-01-03T12:00:00Z", "$2", "@2", "%2", "pane2", "info")
+	require.NoError(t, err)
+
+	model, err := NewModel(mockClient)
+	require.NoError(t, err)
+
+	// Configure grouped view
+	model.groupBy = settings.GroupBySession
+	model.viewMode = viewModeGrouped
+	model.applySearchFilter()
+
+	// Test with autoExpandUnread disabled
+	model.autoExpandUnread = false
+
+	// First collapse all groups
+	model.defaultExpandLevel = 0
+	model.applyDefaultExpansion()
+
+	// Verify groups are collapsed
+	require.NotNil(t, model.treeRoot)
+	for _, child := range model.treeRoot.Children {
+		if child.Kind == NodeKindSession {
+			assert.False(t, child.Expanded, "Session should be collapsed after applying default expansion level 0")
+			break
+		}
+	}
+
+	// Apply search filter with autoExpandUnread disabled
+	model.applySearchFilter()
+
+	// Groups with unread items should remain collapsed when autoExpandUnread is false
+	require.NotNil(t, model.treeRoot)
+	for _, child := range model.treeRoot.Children {
+		if child.Kind == NodeKindSession && child.UnreadCount > 0 {
+			assert.False(t, child.Expanded, "Session with unread items should not be auto-expanded when autoExpandUnread is false")
+			break
+		}
+	}
+
+	// Test with autoExpandUnread enabled
+	model.autoExpandUnread = true
+
+	// Collapse groups again to test auto-expand
+	model.defaultExpandLevel = 0
+	model.applyDefaultExpansion()
+
+	// Apply search filter with autoExpandUnread enabled
+	model.applySearchFilter()
+
+	// Groups with unread items should be auto-expanded
+	require.NotNil(t, model.treeRoot)
+	foundSessionWithUnread := false
+	for _, child := range model.treeRoot.Children {
+		if child.Kind == NodeKindSession && child.UnreadCount > 0 {
+			foundSessionWithUnread = true
+			assert.True(t, child.Expanded, "Session with unread items should be auto-expanded when autoExpandUnread is true")
+			break
+		}
+	}
+	assert.True(t, foundSessionWithUnread, "Should have found at least one session with unread items")
 }
 
 func TestModelSettingsLifecycle(t *testing.T) {

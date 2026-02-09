@@ -370,3 +370,108 @@ func TestFindNotificationPathWithGroupByNone(t *testing.T) {
 	assert.Equal(t, NodeKindRoot, path[0].Kind)
 	assert.Equal(t, NodeKindNotification, path[1].Kind)
 }
+
+// TestBuildTreeUnreadCounts tests that unread counts are correctly calculated
+// at each grouping level.
+func TestBuildTreeUnreadCounts(t *testing.T) {
+	notifications := []notification.Notification{
+		{
+			ID:            1,
+			Session:       "$1",
+			Window:        "@1",
+			Pane:          "%1",
+			Message:       "Unread message 1",
+			Timestamp:     "2024-01-01T10:00:00Z",
+			ReadTimestamp: "", // Unread
+		},
+		{
+			ID:            2,
+			Session:       "$1",
+			Window:        "@1",
+			Pane:          "%1",
+			Message:       "Read message 1",
+			Timestamp:     "2024-01-02T10:00:00Z",
+			ReadTimestamp: "2024-01-02T11:00:00Z", // Read
+		},
+		{
+			ID:            3,
+			Session:       "$1",
+			Window:        "@2",
+			Pane:          "%2",
+			Message:       "Unread message 2",
+			Timestamp:     "2024-01-03T10:00:00Z",
+			ReadTimestamp: "", // Unread
+		},
+		{
+			ID:            4,
+			Session:       "$2",
+			Window:        "@1",
+			Pane:          "%3",
+			Message:       "Read message 2",
+			Timestamp:     "2024-01-04T10:00:00Z",
+			ReadTimestamp: "2024-01-04T11:00:00Z", // Read
+		},
+		{
+			ID:            5,
+			Session:       "$2",
+			Window:        "@1",
+			Pane:          "%3",
+			Message:       "Unread message 3",
+			Timestamp:     "2024-01-05T10:00:00Z",
+			ReadTimestamp: "", // Unread
+		},
+	}
+
+	root := BuildTree(notifications, settings.GroupByPane)
+
+	require.NotNil(t, root)
+	assert.Equal(t, 5, root.Count)
+	assert.Equal(t, 3, root.UnreadCount) // 3 unread notifications total
+
+	// Check session $1
+	require.Len(t, root.Children, 2)
+	sessionOne := root.Children[0]
+	assert.Equal(t, NodeKindSession, sessionOne.Kind)
+	assert.Equal(t, "$1", sessionOne.Title)
+	assert.Equal(t, 3, sessionOne.Count)
+	assert.Equal(t, 2, sessionOne.UnreadCount) // 2 unread in session $1
+
+	// Check window @1 in session $1
+	require.Len(t, sessionOne.Children, 2)
+	windowOne := sessionOne.Children[0]
+	assert.Equal(t, NodeKindWindow, windowOne.Kind)
+	assert.Equal(t, "@1", windowOne.Title)
+	assert.Equal(t, 2, windowOne.Count)
+	assert.Equal(t, 1, windowOne.UnreadCount) // 1 unread in window @1
+
+	// Check pane %1 in window @1
+	require.Len(t, windowOne.Children, 1)
+	paneOne := windowOne.Children[0]
+	assert.Equal(t, NodeKindPane, paneOne.Kind)
+	assert.Equal(t, "%1", paneOne.Title)
+	assert.Equal(t, 2, paneOne.Count)
+	assert.Equal(t, 1, paneOne.UnreadCount) // 1 unread in pane %1
+
+	// Check session $2
+	sessionTwo := root.Children[1]
+	assert.Equal(t, NodeKindSession, sessionTwo.Kind)
+	assert.Equal(t, "$2", sessionTwo.Title)
+	assert.Equal(t, 2, sessionTwo.Count)
+	assert.Equal(t, 1, sessionTwo.UnreadCount) // 1 unread in session $2
+
+	// Check window @1 in session $2
+	require.Len(t, sessionTwo.Children, 1)
+	windowTwoSession := sessionTwo.Children[0]
+	assert.Equal(t, NodeKindWindow, windowTwoSession.Kind)
+	assert.Equal(t, "@1", windowTwoSession.Title)
+	assert.Equal(t, 2, windowTwoSession.Count)
+	assert.Equal(t, 1, windowTwoSession.UnreadCount) // 1 unread in window @1
+
+	// Check pane %3 in window @1
+	require.Len(t, windowTwoSession.Children, 1)
+	paneThree := windowTwoSession.Children[0]
+	assert.Equal(t, NodeKindPane, paneThree.Kind)
+	assert.Equal(t, "%3", paneThree.Title)
+	assert.Equal(t, 2, paneThree.Count)
+	assert.Equal(t, 1, paneThree.UnreadCount) // 1 unread in pane %3
+}
