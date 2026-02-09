@@ -1,8 +1,10 @@
 package state
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -83,6 +85,7 @@ func TestModelGroupedModeBuildsVisibleNodes(t *testing.T) {
 	}
 
 	model.applySearchFilter()
+	model.resetCursor()
 
 	require.NotNil(t, model.treeRoot)
 	require.Len(t, model.visibleNodes, 8)
@@ -108,6 +111,7 @@ func TestComputeVisibleNodesUsesCacheWhenValid(t *testing.T) {
 	}
 
 	model.applySearchFilter()
+	model.resetCursor()
 	require.True(t, model.cacheValid)
 	require.Len(t, model.visibleNodes, 4)
 
@@ -134,6 +138,7 @@ func TestInvalidateCacheForcesVisibleNodesRecompute(t *testing.T) {
 	}
 
 	model.applySearchFilter()
+	model.resetCursor()
 	require.True(t, model.cacheValid)
 	require.Len(t, model.visibleNodes, 4)
 
@@ -163,11 +168,13 @@ func TestCacheInvalidationOnSearchAndExpansionChanges(t *testing.T) {
 	}
 
 	model.applySearchFilter()
+	model.resetCursor()
 	require.True(t, model.cacheValid)
 	require.Len(t, model.visibleNodes, 4)
 
 	model.searchQuery = "alpha"
 	model.applySearchFilter()
+	model.resetCursor()
 	require.True(t, model.cacheValid)
 	require.Len(t, model.visibleNodes, 2)
 
@@ -203,6 +210,7 @@ func BenchmarkComputeVisibleNodesCache(b *testing.B) {
 		width:          80,
 	}
 	model.applySearchFilter()
+	model.resetCursor()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -247,6 +255,7 @@ func TestModelGroupedModeRespectsGroupByDepth(t *testing.T) {
 			}
 
 			model.applySearchFilter()
+			model.resetCursor()
 
 			require.Len(t, model.visibleNodes, len(tt.expectedVisibleKinds))
 			for i, kind := range tt.expectedVisibleKinds {
@@ -267,11 +276,13 @@ func TestModelSwitchesViewModes(t *testing.T) {
 	}
 
 	model.applySearchFilter()
+	model.resetCursor()
 	require.NotNil(t, model.treeRoot)
 	require.NotEmpty(t, model.visibleNodes)
 
 	model.viewMode = "flat"
 	model.applySearchFilter()
+	model.resetCursor()
 	assert.Nil(t, model.treeRoot)
 	assert.Empty(t, model.visibleNodes)
 }
@@ -287,6 +298,7 @@ func TestToggleNodeExpansionGroupedView(t *testing.T) {
 	}
 
 	model.applySearchFilter()
+	model.resetCursor()
 
 	var groupNode *Node
 	groupIndex := -1
@@ -326,6 +338,7 @@ func TestToggleFoldTogglesGroupNode(t *testing.T) {
 	}
 
 	model.applySearchFilter()
+	model.resetCursor()
 
 	var groupNode *Node
 	groupIndex := -1
@@ -362,6 +375,7 @@ func TestToggleFoldWorksAtPaneDepth(t *testing.T) {
 	}
 
 	model.applySearchFilter()
+	model.resetCursor()
 
 	var paneNode *Node
 	paneIndex := -1
@@ -396,6 +410,7 @@ func TestCollapseNodeMovesCursorToParent(t *testing.T) {
 	}
 
 	model.applySearchFilter()
+	model.resetCursor()
 
 	var leafNode *Node
 	leafIndex := -1
@@ -439,6 +454,7 @@ func TestToggleNodeExpansionIgnoresLeafNodes(t *testing.T) {
 	}
 
 	model.applySearchFilter()
+	model.resetCursor()
 
 	var leafNode *Node
 	leafIndex := -1
@@ -472,6 +488,7 @@ func TestToggleFoldIgnoresLeafNodes(t *testing.T) {
 	}
 
 	model.applySearchFilter()
+	model.resetCursor()
 
 	var leafNode *Node
 	leafIndex := -1
@@ -505,6 +522,7 @@ func TestToggleFoldExpandsDefaultWhenAllCollapsed(t *testing.T) {
 	}
 
 	model.applySearchFilter()
+	model.resetCursor()
 
 	var collapseAll func(node *Node)
 	collapseAll = func(node *Node) {
@@ -550,6 +568,7 @@ func TestModelSelectedNotificationGroupedView(t *testing.T) {
 	}
 
 	model.applySearchFilter()
+	model.resetCursor()
 	cursorIndex := -1
 	for idx, node := range model.visibleNodes {
 		if node == nil || node.Kind != NodeKindNotification || node.Notification == nil {
@@ -656,18 +675,21 @@ func TestModelUpdateHandlesSearch(t *testing.T) {
 
 	model.searchQuery = "error"
 	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Len(t, model.filtered, 2)
 	assert.True(t, strings.Contains(model.filtered[0].Message, "Error"))
 
 	model.searchQuery = "not found"
 	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Len(t, model.filtered, 1)
 	assert.True(t, strings.Contains(strings.ToLower(model.filtered[0].Message), "not found"))
 
 	model.searchQuery = ""
 	model.applySearchFilter()
+	model.resetCursor()
 
 	assert.Len(t, model.filtered, 3)
 }
@@ -744,21 +766,25 @@ func TestApplySearchFilterReadStatus(t *testing.T) {
 
 	model.searchQuery = "read"
 	model.applySearchFilter()
+	model.resetCursor()
 	require.Len(t, model.filtered, 1)
 	assert.True(t, model.filtered[0].IsRead())
 
 	model.searchQuery = "unread"
 	model.applySearchFilter()
+	model.resetCursor()
 	require.Len(t, model.filtered, 1)
 	assert.False(t, model.filtered[0].IsRead())
 
 	model.searchQuery = "unread beta"
 	model.applySearchFilter()
+	model.resetCursor()
 	require.Len(t, model.filtered, 1)
 	assert.Equal(t, "Beta", model.filtered[0].Message)
 
 	model.searchQuery = "read alpha"
 	model.applySearchFilter()
+	model.resetCursor()
 	require.Len(t, model.filtered, 1)
 	assert.Equal(t, "Alpha", model.filtered[0].Message)
 }
@@ -789,6 +815,7 @@ func TestApplySearchFilterWithMockProvider(t *testing.T) {
 	}
 
 	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Len(t, model.filtered, 2)
 	assert.Equal(t, notifications[0].ID, model.filtered[0].ID)
@@ -817,6 +844,7 @@ func TestApplySearchFilterUsesDefaultTokenProvider(t *testing.T) {
 	// Test case-insensitive matching (default behavior)
 	model.searchQuery = "error"
 	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Len(t, model.filtered, 2)
 	assert.Contains(t, model.filtered[0].Message, "Error")
@@ -825,6 +853,7 @@ func TestApplySearchFilterUsesDefaultTokenProvider(t *testing.T) {
 	// Test token-based matching (all tokens must match)
 	model.searchQuery = "error file"
 	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Len(t, model.filtered, 1)
 	assert.Contains(t, model.filtered[0].Message, "file not found")
@@ -833,6 +862,7 @@ func TestApplySearchFilterUsesDefaultTokenProvider(t *testing.T) {
 	model.notifications[0].ReadTimestamp = "2024-01-01T12:00:00Z"
 	model.searchQuery = "read error"
 	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Len(t, model.filtered, 1)
 	assert.Equal(t, 1, model.filtered[0].ID)
@@ -888,6 +918,7 @@ func TestApplySearchFilterGroupedView(t *testing.T) {
 	// Search for "Error"
 	model.searchQuery = "Error"
 	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Len(t, model.filtered, 2)
 	require.NotNil(t, model.treeRoot)
@@ -927,6 +958,7 @@ func TestBuildFilteredTreePrunesEmptyGroups(t *testing.T) {
 	// Search for "Unique"
 	model.searchQuery = "Unique"
 	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Len(t, model.filtered, 1)
 	require.NotNil(t, model.treeRoot)
@@ -964,6 +996,7 @@ func TestBuildFilteredTreePreservesExpansionState(t *testing.T) {
 	// First search - build initial tree
 	model.searchQuery = ""
 	model.applySearchFilter()
+	model.resetCursor()
 	require.NotNil(t, model.treeRoot)
 
 	// Collapse session $2
@@ -975,6 +1008,7 @@ func TestBuildFilteredTreePreservesExpansionState(t *testing.T) {
 	// Second search - should preserve expansion state
 	model.searchQuery = "message"
 	model.applySearchFilter()
+	model.resetCursor()
 
 	// Find session $2 again in new tree
 	sessionNode = findChildByTitle(model.treeRoot, NodeKindSession, "$2")
@@ -998,6 +1032,7 @@ func TestBuildFilteredTreeHandlesNoMatches(t *testing.T) {
 	// Search for something that doesn't exist
 	model.searchQuery = "nonexistent"
 	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Empty(t, model.filtered)
 	assert.Nil(t, model.treeRoot)
@@ -1025,6 +1060,7 @@ func TestBuildFilteredTreeWithEmptyQuery(t *testing.T) {
 	// Empty search
 	model.searchQuery = ""
 	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Len(t, model.filtered, 2)
 	require.NotNil(t, model.treeRoot)
@@ -1049,6 +1085,7 @@ func TestBuildFilteredTreeGroupCounts(t *testing.T) {
 	// Search for "Error"
 	model.searchQuery = "Error"
 	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Len(t, model.filtered, 2)
 	require.NotNil(t, model.treeRoot)
@@ -1188,6 +1225,7 @@ func TestUpdateViewportContentGroupedViewWithEmptyTree(t *testing.T) {
 	}
 
 	model.applySearchFilter()
+	model.resetCursor()
 
 	assert.Contains(t, model.viewport.View(), "No notifications found")
 }
@@ -1203,6 +1241,7 @@ func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 	}
 
 	model.applySearchFilter()
+	model.resetCursor()
 	require.NotEmpty(t, model.visibleNodes)
 	model.cursor = 0
 	model.updateViewportContent()
@@ -1213,11 +1252,10 @@ func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 
 	expectedGroupRow := render.RenderGroupRow(render.GroupRow{
 		Node: &render.GroupNode{
-			Title:       groupNode.Title,
-			Display:     groupNode.Display,
-			Expanded:    groupNode.Expanded,
-			Count:       groupNode.Count,
-			UnreadCount: groupNode.UnreadCount,
+			Title:    groupNode.Title,
+			Display:  groupNode.Display,
+			Expanded: groupNode.Expanded,
+			Count:    groupNode.Count,
 		},
 		Selected: true,
 		Level:    getTreeLevel(groupNode),
@@ -1264,6 +1302,7 @@ func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
 	}
 
 	model.applySearchFilter()
+	model.resetCursor()
 
 	var leafNode *Node
 	var leafIndex int
@@ -1298,11 +1337,10 @@ func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
 
 	expectedGroupRow := render.RenderGroupRow(render.GroupRow{
 		Node: &render.GroupNode{
-			Title:       groupNode.Title,
-			Display:     groupNode.Display,
-			Expanded:    groupNode.Expanded,
-			Count:       groupNode.Count,
-			UnreadCount: groupNode.UnreadCount,
+			Title:    groupNode.Title,
+			Display:  groupNode.Display,
+			Expanded: groupNode.Expanded,
+			Count:    groupNode.Count,
 		},
 		Selected: false,
 		Level:    getTreeLevel(groupNode),
@@ -1399,6 +1437,7 @@ func TestHandleDismissGroupedViewUsesVisibleNodes(t *testing.T) {
 	require.NoError(t, err)
 	model.viewMode = viewModeGrouped
 	model.applySearchFilter()
+	model.resetCursor()
 	cursorIndex := -1
 	for idx, node := range model.visibleNodes {
 		if node == nil || node.Kind != NodeKindNotification || node.Notification == nil {
@@ -1489,6 +1528,7 @@ func TestHandleJumpGroupedViewUsesVisibleNodes(t *testing.T) {
 	}
 
 	model.applySearchFilter()
+	model.resetCursor()
 	model.cursor = 0
 
 	cmd := model.handleJump()
@@ -1532,6 +1572,7 @@ func TestModelUpdateHandlesZaToggleFold(t *testing.T) {
 	}
 
 	model.applySearchFilter()
+	model.resetCursor()
 
 	var groupNode *Node
 	groupIndex := -1
@@ -2112,6 +2153,7 @@ func TestExecuteCommandExpandLevelPersistsSettings(t *testing.T) {
 		},
 	}
 	model.applySearchFilter()
+	model.resetCursor()
 
 	model.commandQuery = "expand-level 3"
 	cmd := model.executeCommand()
@@ -2233,78 +2275,6 @@ func TestModelCorruptedSettingsFile(t *testing.T) {
 	assert.NotNil(t, model)
 }
 
-func TestAutoExpandUnread(t *testing.T) {
-	setupStorage(t)
-	mockClient := stubSessionFetchers(t)
-
-	// Create notifications with mixed read states
-	_, err := storage.AddNotification("Unread message 1", "2024-01-01T12:00:00Z", "$1", "@1", "%1", "pane1", "info")
-	require.NoError(t, err)
-	id2, err := storage.AddNotification("Read message 1", "2024-01-02T12:00:00Z", "$1", "@1", "%1", "pane1", "info")
-	require.NoError(t, err)
-	storage.MarkNotificationRead(id2)
-	_, err = storage.AddNotification("Unread message 2", "2024-01-03T12:00:00Z", "$2", "@2", "%2", "pane2", "info")
-	require.NoError(t, err)
-
-	model, err := NewModel(mockClient)
-	require.NoError(t, err)
-
-	// Configure grouped view
-	model.groupBy = settings.GroupBySession
-	model.viewMode = viewModeGrouped
-	model.applySearchFilter()
-
-	// Test with autoExpandUnread disabled
-	model.autoExpandUnread = false
-
-	// First collapse all groups
-	model.defaultExpandLevel = 0
-	model.applyDefaultExpansion()
-
-	// Verify groups are collapsed
-	require.NotNil(t, model.treeRoot)
-	for _, child := range model.treeRoot.Children {
-		if child.Kind == NodeKindSession {
-			assert.False(t, child.Expanded, "Session should be collapsed after applying default expansion level 0")
-			break
-		}
-	}
-
-	// Apply search filter with autoExpandUnread disabled
-	model.applySearchFilter()
-
-	// Groups with unread items should remain collapsed when autoExpandUnread is false
-	require.NotNil(t, model.treeRoot)
-	for _, child := range model.treeRoot.Children {
-		if child.Kind == NodeKindSession && child.UnreadCount > 0 {
-			assert.False(t, child.Expanded, "Session with unread items should not be auto-expanded when autoExpandUnread is false")
-			break
-		}
-	}
-
-	// Test with autoExpandUnread enabled
-	model.autoExpandUnread = true
-
-	// Collapse groups again to test auto-expand
-	model.defaultExpandLevel = 0
-	model.applyDefaultExpansion()
-
-	// Apply search filter with autoExpandUnread enabled
-	model.applySearchFilter()
-
-	// Groups with unread items should be auto-expanded
-	require.NotNil(t, model.treeRoot)
-	foundSessionWithUnread := false
-	for _, child := range model.treeRoot.Children {
-		if child.Kind == NodeKindSession && child.UnreadCount > 0 {
-			foundSessionWithUnread = true
-			assert.True(t, child.Expanded, "Session with unread items should be auto-expanded when autoExpandUnread is true")
-			break
-		}
-	}
-	assert.True(t, foundSessionWithUnread, "Should have found at least one session with unread items")
-}
-
 func TestModelSettingsLifecycle(t *testing.T) {
 	tmpDir := t.TempDir()
 	setupConfig(t, tmpDir)
@@ -2366,6 +2336,7 @@ func TestExpansionStatePreservedAfterActions(t *testing.T) {
 	require.NoError(t, err)
 	model.viewMode = settings.ViewModeGrouped
 	model.applySearchFilter()
+	model.resetCursor()
 
 	// Find session $1 node
 	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$1")
@@ -2425,6 +2396,7 @@ func TestExpansionStateAppliedWithGroupByWindow(t *testing.T) {
 	}
 
 	model.applySearchFilter()
+	model.resetCursor()
 
 	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$1")
 	require.NotNil(t, sessionNode)
@@ -2456,6 +2428,7 @@ func TestNodeExpansionKeySerializesPathSegments(t *testing.T) {
 	}
 
 	model.applySearchFilter()
+	model.resetCursor()
 
 	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "dev:one")
 	require.NotNil(t, sessionNode)
@@ -2483,7 +2456,7 @@ func TestLoadNotificationsRestoresSavedExpansionState(t *testing.T) {
 		width:          80,
 	}
 
-	require.NoError(t, model.loadNotifications())
+	require.NoError(t, model.loadNotifications(false))
 
 	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$1")
 	require.NotNil(t, sessionNode)
@@ -2493,7 +2466,7 @@ func TestLoadNotificationsRestoresSavedExpansionState(t *testing.T) {
 	model.collapseNode(windowNode)
 	assert.False(t, windowNode.Expanded)
 
-	require.NoError(t, model.loadNotifications())
+	require.NoError(t, model.loadNotifications(false))
 
 	sessionNode = findChildByTitle(model.treeRoot, NodeKindSession, "$1")
 	require.NotNil(t, sessionNode)
@@ -2517,6 +2490,7 @@ func TestApplyExpansionStateIgnoresStaleKeys(t *testing.T) {
 	}
 
 	model.applySearchFilter()
+	model.resetCursor()
 
 	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$1")
 	require.NotNil(t, sessionNode)
@@ -2540,6 +2514,7 @@ func TestGroupedViewWithGroupByNone(t *testing.T) {
 	model.groupBy = settings.GroupByNone
 	model.defaultExpandLevel = 1
 	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Len(t, model.visibleNodes, 2)
 	assert.Equal(t, NodeKindNotification, model.visibleNodes[0].Kind)
@@ -2551,4 +2526,315 @@ func TestGroupedViewWithGroupByNone(t *testing.T) {
 	handled := model.toggleNodeExpansion()
 	assert.False(t, handled)
 	assert.Len(t, model.visibleNodes, 2)
+
+}
+
+// TestCursorPreservationDismissFlatView tests that cursor is preserved after dismiss in flat view.
+func TestCursorPreservationDismissFlatView(t *testing.T) {
+	setupStorage(t)
+	mockClient := stubSessionFetchers(t)
+
+	// Add 5 notifications
+	for i := 1; i <= 5; i++ {
+		_, err := storage.AddNotification(fmt.Sprintf("Message %d", i), "2024-01-01T12:00:00Z", "$1", "@1", "%1", "", "info")
+		require.NoError(t, err)
+	}
+
+	model, err := NewModel(mockClient)
+	require.NoError(t, err)
+	require.Len(t, model.filtered, 5)
+
+	// Move cursor to position 2
+	model.cursor = 2
+	assert.Equal(t, 2, model.cursor)
+
+	// Dismiss the notification at cursor 2
+	selected, ok := model.selectedNotification()
+	require.True(t, ok)
+	require.NotNil(t, selected)
+	id := selected.ID
+	storage.DismissNotification(strconv.Itoa(id))
+
+	// Reload with cursor preservation
+	err = model.loadNotifications(true)
+	require.NoError(t, err)
+	require.Len(t, model.filtered, 4)
+
+	// Cursor should stay at position 2 (adjusting for bounds)
+	assert.Equal(t, 2, model.cursor)
+}
+
+// TestCursorPreservationDismissGroupedView tests that cursor is preserved after dismiss in grouped view.
+func TestCursorPreservationDismissGroupedView(t *testing.T) {
+	setupStorage(t)
+	mockClient := stubSessionFetchers(t)
+
+	// Add notifications in different sessions
+	for i := 1; i <= 3; i++ {
+		_, err := storage.AddNotification(fmt.Sprintf("Session 1 - Message %d", i), "2024-01-01T12:00:00Z", "$1", "@1", "%1", "", "info")
+		require.NoError(t, err)
+	}
+	for i := 1; i <= 3; i++ {
+		_, err := storage.AddNotification(fmt.Sprintf("Session 2 - Message %d", i), "2024-01-01T12:00:00Z", "$2", "@1", "%1", "", "info")
+		require.NoError(t, err)
+	}
+
+	model, err := NewModel(mockClient)
+	require.NoError(t, err)
+	model.viewMode = viewModeGrouped
+	model.groupBy = settings.GroupBySession
+	err = model.loadNotifications(false)
+	require.NoError(t, err)
+
+	// In grouped view, visible nodes include group nodes
+	require.Greater(t, len(model.visibleNodes), 0)
+
+	// Move cursor to a notification
+	model.cursor = 3 // Should be on a notification
+	assert.Equal(t, 3, model.cursor)
+
+	// Dismiss the notification at cursor 3
+	selected, ok := model.selectedNotification()
+	require.True(t, ok)
+	require.NotNil(t, selected)
+	id := selected.ID
+	storage.DismissNotification(strconv.Itoa(id))
+
+	// Reload with cursor preservation
+	err = model.loadNotifications(true)
+	require.NoError(t, err)
+
+	// Cursor should stay at position 3 (adjusting for bounds)
+	assert.Equal(t, 3, model.cursor)
+}
+
+// TestCursorPreservationMarkRead tests that cursor is preserved after marking as read.
+func TestCursorPreservationMarkRead(t *testing.T) {
+	setupStorage(t)
+	mockClient := stubSessionFetchers(t)
+
+	// Add 5 notifications
+	for i := 1; i <= 5; i++ {
+		_, err := storage.AddNotification(fmt.Sprintf("Message %d", i), "2024-01-01T12:00:00Z", "$1", "@1", "%1", "", "info")
+		require.NoError(t, err)
+	}
+
+	model, err := NewModel(mockClient)
+	require.NoError(t, err)
+	require.Len(t, model.filtered, 5)
+
+	// Move cursor to position 2
+	model.cursor = 2
+	selected, ok := model.selectedNotification()
+	require.True(t, ok)
+	require.NotNil(t, selected)
+	selectedID := selected.ID
+	assert.Equal(t, 2, model.cursor)
+
+	// Mark the notification as read
+	err = storage.MarkNotificationRead(strconv.Itoa(selectedID))
+	require.NoError(t, err)
+
+	// Reload with cursor preservation
+	err = model.loadNotifications(true)
+	require.NoError(t, err)
+	require.Len(t, model.filtered, 5)
+
+	// Cursor should be restored to the same notification
+	selectedAfter, ok := model.selectedNotification()
+	require.True(t, ok)
+	assert.NotNil(t, selectedAfter)
+	assert.Equal(t, selectedID, selectedAfter.ID)
+	assert.Equal(t, 2, model.cursor)
+}
+
+// TestCursorPreservationMarkUnread tests that cursor is preserved after marking as unread.
+func TestCursorPreservationMarkUnread(t *testing.T) {
+	setupStorage(t)
+	mockClient := stubSessionFetchers(t)
+
+	// Add 5 notifications
+	for i := 1; i <= 5; i++ {
+		_, err := storage.AddNotification(fmt.Sprintf("Message %d", i), "2024-01-01T12:00:00Z", "$1", "@1", "%1", "", "info")
+		require.NoError(t, err)
+	}
+
+	model, err := NewModel(mockClient)
+	require.NoError(t, err)
+	require.Len(t, model.filtered, 5)
+
+	// Move cursor to position 2
+	model.cursor = 2
+	selected, ok := model.selectedNotification()
+	require.True(t, ok)
+	require.NotNil(t, selected)
+	selectedID := selected.ID
+	assert.Equal(t, 2, model.cursor)
+
+	// First mark as read
+	err = storage.MarkNotificationRead(strconv.Itoa(selectedID))
+	require.NoError(t, err)
+
+	// Reload with cursor preservation
+	err = model.loadNotifications(true)
+	require.NoError(t, err)
+
+	// Mark as unread
+	err = storage.MarkNotificationUnread(strconv.Itoa(selectedID))
+	require.NoError(t, err)
+
+	// Reload with cursor preservation
+	err = model.loadNotifications(true)
+	require.NoError(t, err)
+	require.Len(t, model.filtered, 5)
+
+	// Cursor should be restored to the same notification
+	selectedAfter, ok := model.selectedNotification()
+	require.True(t, ok)
+	assert.NotNil(t, selectedAfter)
+	assert.Equal(t, selectedID, selectedAfter.ID)
+	assert.Equal(t, 2, model.cursor)
+}
+
+// TestCursorPreservationDismissLastItem tests cursor behavior when dismissing the last item.
+func TestCursorPreservationDismissLastItem(t *testing.T) {
+	setupStorage(t)
+	mockClient := stubSessionFetchers(t)
+
+	// Add 3 notifications
+	for i := 1; i <= 3; i++ {
+		_, err := storage.AddNotification(fmt.Sprintf("Message %d", i), "2024-01-01T12:00:00Z", "$1", "@1", "%1", "", "info")
+		require.NoError(t, err)
+	}
+
+	model, err := NewModel(mockClient)
+	require.NoError(t, err)
+	require.Len(t, model.filtered, 3)
+
+	// Move cursor to the last item (position 2)
+	model.cursor = 2
+	assert.Equal(t, 2, model.cursor)
+
+	// Dismiss the last notification
+	selected, ok := model.selectedNotification()
+	require.True(t, ok)
+	require.NotNil(t, selected)
+	id := selected.ID
+	storage.DismissNotification(strconv.Itoa(id))
+
+	// Reload with cursor preservation
+	err = model.loadNotifications(true)
+	require.NoError(t, err)
+	require.Len(t, model.filtered, 2)
+
+	// Manually adjust cursor bounds (simulating what handleDismiss does)
+	model.adjustCursorBounds()
+
+	// Cursor should be adjusted to the new last item (position 1)
+	assert.Equal(t, 1, model.cursor)
+}
+
+// TestCursorPreservationSingleItem tests cursor behavior with a single item.
+func TestCursorPreservationSingleItem(t *testing.T) {
+	setupStorage(t)
+	mockClient := stubSessionFetchers(t)
+
+	// Add 1 notification
+	_, err := storage.AddNotification("Single message", "2024-01-01T12:00:00Z", "$1", "@1", "%1", "", "info")
+	require.NoError(t, err)
+
+	model, err := NewModel(mockClient)
+	require.NoError(t, err)
+	require.Len(t, model.filtered, 1)
+
+	// Cursor should be at position 0
+	assert.Equal(t, 0, model.cursor)
+
+	// Dismiss the only notification
+	selected, ok := model.selectedNotification()
+	require.True(t, ok)
+	require.NotNil(t, selected)
+	id := selected.ID
+	storage.DismissNotification(strconv.Itoa(id))
+
+	// Reload with cursor preservation
+	err = model.loadNotifications(true)
+	require.NoError(t, err)
+	require.Len(t, model.filtered, 0)
+
+	// Cursor should be at position 0 even when list is empty
+	assert.Equal(t, 0, model.cursor)
+}
+
+// TestGetNodeIdentifier tests that node identifiers are generated correctly.
+func TestGetNodeIdentifier(t *testing.T) {
+	model := &Model{
+		treeRoot: &Node{
+			Kind:  NodeKindRoot,
+			Title: "root",
+			Children: []*Node{
+				{
+					Kind:  NodeKindSession,
+					Title: "$1",
+					Children: []*Node{
+						{
+							Kind: NodeKindNotification,
+							Notification: &notification.Notification{
+								ID: 42,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	sessionNode := model.treeRoot.Children[0]
+	notifNode := sessionNode.Children[0]
+
+	// Notification node identifier should use ID
+	notifID := model.getNodeIdentifier(notifNode)
+	assert.Equal(t, "notif:42", notifID)
+
+	// Session node identifier should use kind and title
+	sessionID := model.getNodeIdentifier(sessionNode)
+	assert.Equal(t, "session:$1", sessionID)
+
+	// Root node identifier
+	rootID := model.getNodeIdentifier(model.treeRoot)
+	assert.Equal(t, "root", rootID)
+}
+
+// TestRestoreCursor tests that cursor is correctly restored by identifier.
+func TestRestoreCursor(t *testing.T) {
+	model := &Model{
+		viewMode: viewModeGrouped,
+		groupBy:  settings.GroupBySession,
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "First"},
+			{ID: 2, Session: "$1", Window: "@1", Pane: "%1", Message: "Second"},
+		},
+		viewport: viewport.New(80, 22),
+		width:    80,
+	}
+
+	model.applySearchFilter()
+	model.resetCursor()
+
+	// In grouped mode, visible nodes will be:
+	// Index 0: Session node
+	// Index 1: Notification 1
+	// Index 2: Notification 2
+	require.GreaterOrEqual(t, len(model.visibleNodes), 2)
+
+	// Find the first notification's identifier
+	firstNotif := model.visibleNodes[1] // Index 1 (0 is session node)
+	identifier := model.getNodeIdentifier(firstNotif)
+	assert.Equal(t, "notif:1", identifier)
+
+	// Restore cursor to this notification
+	model.restoreCursor(identifier)
+
+	// Cursor should be at index 1
+	assert.Equal(t, 1, model.cursor)
 }

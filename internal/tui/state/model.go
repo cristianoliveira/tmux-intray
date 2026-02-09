@@ -55,9 +55,9 @@ type Model struct {
 	viewMode           string
 	groupBy            string
 	defaultExpandLevel int
-	autoExpandUnread   bool
-	expansionState     map[string]bool
-	loadedSettings     *settings.Settings // Track loaded settings for comparison
+
+	expansionState map[string]bool
+	loadedSettings *settings.Settings // Track loaded settings for comparison
 
 	treeRoot     *Node
 	visibleNodes []*Node
@@ -104,6 +104,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.searchMode = false
 				m.searchQuery = ""
 				m.applySearchFilter()
+				m.resetCursor()
 			} else if m.commandMode {
 				m.commandMode = false
 				m.commandQuery = ""
@@ -132,6 +133,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.searchQuery += string(r)
 				}
 				m.applySearchFilter()
+				m.resetCursor()
 			} else if m.commandMode {
 				// In command mode, append runes to command query
 				for _, r := range msg.Runes {
@@ -144,6 +146,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if len(m.searchQuery) > 0 {
 					m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
 					m.applySearchFilter()
+					m.resetCursor()
 				}
 			} else if m.commandMode {
 				if len(m.commandQuery) > 0 {
@@ -185,6 +188,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.searchMode = true
 			m.searchQuery = ""
 			m.applySearchFilter()
+			m.resetCursor()
 		case ":":
 			// Enter command mode
 			if !m.searchMode && !m.commandMode {
@@ -279,7 +283,6 @@ func (m *Model) View() string {
 		SearchQuery:  m.searchQuery,
 		CommandQuery: m.commandQuery,
 		Grouped:      m.isGroupedView(),
-		ViewMode:     m.viewMode,
 	}))
 
 	return s.String()
@@ -302,8 +305,8 @@ func (m *Model) ToState() settings.TUIState {
 		GroupBy:               m.groupBy,
 		DefaultExpandLevel:    m.defaultExpandLevel,
 		DefaultExpandLevelSet: true,
-		AutoExpandUnread:      m.autoExpandUnread,
-		ExpansionState:        m.expansionState,
+
+		ExpansionState: m.expansionState,
 	}
 }
 
@@ -339,7 +342,7 @@ func (m *Model) FromState(state settings.TUIState) error {
 	if state.DefaultExpandLevelSet {
 		m.defaultExpandLevel = state.DefaultExpandLevel
 	}
-	m.autoExpandUnread = state.AutoExpandUnread
+
 	if state.ExpansionState != nil {
 		m.expansionState = state.ExpansionState
 	}
@@ -368,6 +371,7 @@ func (m *Model) FromState(state settings.TUIState) error {
 	}
 
 	m.applySearchFilter()
+	m.resetCursor()
 	return nil
 }
 
@@ -406,7 +410,7 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 		ensureTmuxRunning: core.EnsureTmuxRunning,
 		jumpToPane:        core.JumpToPane,
 	}
-	err = m.loadNotifications()
+	err = m.loadNotifications(false)
 	if err != nil {
 		return &Model{}, err
 	}
@@ -422,6 +426,8 @@ type saveSettingsFailedMsg struct {
 }
 
 // applySearchFilter filters notifications based on the search query.
+// This function only updates the filtered notifications; cursor management
+// should be handled separately by resetCursor() or restoreCursor().
 func (m *Model) applySearchFilter() {
 	m.invalidateCache()
 
@@ -459,8 +465,84 @@ func (m *Model) applySearchFilter() {
 		m.invalidateCache()
 		m.visibleNodes = nil
 	}
-	m.cursor = 0
 	m.updateViewportContent()
+}
+
+// getNodeIdentifier returns a stable identifier for a node.
+// For notification nodes, this is the notification ID.
+// For group nodes, this is a combination of the node kind and title.
+func (m *Model) getNodeIdentifier(node *Node) string {
+	if node == nil {
+		return ""
+	}
+	if node.Kind == NodeKindNotification && node.Notification != nil {
+		return fmt.Sprintf("notif:%d", node.Notification.ID)
+	}
+	// For group nodes, use the node kind and path
+	if node.Kind == NodeKindRoot {
+		return "root"
+	}
+	path, ok := findNodePath(m.treeRoot, node)
+	if !ok || len(path) == 0 {
+		return ""
+	}
+	var parts []string
+	for _, n := range path {
+		if n.Kind == NodeKindRoot {
+			continue
+		}
+		parts = append(parts, string(n.Kind), n.Title)
+	}
+	return strings.Join(parts, ":")
+}
+
+// findNodeByIdentifier finds a node by its identifier in the visible nodes list.
+func (m *Model) findNodeByIdentifier(identifier string) *Node {
+	for _, node := range m.visibleNodes {
+		if m.getNodeIdentifier(node) == identifier {
+			return node
+		}
+	}
+	return nil
+}
+
+// restoreCursor restores the cursor to the node with the given identifier.
+// If the node is not found, it adjusts the cursor to be within bounds.
+func (m *Model) restoreCursor(identifier string) {
+	if identifier == "" {
+		m.adjustCursorBounds()
+		return
+	}
+
+	targetNode := m.findNodeByIdentifier(identifier)
+	if targetNode != nil {
+		for i, node := range m.visibleNodes {
+			if node == targetNode {
+				m.cursor = i
+				m.ensureCursorVisible()
+				return
+			}
+		}
+	}
+
+	// If we couldn't find the exact node, adjust to bounds
+	m.adjustCursorBounds()
+}
+
+// adjustCursorBounds ensures the cursor is within valid bounds.
+func (m *Model) adjustCursorBounds() {
+	listLen := m.currentListLen()
+	if listLen == 0 {
+		m.cursor = 0
+		return
+	}
+	if m.cursor >= listLen {
+		m.cursor = listLen - 1
+	}
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+	m.ensureCursorVisible()
 }
 
 // executeCommand executes the current command query and returns a command to run.
@@ -514,6 +596,7 @@ func (m *Model) executeCommand() tea.Cmd {
 
 		m.groupBy = groupBy
 		m.applySearchFilter()
+		m.resetCursor()
 		if err := m.saveSettings(); err != nil {
 			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 			return nil
@@ -546,32 +629,7 @@ func (m *Model) executeCommand() tea.Cmd {
 		}
 		colors.Info(fmt.Sprintf("Default expand level: %d", m.defaultExpandLevel))
 		return nil
-	case "auto-expand-unread":
-		if len(args) != 1 {
-			colors.Warning("Invalid usage: auto-expand-unread <true|false>")
-			return nil
-		}
 
-		autoExpand, err := strconv.ParseBool(args[0])
-		if err != nil {
-			colors.Warning(fmt.Sprintf("Invalid auto-expand-unread value: %s (expected true or false)", args[0]))
-			return nil
-		}
-
-		if m.autoExpandUnread == autoExpand {
-			return nil
-		}
-
-		m.autoExpandUnread = autoExpand
-		if m.isGroupedView() {
-			m.applySearchFilter() // Reapply search to refresh tree with new auto-expand setting
-		}
-		if err := m.saveSettings(); err != nil {
-			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
-			return nil
-		}
-		colors.Info(fmt.Sprintf("Auto expand unread: %t", m.autoExpandUnread))
-		return nil
 	case "toggle-view":
 		if len(args) > 0 {
 			colors.Warning("Invalid usage: toggle-view")
@@ -584,9 +642,9 @@ func (m *Model) executeCommand() tea.Cmd {
 			m.viewMode = viewModeGrouped
 		}
 		m.applySearchFilter()
+		m.resetCursor()
 		if err := m.saveSettings(); err != nil {
 			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
-			return nil
 		}
 		colors.Info(fmt.Sprintf("View mode: %s", m.viewMode))
 		return nil
@@ -627,11 +685,10 @@ func (m *Model) updateViewportContent() {
 				if isGroupNode(node) {
 					content.WriteString(render.RenderGroupRow(render.GroupRow{
 						Node: &render.GroupNode{
-							Title:       node.Title,
-							Display:     node.Display,
-							Expanded:    node.Expanded,
-							Count:       node.Count,
-							UnreadCount: node.UnreadCount,
+							Title:    node.Title,
+							Display:  node.Display,
+							Expanded: node.Expanded,
+							Count:    node.Count,
 						},
 						Selected: rowIndex == m.cursor,
 						Level:    getTreeLevel(node),
@@ -720,19 +777,23 @@ func (m *Model) handleDismiss() tea.Cmd {
 		return nil
 	}
 
-	// Reload notifications to get updated state
-	if err := m.loadNotifications(); err != nil {
+	// Save the current cursor position before reload
+	oldCursor := m.cursor
+
+	// Reload notifications to get updated state (preserve cursor)
+	if err := m.loadNotifications(true); err != nil {
 		colors.Error(fmt.Sprintf("Failed to reload notifications: %v", err))
 		return nil
 	}
 
-	// Adjust cursor if necessary
+	// Restore cursor to the saved position, adjusting for bounds
 	listLen := m.currentListLen()
-	if m.cursor >= listLen {
-		m.cursor = listLen - 1
-	}
-	if m.cursor < 0 {
+	if listLen == 0 {
 		m.cursor = 0
+	} else {
+		m.cursor = oldCursor
+		// Ensure cursor is within bounds
+		m.adjustCursorBounds()
 	}
 
 	// Update viewport content
@@ -752,24 +813,23 @@ func (m *Model) markSelectedRead() tea.Cmd {
 		return nil
 	}
 
+	// Save the notification ID to restore cursor later
+	selectedID := selected.ID
+
 	id := strconv.Itoa(selected.ID)
 	if err := storage.MarkNotificationRead(id); err != nil {
 		colors.Error(fmt.Sprintf("Failed to mark notification read: %v", err))
 		return nil
 	}
 
-	if err := m.loadNotifications(); err != nil {
+	if err := m.loadNotifications(true); err != nil {
 		colors.Error(fmt.Sprintf("Failed to reload notifications: %v", err))
 		return nil
 	}
 
-	listLen := m.currentListLen()
-	if m.cursor >= listLen {
-		m.cursor = listLen - 1
-	}
-	if m.cursor < 0 {
-		m.cursor = 0
-	}
+	// Restore cursor to the selected notification
+	identifier := fmt.Sprintf("notif:%d", selectedID)
+	m.restoreCursor(identifier)
 
 	m.updateViewportContent()
 	return nil
@@ -786,24 +846,23 @@ func (m *Model) markSelectedUnread() tea.Cmd {
 		return nil
 	}
 
+	// Save the notification ID to restore cursor later
+	selectedID := selected.ID
+
 	id := strconv.Itoa(selected.ID)
 	if err := storage.MarkNotificationUnread(id); err != nil {
 		colors.Error(fmt.Sprintf("tui: failed to mark notification unread: %v", err))
 		return nil
 	}
 
-	if err := m.loadNotifications(); err != nil {
+	if err := m.loadNotifications(true); err != nil {
 		colors.Error(fmt.Sprintf("tui: failed to reload notifications: %v", err))
 		return nil
 	}
 
-	listLen := m.currentListLen()
-	if m.cursor >= listLen {
-		m.cursor = listLen - 1
-	}
-	if m.cursor < 0 {
-		m.cursor = 0
-	}
+	// Restore cursor to the selected notification
+	identifier := fmt.Sprintf("notif:%d", selectedID)
+	m.restoreCursor(identifier)
 
 	m.updateViewportContent()
 	return nil
@@ -851,8 +910,27 @@ func (m *Model) handleJump() tea.Cmd {
 	return tea.Quit
 }
 
+// resetCursor resets the cursor to the first item.
+func (m *Model) resetCursor() {
+	m.cursor = 0
+}
+
 // loadNotifications loads notifications from storage.
-func (m *Model) loadNotifications() error {
+// If preserveCursor is true, attempts to maintain the current cursor position.
+func (m *Model) loadNotifications(preserveCursor bool) error {
+	var savedCursorPos int
+	var savedNodeID string
+
+	if preserveCursor {
+		// Save current cursor state
+		savedCursorPos = m.cursor
+		if m.isGroupedView() && m.cursor < len(m.visibleNodes) {
+			savedNodeID = m.getNodeIdentifier(m.visibleNodes[m.cursor])
+		} else if !m.isGroupedView() && m.cursor < len(m.filtered) {
+			savedNodeID = fmt.Sprintf("notif:%d", m.filtered[m.cursor].ID)
+		}
+	}
+
 	lines, err := storage.ListNotifications("active", "", "", "", "", "", "", "")
 	if err != nil {
 		return fmt.Errorf("failed to load notifications: %w", err)
@@ -863,6 +941,11 @@ func (m *Model) loadNotifications() error {
 		m.treeRoot = nil
 		m.invalidateCache()
 		m.visibleNodes = nil
+		if preserveCursor {
+			m.adjustCursorBounds()
+		} else {
+			m.resetCursor()
+		}
 		m.updateViewportContent()
 		return nil
 	}
@@ -886,6 +969,20 @@ func (m *Model) loadNotifications() error {
 
 	m.notifications = notifications
 	m.applySearchFilter()
+
+	if preserveCursor {
+		if savedNodeID != "" {
+			// Try to restore cursor to the same notification
+			m.restoreCursor(savedNodeID)
+		} else {
+			// If we couldn't save the node ID, just adjust to bounds
+			m.cursor = savedCursorPos
+			m.adjustCursorBounds()
+		}
+	} else {
+		m.resetCursor()
+	}
+
 	return nil
 }
 
@@ -902,6 +999,7 @@ func (m *Model) cycleViewMode() {
 
 	m.viewMode = nextMode
 	m.applySearchFilter()
+	m.resetCursor()
 
 	if err := m.saveSettings(); err != nil {
 		colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
@@ -1417,11 +1515,6 @@ func (m *Model) applyExpansionState(node *Node) {
 			node.Expanded = true
 		}
 
-		// Auto-expand groups with unread items if setting is enabled
-		if m.autoExpandUnread && node.UnreadCount > 0 {
-			node.Expanded = true
-			m.updateExpansionState(node, true)
-		}
 	}
 
 	// Recursively apply to children
