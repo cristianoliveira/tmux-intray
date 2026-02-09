@@ -103,7 +103,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.searchMode {
 				m.searchMode = false
 				m.searchQuery = ""
-				m.applySearchFilter(false)
+				m.applySearchFilter()
+				m.resetCursor()
 			} else if m.commandMode {
 				m.commandMode = false
 				m.commandQuery = ""
@@ -131,7 +132,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				for _, r := range msg.Runes {
 					m.searchQuery += string(r)
 				}
-				m.applySearchFilter(false)
+				m.applySearchFilter()
+				m.resetCursor()
 			} else if m.commandMode {
 				// In command mode, append runes to command query
 				for _, r := range msg.Runes {
@@ -143,7 +145,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.searchMode {
 				if len(m.searchQuery) > 0 {
 					m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
-					m.applySearchFilter(false)
+					m.applySearchFilter()
+					m.resetCursor()
 				}
 			} else if m.commandMode {
 				if len(m.commandQuery) > 0 {
@@ -184,7 +187,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Enter search mode
 			m.searchMode = true
 			m.searchQuery = ""
-			m.applySearchFilter(false)
+			m.applySearchFilter()
+			m.resetCursor()
 		case ":":
 			// Enter command mode
 			if !m.searchMode && !m.commandMode {
@@ -366,7 +370,8 @@ func (m *Model) FromState(state settings.TUIState) error {
 		}
 	}
 
-	m.applySearchFilter(false)
+	m.applySearchFilter()
+	m.resetCursor()
 	return nil
 }
 
@@ -421,9 +426,9 @@ type saveSettingsFailedMsg struct {
 }
 
 // applySearchFilter filters notifications based on the search query.
-// If preserveCursor is true, the current cursor position is preserved.
-// Otherwise, the cursor is reset to 0.
-func (m *Model) applySearchFilter(preserveCursor bool) {
+// This function only updates the filtered notifications; cursor management
+// should be handled separately by resetCursor() or restoreCursor().
+func (m *Model) applySearchFilter() {
 	m.invalidateCache()
 
 	query := strings.TrimSpace(m.searchQuery)
@@ -459,9 +464,6 @@ func (m *Model) applySearchFilter(preserveCursor bool) {
 		m.treeRoot = nil
 		m.invalidateCache()
 		m.visibleNodes = nil
-	}
-	if !preserveCursor {
-		m.cursor = 0
 	}
 	m.updateViewportContent()
 }
@@ -593,7 +595,8 @@ func (m *Model) executeCommand() tea.Cmd {
 		}
 
 		m.groupBy = groupBy
-		m.applySearchFilter(false)
+		m.applySearchFilter()
+		m.resetCursor()
 		if err := m.saveSettings(); err != nil {
 			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 			return nil
@@ -638,7 +641,8 @@ func (m *Model) executeCommand() tea.Cmd {
 		} else {
 			m.viewMode = viewModeGrouped
 		}
-		m.applySearchFilter(false)
+		m.applySearchFilter()
+		m.resetCursor()
 		if err := m.saveSettings(); err != nil {
 			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 		}
@@ -906,9 +910,27 @@ func (m *Model) handleJump() tea.Cmd {
 	return tea.Quit
 }
 
+// resetCursor resets the cursor to the first item.
+func (m *Model) resetCursor() {
+	m.cursor = 0
+}
+
 // loadNotifications loads notifications from storage.
-// If preserveCursor is true, the current cursor position is preserved.
+// If preserveCursor is true, attempts to maintain the current cursor position.
 func (m *Model) loadNotifications(preserveCursor bool) error {
+	var savedCursorPos int
+	var savedNodeID string
+
+	if preserveCursor {
+		// Save current cursor state
+		savedCursorPos = m.cursor
+		if m.isGroupedView() && m.cursor < len(m.visibleNodes) {
+			savedNodeID = m.getNodeIdentifier(m.visibleNodes[m.cursor])
+		} else if !m.isGroupedView() && m.cursor < len(m.filtered) {
+			savedNodeID = fmt.Sprintf("notif:%d", m.filtered[m.cursor].ID)
+		}
+	}
+
 	lines, err := storage.ListNotifications("active", "", "", "", "", "", "", "")
 	if err != nil {
 		return fmt.Errorf("failed to load notifications: %w", err)
@@ -919,6 +941,11 @@ func (m *Model) loadNotifications(preserveCursor bool) error {
 		m.treeRoot = nil
 		m.invalidateCache()
 		m.visibleNodes = nil
+		if preserveCursor {
+			m.adjustCursorBounds()
+		} else {
+			m.resetCursor()
+		}
 		m.updateViewportContent()
 		return nil
 	}
@@ -941,7 +968,21 @@ func (m *Model) loadNotifications(preserveCursor bool) error {
 	})
 
 	m.notifications = notifications
-	m.applySearchFilter(preserveCursor)
+	m.applySearchFilter()
+
+	if preserveCursor {
+		if savedNodeID != "" {
+			// Try to restore cursor to the same notification
+			m.restoreCursor(savedNodeID)
+		} else {
+			// If we couldn't save the node ID, just adjust to bounds
+			m.cursor = savedCursorPos
+			m.adjustCursorBounds()
+		}
+	} else {
+		m.resetCursor()
+	}
+
 	return nil
 }
 
@@ -957,7 +998,8 @@ func (m *Model) cycleViewMode() {
 	}
 
 	m.viewMode = nextMode
-	m.applySearchFilter(false)
+	m.applySearchFilter()
+	m.resetCursor()
 
 	if err := m.saveSettings(); err != nil {
 		colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))

@@ -84,7 +84,8 @@ func TestModelGroupedModeBuildsVisibleNodes(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	require.NotNil(t, model.treeRoot)
 	require.Len(t, model.visibleNodes, 8)
@@ -109,7 +110,8 @@ func TestComputeVisibleNodesUsesCacheWhenValid(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 	require.True(t, model.cacheValid)
 	require.Len(t, model.visibleNodes, 4)
 
@@ -135,7 +137,8 @@ func TestInvalidateCacheForcesVisibleNodesRecompute(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 	require.True(t, model.cacheValid)
 	require.Len(t, model.visibleNodes, 4)
 
@@ -164,12 +167,14 @@ func TestCacheInvalidationOnSearchAndExpansionChanges(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 	require.True(t, model.cacheValid)
 	require.Len(t, model.visibleNodes, 4)
 
 	model.searchQuery = "alpha"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 	require.True(t, model.cacheValid)
 	require.Len(t, model.visibleNodes, 2)
 
@@ -204,7 +209,8 @@ func BenchmarkComputeVisibleNodesCache(b *testing.B) {
 		viewport:       viewport.New(80, 22),
 		width:          80,
 	}
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -248,7 +254,8 @@ func TestModelGroupedModeRespectsGroupByDepth(t *testing.T) {
 				width:    80,
 			}
 
-			model.applySearchFilter(false)
+			model.applySearchFilter()
+			model.resetCursor()
 
 			require.Len(t, model.visibleNodes, len(tt.expectedVisibleKinds))
 			for i, kind := range tt.expectedVisibleKinds {
@@ -268,12 +275,14 @@ func TestModelSwitchesViewModes(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 	require.NotNil(t, model.treeRoot)
 	require.NotEmpty(t, model.visibleNodes)
 
 	model.viewMode = "flat"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 	assert.Nil(t, model.treeRoot)
 	assert.Empty(t, model.visibleNodes)
 }
@@ -288,7 +297,8 @@ func TestToggleNodeExpansionGroupedView(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	var groupNode *Node
 	groupIndex := -1
@@ -327,7 +337,8 @@ func TestToggleFoldTogglesGroupNode(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	var groupNode *Node
 	groupIndex := -1
@@ -363,7 +374,8 @@ func TestToggleFoldWorksAtPaneDepth(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	var paneNode *Node
 	paneIndex := -1
@@ -397,7 +409,8 @@ func TestCollapseNodeMovesCursorToParent(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	var leafNode *Node
 	leafIndex := -1
@@ -440,7 +453,8 @@ func TestToggleNodeExpansionIgnoresLeafNodes(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	var leafNode *Node
 	leafIndex := -1
@@ -473,7 +487,8 @@ func TestToggleFoldIgnoresLeafNodes(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	var leafNode *Node
 	leafIndex := -1
@@ -506,7 +521,8 @@ func TestToggleFoldExpandsDefaultWhenAllCollapsed(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	var collapseAll func(node *Node)
 	collapseAll = func(node *Node) {
@@ -551,7 +567,8 @@ func TestModelSelectedNotificationGroupedView(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 	cursorIndex := -1
 	for idx, node := range model.visibleNodes {
 		if node == nil || node.Kind != NodeKindNotification || node.Notification == nil {
@@ -657,19 +674,22 @@ func TestModelUpdateHandlesSearch(t *testing.T) {
 	assert.Len(t, model.filtered, 3)
 
 	model.searchQuery = "error"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Len(t, model.filtered, 2)
 	assert.True(t, strings.Contains(model.filtered[0].Message, "Error"))
 
 	model.searchQuery = "not found"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Len(t, model.filtered, 1)
 	assert.True(t, strings.Contains(strings.ToLower(model.filtered[0].Message), "not found"))
 
 	model.searchQuery = ""
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	assert.Len(t, model.filtered, 3)
 }
@@ -745,22 +765,26 @@ func TestApplySearchFilterReadStatus(t *testing.T) {
 	}
 
 	model.searchQuery = "read"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 	require.Len(t, model.filtered, 1)
 	assert.True(t, model.filtered[0].IsRead())
 
 	model.searchQuery = "unread"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 	require.Len(t, model.filtered, 1)
 	assert.False(t, model.filtered[0].IsRead())
 
 	model.searchQuery = "unread beta"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 	require.Len(t, model.filtered, 1)
 	assert.Equal(t, "Beta", model.filtered[0].Message)
 
 	model.searchQuery = "read alpha"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 	require.Len(t, model.filtered, 1)
 	assert.Equal(t, "Alpha", model.filtered[0].Message)
 }
@@ -790,7 +814,8 @@ func TestApplySearchFilterWithMockProvider(t *testing.T) {
 		viewport:       viewport.New(80, 22),
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Len(t, model.filtered, 2)
 	assert.Equal(t, notifications[0].ID, model.filtered[0].ID)
@@ -818,7 +843,8 @@ func TestApplySearchFilterUsesDefaultTokenProvider(t *testing.T) {
 
 	// Test case-insensitive matching (default behavior)
 	model.searchQuery = "error"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Len(t, model.filtered, 2)
 	assert.Contains(t, model.filtered[0].Message, "Error")
@@ -826,7 +852,8 @@ func TestApplySearchFilterUsesDefaultTokenProvider(t *testing.T) {
 
 	// Test token-based matching (all tokens must match)
 	model.searchQuery = "error file"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Len(t, model.filtered, 1)
 	assert.Contains(t, model.filtered[0].Message, "file not found")
@@ -834,7 +861,8 @@ func TestApplySearchFilterUsesDefaultTokenProvider(t *testing.T) {
 	// Test read/unread filtering
 	model.notifications[0].ReadTimestamp = "2024-01-01T12:00:00Z"
 	model.searchQuery = "read error"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Len(t, model.filtered, 1)
 	assert.Equal(t, 1, model.filtered[0].ID)
@@ -889,7 +917,8 @@ func TestApplySearchFilterGroupedView(t *testing.T) {
 
 	// Search for "Error"
 	model.searchQuery = "Error"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Len(t, model.filtered, 2)
 	require.NotNil(t, model.treeRoot)
@@ -928,7 +957,8 @@ func TestBuildFilteredTreePrunesEmptyGroups(t *testing.T) {
 
 	// Search for "Unique"
 	model.searchQuery = "Unique"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Len(t, model.filtered, 1)
 	require.NotNil(t, model.treeRoot)
@@ -965,7 +995,8 @@ func TestBuildFilteredTreePreservesExpansionState(t *testing.T) {
 
 	// First search - build initial tree
 	model.searchQuery = ""
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 	require.NotNil(t, model.treeRoot)
 
 	// Collapse session $2
@@ -976,7 +1007,8 @@ func TestBuildFilteredTreePreservesExpansionState(t *testing.T) {
 
 	// Second search - should preserve expansion state
 	model.searchQuery = "message"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	// Find session $2 again in new tree
 	sessionNode = findChildByTitle(model.treeRoot, NodeKindSession, "$2")
@@ -999,7 +1031,8 @@ func TestBuildFilteredTreeHandlesNoMatches(t *testing.T) {
 
 	// Search for something that doesn't exist
 	model.searchQuery = "nonexistent"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Empty(t, model.filtered)
 	assert.Nil(t, model.treeRoot)
@@ -1026,7 +1059,8 @@ func TestBuildFilteredTreeWithEmptyQuery(t *testing.T) {
 
 	// Empty search
 	model.searchQuery = ""
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Len(t, model.filtered, 2)
 	require.NotNil(t, model.treeRoot)
@@ -1050,7 +1084,8 @@ func TestBuildFilteredTreeGroupCounts(t *testing.T) {
 
 	// Search for "Error"
 	model.searchQuery = "Error"
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Len(t, model.filtered, 2)
 	require.NotNil(t, model.treeRoot)
@@ -1189,7 +1224,8 @@ func TestUpdateViewportContentGroupedViewWithEmptyTree(t *testing.T) {
 		width:         80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	assert.Contains(t, model.viewport.View(), "No notifications found")
 }
@@ -1204,7 +1240,8 @@ func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 	require.NotEmpty(t, model.visibleNodes)
 	model.cursor = 0
 	model.updateViewportContent()
@@ -1264,7 +1301,8 @@ func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	var leafNode *Node
 	var leafIndex int
@@ -1398,7 +1436,8 @@ func TestHandleDismissGroupedViewUsesVisibleNodes(t *testing.T) {
 	model, err := NewModel(mockClient)
 	require.NoError(t, err)
 	model.viewMode = viewModeGrouped
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 	cursorIndex := -1
 	for idx, node := range model.visibleNodes {
 		if node == nil || node.Kind != NodeKindNotification || node.Notification == nil {
@@ -1488,7 +1527,8 @@ func TestHandleJumpGroupedViewUsesVisibleNodes(t *testing.T) {
 		},
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 	model.cursor = 0
 
 	cmd := model.handleJump()
@@ -1531,7 +1571,8 @@ func TestModelUpdateHandlesZaToggleFold(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	var groupNode *Node
 	groupIndex := -1
@@ -2111,7 +2152,8 @@ func TestExecuteCommandExpandLevelPersistsSettings(t *testing.T) {
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "one"},
 		},
 	}
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	model.commandQuery = "expand-level 3"
 	cmd := model.executeCommand()
@@ -2293,7 +2335,8 @@ func TestExpansionStatePreservedAfterActions(t *testing.T) {
 	model, err := NewModel(mockClient)
 	require.NoError(t, err)
 	model.viewMode = settings.ViewModeGrouped
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	// Find session $1 node
 	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$1")
@@ -2352,7 +2395,8 @@ func TestExpansionStateAppliedWithGroupByWindow(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$1")
 	require.NotNil(t, sessionNode)
@@ -2383,7 +2427,8 @@ func TestNodeExpansionKeySerializesPathSegments(t *testing.T) {
 		width:          80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "dev:one")
 	require.NotNil(t, sessionNode)
@@ -2444,7 +2489,8 @@ func TestApplyExpansionStateIgnoresStaleKeys(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$1")
 	require.NotNil(t, sessionNode)
@@ -2467,7 +2513,8 @@ func TestGroupedViewWithGroupByNone(t *testing.T) {
 	model.viewMode = settings.ViewModeGrouped
 	model.groupBy = settings.GroupByNone
 	model.defaultExpandLevel = 1
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	require.Len(t, model.visibleNodes, 2)
 	assert.Equal(t, NodeKindNotification, model.visibleNodes[0].Kind)
@@ -2771,7 +2818,8 @@ func TestRestoreCursor(t *testing.T) {
 		width:    80,
 	}
 
-	model.applySearchFilter(false)
+	model.applySearchFilter()
+	model.resetCursor()
 
 	// In grouped mode, visible nodes will be:
 	// Index 0: Session node
