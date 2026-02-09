@@ -109,7 +109,7 @@ func TestNewFromConfigAutoMigratesTSVDataWhenSQLiteOptIn(t *testing.T) {
 		require.NoError(t, sqliteStorage.Close())
 	})
 
-	list, err := sqliteStorage.ListNotifications("all", "", "", "", "", "", "")
+	list, err := sqliteStorage.ListNotifications("all", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.Contains(t, list, "\tmsg\t")
 
@@ -146,7 +146,7 @@ func TestNewFromConfigSkipsAutoMigrationWhenSQLiteAlreadyHasData(t *testing.T) {
 		require.NoError(t, sqliteStorage.Close())
 	})
 
-	list, err := sqliteStorage.ListNotifications("all", "", "", "", "", "", "")
+	list, err := sqliteStorage.ListNotifications("all", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.Contains(t, list, "sqlite-data")
 	require.NotContains(t, list, "tsv-data")

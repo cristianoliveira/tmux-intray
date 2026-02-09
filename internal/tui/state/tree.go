@@ -28,6 +28,7 @@ type Node struct {
 	Children     []*Node
 	Notification *notification.Notification
 	Count        int
+	UnreadCount  int
 	LatestEvent  *notification.Notification
 }
 
@@ -146,6 +147,9 @@ func getOrCreateGroupNode(parent *Node, cache map[string]*Node, kind NodeKind, k
 // incrementGroupStats updates node statistics with notification data.
 func incrementGroupStats(node *Node, notif notification.Notification) {
 	node.Count++
+	if !notif.IsRead() {
+		node.UnreadCount++
+	}
 	if node.LatestEvent == nil || isNewerTimestamp(notif.Timestamp, node.LatestEvent.Timestamp) {
 		node.LatestEvent = &notif
 	}

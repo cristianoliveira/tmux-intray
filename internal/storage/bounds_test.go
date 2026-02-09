@@ -55,7 +55,7 @@ func TestBoundsChecking(t *testing.T) {
 
 	t.Run("ListNotificationsDoesNotPanic", func(t *testing.T) {
 		// Should not panic on malformed data
-		list, listErr := ListNotifications("all", "", "", "", "", "", "")
+		list, listErr := ListNotifications("all", "", "", "", "", "", "", "")
 		require.NoError(t, listErr)
 		require.NotEmpty(t, list)
 		// Should contain valid notification
@@ -127,7 +127,7 @@ func TestBoundsChecking(t *testing.T) {
 		}
 
 		// Should not panic
-		filtered := filterNotifications(lines, "all", "", "", "", "", "", "")
+		filtered := filterNotifications(lines, "all", "", "", "", "", "", "", "")
 		require.NotEmpty(t, filtered)
 	})
 
@@ -144,7 +144,7 @@ func TestBoundsChecking(t *testing.T) {
 		require.NotEmpty(t, id)
 
 		// Verify it was added
-		list, listErr := ListNotifications("all", "", "", "", "", "", "")
+		list, listErr := ListNotifications("all", "", "", "", "", "", "", "")
 		require.NoError(t, listErr)
 		require.Contains(t, list, id)
 		require.Contains(t, list, "valid after malformed")
@@ -172,7 +172,7 @@ func TestEmptyFieldsHandling(t *testing.T) {
 	require.NoError(t, Init())
 
 	t.Run("ListNotificationsWithEmptyFields", func(t *testing.T) {
-		list, listErr := ListNotifications("all", "", "", "", "", "", "")
+		list, listErr := ListNotifications("all", "", "", "", "", "", "", "")
 		require.NoError(t, listErr)
 		require.NotEmpty(t, list)
 	})
@@ -189,7 +189,7 @@ func TestEmptyFieldsHandling(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify it was dismissed
-		list, listErr := ListNotifications("dismissed", "", "", "", "", "", "")
+		list, listErr := ListNotifications("dismissed", "", "", "", "", "", "", "")
 		require.NoError(t, listErr)
 		require.Contains(t, list, "2")
 	})
@@ -242,7 +242,7 @@ func TestDismissByIDInternal(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify dismissed
-	list, listErr := ListNotifications("dismissed", "", "", "", "", "", "")
+	list, listErr := ListNotifications("dismissed", "", "", "", "", "", "", "")
 	require.NoError(t, listErr)
 	require.Contains(t, list, "1")
 }

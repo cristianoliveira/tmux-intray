@@ -311,11 +311,12 @@ func AddNotification(message, timestamp, session, window, pane, paneCreated, lev
 // Valid state values: "active", "dismissed", "all", or "" (defaults to "all")
 // Valid level values: "info", "warning", "error", "critical", or "" (no filter)
 // Valid timestamp formats for olderThanCutoff and newerThanCutoff: RFC3339 (e.g., "2006-01-02T15:04:05Z")
+// Valid readFilter values: "read" (has read_timestamp), "unread" (no read_timestamp), or "" (no filter)
 // Returns TSV lines as a string and an error if validation fails.
 // Preconditions: if stateFilter is non-empty, it must be one of "active", "dismissed", or "all";
 // if levelFilter is non-empty, it must be one of "info", "warning", "error", or "critical";
 // if olderThanCutoff or newerThanCutoff are non-empty, they must be RFC3339 format.
-func ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff string) (string, error) {
+func ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error) {
 	// Validate inputs first (Fail-Fast)
 	if err := validateListInputs(stateFilter, levelFilter, olderThanCutoff, newerThanCutoff); err != nil {
 		return "", err
@@ -332,7 +333,7 @@ func ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, pa
 			return err
 		}
 		// Apply filters
-		filtered := filterNotifications(latest, stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff)
+		filtered := filterNotifications(latest, stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
 		lines = filtered
 		return nil
 	})
@@ -977,7 +978,7 @@ func getLatestNotifications() ([]string, error) {
 	return result, nil
 }
 
-func filterNotifications(lines []string, stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff string) []string {
+func filterNotifications(lines []string, stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) []string {
 	var filtered []string
 	for _, line := range lines {
 		fields := strings.Split(line, "\t")
@@ -1034,6 +1035,19 @@ func filterNotifications(lines []string, stateFilter, levelFilter, sessionFilter
 				continue
 			}
 			if pane != paneFilter {
+				continue
+			}
+		}
+		// Read status filter
+		if readFilter != "" {
+			readTimestamp, err := getField(fields, fieldReadTimestamp)
+			if err != nil {
+				continue
+			}
+			if readFilter == "read" && readTimestamp == "" {
+				continue
+			}
+			if readFilter == "unread" && readTimestamp != "" {
 				continue
 			}
 		}

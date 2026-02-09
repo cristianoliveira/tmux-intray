@@ -56,7 +56,7 @@ func TestAddNotification(t *testing.T) {
 	// Should be numeric
 	require.Regexp(t, `^\d+$`, id)
 	// List notifications should contain one active
-	list, err := ListNotifications("active", "", "", "", "", "", "")
+	list, err := ListNotifications("active", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.Contains(t, list, id)
 	require.Contains(t, list, "test message")
@@ -68,7 +68,7 @@ func TestAddNotificationWithTimestamp(t *testing.T) {
 	id, err := AddNotification("msg", "2025-01-01T12:00:00Z", "", "", "", "", "warning")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
-	list, err := ListNotifications("all", "", "", "", "", "", "")
+	list, err := ListNotifications("all", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.Contains(t, list, "2025-01-01T12:00:00Z")
 	require.Contains(t, list, "warning")
@@ -112,31 +112,31 @@ func TestListNotificationsFilters(t *testing.T) {
 	}
 
 	// Filter by state active
-	list, err := ListNotifications("active", "", "", "", "", "", "")
+	list, err := ListNotifications("active", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	assertContainsID(list, id1)
 	assertContainsID(list, id2)
 
 	// Filter by level
-	list, err = ListNotifications("all", "error", "", "", "", "", "")
+	list, err = ListNotifications("all", "error", "", "", "", "", "", "")
 	require.NoError(t, err)
 	assertContainsID(list, id1)
 	assertNotContainsID(list, id2)
 
 	// Filter by session
-	list, err = ListNotifications("all", "", "session1", "", "", "", "")
+	list, err = ListNotifications("all", "", "session1", "", "", "", "", "")
 	require.NoError(t, err)
 	assertContainsID(list, id1)
 	assertNotContainsID(list, id2)
 
 	// Filter by window
-	list, err = ListNotifications("all", "", "", "window2", "", "", "")
+	list, err = ListNotifications("all", "", "", "window2", "", "", "", "")
 	require.NoError(t, err)
 	assertContainsID(list, id2)
 	assertNotContainsID(list, id1)
 
 	// Filter by pane
-	list, err = ListNotifications("all", "", "", "", "pane1", "", "")
+	list, err = ListNotifications("all", "", "", "", "pane1", "", "", "")
 	require.NoError(t, err)
 	assertContainsID(list, id1)
 	assertNotContainsID(list, id2)
@@ -149,18 +149,18 @@ func TestDismissNotification(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 	// Should be active
-	list, err := ListNotifications("active", "", "", "", "", "", "")
+	list, err := ListNotifications("active", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.Contains(t, list, id)
 	// Dismiss
 	err = DismissNotification(id)
 	require.NoError(t, err)
 	// Should not appear in active
-	list, err = ListNotifications("active", "", "", "", "", "", "")
+	list, err = ListNotifications("active", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.NotContains(t, list, id)
 	// Should appear in dismissed
-	list, err = ListNotifications("dismissed", "", "", "", "", "", "")
+	list, err = ListNotifications("dismissed", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.Contains(t, list, id)
 	// Dismissing again should return error
@@ -212,7 +212,7 @@ func TestDismissAllFromStorage(t *testing.T) {
 	err = DismissAll()
 	require.NoError(t, err)
 	require.Equal(t, 0, GetActiveCount())
-	list, err := ListNotifications("dismissed", "", "", "", "", "", "")
+	list, err := ListNotifications("dismissed", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.Contains(t, list, id1)
 	require.Contains(t, list, id2)
@@ -229,13 +229,13 @@ func TestCleanupOldNotifications(t *testing.T) {
 	err = CleanupOldNotifications(1, true)
 	require.NoError(t, err)
 	// Should still exist
-	list, err := ListNotifications("all", "", "", "", "", "", "")
+	list, err := ListNotifications("all", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.Contains(t, list, id)
 	// Real cleanup (should delete because timestamp is very old)
 	err = CleanupOldNotifications(1, false)
 	require.NoError(t, err)
-	list, err = ListNotifications("all", "", "", "", "", "", "")
+	list, err = ListNotifications("all", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.NotContains(t, list, id)
 }
@@ -366,7 +366,7 @@ storage_list_notifications "%s" "%s" "%s" "%s" "%s" "%s" "%s"
 
 		// List via Go
 		Init()
-		list, err := ListNotifications("all", "", "", "", "", "", "")
+		list, err := ListNotifications("all", "", "", "", "", "", "", "")
 		require.NoError(t, err)
 		require.Contains(t, list, bashID)
 		// Check message is correct (unescaped)
@@ -424,7 +424,7 @@ storage_list_notifications "%s" "%s" "%s" "%s" "%s" "%s" "%s"
 				bashID, err := bashAddNotification(tc.msg, "", "", "", "", "", "info")
 				require.NoError(t, err)
 				Init()
-				list, err := ListNotifications("all", "", "", "", "", "", "")
+				list, err := ListNotifications("all", "", "", "", "", "", "", "")
 				require.NoError(t, err)
 				require.Contains(t, list, bashID)
 				lines := strings.Split(strings.TrimSpace(list), "\n")
@@ -493,7 +493,7 @@ func TestAddNotificationWithHooks(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 	// Verify notification exists
-	list, err := ListNotifications("active", "", "", "", "", "", "")
+	list, err := ListNotifications("active", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.Contains(t, list, id)
 	// Note: we cannot easily capture hook output; but if hook fails with abort mode, AddNotification would return empty.
@@ -529,7 +529,7 @@ func TestAddNotificationHookAbort(t *testing.T) {
 	require.Error(t, err)
 	require.Empty(t, id)
 	// Ensure no notification added
-	list, err := ListNotifications("all", "", "", "", "", "", "")
+	list, err := ListNotifications("all", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.NotContains(t, list, "test message")
 }
@@ -558,7 +558,7 @@ func TestMalformedTSVData(t *testing.T) {
 	require.NotEmpty(t, id)
 
 	// List should work (filterNotifications should handle malformed data gracefully)
-	list, err := ListNotifications("all", "", "", "", "", "", "")
+	list, err := ListNotifications("all", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.Contains(t, list, id)
 	require.Contains(t, list, "valid message")
@@ -956,7 +956,7 @@ func TestDismissNotificationHandlesTmuxError(t *testing.T) {
 	// The tmux error should be logged but not cause dismiss to fail
 	require.NoError(t, err)
 	// Verify notification is actually dismissed
-	list, err := ListNotifications("active", "", "", "", "", "", "")
+	list, err := ListNotifications("active", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.NotContains(t, list, id)
 }
@@ -1092,7 +1092,7 @@ func TestAddNotificationPostAddHookFailureModes(t *testing.T) {
 		// ID should still be returned (notification was added)
 		require.NotEmpty(t, id)
 		// Verify notification was added to storage despite hook failure
-		list, err := ListNotifications("active", "", "", "", "", "", "")
+		list, err := ListNotifications("active", "", "", "", "", "", "", "")
 		require.NoError(t, err)
 		require.Contains(t, list, id)
 	})
@@ -1123,7 +1123,7 @@ func TestAddNotificationPostAddHookFailureModes(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, id)
 		// Verify notification was added
-		list, err := ListNotifications("active", "", "", "", "", "", "")
+		list, err := ListNotifications("active", "", "", "", "", "", "", "")
 		require.NoError(t, err)
 		require.Contains(t, list, id)
 	})
@@ -1154,7 +1154,7 @@ func TestAddNotificationPostAddHookFailureModes(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, id)
 		// Verify notification was added
-		list, err := ListNotifications("active", "", "", "", "", "", "")
+		list, err := ListNotifications("active", "", "", "", "", "", "", "")
 		require.NoError(t, err)
 		require.Contains(t, list, id)
 	})
@@ -1186,7 +1186,7 @@ func TestAddNotificationPostAddHookFailureModes(t *testing.T) {
 				require.NoError(t, err)
 				require.NotEmpty(t, id)
 				// Verify notification was added
-				list, err := ListNotifications("active", "", "", "", "", "", "")
+				list, err := ListNotifications("active", "", "", "", "", "", "", "")
 				require.NoError(t, err)
 				require.Contains(t, list, id)
 			})
@@ -1474,7 +1474,7 @@ func TestListNotificationsValidation(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := ListNotifications(tc.stateFilter, tc.levelFilter, "", "", "", tc.olderThanCutoff, tc.newerThanCutoff)
+			_, err := ListNotifications(tc.stateFilter, tc.levelFilter, "", "", "", tc.olderThanCutoff, tc.newerThanCutoff, "")
 			if tc.wantError {
 				require.Error(t, err, "expected error for test case: "+tc.name)
 				if tc.errorMsg != "" {

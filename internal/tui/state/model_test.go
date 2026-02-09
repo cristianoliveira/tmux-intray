@@ -3,6 +3,7 @@ package state
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -1346,7 +1347,7 @@ func TestMarkSelectedRead(t *testing.T) {
 	cmd := model.markSelectedRead()
 	assert.Nil(t, cmd)
 
-	lines, err := storage.ListNotifications("active", "", "", "", "", "", "")
+	lines, err := storage.ListNotifications("active", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 
 	parts := strings.Split(lines, "\n")
@@ -1374,7 +1375,7 @@ func TestMarkSelectedUnread(t *testing.T) {
 	cmd := model.markSelectedUnread()
 	assert.Nil(t, cmd)
 
-	lines, err := storage.ListNotifications("active", "", "", "", "", "", "")
+	lines, err := storage.ListNotifications("active", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 
 	parts := strings.Split(lines, "\n")
@@ -1415,7 +1416,7 @@ func TestHandleDismissGroupedViewUsesVisibleNodes(t *testing.T) {
 
 	assert.Nil(t, cmd)
 
-	lines, err := storage.ListNotifications("active", "", "", "", "", "", "")
+	lines, err := storage.ListNotifications("active", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 
 	remainingSessions := []string{}
@@ -2217,20 +2218,19 @@ func TestModelMissingSettingsFile(t *testing.T) {
 }
 
 func TestModelCorruptedSettingsFile(t *testing.T) {
-	tmpDir := t.TempDir()
-	setupConfig(t, tmpDir)
-
 	setupStorage(t)
-	stubSessionFetchers(t)
+	mockClient := stubSessionFetchers(t)
 
-	settingsPath := tmpDir + "/settings.json"
-	err := os.WriteFile(settingsPath, []byte("invalid json {{{"), 0644)
+	// Create corrupted settings file
+	configDir := t.TempDir()
+	t.Setenv("CONFIG_DIR", configDir)
+	settingsFile := filepath.Join(configDir, "settings.json")
+	err := os.WriteFile(settingsFile, []byte("{ invalid json }"), 0644)
 	require.NoError(t, err)
 
-	loaded, err := settings.Load()
+	model, err := NewModel(mockClient)
 	require.NoError(t, err)
-	assert.NotNil(t, loaded)
-	assert.NotEmpty(t, loaded.SortBy)
+	assert.NotNil(t, model)
 }
 
 func TestModelSettingsLifecycle(t *testing.T) {

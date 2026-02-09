@@ -42,7 +42,7 @@ func (f *fakeStorage) AddNotification(message, timestamp, session, window, pane,
 	return f.addID, nil
 }
 
-func (f *fakeStorage) ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff string) (string, error) {
+func (f *fakeStorage) ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error) {
 	f.listCalls++
 	return f.listResult, nil
 }
@@ -128,7 +128,7 @@ func TestDualWriterReadBackendDefaultsToSQLite(t *testing.T) {
 	dw, err := NewDualWriterWithBackends(tsv, sql, DualWriterOptions{})
 	require.NoError(t, err)
 
-	list, err := dw.ListNotifications("all", "", "", "", "", "", "")
+	list, err := dw.ListNotifications("all", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.Equal(t, "sqlite", list)
 	require.Equal(t, 0, tsv.listCalls)
@@ -200,7 +200,7 @@ func TestDualWriterFallsBackToTSVReadsAfterSQLiteWriteFailure(t *testing.T) {
 	_, err = dw.AddNotification("message", "", "", "", "", "", "info")
 	require.NoError(t, err)
 
-	list, err := dw.ListNotifications("all", "", "", "", "", "", "")
+	list, err := dw.ListNotifications("all", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.Equal(t, "tsv", list)
 	require.Equal(t, 1, tsv.listCalls)

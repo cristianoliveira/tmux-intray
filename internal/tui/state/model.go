@@ -55,8 +55,9 @@ type Model struct {
 	viewMode           string
 	groupBy            string
 	defaultExpandLevel int
-	expansionState     map[string]bool
-	loadedSettings     *settings.Settings // Track loaded settings for comparison
+
+	expansionState map[string]bool
+	loadedSettings *settings.Settings // Track loaded settings for comparison
 
 	treeRoot     *Node
 	visibleNodes []*Node
@@ -278,7 +279,6 @@ func (m *Model) View() string {
 		SearchQuery:  m.searchQuery,
 		CommandQuery: m.commandQuery,
 		Grouped:      m.isGroupedView(),
-		ViewMode:     m.viewMode,
 	}))
 
 	return s.String()
@@ -301,7 +301,8 @@ func (m *Model) ToState() settings.TUIState {
 		GroupBy:               m.groupBy,
 		DefaultExpandLevel:    m.defaultExpandLevel,
 		DefaultExpandLevelSet: true,
-		ExpansionState:        m.expansionState,
+
+		ExpansionState: m.expansionState,
 	}
 }
 
@@ -337,6 +338,7 @@ func (m *Model) FromState(state settings.TUIState) error {
 	if state.DefaultExpandLevelSet {
 		m.defaultExpandLevel = state.DefaultExpandLevel
 	}
+
 	if state.ExpansionState != nil {
 		m.expansionState = state.ExpansionState
 	}
@@ -624,6 +626,7 @@ func (m *Model) executeCommand() tea.Cmd {
 		}
 		colors.Info(fmt.Sprintf("Default expand level: %d", m.defaultExpandLevel))
 		return nil
+
 	case "toggle-view":
 		if len(args) > 0 {
 			colors.Warning("Invalid usage: toggle-view")
@@ -906,7 +909,7 @@ func (m *Model) handleJump() tea.Cmd {
 // loadNotifications loads notifications from storage.
 // If preserveCursor is true, the current cursor position is preserved.
 func (m *Model) loadNotifications(preserveCursor bool) error {
-	lines, err := storage.ListNotifications("active", "", "", "", "", "", "")
+	lines, err := storage.ListNotifications("active", "", "", "", "", "", "", "")
 	if err != nil {
 		return fmt.Errorf("failed to load notifications: %w", err)
 	}
@@ -1469,6 +1472,7 @@ func (m *Model) applyExpansionState(node *Node) {
 			// Default to expanded for nodes without saved state
 			node.Expanded = true
 		}
+
 	}
 
 	// Recursively apply to children

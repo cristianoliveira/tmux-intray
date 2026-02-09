@@ -12,7 +12,8 @@ tmux-intray provides a persistent in-tmux in-tray where panes, windows, and scri
 
 ## Work in Progress
 
-🚧🚧 This plugin is in active development at the moment. It started as an opencode plugin but grew into its own project.
+> [!WARNING]
+> 🚧 This plugin is in active development at the moment. It started as an opencode plugin but grew into its own project.
 I use it on a daily basis, I'm a heavy tmux user and so far it works great! At this stage of development I can't promise there won't be
 breaking changes.
 

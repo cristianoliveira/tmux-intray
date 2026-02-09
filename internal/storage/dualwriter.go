@@ -185,8 +185,8 @@ func (d *DualWriter) AddNotification(message, timestamp, session, window, pane, 
 }
 
 // ListNotifications delegates reads to the configured read backend.
-func (d *DualWriter) ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff string) (string, error) {
-	return d.readStorage().ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff)
+func (d *DualWriter) ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error) {
+	return d.readStorage().ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
 }
 
 // GetNotificationByID delegates reads to the configured read backend.
@@ -317,7 +317,7 @@ func (d *DualWriter) migrateTSVToSQLiteIfNeeded() error {
 	colors.Info(fmt.Sprintf("dual writer: migrating %d notifications from tsv to sqlite", tsvCount))
 
 	// Get all notifications from TSV (including dismissed ones)
-	tsvLines, err := d.tsv.ListNotifications("all", "", "", "", "", "", "")
+	tsvLines, err := d.tsv.ListNotifications("all", "", "", "", "", "", "", "")
 	if err != nil {
 		return fmt.Errorf("dual writer: list tsv notifications: %w", err)
 	}
@@ -409,11 +409,11 @@ func (d *DualWriter) Metrics() WriteMetrics {
 
 // VerifyConsistency compares TSV and SQLite data and reports discrepancies.
 func (d *DualWriter) VerifyConsistency(sampleSize int) (ConsistencyReport, error) {
-	tsvLines, err := d.tsv.ListNotifications("all", "", "", "", "", "", "")
+	tsvLines, err := d.tsv.ListNotifications("all", "", "", "", "", "", "", "")
 	if err != nil {
 		return ConsistencyReport{}, fmt.Errorf("dual writer consistency: list tsv notifications: %w", err)
 	}
-	sqliteLines, err := d.sqlite.ListNotifications("all", "", "", "", "", "", "")
+	sqliteLines, err := d.sqlite.ListNotifications("all", "", "", "", "", "", "", "")
 	if err != nil {
 		return ConsistencyReport{}, fmt.Errorf("dual writer consistency: list sqlite notifications: %w", err)
 	}

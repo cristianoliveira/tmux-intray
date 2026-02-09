@@ -18,7 +18,7 @@ func GetTrayItems(stateFilter string) (string, error) {
 // Returns newline-separated messages (unescaped).
 func (c *Core) GetTrayItems(stateFilter string) (string, error) {
 	// Use storage.ListNotifications with only state filter
-	lines, err := c.storage.ListNotifications(stateFilter, "", "", "", "", "", "")
+	lines, err := c.storage.ListNotifications(stateFilter, "", "", "", "", "", "", "")
 	if err != nil {
 		return "", err
 	}

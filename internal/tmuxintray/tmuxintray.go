@@ -12,12 +12,12 @@ import (
 
 // ListAllNotifications returns all notifications as TSV lines.
 func ListAllNotifications() (string, error) {
-	return storage.ListNotifications("", "", "", "", "", "", "")
+	return storage.ListNotifications("", "", "", "", "", "", "", "")
 }
 
 // ListNotifications returns notifications with optional filters.
 func ListNotifications(level, state string) (string, error) {
-	return storage.ListNotifications(state, level, "", "", "", "", "")
+	return storage.ListNotifications(state, level, "", "", "", "", "", "")
 }
 
 // GetActiveCount returns the count of active notifications.

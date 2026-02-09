@@ -241,6 +241,7 @@ WHERE (?1 = '' OR ?1 = 'all' OR state = ?1)
   AND (?5 = '' OR pane = ?5)
   AND (?6 = '' OR timestamp < ?6)
   AND (?7 = '' OR timestamp > ?7)
+  AND (?8 = '' OR (?8 = 'read' AND read_timestamp != '') OR (?8 = 'unread' AND read_timestamp = ''))
 ORDER BY id ASC
 `
 
@@ -252,6 +253,7 @@ type ListNotificationsParams struct {
 	PaneFilter      interface{}
 	OlderThanCutoff interface{}
 	NewerThanCutoff interface{}
+	ReadFilter      interface{}
 }
 
 type ListNotificationsRow struct {
@@ -276,6 +278,7 @@ func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsPa
 		arg.PaneFilter,
 		arg.OlderThanCutoff,
 		arg.NewerThanCutoff,
+		arg.ReadFilter,
 	)
 	if err != nil {
 		return nil, err

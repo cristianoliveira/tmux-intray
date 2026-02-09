@@ -28,6 +28,9 @@ type TUIState struct {
 	// DefaultExpandLevelSet indicates DefaultExpandLevel was explicitly provided.
 	DefaultExpandLevelSet bool `json:"-"`
 
+	// AutoExpandUnread controls whether groups with unread notifications are auto-expanded.
+	AutoExpandUnread bool `json:"autoExpandUnread"`
+
 	// ExpansionState stores explicit expansion overrides by node path.
 	ExpansionState map[string]bool `json:"expansionState"`
 }
@@ -46,6 +49,7 @@ func FromSettings(s *Settings) TUIState {
 		GroupBy:               s.GroupBy,
 		DefaultExpandLevel:    s.DefaultExpandLevel,
 		DefaultExpandLevelSet: true,
+		AutoExpandUnread:      s.AutoExpandUnread,
 		ExpansionState:        s.ExpansionState,
 	}
 }
@@ -66,6 +70,7 @@ func (t TUIState) ToSettings() *Settings {
 		ViewMode:           t.ViewMode,
 		GroupBy:            t.GroupBy,
 		DefaultExpandLevel: defaultExpandLevel,
+		AutoExpandUnread:   t.AutoExpandUnread,
 		ExpansionState:     t.ExpansionState,
 	}
 }
