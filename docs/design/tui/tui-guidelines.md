@@ -24,7 +24,10 @@ The project currently exposes a single TUI entry point that mixes concerns:
 - `cmd/tmux-intray/follow.go` integrates with the TUI loop and shares logic with
   the UI state
 
-## Proposed TUI Package Structure
+## Refined TUI Architecture with Interface Contracts
+
+The TUI architecture has been refined with five core interface contracts that
+define clear boundaries between components:
 
 ```
 github.com/cristianoliveira/tmux-intray/
@@ -33,28 +36,191 @@ github.com/cristianoliveira/tmux-intray/
 │   └── follow.go               # Follow command entry point
 ├── internal/
 │   └── tui/
-│       ├── state/              # UI state model and reducers
+│       ├── model/              # Interface contracts defining TUI component boundaries
+│       │   ├── ui_state.go     # UIState interface for view state management
+│       │   ├── repository.go   # NotificationRepository interface for data access
+│       │   ├── tree_service.go # TreeService interface for tree management
+│       │   ├── command_service.go # CommandService interface for command handling
+│       │   └── runtime_coordinator.go # RuntimeCoordinator interface for tmux integration
+│       ├── state/              # UI state model and reducers (implements UIState)
 │       ├── render/             # Pure view rendering
-│       ├── input/              # Keybindings and event mapping
-│       ├── runtime/            # TUI loop, lifecycle, error handling
 │       └── follow/             # Follow orchestration and integration
 ```
 
+## Interface Contracts
+
+### 1. NotificationRepository Interface
+
+The `NotificationRepository` interface defines the contract for notification data access operations:
+
+```go
+type NotificationRepository interface {
+    LoadNotifications() ([]notification.Notification, error)
+    LoadFilteredNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter string) ([]notification.Notification, error)
+    DismissNotification(id string) error
+    MarkAsRead(id string) error
+    MarkAsUnread(id string) error
+    GetByID(id string) (notification.Notification, error)
+    GetActiveCount() int
+}
+```
+
+This interface abstracts the storage layer, allowing different backends (TSV, SQLite) to be swapped without affecting TUI logic.
+
+### 2. TreeService Interface
+
+The `TreeService` interface defines operations for building and managing hierarchical notification trees:
+
+```go
+type TreeService interface {
+    BuildTree(notifications []notification.Notification, groupBy string) (*TreeNode, error)
+    FindNotificationPath(notif notification.Notification) ([]*TreeNode, error)
+    FindNodeByID(identifier string) *TreeNode
+    GetVisibleNodes(root *TreeNode) []*TreeNode
+    GetNodeIdentifier(node *TreeNode) string
+    PruneEmptyGroups(root *TreeNode) *TreeNode
+    ApplyExpansionState(root *TreeNode, expansionState map[string]bool)
+    ExpandNode(node *TreeNode)
+    CollapseNode(node *TreeNode)
+    ToggleNodeExpansion(node *TreeNode)
+    GetTreeLevel(node *TreeNode) int
+}
+```
+
+This interface encapsulates tree operations for grouped views, handling session/window/pane hierarchies.
+
+### 3. UIState Interface
+
+The `UIState` interface manages the interactive state of the TUI:
+
+```go
+type UIState interface {
+    // Cursor management
+    GetCursor() int
+    SetCursor(pos int)
+    ResetCursor()
+    AdjustCursorBounds(listLength int)
+    
+    // Search mode
+    GetSearchMode() bool
+    SetSearchMode(enabled bool)
+    GetSearchQuery() string
+    SetSearchQuery(query string)
+    
+    // Command mode
+    GetCommandMode() bool
+    SetCommandMode(enabled bool)
+    GetCommandQuery() string
+    SetCommandQuery(query string)
+    
+    // View configuration
+    GetViewMode() ViewMode
+    SetViewMode(mode ViewMode)
+    CycleViewMode()
+    GetGroupBy() GroupBy
+    SetGroupBy(groupBy GroupBy)
+    GetExpandLevel() int
+    SetExpandLevel(level int)
+    
+    // Tree state
+    IsGroupedView() bool
+    GetExpansionState() map[string]bool
+    SetExpansionState(state map[string]bool)
+    UpdateExpansionState(nodeIdentifier string, expanded bool)
+    
+    // Selection helpers
+    GetSelectedNotification(notifications []notification.Notification, visibleNodes []*TreeNode) (notification.Notification, bool)
+    GetSelectedNode(visibleNodes []*TreeNode) *TreeNode
+    
+    // Viewport management
+    GetViewportDimensions() (width, height int)
+    SetViewportDimensions(width, height int)
+    GetDimensions() (width, height int)
+    SetDimensions(width, height int)
+    
+    // Persistence
+    Save() error
+    Load() error
+    ToDTO() UIDTO
+    FromDTO(dto UIDTO) error
+}
+```
+
+This interface defines all UI state operations, separating state management from rendering and input handling.
+
+### 4. CommandService Interface
+
+The `CommandService` interface handles command parsing and execution:
+
+```go
+type CommandService interface {
+    ParseCommand(command string) (name string, args []string, err error)
+    ExecuteCommand(name string, args []string) (*CommandResult, error)
+    ValidateCommand(name string, args []string) error
+    GetAvailableCommands() []CommandInfo
+    GetCommandHelp(name string) string
+    GetCommandSuggestions(partial string) []string
+}
+```
+
+This interface enables extensible command handling within the TUI, supporting commands like `:q`, `:w`, `:group-by`.
+
+### 5. RuntimeCoordinator Interface
+
+The `RuntimeCoordinator` interface handles tmux integration and coordination:
+
+```go
+type RuntimeCoordinator interface {
+    EnsureTmuxRunning() bool
+    JumpToPane(sessionID, windowID, paneID string) bool
+    ValidatePaneExists(sessionID, windowID, paneID string) (bool, error)
+    GetCurrentContext() (*TmuxContext, error)
+    ListSessions() (map[string]string, error)
+    ListWindows() (map[string]string, error)
+    ListPanes() (map[string]string, error)
+    GetSessionName(sessionID string) (string, error)
+    GetWindowName(windowID string) (string, error)
+    GetPaneName(paneID string) (string, error)
+    RefreshNames() error
+    GetTmuxVisibility() (bool, error)
+    SetTmuxVisibility(visible bool) error
+}
+```
+
+This interface abstracts tmux operations, allowing the TUI to interact with tmux sessions, windows, and panes.
+
 ## Package Descriptions
+
+### `internal/tui/model/` (Interface Contracts)
+
+The model package contains the five interface contracts that define the TUI architecture:
+- **`ui_state.go`**: Defines the UIState interface for view state management
+- **`repository.go`**: Defines the NotificationRepository interface for data access
+- **`tree_service.go`**: Defines the TreeService interface for tree operations
+- **`command_service.go`**: Defines the CommandService interface for command handling
+- **`runtime_coordinator.go`**: Defines the RuntimeCoordinator interface for tmux integration
+
+These interfaces establish clear contracts between TUI components, enabling:
+- Testable implementations with mocks
+- Swappable implementations (e.g., different storage backends)
+- Clear separation of concerns
+- Extensible architecture
 
 ### `cmd/` (TUI Commands)
 
-The command layer should remain a thin wrapper:
+The command layer remains a thin wrapper:
 - Parse CLI flags and configuration
-- Assemble dependencies
-- Invoke `internal/tui/runtime` or `internal/tui/follow` entry points
+- Assemble dependencies (implementations of the interfaces)
+- Invoke the appropriate TUI entry point
 
 ### `internal/tui/state`
 
-State model and reducers:
+State model and reducers (implements UIState):
+- Contains the Model struct that implements the UIState interface
 - Defines view state and derived values
 - Exposes action types for user input and side effects
 - Updates state via pure reducer-style functions
+- Manages viewport, cursor position, and view configuration
 
 ### `internal/tui/render`
 
@@ -62,68 +228,72 @@ Rendering helpers:
 - Pure view construction (state in, view out)
 - No file, network, or tmux I/O
 - Rendering decisions are deterministic and testable
-
-### `internal/tui/input`
-
-Input handling:
-- Defines keybindings and event mapping
-- Translates terminal events into state actions
-- Avoids direct state mutation
-
-### `internal/tui/runtime`
-
-Lifecycle wiring:
-- Runs the event loop and orchestrates state, input, and rendering
-- Owns cancellation, shutdown, and recovery behavior
-- Centralizes error handling and user-facing failure states
+- Supports different view modes (compact, detailed, grouped)
 
 ### `internal/tui/follow`
 
 Follow mode orchestration:
-- Integrates follow behavior with the runtime via a narrow interface
+- Integrates follow behavior with the TUI via the RuntimeCoordinator interface
 - Avoids direct access to internal UI state where possible
 - Keeps follow logic isolated from view rendering
 
-### Command Implementation in `cmd/`
-
-The command files should be small and declarative:
-- Each command defines flags and invokes a single runtime entry point
-- Business logic remains inside `internal/tui/*` packages
-- Errors are surfaced through consistent, user-facing messages
-
 ## Design Principles
 
-1. **Separation of Concerns**: State, rendering, input, and effects live in
-   dedicated packages.
-2. **Pure Rendering**: Rendering functions are deterministic and side-effect
-   free.
-3. **Resilience**: Runtime handles cancellations, errors, and cleanup in one
-   place.
-4. **Testability**: State transitions and render output are directly testable.
-5. **Minimal Command Layer**: CLI files are wiring only, not logic.
+1. **Interface-Driven Development**: Core interfaces define component contracts
+2. **Separation of Concerns**: State, rendering, input, and effects live in dedicated packages
+3. **Pure Rendering**: Rendering functions are deterministic and side-effect free
+4. **Resilience**: Runtime handles cancellations, errors, and cleanup in one place
+5. **Testability**: Interface contracts enable comprehensive testing with mocks
+6. **Minimal Command Layer**: CLI files are wiring only, not logic
 
-## Migration Strategy
+## Implementation Status
 
-1. **Phase 1**: Extract state and reducers into `internal/tui/state`.
-2. **Phase 2**: Move rendering helpers into `internal/tui/render`.
-3. **Phase 3**: Isolate input mapping into `internal/tui/input`.
-4. **Phase 4**: Introduce `internal/tui/runtime` and rewire the TUI loop.
-5. **Phase 5**: Move follow orchestration into `internal/tui/follow`.
+### Completed Components
+
+1. **Interface Contracts**: All five interface contracts have been defined in `internal/tui/model/`
+2. **UI State Implementation**: The Model struct in `internal/tui/state/model.go` implements UIState
+3. **Tree Operations**: Tree building and management functionality in `internal/tui/state/tree.go`
+4. **Rendering**: View rendering in `internal/tui/render/render.go`
+
+### Migration Progress
+
+The architecture has evolved from the proposed package structure:
+
+1. ✓ **Phase 1**: Interface contracts defined in `internal/tui/model/`
+2. ✓ **Phase 2**: State implementation with Model implementing UIState
+3. ✓ **Phase 3**: Rendering separated into `internal/tui/render/`
+4. ✓ **Phase 4**: Tree operations implemented
+5. ⏳ **Phase 5**: CommandService and RuntimeCoordinator implementations (partial)
 
 ## Implementation Notes
 
-- Prefer explicit error propagation and surface failures via colors.Error.
-- Keep runtime shutdown idempotent; always release resources on exit.
-- Use context cancellation for long-running operations and follow mode.
-- Avoid direct tmux calls from render/input packages.
+- Interface contracts enable dependency injection for testability
+- The Model struct implements UIState, maintaining backward compatibility
+- Tree operations support grouped views with session/window/pane hierarchies
+- Rendering is pure and deterministic, supporting snapshot testing
+- Commands and runtime coordination are abstracted through interfaces
 
-## Next Steps
+## Future Development Guidance
 
-1. Define the `state` model and action types
-2. Extract render helpers and add snapshot-style tests
-3. Map keybindings in `input` and validate action dispatch
-4. Build a runtime wrapper with centralized error handling
-5. Move follow-mode orchestration behind a narrow interface
+### Adding New Features
+
+1. **New View Modes**: Extend the ViewMode type and add rendering logic in `internal/tui/render/`
+2. **New Commands**: Implement handlers via the CommandService interface
+3. **Storage Backends**: Implement the NotificationRepository interface
+4. **UI State Extensions**: Extend the UIState interface and Model implementation
+
+### Testing Strategy
+
+1. **Interface Testing**: Mock interface contracts for unit testing
+2. **State Testing**: Test Model transitions directly
+3. **Rendering Testing**: Use snapshot tests for view output
+4. **Integration Testing**: Test implementations of interface contracts
+
+### Performance Considerations
+
+1. **Caching**: The visible nodes cache improves rendering performance
+2. **Lazy Loading**: Load notifications on demand for large datasets
+3. **Batch Operations**: Use bulk operations for storage updates
 
 ## Testing
 
@@ -230,42 +400,30 @@ func TestView_MatchesGoldenFile(t *testing.T) {
 
 ### Mock Strategies
 
-#### Mock External Commands
+#### Mock Interface Contracts
 
-Replace command execution with predictable behavior:
+Test with mocked implementations of interface contracts:
 
 ```go
-type MockCommandRunner struct {
-	expectations map[string]MockCommand
-	calls        []string
-	t            *testing.T
+type MockNotificationRepository struct {
+	notifications []notification.Notification
 }
 
-type MockCommand struct {
-	Output string
-	Error  error
+func (m *MockNotificationRepository) LoadNotifications() ([]notification.Notification, error) {
+	return m.notifications, nil
 }
 
-func (m *MockCommandRunner) Run(cmd string, args ...string) (string, error) {
-	key := strings.Join(append([]string{cmd}, args...), " ")
-	m.calls = append(m.calls, key)
-	mock, ok := m.expectations[key]
-	if !ok {
-		m.t.Fatalf("unexpected command: %s", key)
+func (m *MockNotificationRepository) DismissNotification(id string) error {
+	for i, notif := range m.notifications {
+		if notif.ID == id {
+			m.notifications[i].State = "dismissed"
+			break
+		}
 	}
-	return mock.Output, mock.Error
+	return nil
 }
 
-func TestWithMockedCommand(t *testing.T) {
-	runner := &MockCommandRunner{
-		expectations: map[string]MockCommand{
-			"tmux display-message -p '#{pane_id}'": {Output: "%1"},
-		},
-		t: t,
-	}
-	m := model{runner: runner}
-	// Test model behavior with mocked runner
-}
+// ... implement other interface methods
 ```
 
 #### Mock Input/Output
@@ -341,7 +499,7 @@ Key `teatest` functions:
    - Prefer unit tests for business logic
 
 3. **Use Test Doubles for External Dependencies**
-   - Mock command execution, time, and I/O
+   - Mock interface contracts (NotificationRepository, TreeService, etc.)
    - Use interfaces to enable mocking
    - Keep test doubles simple and focused
 
@@ -410,3 +568,7 @@ Key `teatest` functions:
 
 - `cmd/tmux-intray/tui.go`
 - `cmd/tmux-intray/follow.go`
+- `internal/tui/model/*.go` - Interface contracts
+- `internal/tui/state/model.go` - UIState implementation
+- `internal/tui/render/render.go` - Rendering logic
+- `internal/tui/state/tree.go` - Tree operations
