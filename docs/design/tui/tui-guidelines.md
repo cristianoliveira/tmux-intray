@@ -42,9 +42,9 @@ github.com/cristianoliveira/tmux-intray/
 │       │   ├── tree_service.go # TreeService interface for tree management
 │       │   ├── command_service.go # CommandService interface for command handling
 │       │   └── runtime_coordinator.go # RuntimeCoordinator interface for tmux integration
-│       ├── state/              # UI state model and reducers (implements UIState)
+│       ├── state/              # UI state model and reducers (uses settings.TUIState)
 │       ├── render/             # Pure view rendering
-│       └── follow/             # Follow orchestration and integration
+│       └── follow/             # Follow orchestration (planned)
 ```
 
 ## Interface Contracts
@@ -215,8 +215,8 @@ The command layer remains a thin wrapper:
 
 ### `internal/tui/state`
 
-State model and reducers (implements UIState):
-- Contains the Model struct that implements the UIState interface
+State model and reducers (uses settings.TUIState):
+- Contains the Model struct that stores UI state and converts to/from settings.TUIState for persistence
 - Defines view state and derived values
 - Exposes action types for user input and side effects
 - Updates state via pure reducer-style functions
@@ -230,12 +230,12 @@ Rendering helpers:
 - Rendering decisions are deterministic and testable
 - Supports different view modes (compact, detailed, grouped)
 
-### `internal/tui/follow`
+### `internal/tui/follow` (planned)
 
-Follow mode orchestration:
-- Integrates follow behavior with the TUI via the RuntimeCoordinator interface
-- Avoids direct access to internal UI state where possible
-- Keeps follow logic isolated from view rendering
+Follow mode orchestration: Currently implemented in `cmd/tmux-intray/follow.go`. Planned migration to this package will:
+- Integrate follow behavior with the TUI via the RuntimeCoordinator interface
+- Avoid direct access to internal UI state where possible
+- Keep follow logic isolated from view rendering
 
 ## Design Principles
 
@@ -246,12 +246,43 @@ Follow mode orchestration:
 5. **Testability**: Interface contracts enable comprehensive testing with mocks
 6. **Minimal Command Layer**: CLI files are wiring only, not logic
 
+## Resilience Standards
+
+The TUI architecture incorporates several resilience practices to ensure robust operation:
+
+### Error Handling
+- **Graceful Degradation**: When non-critical errors occur (e.g., tmux communication failures), the TUI continues operation with reduced functionality and displays user-friendly error messages.
+- **Error Boundaries**: Components isolate errors to prevent cascade failures. For example, rendering errors in a single notification row do not crash the entire TUI.
+- **Recoverable Panics**: Critical sections use `recover()` to convert panics into errors that can be logged and handled gracefully.
+
+### Resource Management
+- **Clean Shutdown**: All goroutines, file handles, and network connections are properly closed on exit via cancellation contexts and defer statements.
+- **Leak Prevention**: Use of `context.Context` for cancellation propagation ensures background tasks terminate when no longer needed.
+- **Memory Limits**: Large datasets are paginated or streamed to avoid excessive memory consumption.
+
+### State Consistency
+- **Transactional Operations**: Storage operations use file locking to prevent corruption during concurrent access.
+- **State Validation**: UI state is validated before persistence to ensure consistency across sessions.
+- **Automatic Recovery**: After a crash or unexpected termination, the TUI can reload previous state and continue operation.
+
+### Operational Resilience
+- **Signal Handling**: Proper handling of SIGINT (Ctrl+C) and SIGTERM for graceful termination.
+- **Timeout Enforcement**: Network and external command calls have configurable timeouts to prevent hangs.
+- **Retry Logic**: Transient failures (e.g., temporary file locks) are retried with exponential backoff where appropriate.
+
+### Monitoring and Diagnostics
+- **Structured Logging**: Key operations are logged with appropriate levels (debug, info, warning, error).
+- **Health Checks**: Periodic validation of internal state and external dependencies.
+- **Metrics**: Performance metrics (render times, operation latencies) are tracked for proactive monitoring.
+
+These standards align with the resilience principle listed in Design Principles and ensure the TUI remains stable and responsive under various failure conditions.
+
 ## Implementation Status
 
 ### Completed Components
 
 1. **Interface Contracts**: All five interface contracts have been defined in `internal/tui/model/`
-2. **UI State Implementation**: The Model struct in `internal/tui/state/model.go` implements UIState
+2. **UI State Implementation**: The Model struct in `internal/tui/state/model.go` uses settings.TUIState for persistence
 3. **Tree Operations**: Tree building and management functionality in `internal/tui/state/tree.go`
 4. **Rendering**: View rendering in `internal/tui/render/render.go`
 
@@ -260,7 +291,7 @@ Follow mode orchestration:
 The architecture has evolved from the proposed package structure:
 
 1. ✓ **Phase 1**: Interface contracts defined in `internal/tui/model/`
-2. ✓ **Phase 2**: State implementation with Model implementing UIState
+2. ✓ **Phase 2**: State implementation with Model using settings.TUIState
 3. ✓ **Phase 3**: Rendering separated into `internal/tui/render/`
 4. ✓ **Phase 4**: Tree operations implemented
 5. ⏳ **Phase 5**: CommandService and RuntimeCoordinator implementations (partial)
@@ -268,7 +299,7 @@ The architecture has evolved from the proposed package structure:
 ## Implementation Notes
 
 - Interface contracts enable dependency injection for testability
-- The Model struct implements UIState, maintaining backward compatibility
+- The Model struct uses settings.TUIState for persistence, maintaining backward compatibility
 - Tree operations support grouped views with session/window/pane hierarchies
 - Rendering is pure and deterministic, supporting snapshot testing
 - Commands and runtime coordination are abstracted through interfaces
