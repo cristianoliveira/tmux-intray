@@ -113,6 +113,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case tea.KeyEnter:
+			if m.searchMode {
+				m.searchMode = false
+				return m, nil
+			}
 			if m.commandMode {
 				// Execute command
 				cmd := m.executeCommand()
