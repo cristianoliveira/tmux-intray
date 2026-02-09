@@ -12,7 +12,7 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest, ubuntu-22.04]
+        os: [macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     env:
       TMUX_INTRAY_CONFIG_LOADED: 1
@@ -45,7 +45,7 @@ jobs:
   test-go:
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest, ubuntu-22.04]
+        os: [macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     env:
       TMUX_INTRAY_CONFIG_LOADED: 1
