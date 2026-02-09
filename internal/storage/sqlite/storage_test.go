@@ -58,17 +58,17 @@ func TestListNotificationsFilters(t *testing.T) {
 	_, err = s.AddNotification("warning", "2026-01-02T01:00:00Z", "sess-b", "win-b", "pane-b", "", "warning")
 	require.NoError(t, err)
 
-	list, err := s.ListNotifications("all", "error", "", "", "", "", "")
+	list, err := s.ListNotifications("all", "error", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.Contains(t, list, "\terror\t")
 	require.NotContains(t, list, "\twarning\t")
 
-	list, err = s.ListNotifications("all", "", "sess-b", "", "", "", "")
+	list, err = s.ListNotifications("all", "", "sess-b", "", "", "", "", "")
 	require.NoError(t, err)
 	require.Contains(t, list, "sess-b")
 	require.NotContains(t, list, "sess-a")
 
-	list, err = s.ListNotifications("all", "", "", "", "", "2026-01-02T00:00:00Z", "")
+	list, err = s.ListNotifications("all", "", "", "", "", "2026-01-02T00:00:00Z", "", "")
 	require.NoError(t, err)
 	require.Contains(t, list, "2026-01-01T01:00:00Z")
 	require.NotContains(t, list, "2026-01-02T01:00:00Z")
@@ -151,7 +151,7 @@ func TestValidationAndNotFoundErrors(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "message cannot be empty")
 
-	_, err = s.ListNotifications("pending", "", "", "", "", "", "")
+	_, err = s.ListNotifications("pending", "", "", "", "", "", "", "")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid state")
 
