@@ -102,7 +102,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.searchMode {
 				m.searchMode = false
 				m.searchQuery = ""
-				m.applySearchFilter()
+				m.applySearchFilter(false)
 			} else if m.commandMode {
 				m.commandMode = false
 				m.commandQuery = ""
@@ -130,7 +130,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				for _, r := range msg.Runes {
 					m.searchQuery += string(r)
 				}
-				m.applySearchFilter()
+				m.applySearchFilter(false)
 			} else if m.commandMode {
 				// In command mode, append runes to command query
 				for _, r := range msg.Runes {
@@ -142,7 +142,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.searchMode {
 				if len(m.searchQuery) > 0 {
 					m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
-					m.applySearchFilter()
+					m.applySearchFilter(false)
 				}
 			} else if m.commandMode {
 				if len(m.commandQuery) > 0 {
@@ -183,7 +183,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Enter search mode
 			m.searchMode = true
 			m.searchQuery = ""
-			m.applySearchFilter()
+			m.applySearchFilter(false)
 		case ":":
 			// Enter command mode
 			if !m.searchMode && !m.commandMode {
@@ -364,7 +364,7 @@ func (m *Model) FromState(state settings.TUIState) error {
 		}
 	}
 
-	m.applySearchFilter()
+	m.applySearchFilter(false)
 	return nil
 }
 
@@ -403,7 +403,7 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 		ensureTmuxRunning: core.EnsureTmuxRunning,
 		jumpToPane:        core.JumpToPane,
 	}
-	err = m.loadNotifications()
+	err = m.loadNotifications(false)
 	if err != nil {
 		return &Model{}, err
 	}
@@ -419,7 +419,9 @@ type saveSettingsFailedMsg struct {
 }
 
 // applySearchFilter filters notifications based on the search query.
-func (m *Model) applySearchFilter() {
+// If preserveCursor is true, the current cursor position is preserved.
+// Otherwise, the cursor is reset to 0.
+func (m *Model) applySearchFilter(preserveCursor bool) {
 	m.invalidateCache()
 
 	query := strings.TrimSpace(m.searchQuery)
@@ -456,8 +458,87 @@ func (m *Model) applySearchFilter() {
 		m.invalidateCache()
 		m.visibleNodes = nil
 	}
-	m.cursor = 0
+	if !preserveCursor {
+		m.cursor = 0
+	}
 	m.updateViewportContent()
+}
+
+// getNodeIdentifier returns a stable identifier for a node.
+// For notification nodes, this is the notification ID.
+// For group nodes, this is a combination of the node kind and title.
+func (m *Model) getNodeIdentifier(node *Node) string {
+	if node == nil {
+		return ""
+	}
+	if node.Kind == NodeKindNotification && node.Notification != nil {
+		return fmt.Sprintf("notif:%d", node.Notification.ID)
+	}
+	// For group nodes, use the node kind and path
+	if node.Kind == NodeKindRoot {
+		return "root"
+	}
+	path, ok := findNodePath(m.treeRoot, node)
+	if !ok || len(path) == 0 {
+		return ""
+	}
+	var parts []string
+	for _, n := range path {
+		if n.Kind == NodeKindRoot {
+			continue
+		}
+		parts = append(parts, string(n.Kind), n.Title)
+	}
+	return strings.Join(parts, ":")
+}
+
+// findNodeByIdentifier finds a node by its identifier in the visible nodes list.
+func (m *Model) findNodeByIdentifier(identifier string) *Node {
+	for _, node := range m.visibleNodes {
+		if m.getNodeIdentifier(node) == identifier {
+			return node
+		}
+	}
+	return nil
+}
+
+// restoreCursor restores the cursor to the node with the given identifier.
+// If the node is not found, it adjusts the cursor to be within bounds.
+func (m *Model) restoreCursor(identifier string) {
+	if identifier == "" {
+		m.adjustCursorBounds()
+		return
+	}
+
+	targetNode := m.findNodeByIdentifier(identifier)
+	if targetNode != nil {
+		for i, node := range m.visibleNodes {
+			if node == targetNode {
+				m.cursor = i
+				m.ensureCursorVisible()
+				return
+			}
+		}
+	}
+
+	// If we couldn't find the exact node, adjust to bounds
+	m.adjustCursorBounds()
+}
+
+// adjustCursorBounds ensures the cursor is within valid bounds.
+func (m *Model) adjustCursorBounds() {
+	listLen := m.currentListLen()
+	if listLen == 0 {
+		m.cursor = 0
+		return
+	}
+	if m.cursor >= listLen {
+		m.cursor = listLen - 1
+	}
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+	m.ensureCursorVisible()
 }
 
 // executeCommand executes the current command query and returns a command to run.
@@ -510,7 +591,7 @@ func (m *Model) executeCommand() tea.Cmd {
 		}
 
 		m.groupBy = groupBy
-		m.applySearchFilter()
+		m.applySearchFilter(false)
 		if err := m.saveSettings(); err != nil {
 			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 			return nil
@@ -554,10 +635,9 @@ func (m *Model) executeCommand() tea.Cmd {
 		} else {
 			m.viewMode = viewModeGrouped
 		}
-		m.applySearchFilter()
+		m.applySearchFilter(false)
 		if err := m.saveSettings(); err != nil {
 			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
-			return nil
 		}
 		colors.Info(fmt.Sprintf("View mode: %s", m.viewMode))
 		return nil
@@ -690,19 +770,23 @@ func (m *Model) handleDismiss() tea.Cmd {
 		return nil
 	}
 
-	// Reload notifications to get updated state
-	if err := m.loadNotifications(); err != nil {
+	// Save the current cursor position before reload
+	oldCursor := m.cursor
+
+	// Reload notifications to get updated state (preserve cursor)
+	if err := m.loadNotifications(true); err != nil {
 		colors.Error(fmt.Sprintf("Failed to reload notifications: %v", err))
 		return nil
 	}
 
-	// Adjust cursor if necessary
+	// Restore cursor to the saved position, adjusting for bounds
 	listLen := m.currentListLen()
-	if m.cursor >= listLen {
-		m.cursor = listLen - 1
-	}
-	if m.cursor < 0 {
+	if listLen == 0 {
 		m.cursor = 0
+	} else {
+		m.cursor = oldCursor
+		// Ensure cursor is within bounds
+		m.adjustCursorBounds()
 	}
 
 	// Update viewport content
@@ -722,24 +806,23 @@ func (m *Model) markSelectedRead() tea.Cmd {
 		return nil
 	}
 
+	// Save the notification ID to restore cursor later
+	selectedID := selected.ID
+
 	id := strconv.Itoa(selected.ID)
 	if err := storage.MarkNotificationRead(id); err != nil {
 		colors.Error(fmt.Sprintf("Failed to mark notification read: %v", err))
 		return nil
 	}
 
-	if err := m.loadNotifications(); err != nil {
+	if err := m.loadNotifications(true); err != nil {
 		colors.Error(fmt.Sprintf("Failed to reload notifications: %v", err))
 		return nil
 	}
 
-	listLen := m.currentListLen()
-	if m.cursor >= listLen {
-		m.cursor = listLen - 1
-	}
-	if m.cursor < 0 {
-		m.cursor = 0
-	}
+	// Restore cursor to the selected notification
+	identifier := fmt.Sprintf("notif:%d", selectedID)
+	m.restoreCursor(identifier)
 
 	m.updateViewportContent()
 	return nil
@@ -756,24 +839,23 @@ func (m *Model) markSelectedUnread() tea.Cmd {
 		return nil
 	}
 
+	// Save the notification ID to restore cursor later
+	selectedID := selected.ID
+
 	id := strconv.Itoa(selected.ID)
 	if err := storage.MarkNotificationUnread(id); err != nil {
 		colors.Error(fmt.Sprintf("tui: failed to mark notification unread: %v", err))
 		return nil
 	}
 
-	if err := m.loadNotifications(); err != nil {
+	if err := m.loadNotifications(true); err != nil {
 		colors.Error(fmt.Sprintf("tui: failed to reload notifications: %v", err))
 		return nil
 	}
 
-	listLen := m.currentListLen()
-	if m.cursor >= listLen {
-		m.cursor = listLen - 1
-	}
-	if m.cursor < 0 {
-		m.cursor = 0
-	}
+	// Restore cursor to the selected notification
+	identifier := fmt.Sprintf("notif:%d", selectedID)
+	m.restoreCursor(identifier)
 
 	m.updateViewportContent()
 	return nil
@@ -822,7 +904,8 @@ func (m *Model) handleJump() tea.Cmd {
 }
 
 // loadNotifications loads notifications from storage.
-func (m *Model) loadNotifications() error {
+// If preserveCursor is true, the current cursor position is preserved.
+func (m *Model) loadNotifications(preserveCursor bool) error {
 	lines, err := storage.ListNotifications("active", "", "", "", "", "", "")
 	if err != nil {
 		return fmt.Errorf("failed to load notifications: %w", err)
@@ -855,7 +938,7 @@ func (m *Model) loadNotifications() error {
 	})
 
 	m.notifications = notifications
-	m.applySearchFilter()
+	m.applySearchFilter(preserveCursor)
 	return nil
 }
 
@@ -871,7 +954,7 @@ func (m *Model) cycleViewMode() {
 	}
 
 	m.viewMode = nextMode
-	m.applySearchFilter()
+	m.applySearchFilter(false)
 
 	if err := m.saveSettings(); err != nil {
 		colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))

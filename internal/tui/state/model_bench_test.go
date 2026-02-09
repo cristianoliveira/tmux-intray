@@ -114,7 +114,7 @@ func BenchmarkApplySearchFilterGrouped(b *testing.B) {
 				b.ReportAllocs()
 				b.ResetTimer()
 				for i := 0; i < b.N; i++ {
-					model.applySearchFilter()
+					model.applySearchFilter(false)
 				}
 			})
 		}
@@ -131,7 +131,7 @@ func benchmarkModel(notifications []notification.Notification) *Model {
 		width:          120,
 	}
 
-	model.applySearchFilter()
+	model.applySearchFilter(false)
 	setExpansionState(model.treeRoot, map[NodeKind]bool{
 		NodeKindSession: true,
 		NodeKindWindow:  true,
