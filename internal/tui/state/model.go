@@ -16,6 +16,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
+	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/render"
 )
 
@@ -38,16 +39,11 @@ type Model struct {
 	paneNames     map[string]string
 	client        tmux.TmuxClient // TmuxClient for tmux operations
 
-	// Settings fields
-	sortBy             string
-	sortOrder          string
-	columns            []string
-	filters            settings.Filter
-	viewMode           string
-	groupBy            string
-	defaultExpandLevel int
-
-	expansionState map[string]bool
+	// Settings fields (non-UI state)
+	sortBy         string
+	sortOrder      string
+	columns        []string
+	filters        settings.Filter
 	loadedSettings *settings.Settings // Track loaded settings for comparison
 
 	treeRoot     *Node
@@ -281,17 +277,17 @@ func (m *Model) SetLoadedSettings(loaded *settings.Settings) {
 // ToState converts the Model to a TUIState DTO for settings persistence.
 // Only persists user-configurable settings (columns, sort, filters, view mode).
 func (m *Model) ToState() settings.TUIState {
+	dto := m.uiState.ToDTO()
 	return settings.TUIState{
 		Columns:               m.columns,
 		SortBy:                m.sortBy,
 		SortOrder:             m.sortOrder,
 		Filters:               m.filters,
-		ViewMode:              m.viewMode,
-		GroupBy:               m.groupBy,
-		DefaultExpandLevel:    m.defaultExpandLevel,
+		ViewMode:              string(dto.ViewMode),
+		GroupBy:               string(dto.GroupBy),
+		DefaultExpandLevel:    dto.ExpandLevel,
 		DefaultExpandLevelSet: true,
-
-		ExpansionState: m.expansionState,
+		ExpansionState:        dto.ExpansionState,
 	}
 }
 
@@ -318,18 +314,26 @@ func (m *Model) FromState(state settings.TUIState) error {
 	if state.SortOrder != "" {
 		m.sortOrder = state.SortOrder
 	}
+
+	// Update UI state via DTO
+	dto := model.UIDTO{}
 	if state.ViewMode != "" {
-		m.viewMode = state.ViewMode
+		dto.ViewMode = model.ViewMode(state.ViewMode)
 	}
 	if state.GroupBy != "" {
-		m.groupBy = state.GroupBy
+		dto.GroupBy = model.GroupBy(state.GroupBy)
 	}
 	if state.DefaultExpandLevelSet {
-		m.defaultExpandLevel = state.DefaultExpandLevel
+		dto.ExpandLevel = state.DefaultExpandLevel
+		dto.ExpandLevelSet = true
+	}
+	if state.ExpansionState != nil {
+		dto.ExpansionState = state.ExpansionState
 	}
 
-	if state.ExpansionState != nil {
-		m.expansionState = state.ExpansionState
+	// Apply UI state - preserve current values if not explicitly set
+	if err := m.uiState.FromDTO(dto); err != nil {
+		return err
 	}
 
 	// Apply filters - only update non-empty fields
@@ -391,7 +395,6 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 		windowNames:       windowNames,
 		paneNames:         paneNames,
 		client:            client,
-		expansionState:    map[string]bool{},
 		ensureTmuxRunning: core.EnsureTmuxRunning,
 		jumpToPane:        core.JumpToPane,
 	}
@@ -566,18 +569,18 @@ func (m *Model) executeCommand() tea.Cmd {
 			return nil
 		}
 
-		if m.groupBy == groupBy {
+		if string(m.uiState.GetGroupBy()) == groupBy {
 			return nil
 		}
 
-		m.groupBy = groupBy
+		m.uiState.SetGroupBy(model.GroupBy(groupBy))
 		m.applySearchFilter()
 		m.resetCursor()
 		if err := m.saveSettings(); err != nil {
 			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 			return nil
 		}
-		colors.Info(fmt.Sprintf("Group by: %s", m.groupBy))
+		colors.Info(fmt.Sprintf("Group by: %s", groupBy))
 		return nil
 	case "expand-level":
 		if len(args) != 1 {
@@ -591,11 +594,11 @@ func (m *Model) executeCommand() tea.Cmd {
 			return nil
 		}
 
-		if m.defaultExpandLevel == level {
+		if m.uiState.GetExpandLevel() == level {
 			return nil
 		}
 
-		m.defaultExpandLevel = level
+		m.uiState.SetExpandLevel(level)
 		if m.isGroupedView() {
 			m.applyDefaultExpansion()
 		}
@@ -603,7 +606,7 @@ func (m *Model) executeCommand() tea.Cmd {
 			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 			return nil
 		}
-		colors.Info(fmt.Sprintf("Default expand level: %d", m.defaultExpandLevel))
+		colors.Info(fmt.Sprintf("Default expand level: %d", m.uiState.GetExpandLevel()))
 		return nil
 
 	case "toggle-view":
@@ -612,17 +615,17 @@ func (m *Model) executeCommand() tea.Cmd {
 			return nil
 		}
 
-		if m.isGroupedView() {
-			m.viewMode = viewModeDetailed
+		if m.uiState.IsGroupedView() {
+			m.uiState.SetViewMode(model.ViewModeDetailed)
 		} else {
-			m.viewMode = viewModeGrouped
+			m.uiState.SetViewMode(model.ViewModeGrouped)
 		}
 		m.applySearchFilter()
 		m.resetCursor()
 		if err := m.saveSettings(); err != nil {
 			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 		}
-		colors.Info(fmt.Sprintf("View mode: %s", m.viewMode))
+		colors.Info(fmt.Sprintf("View mode: %s", m.uiState.GetViewMode()))
 		return nil
 	default:
 		colors.Warning(fmt.Sprintf("Unknown command: %s", command))
@@ -953,46 +956,19 @@ func (m *Model) loadNotifications(preserveCursor bool) error {
 }
 
 func (m *Model) isGroupedView() bool {
-	return m.viewMode == viewModeGrouped
+	return m.uiState.IsGroupedView()
 }
 
 // cycleViewMode cycles through available view modes (compact → detailed → grouped).
 func (m *Model) cycleViewMode() {
-	nextMode := nextViewMode(m.viewMode)
-	if nextMode == m.viewMode {
-		return
-	}
-
-	m.viewMode = nextMode
+	m.uiState.CycleViewMode()
 	m.applySearchFilter()
 	m.resetCursor()
 
 	if err := m.saveSettings(); err != nil {
 		colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 	}
-	colors.Info(fmt.Sprintf("View mode: %s", m.viewMode))
-}
-
-// nextViewMode returns the next view mode in the cycle.
-func nextViewMode(current string) string {
-	availableModes := []string{viewModeCompact, viewModeDetailed}
-	if isViewModeAvailable(viewModeGrouped) {
-		availableModes = append(availableModes, viewModeGrouped)
-	}
-
-	for i, mode := range availableModes {
-		if mode == current {
-			return availableModes[(i+1)%len(availableModes)]
-		}
-	}
-
-	return availableModes[0]
-}
-
-// isViewModeAvailable returns true if the given mode is a valid view mode.
-
-func isViewModeAvailable(mode string) bool {
-	return mode == viewModeCompact || mode == viewModeDetailed || mode == viewModeGrouped
+	colors.Info(fmt.Sprintf("View mode: %s", m.uiState.GetViewMode()))
 }
 
 func (m *Model) computeVisibleNodes() []*Node {
@@ -1162,7 +1138,7 @@ func (m *Model) applyDefaultExpansion() {
 		return
 	}
 	selected := m.selectedVisibleNode()
-	level := m.defaultExpandLevel
+	level := m.uiState.GetExpandLevel()
 	if level < settings.MinExpandLevel {
 		level = settings.MinExpandLevel
 	}
@@ -1258,14 +1234,16 @@ func (m *Model) updateExpansionState(node *Node, expanded bool) {
 	if key == "" {
 		return
 	}
-	if m.expansionState == nil {
-		m.expansionState = map[string]bool{}
+	expansionState := m.uiState.GetExpansionState()
+	if expansionState == nil {
+		expansionState = map[string]bool{}
+		m.uiState.SetExpansionState(expansionState)
 	}
 	legacyKey := m.nodeExpansionLegacyKey(node)
 	if legacyKey != "" && legacyKey != key {
-		delete(m.expansionState, legacyKey)
+		delete(expansionState, legacyKey)
 	}
-	m.expansionState[key] = expanded
+	m.uiState.UpdateExpansionState(key, expanded)
 }
 
 func (m *Model) nodeExpansionKey(node *Node) string {
@@ -1427,7 +1405,7 @@ func (m *Model) buildFilteredTree(notifications []notification.Notification) *No
 		return nil
 	}
 
-	root := BuildTree(notifications, m.groupBy)
+	root := BuildTree(notifications, string(m.uiState.GetGroupBy()))
 
 	// Prune empty groups (groups with no matching notifications)
 	m.pruneEmptyGroups(root)
@@ -1437,7 +1415,8 @@ func (m *Model) buildFilteredTree(notifications []notification.Notification) *No
 	m.treeRoot = root
 
 	// Apply saved expansion state where possible
-	if m.expansionState != nil {
+	expansionState := m.uiState.GetExpansionState()
+	if expansionState != nil {
 		m.applyExpansionState(root)
 	} else {
 		// If no saved state, expand all by default
@@ -1492,13 +1471,14 @@ func (m *Model) applyExpansionState(node *Node) {
 }
 
 func (m *Model) expansionStateValue(node *Node) (bool, bool) {
-	if m.expansionState == nil {
+	expansionState := m.uiState.GetExpansionState()
+	if expansionState == nil {
 		return false, false
 	}
 
 	key := m.nodeExpansionKey(node)
 	if key != "" {
-		expanded, ok := m.expansionState[key]
+		expanded, ok := expansionState[key]
 		if ok {
 			return expanded, true
 		}
@@ -1509,13 +1489,13 @@ func (m *Model) expansionStateValue(node *Node) (bool, bool) {
 		return false, false
 	}
 
-	expanded, ok := m.expansionState[legacyKey]
+	expanded, ok := expansionState[legacyKey]
 	if !ok {
 		return false, false
 	}
 	if key != "" {
-		m.expansionState[key] = expanded
-		delete(m.expansionState, legacyKey)
+		m.uiState.UpdateExpansionState(key, expanded)
+		delete(expansionState, legacyKey)
 	}
 	return expanded, true
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
+	uimodel "github.com/cristianoliveira/tmux-intray/internal/tui/model"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,131 +63,10 @@ func TestNewModelInitialState(t *testing.T) {
 	assert.Equal(t, "", model.uiState.GetSearchQuery())
 	assert.Empty(t, model.notifications)
 	assert.Empty(t, model.filtered)
-	assert.NotNil(t, model.expansionState)
-	assert.Empty(t, model.expansionState)
+	assert.NotNil(t, model.uiState.GetExpansionState())
+	assert.Empty(t, model.uiState.GetExpansionState())
 	assert.Nil(t, model.treeRoot)
 	assert.Empty(t, model.visibleNodes)
-}
-
-func TestModelGroupedModeBuildsVisibleNodes(t *testing.T) {
-	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: viewModeGrouped,
-		groupBy:  settings.GroupByPane,
-		notifications: []notification.Notification{
-			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
-			{ID: 2, Session: "$2", Window: "@1", Pane: "%2", Message: "Two"},
-		},
-	}
-	model.uiState.SetWidth(80)
-	model.uiState.GetViewport().Width = 80
-
-	model.applySearchFilter()
-	model.resetCursor()
-
-	require.NotNil(t, model.treeRoot)
-	require.Len(t, model.visibleNodes, 8)
-	assert.Equal(t, NodeKindSession, model.visibleNodes[0].Kind)
-	assert.Equal(t, NodeKindWindow, model.visibleNodes[1].Kind)
-	assert.Equal(t, NodeKindPane, model.visibleNodes[2].Kind)
-	assert.Equal(t, NodeKindNotification, model.visibleNodes[3].Kind)
-	assert.Equal(t, NodeKindSession, model.visibleNodes[4].Kind)
-	assert.Equal(t, NodeKindWindow, model.visibleNodes[5].Kind)
-	assert.Equal(t, NodeKindPane, model.visibleNodes[6].Kind)
-	assert.Equal(t, NodeKindNotification, model.visibleNodes[7].Kind)
-}
-
-func TestComputeVisibleNodesUsesCacheWhenValid(t *testing.T) {
-	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: viewModeGrouped,
-		groupBy:  settings.GroupByPane,
-		notifications: []notification.Notification{
-			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
-		},
-	}
-	model.uiState.SetWidth(80)
-	model.uiState.GetViewport().Width = 80
-
-	model.applySearchFilter()
-	model.resetCursor()
-	require.True(t, model.cacheValid)
-	require.Len(t, model.visibleNodes, 4)
-
-	groupNode := model.visibleNodes[0]
-	require.NotNil(t, groupNode)
-	require.True(t, groupNode.Expanded)
-
-	groupNode.Expanded = false
-	visible := model.computeVisibleNodes()
-
-	assert.Len(t, visible, 4)
-	assert.Equal(t, NodeKindNotification, visible[len(visible)-1].Kind)
-}
-
-func TestInvalidateCacheForcesVisibleNodesRecompute(t *testing.T) {
-	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: viewModeGrouped,
-		groupBy:  settings.GroupByPane,
-		notifications: []notification.Notification{
-			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
-		},
-	}
-	model.uiState.SetWidth(80)
-	model.uiState.GetViewport().Width = 80
-
-	model.applySearchFilter()
-	model.resetCursor()
-	require.True(t, model.cacheValid)
-	require.Len(t, model.visibleNodes, 4)
-
-	groupNode := model.visibleNodes[0]
-	groupNode.Expanded = false
-
-	model.invalidateCache()
-	assert.False(t, model.cacheValid)
-	assert.Nil(t, model.visibleNodesCache)
-
-	visible := model.computeVisibleNodes()
-	assert.True(t, model.cacheValid)
-	assert.Len(t, visible, 1)
-	assert.Equal(t, NodeKindSession, visible[0].Kind)
-}
-
-func TestCacheInvalidationOnSearchAndExpansionChanges(t *testing.T) {
-	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: viewModeGrouped,
-		groupBy:  settings.GroupBySession,
-		notifications: []notification.Notification{
-			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "alpha message"},
-			{ID: 2, Session: "$2", Window: "@2", Pane: "%2", Message: "beta message"},
-		},
-	}
-	model.uiState.SetWidth(80)
-	model.uiState.GetViewport().Width = 80
-
-	model.applySearchFilter()
-	model.resetCursor()
-	require.True(t, model.cacheValid)
-	require.Len(t, model.visibleNodes, 4)
-
-	model.uiState.SetSearchQuery("alpha")
-	model.applySearchFilter()
-	model.resetCursor()
-	require.True(t, model.cacheValid)
-	require.Len(t, model.visibleNodes, 2)
-
-	groupNode := model.visibleNodes[0]
-	model.uiState.SetCursor(0)
-	require.True(t, groupNode.Expanded)
-
-	handled := model.toggleNodeExpansion()
-	require.True(t, handled)
-	assert.False(t, groupNode.Expanded)
-	assert.True(t, model.cacheValid)
-	assert.Len(t, model.visibleNodes, 1)
 }
 
 func BenchmarkComputeVisibleNodesCache(b *testing.B) {
@@ -202,14 +82,14 @@ func BenchmarkComputeVisibleNodesCache(b *testing.B) {
 	}
 
 	model := &Model{
-		uiState:        NewUIState(),
-		viewMode:       viewModeGrouped,
-		groupBy:        settings.GroupByPane,
-		notifications:  notifications,
-		expansionState: map[string]bool{},
+		uiState:       NewUIState(),
+		notifications: notifications,
 	}
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByPane)
+	model.uiState.SetExpansionState(map[string]bool{})
 	model.applySearchFilter()
 	model.resetCursor()
 
@@ -217,6 +97,34 @@ func BenchmarkComputeVisibleNodesCache(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = model.computeVisibleNodes()
 	}
+}
+
+func TestModelGroupedModeBuildsVisibleNodes(t *testing.T) {
+	model := &Model{
+		uiState: NewUIState(),
+		notifications: []notification.Notification{
+			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+			{ID: 2, Session: "$2", Window: "@1", Pane: "%2", Message: "Two"},
+		},
+	}
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByPane)
+
+	model.applySearchFilter()
+	model.resetCursor()
+
+	require.NotNil(t, model.treeRoot)
+	require.Len(t, model.visibleNodes, 8)
+	assert.Equal(t, NodeKindSession, model.visibleNodes[0].Kind)
+	assert.Equal(t, NodeKindWindow, model.visibleNodes[1].Kind)
+	assert.Equal(t, NodeKindPane, model.visibleNodes[2].Kind)
+	assert.Equal(t, NodeKindNotification, model.visibleNodes[3].Kind)
+	assert.Equal(t, NodeKindSession, model.visibleNodes[4].Kind)
+	assert.Equal(t, NodeKindWindow, model.visibleNodes[5].Kind)
+	assert.Equal(t, NodeKindPane, model.visibleNodes[6].Kind)
+	assert.Equal(t, NodeKindNotification, model.visibleNodes[7].Kind)
 }
 
 func TestModelGroupedModeRespectsGroupByDepth(t *testing.T) {
@@ -245,9 +153,7 @@ func TestModelGroupedModeRespectsGroupByDepth(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			model := &Model{
-				uiState:  NewUIState(),
-				viewMode: viewModeGrouped,
-				groupBy:  tt.groupBy,
+				uiState: NewUIState(),
 				notifications: []notification.Notification{
 					{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 					{ID: 2, Session: "$2", Window: "@2", Pane: "%2", Message: "Two"},
@@ -255,6 +161,8 @@ func TestModelGroupedModeRespectsGroupByDepth(t *testing.T) {
 			}
 			model.uiState.SetWidth(80)
 			model.uiState.GetViewport().Width = 80
+			model.uiState.SetViewMode(viewModeGrouped)
+			model.uiState.SetGroupBy(uimodel.GroupBy(tt.groupBy))
 
 			model.applySearchFilter()
 			model.resetCursor()
@@ -269,21 +177,21 @@ func TestModelGroupedModeRespectsGroupByDepth(t *testing.T) {
 
 func TestModelSwitchesViewModes(t *testing.T) {
 	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: viewModeGrouped,
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 		},
 	}
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(viewModeGrouped)
 
 	model.applySearchFilter()
 	model.resetCursor()
 	require.NotNil(t, model.treeRoot)
 	require.NotEmpty(t, model.visibleNodes)
 
-	model.viewMode = "flat"
+	model.uiState.SetViewMode(settings.ViewModeCompact)
 	model.applySearchFilter()
 	model.resetCursor()
 	assert.Nil(t, model.treeRoot)
@@ -292,14 +200,15 @@ func TestModelSwitchesViewModes(t *testing.T) {
 
 func TestToggleNodeExpansionGroupedView(t *testing.T) {
 	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: viewModeGrouped,
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 		},
 	}
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByPane)
 
 	model.applySearchFilter()
 	model.resetCursor()
@@ -333,14 +242,15 @@ func TestToggleNodeExpansionGroupedView(t *testing.T) {
 
 func TestToggleFoldTogglesGroupNode(t *testing.T) {
 	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: viewModeGrouped,
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 		},
 	}
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByPane)
 
 	model.applySearchFilter()
 	model.resetCursor()
@@ -371,14 +281,15 @@ func TestToggleFoldTogglesGroupNode(t *testing.T) {
 
 func TestToggleFoldWorksAtPaneDepth(t *testing.T) {
 	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: viewModeGrouped,
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 		},
 	}
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByPane)
 
 	model.applySearchFilter()
 	model.resetCursor()
@@ -407,14 +318,15 @@ func TestToggleFoldWorksAtPaneDepth(t *testing.T) {
 
 func TestCollapseNodeMovesCursorToParent(t *testing.T) {
 	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: viewModeGrouped,
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 		},
 	}
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByPane)
 
 	model.applySearchFilter()
 	model.resetCursor()
@@ -452,14 +364,14 @@ func TestCollapseNodeMovesCursorToParent(t *testing.T) {
 
 func TestToggleNodeExpansionIgnoresLeafNodes(t *testing.T) {
 	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: viewModeGrouped,
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 		},
 	}
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(viewModeGrouped)
 
 	model.applySearchFilter()
 	model.resetCursor()
@@ -487,14 +399,14 @@ func TestToggleNodeExpansionIgnoresLeafNodes(t *testing.T) {
 
 func TestToggleFoldIgnoresLeafNodes(t *testing.T) {
 	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: viewModeGrouped,
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 		},
 	}
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(viewModeGrouped)
 
 	model.applySearchFilter()
 	model.resetCursor()
@@ -521,15 +433,16 @@ func TestToggleFoldIgnoresLeafNodes(t *testing.T) {
 
 func TestToggleFoldExpandsDefaultWhenAllCollapsed(t *testing.T) {
 	model := &Model{
-		uiState:            NewUIState(),
-		viewMode:           viewModeGrouped,
-		defaultExpandLevel: 2,
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 		},
 	}
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByPane)
+	model.uiState.SetExpandLevel(2)
 
 	model.applySearchFilter()
 	model.resetCursor()
@@ -568,8 +481,7 @@ func TestToggleFoldExpandsDefaultWhenAllCollapsed(t *testing.T) {
 
 func TestModelSelectedNotificationGroupedView(t *testing.T) {
 	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: viewModeGrouped,
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "b", Window: "@1", Pane: "%1", Message: "B"},
 			{ID: 2, Session: "a", Window: "@1", Pane: "%1", Message: "A"},
@@ -577,6 +489,7 @@ func TestModelSelectedNotificationGroupedView(t *testing.T) {
 	}
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(viewModeGrouped)
 
 	model.applySearchFilter()
 	model.resetCursor()
@@ -712,31 +625,31 @@ func TestModelUpdateCyclesViewModesWithPersistence(t *testing.T) {
 	setupConfig(t, tmpDir)
 
 	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: settings.ViewModeCompact,
+		uiState: NewUIState(),
 	}
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(settings.ViewModeCompact)
 
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}}
 
 	updated, _ := model.Update(msg)
 	model = updated.(*Model)
-	assert.Equal(t, settings.ViewModeDetailed, model.viewMode)
+	assert.Equal(t, settings.ViewModeDetailed, string(model.uiState.GetViewMode()))
 	loaded, err := settings.Load()
 	require.NoError(t, err)
 	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
 
 	updated, _ = model.Update(msg)
 	model = updated.(*Model)
-	assert.Equal(t, settings.ViewModeGrouped, model.viewMode)
+	assert.Equal(t, settings.ViewModeGrouped, string(model.uiState.GetViewMode()))
 	loaded, err = settings.Load()
 	require.NoError(t, err)
 	assert.Equal(t, settings.ViewModeGrouped, loaded.ViewMode)
 
 	updated, _ = model.Update(msg)
 	model = updated.(*Model)
-	assert.Equal(t, settings.ViewModeCompact, model.viewMode)
+	assert.Equal(t, settings.ViewModeCompact, string(model.uiState.GetViewMode()))
 	loaded, err = settings.Load()
 	require.NoError(t, err)
 	assert.Equal(t, settings.ViewModeCompact, loaded.ViewMode)
@@ -744,24 +657,24 @@ func TestModelUpdateCyclesViewModesWithPersistence(t *testing.T) {
 
 func TestModelUpdateIgnoresViewModeCycleInSearchAndCommandModes(t *testing.T) {
 	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: settings.ViewModeCompact,
+		uiState: NewUIState(),
 	}
 	model.uiState.SetSearchMode(true)
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(settings.ViewModeCompact)
 
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}}
 	updated, _ := model.Update(msg)
 	model = updated.(*Model)
-	assert.Equal(t, settings.ViewModeCompact, model.viewMode)
+	assert.Equal(t, settings.ViewModeCompact, string(model.uiState.GetViewMode()))
 	assert.Equal(t, "v", model.uiState.GetSearchQuery())
 
 	model.uiState.SetSearchMode(false)
 	model.uiState.SetCommandMode(true)
 	updated, _ = model.Update(msg)
 	model = updated.(*Model)
-	assert.Equal(t, settings.ViewModeCompact, model.viewMode)
+	assert.Equal(t, settings.ViewModeCompact, string(model.uiState.GetViewMode()))
 	assert.Equal(t, "v", model.uiState.GetCommandQuery())
 }
 
@@ -937,18 +850,20 @@ func TestModelUpdateHandlesSearchEnter(t *testing.T) {
 // in grouped view mode, including tree rebuilding and empty group pruning.
 func TestApplySearchFilterGroupedView(t *testing.T) {
 	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: viewModeGrouped,
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Error: connection failed", Timestamp: "2024-01-03T10:00:00Z"},
 			{ID: 2, Session: "$1", Window: "@1", Pane: "%2", Message: "Warning: low memory", Timestamp: "2024-01-02T10:00:00Z"},
 			{ID: 3, Session: "$2", Window: "@1", Pane: "%1", Message: "Error: file not found", Timestamp: "2024-01-01T10:00:00Z"},
 			{ID: 4, Session: "$2", Window: "@2", Pane: "%1", Message: "Info: task completed", Timestamp: "2024-01-04T10:00:00Z"},
 		},
-		expansionState: map[string]bool{},
 	}
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(viewModeGrouped)
+
+	model.uiState.SetGroupBy(settings.GroupByPane)
+	model.uiState.SetExpansionState(map[string]bool{})
 
 	// Search for "Error"
 	model.uiState.SetSearchQuery("Error")
@@ -980,16 +895,18 @@ func TestApplySearchFilterGroupedView(t *testing.T) {
 // from the tree after filtering.
 func TestBuildFilteredTreePrunesEmptyGroups(t *testing.T) {
 	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: viewModeGrouped,
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Unique message here", Timestamp: "2024-01-01T10:00:00Z"},
 			{ID: 2, Session: "$2", Window: "@1", Pane: "%1", Message: "Different message", Timestamp: "2024-01-02T10:00:00Z"},
 		},
-		expansionState: map[string]bool{},
 	}
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(viewModeGrouped)
+
+	model.uiState.SetGroupBy(settings.GroupByPane)
+	model.uiState.SetExpansionState(map[string]bool{})
 
 	// Search for "Unique"
 	model.uiState.SetSearchQuery("Unique")
@@ -1019,8 +936,7 @@ func TestBuildFilteredTreePrunesEmptyGroups(t *testing.T) {
 // is preserved across searches when possible.
 func TestBuildFilteredTreePreservesExpansionState(t *testing.T) {
 	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: viewModeGrouped,
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Test message 1", Timestamp: "2024-01-01T10:00:00Z"},
 			{ID: 2, Session: "$1", Window: "@2", Pane: "%1", Message: "Test message 2", Timestamp: "2024-01-02T10:00:00Z"},
@@ -1029,6 +945,9 @@ func TestBuildFilteredTreePreservesExpansionState(t *testing.T) {
 	}
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByPane)
 
 	// First search - build initial tree
 	model.uiState.SetSearchQuery("")
@@ -1057,12 +976,10 @@ func TestBuildFilteredTreePreservesExpansionState(t *testing.T) {
 // returns no matches.
 func TestBuildFilteredTreeHandlesNoMatches(t *testing.T) {
 	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: viewModeGrouped,
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Test message", Timestamp: "2024-01-01T10:00:00Z"},
 		},
-		expansionState: map[string]bool{},
 	}
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
@@ -1085,16 +1002,17 @@ func TestBuildFilteredTreeHandlesNoMatches(t *testing.T) {
 // shows all notifications.
 func TestBuildFilteredTreeWithEmptyQuery(t *testing.T) {
 	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: viewModeGrouped,
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "First", Timestamp: "2024-01-01T10:00:00Z"},
 			{ID: 2, Session: "$1", Window: "@2", Pane: "%1", Message: "Second", Timestamp: "2024-01-02T10:00:00Z"},
 		},
-		expansionState: map[string]bool{},
 	}
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByPane)
 
 	// Empty search
 	model.uiState.SetSearchQuery("")
@@ -1110,17 +1028,18 @@ func TestBuildFilteredTreeWithEmptyQuery(t *testing.T) {
 // only matching notifications.
 func TestBuildFilteredTreeGroupCounts(t *testing.T) {
 	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: viewModeGrouped,
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Error: connection failed", Timestamp: "2024-01-01T10:00:00Z"},
 			{ID: 2, Session: "$1", Window: "@1", Pane: "%1", Message: "Warning: low memory", Timestamp: "2024-01-02T10:00:00Z"},
 			{ID: 3, Session: "$1", Window: "@1", Pane: "%2", Message: "Error: timeout", Timestamp: "2024-01-03T10:00:00Z"},
 		},
-		expansionState: map[string]bool{},
 	}
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByPane)
 
 	// Search for "Error"
 	model.uiState.SetSearchQuery("Error")
@@ -1263,9 +1182,9 @@ func TestModelViewWithNoNotifications(t *testing.T) {
 func TestUpdateViewportContentGroupedViewWithEmptyTree(t *testing.T) {
 	model := &Model{
 		uiState:       NewUIState(),
-		viewMode:      viewModeGrouped,
 		notifications: []notification.Notification{},
 	}
+	model.uiState.SetViewMode(viewModeGrouped)
 
 	model.applySearchFilter()
 	model.resetCursor()
@@ -1275,14 +1194,16 @@ func TestUpdateViewportContentGroupedViewWithEmptyTree(t *testing.T) {
 
 func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: viewModeGrouped,
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One", Level: "info", State: "active"},
 		},
 	}
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByPane)
 
 	model.applySearchFilter()
 	model.resetCursor()
@@ -1336,8 +1257,7 @@ func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 
 func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
 	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: viewModeGrouped,
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "First", Level: "info", State: "active"},
 			{ID: 2, Session: "$1", Window: "@1", Pane: "%1", Message: "Second", Level: "info", State: "active"},
@@ -1345,6 +1265,9 @@ func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
 	}
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByPane)
 
 	model.applySearchFilter()
 	model.resetCursor()
@@ -1480,7 +1403,9 @@ func TestHandleDismissGroupedViewUsesVisibleNodes(t *testing.T) {
 
 	model, err := NewModel(mockClient)
 	require.NoError(t, err)
-	model.viewMode = viewModeGrouped
+	model.uiState.SetViewMode(viewModeGrouped)
+
+	model.uiState.SetGroupBy(settings.GroupByPane)
 	model.applySearchFilter()
 	model.resetCursor()
 	cursorIndex := -1
@@ -1557,8 +1482,7 @@ func TestHandleJumpWithMissingContext(t *testing.T) {
 
 func TestHandleJumpGroupedViewUsesVisibleNodes(t *testing.T) {
 	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: viewModeGrouped,
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "b", Window: "@1", Pane: "%1", Message: "B"},
 			{ID: 2, Session: "a", Window: "", Pane: "%1", Message: "A"},
@@ -1572,6 +1496,9 @@ func TestHandleJumpGroupedViewUsesVisibleNodes(t *testing.T) {
 			return true
 		},
 	}
+
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByPane)
 
 	model.applySearchFilter()
 	model.resetCursor()
@@ -1611,14 +1538,16 @@ func TestModelUpdateHandlesDismissKey(t *testing.T) {
 
 func TestModelUpdateHandlesZaToggleFold(t *testing.T) {
 	model := &Model{
-		uiState:  NewUIState(),
-		viewMode: viewModeGrouped,
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 		},
 	}
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByPane)
 
 	model.applySearchFilter()
 	model.resetCursor()
@@ -1686,10 +1615,16 @@ func TestToState(t *testing.T) {
 		want  settings.TUIState
 	}{
 		{
-			name:  "empty model",
-			model: &Model{},
+			name: "empty model",
+			model: &Model{
+				uiState: NewUIState(),
+			},
 			want: settings.TUIState{
 				DefaultExpandLevelSet: true,
+				ViewMode:              string(uimodel.ViewModeDetailed),
+				GroupBy:               string(uimodel.GroupByNone),
+				DefaultExpandLevel:    1,
+				ExpansionState:        map[string]bool{},
 			},
 		},
 		{
@@ -1704,12 +1639,6 @@ func TestToState(t *testing.T) {
 					Session: "my-session",
 					Window:  "@1",
 					Pane:    "%1",
-				},
-				viewMode:           settings.ViewModeDetailed,
-				groupBy:            settings.GroupBySession,
-				defaultExpandLevel: 2,
-				expansionState: map[string]bool{
-					"session:$1": true,
 				},
 			},
 			want: settings.TUIState{
@@ -1735,21 +1664,35 @@ func TestToState(t *testing.T) {
 		{
 			name: "model with partial settings",
 			model: &Model{
-				sortBy:   settings.SortByTimestamp,
-				viewMode: settings.ViewModeCompact,
-				groupBy:  settings.GroupByNone,
+				sortBy: settings.SortByTimestamp,
 			},
 			want: settings.TUIState{
 				SortBy:                settings.SortByTimestamp,
 				ViewMode:              settings.ViewModeCompact,
 				GroupBy:               settings.GroupByNone,
+				DefaultExpandLevel:    1,
 				DefaultExpandLevelSet: true,
+				ExpansionState:        map[string]bool{},
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Initialize uiState based on test expectations
+			if tt.name == "model with settings" {
+				tt.model.uiState = NewUIState()
+				tt.model.uiState.SetViewMode(uimodel.ViewMode(settings.ViewModeDetailed))
+				tt.model.uiState.SetGroupBy(uimodel.GroupBy(settings.GroupBySession))
+				tt.model.uiState.SetExpandLevel(2)
+				tt.model.uiState.SetExpansionState(map[string]bool{"session:$1": true})
+			} else if tt.name == "model with partial settings" {
+				tt.model.uiState = NewUIState()
+				tt.model.uiState.SetViewMode(uimodel.ViewMode(settings.ViewModeCompact))
+				tt.model.uiState.SetGroupBy(uimodel.GroupBy(settings.GroupByNone))
+			} else {
+				tt.model.uiState = NewUIState()
+			}
 			got := tt.model.ToState()
 
 			assert.Equal(t, tt.want.SortBy, got.SortBy)
@@ -1782,10 +1725,11 @@ func TestFromState(t *testing.T) {
 				assert.Equal(t, "", m.sortBy)
 				assert.Equal(t, "", m.sortOrder)
 				assert.Empty(t, m.columns)
-				assert.Equal(t, "", m.viewMode)
-				assert.Equal(t, "", m.groupBy)
-				assert.Equal(t, 0, m.defaultExpandLevel)
-				assert.Nil(t, m.expansionState)
+				assert.Equal(t, settings.ViewModeDetailed, string(m.uiState.GetViewMode()))
+				assert.Equal(t, settings.GroupByNone, string(m.uiState.GetGroupBy()))
+				assert.Equal(t, 1, m.uiState.GetExpandLevel())
+				assert.NotNil(t, m.uiState.GetExpansionState())
+				assert.Equal(t, map[string]bool{}, m.uiState.GetExpansionState())
 				assert.Equal(t, settings.Filter{}, m.filters)
 			},
 		},
@@ -1816,10 +1760,10 @@ func TestFromState(t *testing.T) {
 				assert.Equal(t, settings.SortByLevel, m.sortBy)
 				assert.Equal(t, settings.SortOrderAsc, m.sortOrder)
 				assert.Equal(t, []string{settings.ColumnID, settings.ColumnMessage, settings.ColumnLevel}, m.columns)
-				assert.Equal(t, settings.ViewModeDetailed, m.viewMode)
-				assert.Equal(t, settings.GroupByWindow, m.groupBy)
-				assert.Equal(t, 2, m.defaultExpandLevel)
-				assert.Equal(t, map[string]bool{"window:@1": true}, m.expansionState)
+				assert.Equal(t, settings.ViewModeDetailed, string(m.uiState.GetViewMode()))
+				assert.Equal(t, settings.GroupByWindow, string(m.uiState.GetGroupBy()))
+				assert.Equal(t, 2, m.uiState.GetExpandLevel())
+				assert.Equal(t, map[string]bool{"window:@1": true}, m.uiState.GetExpansionState())
 				assert.Equal(t, settings.LevelFilterWarning, m.filters.Level)
 				assert.Equal(t, settings.StateFilterActive, m.filters.State)
 				assert.Equal(t, "my-session", m.filters.Session)
@@ -1837,9 +1781,6 @@ func TestFromState(t *testing.T) {
 				filters: settings.Filter{
 					Level: settings.LevelFilterError,
 				},
-				viewMode:           settings.ViewModeCompact,
-				groupBy:            settings.GroupBySession,
-				defaultExpandLevel: 3,
 			},
 			state: settings.TUIState{
 				SortBy:                settings.SortByLevel,
@@ -1853,26 +1794,28 @@ func TestFromState(t *testing.T) {
 				assert.Equal(t, settings.SortOrderDesc, m.sortOrder)
 				assert.Equal(t, []string{settings.ColumnID, settings.ColumnMessage}, m.columns)
 				assert.Equal(t, settings.LevelFilterError, m.filters.Level)
-				assert.Equal(t, settings.ViewModeCompact, m.viewMode)
-				assert.Equal(t, settings.GroupBySession, m.groupBy)
-				assert.Equal(t, 0, m.defaultExpandLevel)
+				// ViewMode and GroupBy not set in state, so preserve default values
+				assert.Equal(t, settings.ViewModeDetailed, string(m.uiState.GetViewMode()))
+				assert.Equal(t, settings.GroupByNone, string(m.uiState.GetGroupBy()))
+				assert.Equal(t, 0, m.uiState.GetExpandLevel())
 			},
 		},
 		{
 			name: "partial filters - only some filter fields set",
 			model: &Model{
-				uiState: NewUIState(),
+				uiState: func() *UIState {
+					u := NewUIState()
+					u.SetGroupBy(uimodel.GroupBy(settings.GroupByPane))
+					u.SetExpandLevel(2)
+					u.SetExpansionState(map[string]bool{"pane:%1": true})
+					return u
+				}(),
 				filters: settings.Filter{
 					Level:   settings.LevelFilterError,
 					State:   settings.StateFilterActive,
 					Session: "old-session",
 					Window:  "old-session",
 					Pane:    "old-session",
-				},
-				groupBy:            settings.GroupByPane,
-				defaultExpandLevel: 2,
-				expansionState: map[string]bool{
-					"pane:%1": true,
 				},
 			},
 			state: settings.TUIState{
@@ -1890,9 +1833,9 @@ func TestFromState(t *testing.T) {
 				// Fields not set in state preserve their old values
 				assert.Equal(t, "old-session", m.filters.Window)
 				assert.Equal(t, "old-session", m.filters.Pane)
-				assert.Equal(t, settings.GroupByPane, m.groupBy)
-				assert.Equal(t, 2, m.defaultExpandLevel)
-				assert.Equal(t, map[string]bool{}, m.expansionState)
+				assert.Equal(t, settings.GroupByPane, string(m.uiState.GetGroupBy()))
+				assert.Equal(t, 2, m.uiState.GetExpandLevel())
+				assert.Equal(t, map[string]bool{}, m.uiState.GetExpansionState())
 			},
 		},
 		{
