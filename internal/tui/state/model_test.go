@@ -899,6 +899,18 @@ func TestModelUpdateHandlesSearchEscape(t *testing.T) {
 	assert.Equal(t, "", model.searchQuery)
 }
 
+func TestModelUpdateHandlesSearchEnter(t *testing.T) {
+	model := &Model{searchMode: true, searchQuery: "test query"}
+
+	msg := tea.KeyMsg{Type: tea.KeyEnter}
+	updated, cmd := model.Update(msg)
+	model = updated.(*Model)
+
+	assert.Nil(t, cmd)
+	assert.False(t, model.searchMode)
+	assert.Equal(t, "test query", model.searchQuery) // query should stay unchanged
+}
+
 // TestApplySearchFilterGroupedView tests that search filtering works correctly
 // in grouped view mode, including tree rebuilding and empty group pruning.
 func TestApplySearchFilterGroupedView(t *testing.T) {
