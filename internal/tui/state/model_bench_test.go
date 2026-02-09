@@ -123,11 +123,8 @@ func BenchmarkApplySearchFilterGrouped(b *testing.B) {
 
 func benchmarkModel(notifications []notification.Notification) *Model {
 	model := &Model{
-		uiState:        NewUIState(),
-		viewMode:       viewModeGrouped,
-		groupBy:        settings.GroupByPane,
-		notifications:  notifications,
-		expansionState: map[string]bool{},
+		uiState:       NewUIState(),
+		notifications: notifications,
 	}
 	model.uiState.SetWidth(120)
 	model.uiState.SetHeight(40)

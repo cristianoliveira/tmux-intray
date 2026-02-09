@@ -156,6 +156,9 @@ type UIDTO struct {
 	// ExpandLevel is the default expansion level for tree nodes.
 	ExpandLevel int
 
+	// ExpandLevelSet indicates whether ExpandLevel was explicitly set.
+	ExpandLevelSet bool
+
 	// ExpansionState maps node identifiers to their expanded state.
 	ExpansionState map[string]bool
 
