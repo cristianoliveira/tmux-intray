@@ -135,7 +135,7 @@ func (s *SQLiteStorage) AddNotification(message, timestamp, session, window, pan
 }
 
 // ListNotifications returns TSV lines matching all provided filters.
-func (s *SQLiteStorage) ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff string) (string, error) {
+func (s *SQLiteStorage) ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error) {
 	if err := validateListInputs(stateFilter, levelFilter, olderThanCutoff, newerThanCutoff); err != nil {
 		return "", err
 	}
@@ -148,6 +148,7 @@ func (s *SQLiteStorage) ListNotifications(stateFilter, levelFilter, sessionFilte
 		PaneFilter:      paneFilter,
 		OlderThanCutoff: olderThanCutoff,
 		NewerThanCutoff: newerThanCutoff,
+		ReadFilter:      readFilter,
 	})
 	if err != nil {
 		return "", fmt.Errorf("sqlite storage: list notifications: %w", err)

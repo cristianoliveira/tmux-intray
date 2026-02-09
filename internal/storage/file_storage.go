@@ -18,8 +18,8 @@ func (fs *FileStorage) AddNotification(message, timestamp, session, window, pane
 }
 
 // ListNotifications returns TSV lines for notifications matching the specified filters.
-func (fs *FileStorage) ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff string) (string, error) {
-	return ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff)
+func (fs *FileStorage) ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error) {
+	return ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
 }
 
 // GetNotificationByID retrieves a single notification by its ID.

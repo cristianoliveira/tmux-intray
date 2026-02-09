@@ -4,7 +4,7 @@ package storage
 // Storage defines the interface for notification storage operations.
 type Storage interface {
 	AddNotification(message, timestamp, session, window, pane, paneCreated, level string) (string, error)
-	ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff string) (string, error)
+	ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error)
 	GetNotificationByID(id string) (string, error)
 	DismissNotification(id string) error
 	DismissAll() error

@@ -43,6 +43,7 @@ OPTIONS:
     --regex              Use regex search with --search
     --group-by <field>   Group notifications by field (session, window, pane, level)
     --group-count        Show only group counts (requires --group-by)
+    --filter <status>    Filter notifications by read status: read, unread
     --format=<format>    Output format: simple (default), legacy, table, compact, json
     -h, --help           Show this help`,
 	Run: runList,
@@ -61,14 +62,15 @@ var (
 	listGroupBy    string
 	listGroupCount bool
 	listFormat     string
+	listFilter     string // read status filter: "read", "unread"
 )
 
 // listOutputWriter is the writer used by PrintList. Can be changed for testing.
 var listOutputWriter io.Writer = os.Stdout
 
 // listListFunc is the function used to retrieve notifications. Can be changed for testing.
-var listListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
-	result, _ := fileStorage.ListNotifications(state, level, session, window, pane, olderThan, newerThan)
+var listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
+	result, _ := fileStorage.ListNotifications(state, level, session, window, pane, olderThan, newerThan, readFilter)
 	return result
 }
 
@@ -87,6 +89,7 @@ type FilterOptions struct {
 	GroupCount     bool
 	Format         string          // legacy, table, compact, json
 	SearchProvider search.Provider // Optional custom search provider (for testing/extension)
+	ReadFilter     string          // read status filter: "read", "unread", or "" (no filter)
 }
 
 // PrintList prints notifications according to the provided filter options.
@@ -99,7 +102,7 @@ func PrintList(opts FilterOptions) {
 
 func printList(opts FilterOptions, w io.Writer) {
 	// Get filtered notifications from storage
-	lines := listListFunc(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, opts.OlderThan, opts.NewerThan)
+	lines := listListFunc(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, opts.OlderThan, opts.NewerThan, opts.ReadFilter)
 	if lines == "" {
 		fmt.Fprintln(w, "No notifications found")
 		return
@@ -328,6 +331,7 @@ func init() {
 	listCmd.Flags().StringVar(&listGroupBy, "group-by", "", "Group notifications by field (session, window, pane, level)")
 	listCmd.Flags().BoolVar(&listGroupCount, "group-count", false, "Show only group counts (requires --group-by)")
 	listCmd.Flags().StringVar(&listFormat, "format", "simple", "Output format: simple, legacy, table, compact, json")
+	listCmd.Flags().StringVar(&listFilter, "filter", "", "Filter notifications by read status: read, unread")
 }
 
 func runList(cmd *cobra.Command, args []string) {
@@ -358,6 +362,12 @@ func runList(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	// Validate read filter
+	if listFilter != "" && listFilter != "read" && listFilter != "unread" {
+		cmd.Printf("Invalid filter value: %s (must be read or unread)\n", listFilter)
+		return
+	}
+
 	opts := FilterOptions{
 		State:      state,
 		Level:      listLevel,
@@ -371,6 +381,7 @@ func runList(cmd *cobra.Command, args []string) {
 		GroupBy:    listGroupBy,
 		GroupCount: listGroupCount,
 		Format:     listFormat,
+		ReadFilter: listFilter,
 	}
 
 	PrintList(opts)

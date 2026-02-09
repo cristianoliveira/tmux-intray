@@ -44,6 +44,7 @@ WHERE (sqlc.arg(state_filter) = '' OR sqlc.arg(state_filter) = 'all' OR state = 
   AND (sqlc.arg(pane_filter) = '' OR pane = sqlc.arg(pane_filter))
   AND (sqlc.arg(older_than_cutoff) = '' OR timestamp < sqlc.arg(older_than_cutoff))
   AND (sqlc.arg(newer_than_cutoff) = '' OR timestamp > sqlc.arg(newer_than_cutoff))
+  AND (sqlc.arg(read_filter) = '' OR (sqlc.arg(read_filter) = 'read' AND read_timestamp != '') OR (sqlc.arg(read_filter) = 'unread' AND read_timestamp = ''))
 ORDER BY id ASC;
 
 -- name: DismissNotificationByID :execresult

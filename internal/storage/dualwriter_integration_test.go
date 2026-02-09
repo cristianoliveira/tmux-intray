@@ -89,7 +89,7 @@ func TestDualWriterAutoMigratesTSVToSQLite(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify data is now in SQLite via ListNotifications (uses SQLite backend by default)
-	list, err := dw.ListNotifications("all", "", "", "", "", "", "")
+	list, err := dw.ListNotifications("all", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.Contains(t, list, "first-msg")
 	require.Contains(t, list, "second-msg")
@@ -124,7 +124,7 @@ func TestDualWriterMigrationSkipsWhenSQLiteHasData(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify SQLite still only has its original data
-	sqliteList, err := sqliteStore.ListNotifications("all", "", "", "", "", "", "")
+	sqliteList, err := sqliteStore.ListNotifications("all", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.Contains(t, sqliteList, "sqlite-msg")
 	require.NotContains(t, sqliteList, "tsv-msg")
@@ -162,7 +162,7 @@ func TestDualWriterMigrationHandlesVariousMessageTypes(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify all data migrated correctly
-	list, err := dw.ListNotifications("all", "", "", "", "", "", "")
+	list, err := dw.ListNotifications("all", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 	require.Contains(t, list, "simple message")
 	require.Contains(t, list, "message with special chars")

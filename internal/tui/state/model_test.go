@@ -1347,7 +1347,7 @@ func TestMarkSelectedRead(t *testing.T) {
 	cmd := model.markSelectedRead()
 	assert.Nil(t, cmd)
 
-	lines, err := storage.ListNotifications("active", "", "", "", "", "", "")
+	lines, err := storage.ListNotifications("active", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 
 	parts := strings.Split(lines, "\n")
@@ -1375,7 +1375,7 @@ func TestMarkSelectedUnread(t *testing.T) {
 	cmd := model.markSelectedUnread()
 	assert.Nil(t, cmd)
 
-	lines, err := storage.ListNotifications("active", "", "", "", "", "", "")
+	lines, err := storage.ListNotifications("active", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 
 	parts := strings.Split(lines, "\n")
@@ -1416,7 +1416,7 @@ func TestHandleDismissGroupedViewUsesVisibleNodes(t *testing.T) {
 
 	assert.Nil(t, cmd)
 
-	lines, err := storage.ListNotifications("active", "", "", "", "", "", "")
+	lines, err := storage.ListNotifications("active", "", "", "", "", "", "", "")
 	require.NoError(t, err)
 
 	remainingSessions := []string{}

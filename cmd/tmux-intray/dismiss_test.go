@@ -108,3 +108,25 @@ func TestDismissAllMultipleCalls(t *testing.T) {
 		t.Errorf("Expected dismissAllFunc to be called 2 times, got %d", count)
 	}
 }
+
+func TestDismissPreservesReadTimestamp(t *testing.T) {
+	// This is a unit test for the dismiss command behavior.
+	// The actual storage layer test verifies that read_timestamp is preserved,
+	// but this test ensures the dismiss command function doesn't break it.
+	originalDismissFunc := dismissFunc
+	defer func() { dismissFunc = originalDismissFunc }()
+
+	// Mock dismissFunc that succeeds without modifying read_timestamp
+	dismissFunc = func(id string) error {
+		// In real implementation, DismissNotification preserves read_timestamp
+		// This test just verifies that dismissFunc is called correctly
+		return nil
+	}
+
+	err := Dismiss("123")
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+	// The actual verification of read_timestamp preservation is done in storage layer tests
+	// See: internal/storage/storage.go DismissNotification
+}

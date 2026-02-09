@@ -17,7 +17,7 @@ func statusMockLines() string {
 }
 
 func statusSetupMock() {
-	statusListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+	statusListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
 		// Simple filtering for testing
 		lines := strings.Split(statusMockLines(), "\n")
 		var filtered []string
@@ -54,7 +54,7 @@ func statusSetupMock() {
 }
 
 func statusRestoreMock() {
-	statusListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+	statusListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
 		// default to real storage (not used in tests)
 		return ""
 	}
@@ -64,7 +64,7 @@ func statusRestoreMock() {
 }
 
 func TestPrintStatusEmpty(t *testing.T) {
-	statusListFunc = func(state, level, session, window, pane, olderThan, newerThan string) string {
+	statusListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
 		return ""
 	}
 	defer statusRestoreMock()
