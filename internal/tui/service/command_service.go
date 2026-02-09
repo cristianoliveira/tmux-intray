@@ -11,33 +11,29 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
 
+// saveSettingsSuccessMsg is sent when settings are saved successfully.
+type saveSettingsSuccessMsg struct{}
+
+// saveSettingsFailedMsg is sent when settings save fails.
+type saveSettingsFailedMsg struct {
+	err error
+}
+
 // DefaultCommandService implements the CommandService interface.
 type DefaultCommandService struct {
 	model    ModelInterface // Reference to the TUI model for state access
-	handlers map[string]CommandHandler
-	aliases  map[string]string
-	help     model.HelpProvider
-}
+	handlers map[string]model.CommandHandler
 
-// CommandHandler handles the execution of a specific command.
-type CommandHandler interface {
-	// Execute executes the command with the given arguments.
-	Execute(args []string) (*model.CommandResult, error)
-
-	// Validate checks if the arguments are valid for this command.
-	Validate(args []string) error
-
-	// Complete returns completion suggestions for the arguments.
-	Complete(args []string) []string
+	help model.HelpProvider
 }
 
 // NewCommandService creates a new DefaultCommandService.
-func NewCommandService(model ModelInterface) model.CommandService {
+func NewCommandService(modelInterface ModelInterface) model.CommandService {
 	service := &DefaultCommandService{
-		model:    model,
-		handlers: make(map[string]CommandHandler),
-		aliases:  make(map[string]string),
-		help:     NewDefaultHelpProvider(),
+		model:    modelInterface,
+		handlers: make(map[string]model.CommandHandler),
+
+		help: NewDefaultHelpProvider(),
 	}
 
 	// Register default command handlers
@@ -56,11 +52,6 @@ func (s *DefaultCommandService) ParseCommand(command string) (name string, args 
 	parts := strings.Fields(command)
 	name = strings.ToLower(parts[0])
 	args = parts[1:]
-
-	// Resolve aliases
-	if resolved, ok := s.aliases[name]; ok {
-		name = resolved
-	}
 
 	return name, args, nil
 }
@@ -142,13 +133,6 @@ func (s *DefaultCommandService) GetCommandSuggestions(partial string) []string {
 		}
 	}
 
-	// Check for alias suggestions
-	for alias := range s.aliases {
-		if strings.HasPrefix(alias, partial) {
-			suggestions = append(suggestions, alias)
-		}
-	}
-
 	return suggestions
 }
 
@@ -212,10 +196,11 @@ func (h *WriteCommandHandler) Execute(args []string) (*model.CommandResult, erro
 	return &model.CommandResult{
 		Cmd: func() tea.Msg {
 			if err := h.model.SaveSettings(); err != nil {
-				// Create a simple error message for display
-				return tea.Quit
+				colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+				return saveSettingsFailedMsg{err: err}
 			}
-			return nil
+			colors.Info("Settings saved")
+			return saveSettingsSuccessMsg{}
 		},
 	}, nil
 }
