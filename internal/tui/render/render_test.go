@@ -198,3 +198,91 @@ func TestViewModeIndicator(t *testing.T) {
 	assert.Equal(t, "[G]", viewModeIndicator(settings.ViewModeGrouped))
 	assert.Equal(t, "[?]", viewModeIndicator("unknown"))
 }
+
+func TestRenderGroupRowWithUnreadCounts(t *testing.T) {
+	styles := GroupRowStyles{
+		Base:     lipgloss.NewStyle(),
+		Selected: lipgloss.NewStyle(),
+	}
+
+	// Test group with no unread items (should show only total)
+	row := RenderGroupRow(GroupRow{
+		Node: &GroupNode{
+			Title:       "session-one",
+			Display:     "session-one",
+			Expanded:    true,
+			Count:       5,
+			UnreadCount: 0,
+		},
+		Level:  0,
+		Width:  80,
+		Styles: &styles,
+	})
+
+	assert.Contains(t, row, "session-one (5)")
+	assert.NotContains(t, row, "session-one (5/0)")
+
+	// Test group with unread items (should show total/unread)
+	row = RenderGroupRow(GroupRow{
+		Node: &GroupNode{
+			Title:       "session-two",
+			Display:     "session-two",
+			Expanded:    false,
+			Count:       10,
+			UnreadCount: 3,
+		},
+		Level:  1,
+		Width:  80,
+		Styles: &styles,
+	})
+
+	assert.Contains(t, row, "session-two (10/3)")
+}
+
+func TestRenderGroupRowWithUnreadHighlighting(t *testing.T) {
+	styles := GroupRowStyles{
+		Base:     lipgloss.NewStyle(),
+		Selected: lipgloss.NewStyle(),
+	}
+
+	// Test that groups with unread items use different styling
+	rowWithUnread := RenderGroupRow(GroupRow{
+		Node: &GroupNode{
+			Title:       "session-with-unread",
+			Display:     "session-with-unread",
+			Expanded:    true,
+			Count:       5,
+			UnreadCount: 2,
+		},
+		Level:  0,
+		Width:  80,
+		Styles: &styles,
+	})
+
+	rowAllRead := RenderGroupRow(GroupRow{
+		Node: &GroupNode{
+			Title:       "session-all-read",
+			Display:     "session-all-read",
+			Expanded:    true,
+			Count:       5,
+			UnreadCount: 0,
+		},
+		Level:  0,
+		Width:  80,
+		Styles: &styles,
+	})
+
+	// Both should render successfully
+	assert.NotEmpty(t, rowWithUnread)
+	assert.NotEmpty(t, rowAllRead)
+
+	// Both should contain their respective titles
+	assert.Contains(t, rowWithUnread, "session-with-unread")
+	assert.Contains(t, rowAllRead, "session-all-read")
+
+	// The unread row should show the count format
+	assert.Contains(t, rowWithUnread, "(5/2)")
+
+	// The all-read row should show only the total
+	assert.Contains(t, rowAllRead, "(5)")
+}

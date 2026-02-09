@@ -55,6 +55,7 @@ type Model struct {
 	viewMode           string
 	groupBy            string
 	defaultExpandLevel int
+	autoExpandUnread   bool
 	expansionState     map[string]bool
 	loadedSettings     *settings.Settings // Track loaded settings for comparison
 
@@ -301,6 +302,7 @@ func (m *Model) ToState() settings.TUIState {
 		GroupBy:               m.groupBy,
 		DefaultExpandLevel:    m.defaultExpandLevel,
 		DefaultExpandLevelSet: true,
+		AutoExpandUnread:      m.autoExpandUnread,
 		ExpansionState:        m.expansionState,
 	}
 }
@@ -337,6 +339,7 @@ func (m *Model) FromState(state settings.TUIState) error {
 	if state.DefaultExpandLevelSet {
 		m.defaultExpandLevel = state.DefaultExpandLevel
 	}
+	m.autoExpandUnread = state.AutoExpandUnread
 	if state.ExpansionState != nil {
 		m.expansionState = state.ExpansionState
 	}
@@ -543,6 +546,32 @@ func (m *Model) executeCommand() tea.Cmd {
 		}
 		colors.Info(fmt.Sprintf("Default expand level: %d", m.defaultExpandLevel))
 		return nil
+	case "auto-expand-unread":
+		if len(args) != 1 {
+			colors.Warning("Invalid usage: auto-expand-unread <true|false>")
+			return nil
+		}
+
+		autoExpand, err := strconv.ParseBool(args[0])
+		if err != nil {
+			colors.Warning(fmt.Sprintf("Invalid auto-expand-unread value: %s (expected true or false)", args[0]))
+			return nil
+		}
+
+		if m.autoExpandUnread == autoExpand {
+			return nil
+		}
+
+		m.autoExpandUnread = autoExpand
+		if m.isGroupedView() {
+			m.applySearchFilter() // Reapply search to refresh tree with new auto-expand setting
+		}
+		if err := m.saveSettings(); err != nil {
+			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+			return nil
+		}
+		colors.Info(fmt.Sprintf("Auto expand unread: %t", m.autoExpandUnread))
+		return nil
 	case "toggle-view":
 		if len(args) > 0 {
 			colors.Warning("Invalid usage: toggle-view")
@@ -598,10 +627,11 @@ func (m *Model) updateViewportContent() {
 				if isGroupNode(node) {
 					content.WriteString(render.RenderGroupRow(render.GroupRow{
 						Node: &render.GroupNode{
-							Title:    node.Title,
-							Display:  node.Display,
-							Expanded: node.Expanded,
-							Count:    node.Count,
+							Title:       node.Title,
+							Display:     node.Display,
+							Expanded:    node.Expanded,
+							Count:       node.Count,
+							UnreadCount: node.UnreadCount,
 						},
 						Selected: rowIndex == m.cursor,
 						Level:    getTreeLevel(node),
@@ -1385,6 +1415,12 @@ func (m *Model) applyExpansionState(node *Node) {
 		} else {
 			// Default to expanded for nodes without saved state
 			node.Expanded = true
+		}
+
+		// Auto-expand groups with unread items if setting is enabled
+		if m.autoExpandUnread && node.UnreadCount > 0 {
+			node.Expanded = true
+			m.updateExpansionState(node, true)
 		}
 	}
 

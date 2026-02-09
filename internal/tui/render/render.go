@@ -24,7 +24,7 @@ const (
 	groupIndentSize      = 2
 	groupCollapsedSymbol = "▸"
 	groupExpandedSymbol  = "▾"
-	commandList          = "q,w,toggle-view,group-by,expand-level"
+	commandList          = "q,w,toggle-view,group-by,expand-level,auto-expand-unread"
 )
 
 // FooterState defines the inputs needed to render footer help text.
@@ -48,10 +48,11 @@ type RowState struct {
 
 // GroupNode defines the inputs needed to render a grouped tree node.
 type GroupNode struct {
-	Title    string
-	Display  string
-	Expanded bool
-	Count    int
+	Title       string
+	Display     string
+	Expanded    bool
+	Count       int
+	UnreadCount int
 }
 
 // GroupRow defines the inputs needed to render a group row.
@@ -176,12 +177,27 @@ func RenderGroupRow(row GroupRow) string {
 		title = row.Node.Title
 	}
 
-	label := fmt.Sprintf("%s%s %s (%d)", indent, symbol, title, row.Node.Count)
+	// Format: "title (total/unread)"
+	var countLabel string
+	if row.Node.UnreadCount > 0 {
+		countLabel = fmt.Sprintf("%d/%d", row.Node.Count, row.Node.UnreadCount)
+	} else {
+		countLabel = fmt.Sprintf("%d", row.Node.Count)
+	}
+
+	label := fmt.Sprintf("%s%s %s (%s)", indent, symbol, title, countLabel)
 	label = truncateGroupRow(label, row.Width)
 
 	if row.Selected {
 		return styles.Selected.Render(label)
 	}
+
+	// Use different style for groups with unread items
+	if row.Node.UnreadCount > 0 {
+		styles := stylesWithUnread()
+		return styles.Base.Render(label)
+	}
+
 	return styles.Base.Render(label)
 }
 
@@ -247,6 +263,21 @@ func defaultGroupRowStyles() GroupRowStyles {
 	base := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color(ansiColorNumber(colors.Blue)))
+	selected := lipgloss.NewStyle().
+		Bold(true).
+		Background(lipgloss.Color(ansiColorNumber(colors.Blue))).
+		Foreground(lipgloss.Color("0"))
+	return GroupRowStyles{
+		Base:     base,
+		Selected: selected,
+	}
+}
+
+func stylesWithUnread() GroupRowStyles {
+	// Use a different color (e.g., yellow/orange) for groups with unread items
+	base := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(ansiColorNumber(colors.Yellow)))
 	selected := lipgloss.NewStyle().
 		Bold(true).
 		Background(lipgloss.Color(ansiColorNumber(colors.Blue))).

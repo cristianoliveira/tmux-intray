@@ -182,6 +182,9 @@ type Settings struct {
 	// Use 0 to collapse all groups by default.
 	DefaultExpandLevel int `json:"defaultExpandLevel"`
 
+	// AutoExpandUnread controls whether groups with unread notifications are auto-expanded.
+	AutoExpandUnread bool `json:"autoExpandUnread"`
+
 	// ExpansionState stores explicit expansion overrides by node path.
 	ExpansionState map[string]bool `json:"expansionState"`
 }
@@ -202,6 +205,7 @@ func DefaultSettings() *Settings {
 		ViewMode:           ViewModeGrouped,
 		GroupBy:            GroupByNone,
 		DefaultExpandLevel: 1,
+		AutoExpandUnread:   false, // Default to false to avoid unexpected behavior
 		ExpansionState:     map[string]bool{},
 	}
 }
