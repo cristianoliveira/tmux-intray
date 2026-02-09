@@ -27,6 +27,7 @@ type Core struct {
 // NewCore creates a new Core instance with the given TmuxClient and Storage.
 // If client is nil, a default client will be created.
 // If storage is nil, a default file storage will be created.
+// Panics if storage initialization fails, which is safer than continuing with nil storage.
 func NewCore(client tmux.TmuxClient, stor storage.Storage) *Core {
 	if client == nil {
 		client = tmux.NewDefaultClient()
@@ -34,8 +35,7 @@ func NewCore(client tmux.TmuxClient, stor storage.Storage) *Core {
 	if stor == nil {
 		fileStor, err := storage.NewFromConfig()
 		if err != nil {
-			// FIXME: If storage init fails, storage will be nil, causing panics when storage methods are called.
-			// This allows tests to work without fully initialized storage but is dangerous for production.
+			panic(fmt.Sprintf("failed to initialize storage: %v", err))
 		}
 		stor = fileStor
 	}
@@ -117,7 +117,6 @@ func (c *Core) JumpToPane(sessionID, windowID, paneID string) bool {
 		return false
 	}
 
-	// TODO: Consider extracting cross-session switch logic to client layer to avoid duplication
 	shouldSwitch := true
 	currentCtx, err := c.client.GetCurrentContext()
 	if err != nil {

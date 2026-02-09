@@ -786,7 +786,9 @@ func GetActiveCount() int {
 	return count
 }
 
-func normalizeFields(fields []string) ([]string, error) {
+// NormalizeFields ensures a TSV line has the correct number of fields.
+// Pads with empty strings if fewer than expected, returns error if below minimum.
+func NormalizeFields(fields []string) ([]string, error) {
 	if len(fields) < minFields {
 		return nil, fmt.Errorf("expected at least %d fields, got %d", minFields, len(fields))
 	}
@@ -796,6 +798,11 @@ func normalizeFields(fields []string) ([]string, error) {
 		}
 	}
 	return fields, nil
+}
+
+// normalizeFields is the internal version for backward compatibility within the package.
+func normalizeFields(fields []string) ([]string, error) {
+	return NormalizeFields(fields)
 }
 
 // getField safely retrieves a field from a TSV line with bounds checking.
@@ -864,7 +871,9 @@ func getNextID() (int, error) {
 	return newID, nil
 }
 
-func escapeMessage(msg string) string {
+// EscapeMessage escapes special characters in a message for TSV storage.
+// Escapes backslashes, tabs, and newlines to preserve message formatting.
+func EscapeMessage(msg string) string {
 	// Escape backslashes first
 	msg = strings.ReplaceAll(msg, "\\", "\\\\")
 	// Escape tabs
@@ -874,7 +883,9 @@ func escapeMessage(msg string) string {
 	return msg
 }
 
-func unescapeMessage(msg string) string {
+// UnescapeMessage unescapes special characters from a TSV-stored message.
+// Restores newlines, tabs, and backslashes to their original values.
+func UnescapeMessage(msg string) string {
 	// Unescape newlines first
 	msg = strings.ReplaceAll(msg, "\\n", "\n")
 	// Unescape tabs
@@ -882,6 +893,16 @@ func unescapeMessage(msg string) string {
 	// Unescape backslashes
 	msg = strings.ReplaceAll(msg, "\\\\", "\\")
 	return msg
+}
+
+// escapeMessage is the internal version for backward compatibility within the package.
+func escapeMessage(msg string) string {
+	return EscapeMessage(msg)
+}
+
+// unescapeMessage is the internal version for backward compatibility within the package.
+func unescapeMessage(msg string) string {
+	return UnescapeMessage(msg)
 }
 
 func appendLine(id int, timestamp, state, session, window, pane, message, paneCreated, level, readTimestamp string) error {
