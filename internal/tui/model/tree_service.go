@@ -11,8 +11,14 @@ import (
 type TreeService interface {
 	// BuildTree creates a tree structure from a list of notifications.
 	// The groupBy parameter determines the grouping depth (session, window, or pane).
-	// Returns the root node of the tree.
-	BuildTree(notifications []notification.Notification, groupBy string) (*TreeNode, error)
+	// The resulting tree is stored internally by the service.
+	BuildTree(notifications []notification.Notification, groupBy string) error
+
+	// ClearTree clears all internally stored tree state and cache.
+	ClearTree()
+
+	// GetTreeRoot returns the current tree root managed by the service.
+	GetTreeRoot() *TreeNode
 
 	// FindNotificationPath locates a notification in the tree and returns the path.
 	// Returns a slice of nodes from root to the notification, or an error if not found.
@@ -23,20 +29,23 @@ type TreeService interface {
 	FindNodeByID(root *TreeNode, identifier string) *TreeNode
 
 	// GetVisibleNodes returns all nodes that should be visible in the UI.
-	// This respects expansion state of group nodes.
-	GetVisibleNodes(root *TreeNode) []*TreeNode
+	// This respects expansion state of group nodes and uses an internal cache.
+	GetVisibleNodes() []*TreeNode
+
+	// InvalidateCache invalidates the internal visible nodes cache.
+	InvalidateCache()
 
 	// GetNodeIdentifier returns a stable identifier for a node.
 	// Used for cursor restoration after tree updates.
 	GetNodeIdentifier(node *TreeNode) string
 
 	// PruneEmptyGroups removes group nodes with no children from the tree.
-	// Returns the pruned tree root.
-	PruneEmptyGroups(root *TreeNode) *TreeNode
+	// Updates the internally stored root.
+	PruneEmptyGroups()
 
 	// ApplyExpansionState applies saved expansion state to tree nodes.
 	// Takes a map of node identifiers to expanded state.
-	ApplyExpansionState(root *TreeNode, expansionState map[string]bool)
+	ApplyExpansionState(expansionState map[string]bool)
 
 	// ExpandNode expands a group node.
 	// Does nothing if the node is already expanded or is a notification node.

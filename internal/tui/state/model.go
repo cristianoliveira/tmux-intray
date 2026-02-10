@@ -44,19 +44,11 @@ type Model struct {
 	filters        settings.Filter
 	loadedSettings *settings.Settings // Track loaded settings for comparison
 
-	// Tree state (now using model.TreeNode for service compatibility)
-	treeRoot     *model.TreeNode
-	visibleNodes []*model.TreeNode
-
-	visibleNodesCache []*model.TreeNode
-	cacheValid        bool
-
 	// Services - implementing BubbleTea nested model pattern
 	treeService         model.TreeService
 	notificationService model.NotificationService
 	runtimeCoordinator  model.RuntimeCoordinator
 	commandService      model.CommandService
-
 	// Legacy fields for backward compatibility
 	client            tmux.TmuxClient
 	sessionNames      map[string]string
@@ -207,7 +199,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if node != nil {
 				m.treeService.CollapseNode(node)
 				m.invalidateCache()
-				m.visibleNodes = m.computeVisibleNodes()
 				m.updateViewportContent()
 			}
 		case "l":
@@ -216,7 +207,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if node != nil {
 				m.treeService.ExpandNode(node)
 				m.invalidateCache()
-				m.visibleNodes = m.computeVisibleNodes()
 				m.updateViewportContent()
 			}
 		case "z":
@@ -437,11 +427,26 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 	return &m, nil
 }
 
+func (m *Model) ensureTreeService() model.TreeService {
+	if m.treeService != nil {
+		return m.treeService
+	}
+
+	groupBy := model.GroupByNone
+	if m.uiState != nil {
+		groupBy = m.uiState.GetGroupBy()
+	}
+
+	m.treeService = service.NewTreeService(groupBy)
+	return m.treeService
+}
+
 // applySearchFilter filters notifications based on the search query.
 // This function only updates the filtered notifications; cursor management
 // should be handled separately by resetCursor() or restoreCursor().
 func (m *Model) applySearchFilter() {
-	m.invalidateCache()
+	treeService := m.ensureTreeService()
+	treeService.InvalidateCache()
 
 	query := strings.TrimSpace(m.uiState.GetSearchQuery())
 	if query == "" {
@@ -451,12 +456,9 @@ func (m *Model) applySearchFilter() {
 		m.filtered = m.notificationService.FilterNotifications(m.notifications, query)
 	}
 	if m.isGroupedView() {
-		m.treeRoot = m.buildFilteredTree(m.filtered)
-		m.visibleNodes = m.computeVisibleNodes()
+		m.buildFilteredTree(m.filtered)
 	} else {
-		m.treeRoot = nil
-		m.invalidateCache()
-		m.visibleNodes = nil
+		treeService.ClearTree()
 	}
 	m.updateViewportContent()
 }
@@ -513,7 +515,7 @@ func (m *Model) getNodeIdentifier(node *model.TreeNode) string {
 
 // findNodeByIdentifier finds a node by its identifier in the visible nodes list.
 func (m *Model) findNodeByIdentifier(identifier string) *model.TreeNode {
-	for _, node := range m.visibleNodes {
+	for _, node := range m.treeService.GetVisibleNodes() {
 		if m.treeService.GetNodeIdentifier(node) == identifier {
 			return node
 		}
@@ -531,10 +533,11 @@ func (m *Model) restoreCursor(identifier string) {
 
 	targetNode := m.findNodeByIdentifier(identifier)
 	if targetNode != nil {
-		for i, node := range m.visibleNodes {
+		visibleNodes := m.ensureTreeService().GetVisibleNodes()
+		for i, node := range visibleNodes {
 			if node == targetNode {
 				m.uiState.SetCursor(i)
-				m.uiState.EnsureCursorVisible(len(m.visibleNodes))
+				m.uiState.EnsureCursorVisible(len(visibleNodes))
 				return
 			}
 		}
@@ -727,11 +730,12 @@ func (m *Model) updateViewportContent() {
 	cursor := m.uiState.GetCursor()
 
 	if m.isGroupedView() {
-		if len(m.visibleNodes) == 0 {
+		visibleNodes := m.treeService.GetVisibleNodes()
+		if len(visibleNodes) == 0 {
 			content.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("No notifications found"))
 		} else {
 			now := time.Now()
-			for rowIndex, node := range m.visibleNodes {
+			for rowIndex, node := range visibleNodes {
 				if node == nil {
 					continue
 				}
@@ -965,8 +969,9 @@ func (m *Model) loadNotifications(preserveCursor bool) error {
 		// Save current cursor state
 		savedCursorPos = m.uiState.GetCursor()
 		cursor := m.uiState.GetCursor()
-		if m.isGroupedView() && cursor < len(m.visibleNodes) {
-			savedNodeID = m.getNodeIdentifier(m.visibleNodes[cursor])
+		visibleNodes := m.treeService.GetVisibleNodes()
+		if m.isGroupedView() && cursor < len(visibleNodes) {
+			savedNodeID = m.getNodeIdentifier(visibleNodes[cursor])
 		} else if !m.isGroupedView() && cursor < len(m.filtered) {
 			savedNodeID = fmt.Sprintf("notif:%d", m.filtered[cursor].ID)
 		}
@@ -979,9 +984,7 @@ func (m *Model) loadNotifications(preserveCursor bool) error {
 	if lines == "" {
 		m.notifications = []notification.Notification{}
 		m.filtered = []notification.Notification{}
-		m.treeRoot = nil
-		m.invalidateCache()
-		m.visibleNodes = nil
+		m.treeService.ClearTree()
 		if preserveCursor {
 			m.adjustCursorBounds()
 		} else {
@@ -1049,25 +1052,11 @@ func (m *Model) cycleViewMode() {
 }
 
 func (m *Model) computeVisibleNodes() []*model.TreeNode {
-	if m.cacheValid {
-		return m.visibleNodesCache
-	}
-
-	if m.treeRoot == nil {
-		m.visibleNodesCache = nil
-		m.cacheValid = true
-		return nil
-	}
-
-	// Delegate to TreeService
-	m.visibleNodesCache = m.treeService.GetVisibleNodes(m.treeRoot)
-	m.cacheValid = true
-	return m.visibleNodesCache
+	return m.treeService.GetVisibleNodes()
 }
 
 func (m *Model) invalidateCache() {
-	m.visibleNodesCache = nil
-	m.cacheValid = false
+	m.ensureTreeService().InvalidateCache()
 }
 
 func isGroupNode(node *model.TreeNode) bool {
@@ -1099,7 +1088,7 @@ func getTreeLevel(node *model.TreeNode) int {
 }
 func (m *Model) currentListLen() int {
 	if m.isGroupedView() {
-		return len(m.visibleNodes)
+		return len(m.treeService.GetVisibleNodes())
 	}
 	return len(m.filtered)
 }
@@ -1107,10 +1096,11 @@ func (m *Model) currentListLen() int {
 func (m *Model) selectedNotification() (notification.Notification, bool) {
 	cursor := m.uiState.GetCursor()
 	if m.isGroupedView() {
-		if cursor < 0 || cursor >= len(m.visibleNodes) {
+		visibleNodes := m.treeService.GetVisibleNodes()
+		if cursor < 0 || cursor >= len(visibleNodes) {
 			return notification.Notification{}, false
 		}
-		node := m.visibleNodes[cursor]
+		node := visibleNodes[cursor]
 		if node == nil || node.Notification == nil {
 			return notification.Notification{}, false
 		}
@@ -1128,10 +1118,11 @@ func (m *Model) selectedVisibleNode() *model.TreeNode {
 		return nil
 	}
 	cursor := m.uiState.GetCursor()
-	if cursor < 0 || cursor >= len(m.visibleNodes) {
+	visibleNodes := m.treeService.GetVisibleNodes()
+	if cursor < 0 || cursor >= len(visibleNodes) {
 		return nil
 	}
-	return m.visibleNodes[cursor]
+	return visibleNodes[cursor]
 }
 
 func (m *Model) toggleNodeExpansion() bool {
@@ -1144,9 +1135,7 @@ func (m *Model) toggleNodeExpansion() bool {
 	} else {
 		m.treeService.ExpandNode(node)
 	}
-	// Invalidate cache and recompute visible nodes
 	m.invalidateCache()
-	m.visibleNodes = m.computeVisibleNodes()
 	return true
 }
 
@@ -1165,18 +1154,17 @@ func (m *Model) toggleFold() {
 	if node.Expanded {
 		m.treeService.CollapseNode(node)
 		m.invalidateCache()
-		m.visibleNodes = m.computeVisibleNodes()
 		m.updateViewportContent()
 		return
 	}
 	m.treeService.ExpandNode(node)
 	m.invalidateCache()
-	m.visibleNodes = m.computeVisibleNodes()
 	m.updateViewportContent()
 }
 
 func (m *Model) allGroupsCollapsed() bool {
-	if m.treeRoot == nil {
+	treeRoot := m.treeService.GetTreeRoot()
+	if treeRoot == nil {
 		return false
 	}
 	collapsed := true
@@ -1200,12 +1188,13 @@ func (m *Model) allGroupsCollapsed() bool {
 			}
 		}
 	}
-	walk(m.treeRoot)
+	walk(treeRoot)
 	return seen && collapsed
 }
 
 func (m *Model) applyDefaultExpansion() {
-	if m.treeRoot == nil {
+	treeRoot := m.treeService.GetTreeRoot()
+	if treeRoot == nil {
 		return
 	}
 
@@ -1238,10 +1227,9 @@ func (m *Model) applyDefaultExpansion() {
 			walk(child)
 		}
 	}
-	walk(m.treeRoot)
+	walk(treeRoot)
 
 	m.invalidateCache()
-	m.visibleNodes = m.computeVisibleNodes()
 
 	// Restore cursor to the selected node using identifier
 	if selectedID != "" {
@@ -1249,8 +1237,9 @@ func (m *Model) applyDefaultExpansion() {
 	}
 
 	// Ensure cursor is within bounds
-	if m.uiState.GetCursor() >= len(m.visibleNodes) {
-		m.uiState.SetCursor(len(m.visibleNodes) - 1)
+	visibleNodes := m.treeService.GetVisibleNodes()
+	if m.uiState.GetCursor() >= len(visibleNodes) {
+		m.uiState.SetCursor(len(visibleNodes) - 1)
 	}
 	if m.uiState.GetCursor() < 0 {
 		m.uiState.SetCursor(0)
@@ -1289,10 +1278,8 @@ func (m *Model) expandNode(node *model.TreeNode) {
 	// Save node identifier before modifying tree to avoid using stale references
 	nodeID := m.treeService.GetNodeIdentifier(node)
 
-	node.Expanded = true
+	m.treeService.ExpandNode(node)
 	m.updateExpansionState(node, true)
-	m.invalidateCache()
-	m.visibleNodes = m.computeVisibleNodes()
 
 	// Restore cursor to the same node using identifier
 	m.restoreCursor(nodeID)
@@ -1319,20 +1306,20 @@ func (m *Model) collapseNode(node *model.TreeNode) {
 	}
 	nodeID := m.treeService.GetNodeIdentifier(node)
 
-	node.Expanded = false
+	m.treeService.CollapseNode(node)
 	m.updateExpansionState(node, false)
-	m.invalidateCache()
-	m.visibleNodes = m.computeVisibleNodes()
+	visibleNodes := m.treeService.GetVisibleNodes()
 
 	// If selected node was inside the collapsed node, move cursor to the collapsed node
 	if selectedID != "" {
 		// Check if the selected node is contained within the collapsed node
 		// by comparing paths
-		if selectedNode := m.treeService.FindNodeByID(m.treeRoot, selectedID); selectedNode != nil {
-			if collapsedNode := m.treeService.FindNodeByID(m.treeRoot, nodeID); collapsedNode != nil {
+		treeRoot := m.treeService.GetTreeRoot()
+		if selectedNode := m.treeService.FindNodeByID(treeRoot, selectedID); selectedNode != nil {
+			if collapsedNode := m.treeService.FindNodeByID(treeRoot, nodeID); collapsedNode != nil {
 				if m.nodeContains(collapsedNode, selectedNode) {
 					// Move cursor to the collapsed node
-					if index := indexOfTreeNode(m.visibleNodes, collapsedNode); index >= 0 {
+					if index := indexOfTreeNode(visibleNodes, collapsedNode); index >= 0 {
 						m.uiState.SetCursor(index)
 					}
 				}
@@ -1341,8 +1328,8 @@ func (m *Model) collapseNode(node *model.TreeNode) {
 	}
 
 	// Ensure cursor is within bounds
-	if m.uiState.GetCursor() >= len(m.visibleNodes) {
-		m.uiState.SetCursor(len(m.visibleNodes) - 1)
+	if m.uiState.GetCursor() >= len(visibleNodes) {
+		m.uiState.SetCursor(len(visibleNodes) - 1)
 	}
 	if m.uiState.GetCursor() < 0 {
 		m.uiState.SetCursor(0)
@@ -1469,32 +1456,29 @@ func (m *Model) buildFilteredTree(notifications []notification.Notification) *mo
 	m.invalidateCache()
 
 	if len(notifications) == 0 {
+		m.treeService.ClearTree()
 		return nil
 	}
 
 	// Use TreeService to build the tree
-	root, err := m.treeService.BuildTree(notifications, string(m.uiState.GetGroupBy()))
+	err := m.treeService.BuildTree(notifications, string(m.uiState.GetGroupBy()))
 	if err != nil {
+		m.treeService.ClearTree()
 		return nil
 	}
 
 	// Prune empty groups (groups with no matching notifications)
-	root = m.treeService.PruneEmptyGroups(root)
-
-	// FIX: Set treeRoot before applying expansion state
-	// to ensure consistent key generation
-	m.treeRoot = root
+	m.treeService.PruneEmptyGroups()
 
 	// Apply saved expansion state where possible
 	expansionState := m.uiState.GetExpansionState()
 	if expansionState != nil {
-		m.treeService.ApplyExpansionState(root, expansionState)
+		m.treeService.ApplyExpansionState(expansionState)
 	} else {
 		// If no saved state, expand all by default
-		m.expandTreeRecursive(root)
+		m.expandTreeRecursive(m.treeService.GetTreeRoot())
 	}
-
-	return root
+	return m.treeService.GetTreeRoot()
 }
 
 // expandTreeRecursive is a helper that expands all group nodes.
@@ -1604,10 +1588,10 @@ func (m *Model) getPaneName(paneID string) string {
 
 // getTreeRootForTest returns the tree root for testing purposes.
 func (m *Model) getTreeRootForTest() *model.TreeNode {
-	return m.treeRoot
+	return m.treeService.GetTreeRoot()
 }
 
 // getVisibleNodesForTest returns the visible nodes for testing purposes.
 func (m *Model) getVisibleNodesForTest() []*model.TreeNode {
-	return m.visibleNodes
+	return m.treeService.GetVisibleNodes()
 }

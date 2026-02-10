@@ -26,7 +26,7 @@ teardown() {
 }
 
 @test "list with pane filter shows only matching notifications" {
-    source ./lib/storage.sh
+    source scripts/lib/storage.sh
 
     # Add notifications with different pane associations
     storage_add_notification "Message 1" "" "\$1" "@2" "%3" "123"
@@ -61,7 +61,7 @@ teardown() {
     tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/tmux-intray add 'Second message'"
 
     # Create another pane and add notification there (simulate by directly writing with different pane ID)
-    source ./lib/storage.sh
+    source scripts/lib/storage.sh
     storage_add_notification "Other pane message" "" "\$other" "@other" "%other" "999"
 
     # List with pane filter
@@ -73,7 +73,7 @@ teardown() {
 }
 
 @test "list table format includes pane column" {
-    source ./lib/storage.sh
+    source scripts/lib/storage.sh
     storage_add_notification "Test message" "" "\$1" "@2" "%3" "123"
 
     run ./tmux-intray list --format=table

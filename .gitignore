@@ -3,6 +3,7 @@
 # Temporary files
 *.tmp
 .tmp/
+*.tsv
 .DS_Store
 
 # Test artifacts

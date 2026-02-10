@@ -60,16 +60,16 @@ func BenchmarkComputeVisibleNodes(b *testing.B) {
 
 		for _, scenario := range scenarios {
 			benchmarkSetExpansionState(tree, scenario.expands)
-			model := benchmarkModel(notifications)
-			model.treeRoot = tree
+			benchModel := benchmarkModel(notifications)
+			benchModel.treeService = &dummyTreeService{treeRoot: tree}
 
 			name := fmt.Sprintf("n=%d/%s", size, scenario.name)
 			b.Run(name, func(b *testing.B) {
 				b.ReportAllocs()
 				b.ResetTimer()
 				for i := 0; i < b.N; i++ {
-					model.invalidateCache()
-					_ = model.computeVisibleNodes()
+					benchModel.invalidateCache()
+					_ = benchModel.computeVisibleNodes()
 				}
 			})
 		}
@@ -79,15 +79,15 @@ func BenchmarkComputeVisibleNodes(b *testing.B) {
 func BenchmarkUpdateViewportContentGrouped(b *testing.B) {
 	for _, size := range []int{1000, 5000, 10000} {
 		notifications := benchmarkNotifications(size)
-		model := benchmarkModel(notifications)
-		model.visibleNodes = model.computeVisibleNodes()
-		model.uiState.SetCursor(len(model.visibleNodes) / 2)
+		benchModel := benchmarkModel(notifications)
+		visibleNodes := benchModel.computeVisibleNodes()
+		benchModel.uiState.SetCursor(len(visibleNodes) / 2)
 
 		b.Run(fmt.Sprintf("n=%d", size), func(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				model.updateViewportContent()
+				benchModel.updateViewportContent()
 			}
 		})
 	}
@@ -124,22 +124,25 @@ func BenchmarkApplySearchFilterGrouped(b *testing.B) {
 
 func benchmarkModel(notifications []notification.Notification) *Model {
 	m := &Model{
-		uiState:       NewUIState(),
-		notifications: notifications,
+		uiState:             NewUIState(),
+		notifications:       notifications,
+		treeService:         &dummyTreeService{},
+		runtimeCoordinator:  &dummyRuntimeCoordinator{},
+		notificationService: &dummyNotificationService{},
 	}
 	m.uiState.SetWidth(120)
 	m.uiState.SetHeight(40)
 	m.uiState.UpdateViewportSize()
 
-	m.applySearchFilter()
-	m.resetCursor()
-	benchmarkSetExpansionState(m.treeRoot, map[model.NodeKind]bool{
+	m.filtered = m.notifications
+	_ = m.treeService.BuildTree(m.filtered, string(m.uiState.GetGroupBy()))
+	benchmarkSetExpansionState(m.getTreeRootForTest(), map[model.NodeKind]bool{
 		model.NodeKindSession: true,
 		model.NodeKindWindow:  true,
 		model.NodeKindPane:    true,
 	})
 	m.invalidateCache()
-	m.visibleNodes = m.computeVisibleNodes()
+	_ = m.computeVisibleNodes()
 	return m
 }
 
@@ -147,8 +150,8 @@ func benchmarkModel(notifications []notification.Notification) *Model {
 func benchmarkBuildTree(notifications []notification.Notification, groupBy string) *model.TreeNode {
 	// For benchmarking, use a simple service without full initialization
 	treeService := &dummyTreeService{}
-	tree, _ := treeService.BuildTree(notifications, groupBy)
-	return tree
+	_ = treeService.BuildTree(notifications, groupBy)
+	return treeService.GetTreeRoot()
 }
 
 // benchmarkSetExpansionState sets expansion state for benchmarking.
@@ -175,16 +178,32 @@ func benchmarkSetExpansionState(root *model.TreeNode, expanded map[model.NodeKin
 	walk(root)
 }
 
-// dummyTreeService is a minimal tree service for benchmarking.
-type dummyTreeService struct{}
+type dummyTreeService struct {
+	treeRoot          *model.TreeNode
+	visibleNodesCache []*model.TreeNode
+	cacheValid        bool
+}
 
-func (s *dummyTreeService) BuildTree(notifications []notification.Notification, groupBy string) (*model.TreeNode, error) {
+func (s *dummyTreeService) BuildTree(notifications []notification.Notification, groupBy string) error {
 	// Minimal implementation - convert from state.BuildTree result
 	stateTree := BuildTree(notifications, groupBy)
 	if stateTree == nil {
-		return nil, nil
+		s.treeRoot = nil
+		s.InvalidateCache()
+		return nil
 	}
-	return s.convertNode(stateTree), nil
+	s.treeRoot = s.convertNode(stateTree)
+	s.InvalidateCache()
+	return nil
+}
+
+func (s *dummyTreeService) ClearTree() {
+	s.treeRoot = nil
+	s.InvalidateCache()
+}
+
+func (s *dummyTreeService) GetTreeRoot() *model.TreeNode {
+	return s.treeRoot
 }
 
 func (s *dummyTreeService) convertNode(stateNode *Node) *model.TreeNode {
@@ -217,16 +236,51 @@ func (s *dummyTreeService) FindNotificationPath(root *model.TreeNode, notif noti
 func (s *dummyTreeService) FindNodeByID(root *model.TreeNode, identifier string) *model.TreeNode {
 	return nil
 }
-func (s *dummyTreeService) GetVisibleNodes(root *model.TreeNode) []*model.TreeNode {
-	return nil
+func (s *dummyTreeService) GetVisibleNodes() []*model.TreeNode {
+	if s.cacheValid {
+		return s.visibleNodesCache
+	}
+	if s.treeRoot == nil {
+		s.visibleNodesCache = nil
+		s.cacheValid = true
+		return nil
+	}
+
+	var visible []*model.TreeNode
+	var walk func(node *model.TreeNode)
+	walk = func(node *model.TreeNode) {
+		if node == nil {
+			return
+		}
+		if node.Kind != model.NodeKindRoot {
+			visible = append(visible, node)
+		}
+		if node.Kind == model.NodeKindNotification {
+			return
+		}
+		if node.Kind != model.NodeKindRoot && !node.Expanded {
+			return
+		}
+		for _, child := range node.Children {
+			walk(child)
+		}
+	}
+
+	walk(s.treeRoot)
+	s.visibleNodesCache = visible
+	s.cacheValid = true
+	return s.visibleNodesCache
+}
+func (s *dummyTreeService) InvalidateCache() {
+	s.visibleNodesCache = nil
+	s.cacheValid = false
 }
 func (s *dummyTreeService) GetNodeIdentifier(node *model.TreeNode) string {
 	return ""
 }
-func (s *dummyTreeService) PruneEmptyGroups(root *model.TreeNode) *model.TreeNode {
-	return root
+func (s *dummyTreeService) PruneEmptyGroups() {
 }
-func (s *dummyTreeService) ApplyExpansionState(root *model.TreeNode, expansionState map[string]bool) {
+func (s *dummyTreeService) ApplyExpansionState(expansionState map[string]bool) {
 }
 func (s *dummyTreeService) ExpandNode(node *model.TreeNode)          {}
 func (s *dummyTreeService) CollapseNode(node *model.TreeNode)        {}
@@ -262,4 +316,202 @@ func benchmarkLevel(index int) string {
 	default:
 		return "info"
 	}
+}
+
+type dummyRuntimeCoordinator struct{}
+
+func (d *dummyRuntimeCoordinator) ResolveSessionName(sessionID string) string {
+	return sessionID
+}
+
+func (d *dummyRuntimeCoordinator) ResolveWindowName(windowID string) string {
+	return windowID
+}
+
+func (d *dummyRuntimeCoordinator) ResolvePaneName(paneID string) string {
+	return paneID
+}
+
+func (d *dummyRuntimeCoordinator) GetSessionNames() map[string]string {
+	return nil
+}
+
+func (d *dummyRuntimeCoordinator) GetWindowNames() map[string]string {
+	return nil
+}
+
+func (d *dummyRuntimeCoordinator) GetPaneNames() map[string]string {
+	return nil
+}
+
+func (d *dummyRuntimeCoordinator) SetSessionNames(names map[string]string) {}
+
+func (d *dummyRuntimeCoordinator) SetWindowNames(names map[string]string) {}
+
+func (d *dummyRuntimeCoordinator) SetPaneNames(names map[string]string) {}
+
+func (d *dummyRuntimeCoordinator) EnsureTmuxRunning() bool {
+	return true
+}
+
+func (d *dummyRuntimeCoordinator) JumpToPane(sessionID, windowID, paneID string) bool {
+	return true
+}
+
+func (d *dummyRuntimeCoordinator) ValidatePaneExists(sessionID, windowID, paneID string) (bool, error) {
+	return true, nil
+}
+
+func (d *dummyRuntimeCoordinator) GetCurrentContext() (*model.TmuxContext, error) {
+	return nil, nil
+}
+
+func (d *dummyRuntimeCoordinator) ListSessions() (map[string]string, error) {
+	return nil, nil
+}
+
+func (d *dummyRuntimeCoordinator) ListWindows() (map[string]string, error) {
+	return nil, nil
+}
+
+func (d *dummyRuntimeCoordinator) ListPanes() (map[string]string, error) {
+	return nil, nil
+}
+
+func (d *dummyRuntimeCoordinator) GetSessionName(sessionID string) (string, error) {
+	return sessionID, nil
+}
+
+func (d *dummyRuntimeCoordinator) GetWindowName(windowID string) (string, error) {
+	return windowID, nil
+}
+
+func (d *dummyRuntimeCoordinator) GetPaneName(paneID string) (string, error) {
+	return paneID, nil
+}
+
+func (d *dummyRuntimeCoordinator) RefreshNames() error {
+	return nil
+}
+
+func (d *dummyRuntimeCoordinator) GetTmuxVisibility() (bool, error) {
+	return true, nil
+}
+
+func (d *dummyRuntimeCoordinator) SetTmuxVisibility(visible bool) error {
+	return nil
+}
+
+type dummyNotificationService struct{}
+
+func (d *dummyNotificationService) FilterNotifications(notifications []notification.Notification, query string) []notification.Notification {
+	if query == "" {
+		return notifications
+	}
+	var result []notification.Notification
+	for _, n := range notifications {
+		if contains(n.Message, query) {
+			result = append(result, n)
+		}
+	}
+	return result
+}
+
+func (d *dummyNotificationService) FilterByState(notifications []notification.Notification, state string) []notification.Notification {
+	var result []notification.Notification
+	for _, n := range notifications {
+		if n.State == state {
+			result = append(result, n)
+		}
+	}
+	return result
+}
+
+func (d *dummyNotificationService) FilterByLevel(notifications []notification.Notification, level string) []notification.Notification {
+	var result []notification.Notification
+	for _, n := range notifications {
+		if n.Level == level {
+			result = append(result, n)
+		}
+	}
+	return result
+}
+
+func (d *dummyNotificationService) FilterBySession(notifications []notification.Notification, sessionID string) []notification.Notification {
+	var result []notification.Notification
+	for _, n := range notifications {
+		if n.Session == sessionID {
+			result = append(result, n)
+		}
+	}
+	return result
+}
+
+func (d *dummyNotificationService) FilterByWindow(notifications []notification.Notification, windowID string) []notification.Notification {
+	var result []notification.Notification
+	for _, n := range notifications {
+		if n.Window == windowID {
+			result = append(result, n)
+		}
+	}
+	return result
+}
+
+func (d *dummyNotificationService) FilterByPane(notifications []notification.Notification, paneID string) []notification.Notification {
+	var result []notification.Notification
+	for _, n := range notifications {
+		if n.Pane == paneID {
+			result = append(result, n)
+		}
+	}
+	return result
+}
+
+func (d *dummyNotificationService) SortNotifications(notifications []notification.Notification, sortBy, sortOrder string) []notification.Notification {
+	return notifications
+}
+
+func (d *dummyNotificationService) GetUnreadCount(notifications []notification.Notification) int {
+	count := 0
+	for _, n := range notifications {
+		if !n.IsRead() {
+			count++
+		}
+	}
+	return count
+}
+
+func (d *dummyNotificationService) GetReadCount(notifications []notification.Notification) int {
+	count := 0
+	for _, n := range notifications {
+		if n.IsRead() {
+			count++
+		}
+	}
+	return count
+}
+
+func (d *dummyNotificationService) GetCountsByLevel(notifications []notification.Notification) map[string]int {
+	counts := map[string]int{}
+	for _, n := range notifications {
+		counts[n.Level]++
+	}
+	return counts
+}
+
+func (d *dummyNotificationService) Search(notifications []notification.Notification, query string, caseSensitive bool) []notification.Notification {
+	return d.FilterNotifications(notifications, query)
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || len(s) > 0 && findSubstring(s, substr))
+}
+
+func findSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }

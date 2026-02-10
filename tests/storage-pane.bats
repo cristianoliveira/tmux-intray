@@ -58,7 +58,7 @@ teardown() {
 }
 
 @test "storage_add_notification with pane association" {
-    source ./lib/storage.sh
+    source scripts/lib/storage.sh
 
     local id
     id=$(storage_add_notification "Test message" "" "\$1" "@2" "%3" "1234567890")
@@ -80,7 +80,7 @@ teardown() {
 }
 
 @test "storage_add_notification with empty pane association" {
-    source ./lib/storage.sh
+    source scripts/lib/storage.sh
 
     storage_add_notification "Test message"
 
@@ -104,7 +104,7 @@ teardown() {
 }
 
 @test "storage_dismiss_notification preserves pane association" {
-    source ./lib/storage.sh
+    source scripts/lib/storage.sh
 
     local id
     id=$(storage_add_notification "Test message" "" "\$1" "@2" "%3" "1234567890")
@@ -124,7 +124,7 @@ teardown() {
 }
 
 @test "storage_dismiss_all preserves pane association" {
-    source ./lib/storage.sh
+    source scripts/lib/storage.sh
 
     storage_add_notification "Test 1" "" "\$1" "@2" "%3" "123"
     storage_add_notification "Test 2" "" "\$4" "@5" "%6" "456"
