@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	uimodel "github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
 
 type treeService struct{}
@@ -102,8 +103,8 @@ func (s *treeService) applyDefaultExpansion(root *Node, level int, expansionStat
 		if node == nil {
 			return
 		}
-		if isGroupNode(node) {
-			nodeLevel := getTreeLevel(node) + 1
+		if treeIsGroupNode(node) {
+			nodeLevel := treeNodeLevel(node) + 1
 			expanded := nodeLevel <= level
 			node.Expanded = expanded
 			s.updateExpansionState(root, expansionState, node, expanded)
@@ -152,7 +153,7 @@ func (s *treeService) applyExpansionState(root *Node, node *Node, expansionState
 		return
 	}
 
-	if isGroupNode(node) {
+	if treeIsGroupNode(node) {
 		if expanded, ok := s.expansionStateValue(root, node, expansionState); ok {
 			node.Expanded = expanded
 		} else {
@@ -207,17 +208,17 @@ func (s *treeService) nodeExpansionKey(root *Node, node *Node) string {
 
 	switch node.Kind {
 	case NodeKindSession:
-		return serializeNodeExpansionPath(NodeKindSession, session)
+		return serializeNodeExpansionPath(uimodel.NodeKind(NodeKindSession), session)
 	case NodeKindWindow:
 		if session == "" {
 			return ""
 		}
-		return serializeNodeExpansionPath(NodeKindWindow, session, window)
+		return serializeNodeExpansionPath(uimodel.NodeKind(NodeKindWindow), session, window)
 	case NodeKindPane:
 		if session == "" || window == "" {
 			return ""
 		}
-		return serializeNodeExpansionPath(NodeKindPane, session, window, pane)
+		return serializeNodeExpansionPath(uimodel.NodeKind(NodeKindPane), session, window, pane)
 	default:
 		return ""
 	}
@@ -236,18 +237,84 @@ func (s *treeService) nodeExpansionLegacyKey(root *Node, node *Node) string {
 
 	switch node.Kind {
 	case NodeKindSession:
-		return serializeLegacyNodeExpansionPath(NodeKindSession, session)
+		return serializeLegacyNodeExpansionPath(uimodel.NodeKind(NodeKindSession), session)
 	case NodeKindWindow:
 		if session == "" {
 			return ""
 		}
-		return serializeLegacyNodeExpansionPath(NodeKindWindow, session, window)
+		return serializeLegacyNodeExpansionPath(uimodel.NodeKind(NodeKindWindow), session, window)
 	case NodeKindPane:
 		if session == "" || window == "" {
 			return ""
 		}
-		return serializeLegacyNodeExpansionPath(NodeKindPane, session, window, pane)
+		return serializeLegacyNodeExpansionPath(uimodel.NodeKind(NodeKindPane), session, window, pane)
 	default:
 		return ""
 	}
+}
+
+func treeIsGroupNode(node *Node) bool {
+	if node == nil {
+		return false
+	}
+	return node.Kind != NodeKindNotification && node.Kind != NodeKindRoot
+}
+
+func treeNodeLevel(node *Node) int {
+	if node == nil {
+		return 0
+	}
+	switch node.Kind {
+	case NodeKindSession:
+		return 0
+	case NodeKindWindow:
+		return 1
+	case NodeKindPane:
+		return 2
+	default:
+		return 0
+	}
+}
+
+func expandTree(node *Node) {
+	if node == nil {
+		return
+	}
+	if node.Kind != NodeKindNotification {
+		node.Expanded = true
+	}
+	for _, child := range node.Children {
+		expandTree(child)
+	}
+}
+
+func findNodePath(root *Node, target *Node) ([]*Node, bool) {
+	if root == nil || target == nil {
+		return nil, false
+	}
+	if root == target {
+		return []*Node{root}, true
+	}
+	for _, child := range root.Children {
+		childPath, ok := findNodePath(child, target)
+		if !ok {
+			continue
+		}
+		return append([]*Node{root}, childPath...), true
+	}
+	return nil, false
+}
+
+func nodePathSegments(path []*Node) (session string, window string, pane string) {
+	for _, current := range path {
+		switch current.Kind {
+		case NodeKindSession:
+			session = current.Title
+		case NodeKindWindow:
+			window = current.Title
+		case NodeKindPane:
+			pane = current.Title
+		}
+	}
+	return session, window, pane
 }

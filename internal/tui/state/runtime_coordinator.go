@@ -267,6 +267,87 @@ func (r *tmuxRuntimeCoordinator) SetTmuxVisibility(visible bool) error {
 	return r.client.SetTmuxVisibility(visible)
 }
 
+// ResolveSessionName converts a session ID to a name.
+func (r *tmuxRuntimeCoordinator) ResolveSessionName(sessionID string) string {
+	name, err := r.GetSessionName(sessionID)
+	if err != nil {
+		return sessionID
+	}
+
+	return name
+}
+
+// ResolveWindowName converts a window ID to a name.
+func (r *tmuxRuntimeCoordinator) ResolveWindowName(windowID string) string {
+	name, err := r.GetWindowName(windowID)
+	if err != nil {
+		return windowID
+	}
+
+	return name
+}
+
+// ResolvePaneName converts a pane ID to a name.
+func (r *tmuxRuntimeCoordinator) ResolvePaneName(paneID string) string {
+	name, err := r.GetPaneName(paneID)
+	if err != nil {
+		return paneID
+	}
+
+	return name
+}
+
+// GetSessionNames returns all cached session names.
+func (r *tmuxRuntimeCoordinator) GetSessionNames() map[string]string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	return cloneNames(r.sessionNames)
+}
+
+// GetWindowNames returns all cached window names.
+func (r *tmuxRuntimeCoordinator) GetWindowNames() map[string]string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	return cloneNames(r.windowNames)
+}
+
+// GetPaneNames returns all cached pane names.
+func (r *tmuxRuntimeCoordinator) GetPaneNames() map[string]string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	return cloneNames(r.paneNames)
+}
+
+// SetSessionNames sets the session name cache.
+func (r *tmuxRuntimeCoordinator) SetSessionNames(names map[string]string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.sessionNames = cloneNames(names)
+	r.sessionsLoaded = true
+}
+
+// SetWindowNames sets the window name cache.
+func (r *tmuxRuntimeCoordinator) SetWindowNames(names map[string]string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.windowNames = cloneNames(names)
+	r.windowsLoaded = true
+}
+
+// SetPaneNames sets the pane name cache.
+func (r *tmuxRuntimeCoordinator) SetPaneNames(names map[string]string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.paneNames = cloneNames(names)
+	r.panesLoaded = true
+}
+
 func cloneNames(names map[string]string) map[string]string {
 	clone := make(map[string]string, len(names))
 	for k, v := range names {
