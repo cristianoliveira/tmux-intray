@@ -18,6 +18,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/render"
+	"github.com/cristianoliveira/tmux-intray/internal/tui/service"
 )
 
 const (
@@ -55,6 +56,9 @@ type Model struct {
 	ensureTmuxRunning func() bool
 	jumpToPane        func(sessionID, windowID, paneID string) bool
 	searchProvider    search.Provider // Optional custom search provider (defaults to token-based search)
+
+	// Command service for handling TUI commands
+	commandService model.CommandService
 }
 
 // Init initializes the TUI model.
@@ -103,8 +107,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			if m.uiState.IsCommandMode() {
-				// Execute command
-				cmd := m.executeCommand()
+				// Execute command using CommandService
+				cmd := m.executeCommandViaService()
 				m.uiState.SetCommandMode(false)
 				return m, cmd
 			}
@@ -398,6 +402,9 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 		ensureTmuxRunning: core.EnsureTmuxRunning,
 		jumpToPane:        core.JumpToPane,
 	}
+
+	// Initialize command service after model creation
+	m.commandService = service.NewCommandService(&m)
 	err = m.loadNotifications(false)
 	if err != nil {
 		return &Model{}, err
@@ -408,9 +415,19 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 // saveSettingsSuccessMsg is sent when settings are saved successfully.
 type saveSettingsSuccessMsg struct{}
 
+// SaveSettingsSuccessMsg is exported version of saveSettingsSuccessMsg.
+type SaveSettingsSuccessMsg struct {
+	saveSettingsSuccessMsg
+}
+
 // saveSettingsFailedMsg is sent when settings save fails.
 type saveSettingsFailedMsg struct {
 	err error
+}
+
+// SaveSettingsFailedMsg is exported version of saveSettingsFailedMsg.
+type SaveSettingsFailedMsg struct {
+	saveSettingsFailedMsg
 }
 
 // applySearchFilter filters notifications based on the search query.
@@ -454,6 +471,49 @@ func (m *Model) applySearchFilter() {
 		m.visibleNodes = nil
 	}
 	m.updateViewportContent()
+}
+
+// ApplySearchFilter is the public version of applySearchFilter.
+func (m *Model) ApplySearchFilter() {
+	m.applySearchFilter()
+}
+
+// GetGroupBy returns the current group-by setting.
+func (m *Model) GetGroupBy() string {
+	return string(m.uiState.GetGroupBy())
+}
+
+// SetGroupBy sets the group-by setting.
+func (m *Model) SetGroupBy(groupBy string) error {
+	if !settings.IsValidGroupBy(groupBy) {
+		return fmt.Errorf("invalid group-by value: %s", groupBy)
+	}
+
+	if m.GetGroupBy() == groupBy {
+		return nil // Already set
+	}
+
+	m.uiState.SetGroupBy(model.GroupBy(groupBy))
+	return nil
+}
+
+// GetExpandLevel returns the current expand level setting.
+func (m *Model) GetExpandLevel() int {
+	return m.uiState.GetExpandLevel()
+}
+
+// SetExpandLevel sets the expand level setting.
+func (m *Model) SetExpandLevel(level int) error {
+	if level < settings.MinExpandLevel || level > settings.MaxExpandLevel {
+		return fmt.Errorf("invalid expand level value: %d (expected %d-%d)", level, settings.MinExpandLevel, settings.MaxExpandLevel)
+	}
+
+	if m.uiState.GetExpandLevel() == level {
+		return nil // Already set
+	}
+
+	m.uiState.SetExpandLevel(level)
+	return nil
 }
 
 // getNodeIdentifier returns a stable identifier for a node.
@@ -524,7 +584,50 @@ func (m *Model) adjustCursorBounds() {
 	m.uiState.EnsureCursorVisible(listLen)
 }
 
+// executeCommandViaService executes the current command query using the CommandService and returns a command to run.
+func (m *Model) executeCommandViaService() tea.Cmd {
+	// If commandService is not initialized, fall back to legacy implementation
+	if m.commandService == nil {
+		return m.executeCommand()
+	}
+
+	cmd := strings.TrimSpace(m.uiState.GetCommandQuery())
+	if cmd == "" {
+		colors.Warning("Command is empty")
+		return nil
+	}
+
+	// Parse and execute command using CommandService
+	name, args, err := m.commandService.ParseCommand(cmd)
+	if err != nil {
+		colors.Warning(fmt.Sprintf("Failed to parse command: %v", err))
+		return nil
+	}
+
+	result, err := m.commandService.ExecuteCommand(name, args)
+	if err != nil {
+		colors.Error(fmt.Sprintf("Failed to execute command: %v", err))
+		return nil
+	}
+
+	// Handle result
+	if result.Message != "" {
+		if result.Error {
+			colors.Warning(result.Message)
+		} else {
+			colors.Info(result.Message)
+		}
+	}
+
+	if result.Quit {
+		return tea.Quit
+	}
+
+	return result.Cmd
+}
+
 // executeCommand executes the current command query and returns a command to run.
+// This is the legacy implementation kept for reference.
 func (m *Model) executeCommand() tea.Cmd {
 	cmd := strings.TrimSpace(m.uiState.GetCommandQuery())
 	if cmd == "" {
@@ -643,6 +746,11 @@ func (m *Model) saveSettings() error {
 	}
 	colors.Info("Settings saved")
 	return nil
+}
+
+// SaveSettings is the public version of saveSettings.
+func (m *Model) SaveSettings() error {
+	return m.saveSettings()
 }
 
 // updateViewportContent updates the viewport with the current filtered notifications.
@@ -883,6 +991,11 @@ func (m *Model) resetCursor() {
 	m.uiState.ResetCursor()
 }
 
+// ResetCursor is the public version of resetCursor.
+func (m *Model) ResetCursor() {
+	m.resetCursor()
+}
+
 // loadNotifications loads notifications from storage.
 // If preserveCursor is true, attempts to maintain the current cursor position.
 func (m *Model) loadNotifications(preserveCursor bool) error {
@@ -957,6 +1070,11 @@ func (m *Model) loadNotifications(preserveCursor bool) error {
 
 func (m *Model) isGroupedView() bool {
 	return m.uiState.IsGroupedView()
+}
+
+// IsGroupedView is the public version of isGroupedView.
+func (m *Model) IsGroupedView() bool {
+	return m.isGroupedView()
 }
 
 // cycleViewMode cycles through available view modes (compact → detailed → grouped).
@@ -1179,6 +1297,23 @@ func (m *Model) applyDefaultExpansion() {
 	m.updateViewportContent()
 	m.ensureCursorVisible()
 }
+
+// ApplyDefaultExpansion is the public version of applyDefaultExpansion.
+func (m *Model) ApplyDefaultExpansion() {
+	m.applyDefaultExpansion()
+}
+
+// GetViewMode returns the current view mode.
+func (m *Model) GetViewMode() string {
+	return string(m.uiState.GetViewMode())
+}
+
+// ToggleViewMode toggles between view modes.
+func (m *Model) ToggleViewMode() error {
+	m.cycleViewMode()
+	return nil
+}
+
 func (m *Model) expandNode(node *Node) {
 	if !m.isGroupedView() {
 		return
