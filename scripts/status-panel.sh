@@ -4,7 +4,6 @@
 
 # Source core libraries
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 # shellcheck source=./lib/colors.sh disable=SC1091
 # The sourced file exists at runtime but ShellCheck can't resolve it due to relative path/context.
 source "$SCRIPT_DIR/lib/colors.sh"
