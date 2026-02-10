@@ -32,13 +32,10 @@ const (
 
 // Model represents the TUI model for bubbletea.
 type Model struct {
-	notifications []notification.Notification
-	filtered      []notification.Notification
-	uiState       *UIState // Extracted UI state management
-	sessionNames  map[string]string
-	windowNames   map[string]string
-	paneNames     map[string]string
-	client        tmux.TmuxClient // TmuxClient for tmux operations
+	notifications      []notification.Notification
+	filtered           []notification.Notification
+	uiState            *UIState // Extracted UI state management
+	runtimeCoordinator model.RuntimeCoordinator
 
 	// Settings fields (non-UI state)
 	sortBy         string
@@ -375,37 +372,21 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 		client = tmux.NewDefaultClient()
 	}
 
-	// Fetch all session names from tmux
-	sessionNames, err := client.ListSessions()
-	if err != nil {
-		sessionNames = make(map[string]string)
-	}
-
-	// Fetch all window names from tmux
-	windowNames, err := client.ListWindows()
-	if err != nil {
-		windowNames = make(map[string]string)
-	}
-
-	// Fetch all pane names from tmux
-	paneNames, err := client.ListPanes()
-	if err != nil {
-		paneNames = make(map[string]string)
+	runtimeCoordinator := NewRuntimeCoordinator(client)
+	if err := runtimeCoordinator.RefreshNames(); err != nil {
+		colors.Debug("failed to refresh tmux names: " + err.Error())
 	}
 
 	m := Model{
-		uiState:           NewUIState(), // Initialize UI state
-		sessionNames:      sessionNames,
-		windowNames:       windowNames,
-		paneNames:         paneNames,
-		client:            client,
-		ensureTmuxRunning: core.EnsureTmuxRunning,
-		jumpToPane:        core.JumpToPane,
+		uiState:            NewUIState(), // Initialize UI state
+		runtimeCoordinator: runtimeCoordinator,
+		ensureTmuxRunning:  core.EnsureTmuxRunning,
+		jumpToPane:         core.JumpToPane,
 	}
 
 	// Initialize command service after model creation
 	m.commandService = service.NewCommandService(&m)
-	err = m.loadNotifications(false)
+	err := m.loadNotifications(false)
 	if err != nil {
 		return &Model{}, err
 	}
@@ -448,9 +429,9 @@ func (m *Model) applySearchFilter() {
 			// Default: token-based search with case-insensitivity and name maps (backward compatible)
 			provider = search.NewTokenProvider(
 				search.WithCaseInsensitive(true),
-				search.WithSessionNames(m.sessionNames),
-				search.WithWindowNames(m.windowNames),
-				search.WithPaneNames(m.paneNames),
+				search.WithSessionNames(m.getSessionNames()),
+				search.WithWindowNames(m.getWindowNames()),
+				search.WithPaneNames(m.getPaneNames()),
 			)
 		}
 
@@ -1675,10 +1656,11 @@ func (m *Model) getSessionName(sessionID string) string {
 	if sessionID == "" {
 		return ""
 	}
-	if m.sessionNames == nil {
+	if m.runtimeCoordinator == nil {
 		return sessionID
 	}
-	if name, ok := m.sessionNames[sessionID]; ok {
+	name, err := m.runtimeCoordinator.GetSessionName(sessionID)
+	if err == nil && name != "" {
 		return name
 	}
 	return sessionID // fallback to session ID if not found
@@ -1690,10 +1672,11 @@ func (m *Model) getWindowName(windowID string) string {
 	if windowID == "" {
 		return ""
 	}
-	if m.windowNames == nil {
+	if m.runtimeCoordinator == nil {
 		return windowID
 	}
-	if name, ok := m.windowNames[windowID]; ok {
+	name, err := m.runtimeCoordinator.GetWindowName(windowID)
+	if err == nil && name != "" {
 		return name
 	}
 	return windowID // fallback to window ID if not found
@@ -1705,13 +1688,47 @@ func (m *Model) getPaneName(paneID string) string {
 	if paneID == "" {
 		return ""
 	}
-	if m.paneNames == nil {
+	if m.runtimeCoordinator == nil {
 		return paneID
 	}
-	if name, ok := m.paneNames[paneID]; ok {
+	name, err := m.runtimeCoordinator.GetPaneName(paneID)
+	if err == nil && name != "" {
 		return name
 	}
 	return paneID // fallback to pane ID if not found
+}
+
+func (m *Model) getSessionNames() map[string]string {
+	if m.runtimeCoordinator == nil {
+		return map[string]string{}
+	}
+	names, err := m.runtimeCoordinator.ListSessions()
+	if err != nil {
+		return map[string]string{}
+	}
+	return names
+}
+
+func (m *Model) getWindowNames() map[string]string {
+	if m.runtimeCoordinator == nil {
+		return map[string]string{}
+	}
+	names, err := m.runtimeCoordinator.ListWindows()
+	if err != nil {
+		return map[string]string{}
+	}
+	return names
+}
+
+func (m *Model) getPaneNames() map[string]string {
+	if m.runtimeCoordinator == nil {
+		return map[string]string{}
+	}
+	names, err := m.runtimeCoordinator.ListPanes()
+	if err != nil {
+		return map[string]string{}
+	}
+	return names
 }
 
 // getTreeRootForTest returns the tree root for testing purposes.
