@@ -65,8 +65,8 @@ func TestNewModelInitialState(t *testing.T) {
 	assert.Empty(t, model.filtered)
 	assert.NotNil(t, model.uiState.GetExpansionState())
 	assert.Empty(t, model.uiState.GetExpansionState())
-	assert.Nil(t, model.treeRoot)
-	assert.Empty(t, model.visibleNodes)
+	assert.Nil(t, model.getTreeRootForTest())
+	assert.Empty(t, model.getVisibleNodesForTest())
 }
 
 func BenchmarkComputeVisibleNodesCache(b *testing.B) {
@@ -95,7 +95,7 @@ func BenchmarkComputeVisibleNodesCache(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = model.computeVisibleNodes()
+		_ = model.getVisibleNodesForTest()
 	}
 }
 
@@ -115,16 +115,16 @@ func TestModelGroupedModeBuildsVisibleNodes(t *testing.T) {
 	model.applySearchFilter()
 	model.resetCursor()
 
-	require.NotNil(t, model.treeRoot)
-	require.Len(t, model.visibleNodes, 8)
-	assert.Equal(t, NodeKindSession, model.visibleNodes[0].Kind)
-	assert.Equal(t, NodeKindWindow, model.visibleNodes[1].Kind)
-	assert.Equal(t, NodeKindPane, model.visibleNodes[2].Kind)
-	assert.Equal(t, NodeKindNotification, model.visibleNodes[3].Kind)
-	assert.Equal(t, NodeKindSession, model.visibleNodes[4].Kind)
-	assert.Equal(t, NodeKindWindow, model.visibleNodes[5].Kind)
-	assert.Equal(t, NodeKindPane, model.visibleNodes[6].Kind)
-	assert.Equal(t, NodeKindNotification, model.visibleNodes[7].Kind)
+	require.NotNil(t, model.getTreeRootForTest())
+	require.Len(t, model.getVisibleNodesForTest(), 8)
+	assert.Equal(t, NodeKindSession, model.getVisibleNodesForTest()[0].Kind)
+	assert.Equal(t, NodeKindWindow, model.getVisibleNodesForTest()[1].Kind)
+	assert.Equal(t, NodeKindPane, model.getVisibleNodesForTest()[2].Kind)
+	assert.Equal(t, NodeKindNotification, model.getVisibleNodesForTest()[3].Kind)
+	assert.Equal(t, NodeKindSession, model.getVisibleNodesForTest()[4].Kind)
+	assert.Equal(t, NodeKindWindow, model.getVisibleNodesForTest()[5].Kind)
+	assert.Equal(t, NodeKindPane, model.getVisibleNodesForTest()[6].Kind)
+	assert.Equal(t, NodeKindNotification, model.getVisibleNodesForTest()[7].Kind)
 }
 
 func TestModelGroupedModeRespectsGroupByDepth(t *testing.T) {
@@ -167,9 +167,9 @@ func TestModelGroupedModeRespectsGroupByDepth(t *testing.T) {
 			model.applySearchFilter()
 			model.resetCursor()
 
-			require.Len(t, model.visibleNodes, len(tt.expectedVisibleKinds))
+			require.Len(t, model.getVisibleNodesForTest(), len(tt.expectedVisibleKinds))
 			for i, kind := range tt.expectedVisibleKinds {
-				assert.Equal(t, kind, model.visibleNodes[i].Kind)
+				assert.Equal(t, kind, model.getVisibleNodesForTest()[i].Kind)
 			}
 		})
 	}
@@ -188,14 +188,14 @@ func TestModelSwitchesViewModes(t *testing.T) {
 
 	model.applySearchFilter()
 	model.resetCursor()
-	require.NotNil(t, model.treeRoot)
-	require.NotEmpty(t, model.visibleNodes)
+	require.NotNil(t, model.getTreeRootForTest())
+	require.NotEmpty(t, model.getVisibleNodesForTest())
 
 	model.uiState.SetViewMode(settings.ViewModeCompact)
 	model.applySearchFilter()
 	model.resetCursor()
-	assert.Nil(t, model.treeRoot)
-	assert.Empty(t, model.visibleNodes)
+	assert.Nil(t, model.getTreeRootForTest())
+	assert.Empty(t, model.getVisibleNodesForTest())
 }
 
 func TestToggleNodeExpansionGroupedView(t *testing.T) {
@@ -215,7 +215,7 @@ func TestToggleNodeExpansionGroupedView(t *testing.T) {
 
 	var groupNode *Node
 	groupIndex := -1
-	for idx, node := range model.visibleNodes {
+	for idx, node := range model.getVisibleNodesForTest() {
 		if node != nil && isGroupNode(node) {
 			groupNode = node
 			groupIndex = idx
@@ -231,13 +231,13 @@ func TestToggleNodeExpansionGroupedView(t *testing.T) {
 	handled := model.toggleNodeExpansion()
 	require.True(t, handled)
 	assert.False(t, groupNode.Expanded)
-	assert.Len(t, model.visibleNodes, 1)
+	assert.Len(t, model.getVisibleNodesForTest(), 1)
 	assert.Equal(t, 0, model.uiState.GetCursor())
 
 	handled = model.toggleNodeExpansion()
 	require.True(t, handled)
 	assert.True(t, groupNode.Expanded)
-	assert.Greater(t, len(model.visibleNodes), 1)
+	assert.Greater(t, len(model.getVisibleNodesForTest()), 1)
 }
 
 func TestToggleFoldTogglesGroupNode(t *testing.T) {
@@ -257,7 +257,7 @@ func TestToggleFoldTogglesGroupNode(t *testing.T) {
 
 	var groupNode *Node
 	groupIndex := -1
-	for idx, node := range model.visibleNodes {
+	for idx, node := range model.getVisibleNodesForTest() {
 		if node != nil && isGroupNode(node) {
 			groupNode = node
 			groupIndex = idx
@@ -272,11 +272,11 @@ func TestToggleFoldTogglesGroupNode(t *testing.T) {
 
 	model.toggleFold()
 	assert.False(t, groupNode.Expanded)
-	assert.Len(t, model.visibleNodes, 1)
+	assert.Len(t, model.getVisibleNodesForTest(), 1)
 
 	model.toggleFold()
 	assert.True(t, groupNode.Expanded)
-	assert.Greater(t, len(model.visibleNodes), 1)
+	assert.Greater(t, len(model.getVisibleNodesForTest()), 1)
 }
 
 func TestToggleFoldWorksAtPaneDepth(t *testing.T) {
@@ -296,7 +296,7 @@ func TestToggleFoldWorksAtPaneDepth(t *testing.T) {
 
 	var paneNode *Node
 	paneIndex := -1
-	for idx, node := range model.visibleNodes {
+	for idx, node := range model.getVisibleNodesForTest() {
 		if node != nil && node.Kind == NodeKindPane {
 			paneNode = node
 			paneIndex = idx
@@ -333,7 +333,7 @@ func TestCollapseNodeMovesCursorToParent(t *testing.T) {
 
 	var leafNode *Node
 	leafIndex := -1
-	for idx, node := range model.visibleNodes {
+	for idx, node := range model.getVisibleNodesForTest() {
 		if node != nil && node.Kind == NodeKindNotification {
 			leafNode = node
 			leafIndex = idx
@@ -343,7 +343,7 @@ func TestCollapseNodeMovesCursorToParent(t *testing.T) {
 	require.NotNil(t, leafNode)
 	require.NotEqual(t, -1, leafIndex)
 
-	path, ok := findNodePath(model.treeRoot, leafNode)
+	path, ok := findNodePath(model.getTreeRootForTest(), leafNode)
 	require.True(t, ok)
 	var paneNode *Node
 	for _, node := range path {
@@ -357,7 +357,7 @@ func TestCollapseNodeMovesCursorToParent(t *testing.T) {
 	model.uiState.SetCursor(leafIndex)
 	model.collapseNode(paneNode)
 
-	paneIndex := indexOfNode(model.visibleNodes, paneNode)
+	paneIndex := indexOfNode(model.getVisibleNodesForTest(), paneNode)
 	require.NotEqual(t, -1, paneIndex)
 	assert.Equal(t, paneIndex, model.uiState.GetCursor())
 }
@@ -378,7 +378,7 @@ func TestToggleNodeExpansionIgnoresLeafNodes(t *testing.T) {
 
 	var leafNode *Node
 	leafIndex := -1
-	for idx, node := range model.visibleNodes {
+	for idx, node := range model.getVisibleNodesForTest() {
 		if node != nil && node.Kind == NodeKindNotification {
 			leafNode = node
 			leafIndex = idx
@@ -389,12 +389,12 @@ func TestToggleNodeExpansionIgnoresLeafNodes(t *testing.T) {
 	require.NotEqual(t, -1, leafIndex)
 
 	model.uiState.SetCursor(leafIndex)
-	visibleBefore := len(model.visibleNodes)
+	visibleBefore := len(model.getVisibleNodesForTest())
 
 	handled := model.toggleNodeExpansion()
 
 	assert.False(t, handled)
-	assert.Len(t, model.visibleNodes, visibleBefore)
+	assert.Len(t, model.getVisibleNodesForTest(), visibleBefore)
 }
 
 func TestToggleFoldIgnoresLeafNodes(t *testing.T) {
@@ -413,7 +413,7 @@ func TestToggleFoldIgnoresLeafNodes(t *testing.T) {
 
 	var leafNode *Node
 	leafIndex := -1
-	for idx, node := range model.visibleNodes {
+	for idx, node := range model.getVisibleNodesForTest() {
 		if node != nil && node.Kind == NodeKindNotification {
 			leafNode = node
 			leafIndex = idx
@@ -424,11 +424,11 @@ func TestToggleFoldIgnoresLeafNodes(t *testing.T) {
 	require.NotEqual(t, -1, leafIndex)
 
 	model.uiState.SetCursor(leafIndex)
-	visibleBefore := len(model.visibleNodes)
+	visibleBefore := len(model.getVisibleNodesForTest())
 
 	model.toggleFold()
 
-	assert.Len(t, model.visibleNodes, visibleBefore)
+	assert.Len(t, model.getVisibleNodesForTest(), visibleBefore)
 }
 
 func TestToggleFoldExpandsDefaultWhenAllCollapsed(t *testing.T) {
@@ -459,15 +459,15 @@ func TestToggleFoldExpandsDefaultWhenAllCollapsed(t *testing.T) {
 			collapseAll(child)
 		}
 	}
-	collapseAll(model.treeRoot)
-	model.visibleNodes = model.computeVisibleNodes()
+	collapseAll(model.getTreeRootForTest())
+	_ = model.getVisibleNodesForTest() // Recompute visible nodes
 	model.uiState.SetCursor(0)
 
 	require.True(t, model.allGroupsCollapsed())
 
 	model.toggleFold()
 
-	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$1")
+	sessionNode := findChildByTitle(model.getTreeRootForTest(), NodeKindSession, "$1")
 	require.NotNil(t, sessionNode)
 	windowNode := findChildByTitle(sessionNode, NodeKindWindow, "@1")
 	require.NotNil(t, windowNode)
@@ -494,7 +494,7 @@ func TestModelSelectedNotificationGroupedView(t *testing.T) {
 	model.applySearchFilter()
 	model.resetCursor()
 	cursorIndex := -1
-	for idx, node := range model.visibleNodes {
+	for idx, node := range model.getVisibleNodesForTest() {
 		if node == nil || node.Kind != NodeKindNotification || node.Notification == nil {
 			continue
 		}
@@ -871,19 +871,19 @@ func TestApplySearchFilterGroupedView(t *testing.T) {
 	model.resetCursor()
 
 	require.Len(t, model.filtered, 2)
-	require.NotNil(t, model.treeRoot)
-	require.NotEmpty(t, model.visibleNodes)
+	require.NotNil(t, model.getTreeRootForTest())
+	require.NotEmpty(t, model.getVisibleNodesForTest())
 
 	// Verify that only error notifications are in filtered list
 	assert.Contains(t, model.filtered[0].Message, "Error")
 	assert.Contains(t, model.filtered[1].Message, "Error")
 
 	// Verify tree root count matches filtered count
-	assert.Equal(t, 2, model.treeRoot.Count)
+	assert.Equal(t, 2, model.getTreeRootForTest().Count)
 
 	// Verify only sessions with matching errors are in the tree
 	sessionCount := 0
-	for _, node := range model.visibleNodes {
+	for _, node := range model.getVisibleNodesForTest() {
 		if node != nil && node.Kind == NodeKindSession {
 			sessionCount++
 		}
@@ -914,12 +914,12 @@ func TestBuildFilteredTreePrunesEmptyGroups(t *testing.T) {
 	model.resetCursor()
 
 	require.Len(t, model.filtered, 1)
-	require.NotNil(t, model.treeRoot)
+	require.NotNil(t, model.getTreeRootForTest())
 
 	// Verify tree has only one session (the one with matching notification)
 	sessionCount := 0
 	var sessionNode *Node
-	for _, node := range model.treeRoot.Children {
+	for _, node := range model.getTreeRootForTest().Children {
 		if node != nil && node.Kind == NodeKindSession {
 			sessionCount++
 			sessionNode = node
@@ -953,10 +953,10 @@ func TestBuildFilteredTreePreservesExpansionState(t *testing.T) {
 	model.uiState.SetSearchQuery("")
 	model.applySearchFilter()
 	model.resetCursor()
-	require.NotNil(t, model.treeRoot)
+	require.NotNil(t, model.getTreeRootForTest())
 
 	// Collapse session $2
-	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$2")
+	sessionNode := findChildByTitle(model.getTreeRootForTest(), NodeKindSession, "$2")
 	require.NotNil(t, sessionNode)
 	sessionNode.Expanded = false
 	model.updateExpansionState(sessionNode, false)
@@ -967,7 +967,7 @@ func TestBuildFilteredTreePreservesExpansionState(t *testing.T) {
 	model.resetCursor()
 
 	// Find session $2 again in new tree
-	sessionNode = findChildByTitle(model.treeRoot, NodeKindSession, "$2")
+	sessionNode = findChildByTitle(model.getTreeRootForTest(), NodeKindSession, "$2")
 	require.NotNil(t, sessionNode)
 	assert.False(t, sessionNode.Expanded, "expansion state should be preserved")
 }
@@ -990,8 +990,8 @@ func TestBuildFilteredTreeHandlesNoMatches(t *testing.T) {
 	model.resetCursor()
 
 	require.Empty(t, model.filtered)
-	assert.Nil(t, model.treeRoot)
-	assert.Empty(t, model.visibleNodes)
+	assert.Nil(t, model.getTreeRootForTest())
+	assert.Empty(t, model.getVisibleNodesForTest())
 
 	// Verify viewport shows "No notifications found"
 	view := model.uiState.GetViewport().View()
@@ -1020,8 +1020,8 @@ func TestBuildFilteredTreeWithEmptyQuery(t *testing.T) {
 	model.resetCursor()
 
 	require.Len(t, model.filtered, 2)
-	require.NotNil(t, model.treeRoot)
-	assert.Equal(t, 2, model.treeRoot.Count)
+	require.NotNil(t, model.getTreeRootForTest())
+	assert.Equal(t, 2, model.getTreeRootForTest().Count)
 }
 
 // TestBuildFilteredTreeGroupCounts tests that group counts reflect
@@ -1047,13 +1047,13 @@ func TestBuildFilteredTreeGroupCounts(t *testing.T) {
 	model.resetCursor()
 
 	require.Len(t, model.filtered, 2)
-	require.NotNil(t, model.treeRoot)
+	require.NotNil(t, model.getTreeRootForTest())
 
 	// Verify root count
-	assert.Equal(t, 2, model.treeRoot.Count)
+	assert.Equal(t, 2, model.getTreeRootForTest().Count)
 
 	// Verify session count
-	sessionNode := findChildByTitle(model.treeRoot, NodeKindSession, "$1")
+	sessionNode := findChildByTitle(model.getTreeRootForTest(), NodeKindSession, "$1")
 	require.NotNil(t, sessionNode)
 	assert.Equal(t, 2, sessionNode.Count)
 
@@ -1207,12 +1207,12 @@ func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 
 	model.applySearchFilter()
 	model.resetCursor()
-	require.NotEmpty(t, model.visibleNodes)
+	require.NotEmpty(t, model.getVisibleNodesForTest())
 	model.uiState.SetCursor(0)
 	model.updateViewportContent()
 
 	content := model.uiState.GetViewport().View()
-	groupNode := model.visibleNodes[0]
+	groupNode := model.getVisibleNodesForTest()[0]
 	require.NotNil(t, groupNode)
 
 	expectedGroupRow := render.RenderGroupRow(render.GroupRow{
@@ -1230,7 +1230,7 @@ func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 
 	var leafNode *Node
 	var leafIndex int
-	for idx, node := range model.visibleNodes {
+	for idx, node := range model.getVisibleNodesForTest() {
 		if node != nil && node.Kind == NodeKindNotification && node.Notification != nil {
 			leafNode = node
 			leafIndex = idx
@@ -1275,7 +1275,7 @@ func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
 	var leafNode *Node
 	var leafIndex int
 	var groupNode *Node
-	for idx, node := range model.visibleNodes {
+	for idx, node := range model.getVisibleNodesForTest() {
 		if node == nil {
 			continue
 		}
@@ -1409,7 +1409,7 @@ func TestHandleDismissGroupedViewUsesVisibleNodes(t *testing.T) {
 	model.applySearchFilter()
 	model.resetCursor()
 	cursorIndex := -1
-	for idx, node := range model.visibleNodes {
+	for idx, node := range model.getVisibleNodesForTest() {
 		if node == nil || node.Kind != NodeKindNotification || node.Notification == nil {
 			continue
 		}
@@ -1554,7 +1554,7 @@ func TestModelUpdateHandlesZaToggleFold(t *testing.T) {
 
 	var groupNode *Node
 	groupIndex := -1
-	for idx, node := range model.visibleNodes {
+	for idx, node := range model.getVisibleNodesForTest() {
 		if node != nil && isGroupNode(node) {
 			groupNode = node
 			groupIndex = idx
