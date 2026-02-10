@@ -240,10 +240,10 @@ func (s *dummyTreeService) convertNode(stateNode *Node) *model.TreeNode {
 }
 
 // Other required TreeService methods (not used in benchmarking)
-func (s *dummyTreeService) FindNotificationPath(notif notification.Notification) ([]*model.TreeNode, error) {
+func (s *dummyTreeService) FindNotificationPath(root *model.TreeNode, notif notification.Notification) ([]*model.TreeNode, error) {
 	return nil, nil
 }
-func (s *dummyTreeService) FindNodeByID(identifier string) *model.TreeNode {
+func (s *dummyTreeService) FindNodeByID(root *model.TreeNode, identifier string) *model.TreeNode {
 	return nil
 }
 func (s *dummyTreeService) GetVisibleNodes() []*model.TreeNode {

@@ -1342,8 +1342,8 @@ func (m *Model) collapseNode(node *model.TreeNode) {
 	if selectedID != "" {
 		// Check if the selected node is contained within the collapsed node
 		// by comparing paths
-		if selectedNode := m.treeService.FindNodeByID(selectedID); selectedNode != nil {
-			if collapsedNode := m.treeService.FindNodeByID(nodeID); collapsedNode != nil {
+		if selectedNode := m.treeService.FindNodeByID(m.treeService.GetTreeRoot(), selectedID); selectedNode != nil {
+			if collapsedNode := m.treeService.FindNodeByID(m.treeService.GetTreeRoot(), nodeID); collapsedNode != nil {
 				if m.nodeContains(collapsedNode, selectedNode) {
 					// Move cursor to the collapsed node
 					if index := indexOfTreeNode(visibleNodes, collapsedNode); index >= 0 {
