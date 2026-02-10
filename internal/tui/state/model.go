@@ -49,7 +49,6 @@ type Model struct {
 	notificationService model.NotificationService
 	runtimeCoordinator  model.RuntimeCoordinator
 	commandService      model.CommandService
-
 	// Legacy fields for backward compatibility
 	client            tmux.TmuxClient
 	sessionNames      map[string]string
@@ -199,6 +198,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			node := m.selectedVisibleNode()
 			if node != nil {
 				m.treeService.CollapseNode(node)
+				m.invalidateCache()
 				m.updateViewportContent()
 			}
 		case "l":
@@ -206,6 +206,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			node := m.selectedVisibleNode()
 			if node != nil {
 				m.treeService.ExpandNode(node)
+				m.invalidateCache()
 				m.updateViewportContent()
 			}
 		case "z":
@@ -509,14 +510,13 @@ func (m *Model) SetExpandLevel(level int) error {
 // For notification nodes, this is the notification ID.
 // For group nodes, this is a combination of the node kind and title.
 func (m *Model) getNodeIdentifier(node *model.TreeNode) string {
-	return m.ensureTreeService().GetNodeIdentifier(node)
+	return m.treeService.GetNodeIdentifier(node)
 }
 
 // findNodeByIdentifier finds a node by its identifier in the visible nodes list.
 func (m *Model) findNodeByIdentifier(identifier string) *model.TreeNode {
-	treeService := m.ensureTreeService()
-	for _, node := range treeService.GetVisibleNodes() {
-		if treeService.GetNodeIdentifier(node) == identifier {
+	for _, node := range m.treeService.GetVisibleNodes() {
+		if m.treeService.GetNodeIdentifier(node) == identifier {
 			return node
 		}
 	}
@@ -1052,7 +1052,7 @@ func (m *Model) cycleViewMode() {
 }
 
 func (m *Model) computeVisibleNodes() []*model.TreeNode {
-	return m.ensureTreeService().GetVisibleNodes()
+	return m.treeService.GetVisibleNodes()
 }
 
 func (m *Model) invalidateCache() {
@@ -1135,6 +1135,7 @@ func (m *Model) toggleNodeExpansion() bool {
 	} else {
 		m.treeService.ExpandNode(node)
 	}
+	m.invalidateCache()
 	return true
 }
 
@@ -1152,10 +1153,12 @@ func (m *Model) toggleFold() {
 	}
 	if node.Expanded {
 		m.treeService.CollapseNode(node)
+		m.invalidateCache()
 		m.updateViewportContent()
 		return
 	}
 	m.treeService.ExpandNode(node)
+	m.invalidateCache()
 	m.updateViewportContent()
 }
 
@@ -1311,8 +1314,9 @@ func (m *Model) collapseNode(node *model.TreeNode) {
 	if selectedID != "" {
 		// Check if the selected node is contained within the collapsed node
 		// by comparing paths
-		if selectedNode := m.treeService.FindNodeByID(selectedID); selectedNode != nil {
-			if collapsedNode := m.treeService.FindNodeByID(nodeID); collapsedNode != nil {
+		treeRoot := m.treeService.GetTreeRoot()
+		if selectedNode := m.treeService.FindNodeByID(treeRoot, selectedID); selectedNode != nil {
+			if collapsedNode := m.treeService.FindNodeByID(treeRoot, nodeID); collapsedNode != nil {
 				if m.nodeContains(collapsedNode, selectedNode) {
 					// Move cursor to the collapsed node
 					if index := indexOfTreeNode(visibleNodes, collapsedNode); index >= 0 {
@@ -1447,19 +1451,20 @@ func (m *Model) nodePathSegments(path []*model.TreeNode) (session string, window
 }
 
 // buildFilteredTree builds a tree from filtered notifications and applies saved expansion state.
-func (m *Model) buildFilteredTree(notifications []notification.Notification) {
+// Returns a tree where group counts reflect only matching notifications.
+func (m *Model) buildFilteredTree(notifications []notification.Notification) *model.TreeNode {
 	m.invalidateCache()
 
 	if len(notifications) == 0 {
 		m.treeService.ClearTree()
-		return
+		return nil
 	}
 
 	// Use TreeService to build the tree
 	err := m.treeService.BuildTree(notifications, string(m.uiState.GetGroupBy()))
 	if err != nil {
 		m.treeService.ClearTree()
-		return
+		return nil
 	}
 
 	// Prune empty groups (groups with no matching notifications)
@@ -1473,6 +1478,7 @@ func (m *Model) buildFilteredTree(notifications []notification.Notification) {
 		// If no saved state, expand all by default
 		m.expandTreeRecursive(m.treeService.GetTreeRoot())
 	}
+	return m.treeService.GetTreeRoot()
 }
 
 // expandTreeRecursive is a helper that expands all group nodes.
@@ -1582,10 +1588,10 @@ func (m *Model) getPaneName(paneID string) string {
 
 // getTreeRootForTest returns the tree root for testing purposes.
 func (m *Model) getTreeRootForTest() *model.TreeNode {
-	return m.ensureTreeService().GetTreeRoot()
+	return m.treeService.GetTreeRoot()
 }
 
 // getVisibleNodesForTest returns the visible nodes for testing purposes.
 func (m *Model) getVisibleNodesForTest() []*model.TreeNode {
-	return m.ensureTreeService().GetVisibleNodes()
+	return m.treeService.GetVisibleNodes()
 }
