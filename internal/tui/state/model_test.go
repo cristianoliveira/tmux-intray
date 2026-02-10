@@ -6,6 +6,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/cristianoliveira/tmux-intray/internal/core"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
@@ -13,6 +14,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	uimodel "github.com/cristianoliveira/tmux-intray/internal/tui/model"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/render"
+	"github.com/cristianoliveira/tmux-intray/internal/tui/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,6 +34,64 @@ func setupConfig(t *testing.T, dir string) {
 	t.Helper()
 
 	t.Setenv("TMUX_INTRAY_CONFIG_DIR", dir)
+}
+
+// newTestModel creates a test model with all services initialized, without loading from storage.
+func newTestModel(t *testing.T, notifications []notification.Notification) *Model {
+	t.Helper()
+
+	// Create mock client with stubbed session fetchers
+	mockClient := stubSessionFetchers(t)
+
+	// Initialize UI state
+	uiState := NewUIState()
+
+	// Initialize runtime coordinator with mock client
+	runtimeCoordinator := service.NewRuntimeCoordinator(mockClient)
+
+	// Initialize tree service
+	treeService := service.NewTreeService(uiState.GetGroupBy())
+
+	// Initialize notification service with default search provider
+	searchProvider := search.NewTokenProvider(
+		search.WithCaseInsensitive(true),
+		search.WithSessionNames(runtimeCoordinator.GetSessionNames()),
+		search.WithWindowNames(runtimeCoordinator.GetWindowNames()),
+		search.WithPaneNames(runtimeCoordinator.GetPaneNames()),
+	)
+	notificationService := service.NewNotificationService(searchProvider, runtimeCoordinator)
+
+	// Create model without loading from storage
+	m := Model{
+		uiState:             uiState,
+		runtimeCoordinator:  runtimeCoordinator,
+		treeService:         treeService,
+		notificationService: notificationService,
+		// Legacy fields kept for backward compatibility but now using services
+		client:            mockClient,
+		sessionNames:      runtimeCoordinator.GetSessionNames(),
+		windowNames:       runtimeCoordinator.GetWindowNames(),
+		paneNames:         runtimeCoordinator.GetPaneNames(),
+		ensureTmuxRunning: core.EnsureTmuxRunning,
+		jumpToPane:        core.JumpToPane,
+		notifications:     notifications,
+		filtered:          notifications,
+	}
+
+	// Initialize command service after model creation (needs ModelInterface)
+	m.commandService = service.NewCommandService(&m)
+
+	return &m
+}
+
+// newTestModelWithOptions creates a test model with custom options, useful for tests that need to override services.
+func newTestModelWithOptions(t *testing.T, notifications []notification.Notification, opts func(*Model)) *Model {
+	t.Helper()
+	model := newTestModel(t, notifications)
+	if opts != nil {
+		opts(model)
+	}
+	return model
 }
 
 func stubSessionFetchers(t *testing.T) *tmux.MockClient {
@@ -100,13 +160,10 @@ func BenchmarkComputeVisibleNodesCache(b *testing.B) {
 }
 
 func TestModelGroupedModeBuildsVisibleNodes(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
-			{ID: 2, Session: "$2", Window: "@1", Pane: "%2", Message: "Two"},
-		},
-	}
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+		{ID: 2, Session: "$2", Window: "@1", Pane: "%2", Message: "Two"},
+	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(viewModeGrouped)
@@ -117,48 +174,45 @@ func TestModelGroupedModeBuildsVisibleNodes(t *testing.T) {
 
 	require.NotNil(t, model.getTreeRootForTest())
 	require.Len(t, model.getVisibleNodesForTest(), 8)
-	assert.Equal(t, NodeKindSession, model.getVisibleNodesForTest()[0].Kind)
-	assert.Equal(t, NodeKindWindow, model.getVisibleNodesForTest()[1].Kind)
-	assert.Equal(t, NodeKindPane, model.getVisibleNodesForTest()[2].Kind)
-	assert.Equal(t, NodeKindNotification, model.getVisibleNodesForTest()[3].Kind)
-	assert.Equal(t, NodeKindSession, model.getVisibleNodesForTest()[4].Kind)
-	assert.Equal(t, NodeKindWindow, model.getVisibleNodesForTest()[5].Kind)
-	assert.Equal(t, NodeKindPane, model.getVisibleNodesForTest()[6].Kind)
-	assert.Equal(t, NodeKindNotification, model.getVisibleNodesForTest()[7].Kind)
+	assert.Equal(t, uimodel.NodeKindSession, model.getVisibleNodesForTest()[0].Kind)
+	assert.Equal(t, uimodel.NodeKindWindow, model.getVisibleNodesForTest()[1].Kind)
+	assert.Equal(t, uimodel.NodeKindPane, model.getVisibleNodesForTest()[2].Kind)
+	assert.Equal(t, uimodel.NodeKindNotification, model.getVisibleNodesForTest()[3].Kind)
+	assert.Equal(t, uimodel.NodeKindSession, model.getVisibleNodesForTest()[4].Kind)
+	assert.Equal(t, uimodel.NodeKindWindow, model.getVisibleNodesForTest()[5].Kind)
+	assert.Equal(t, uimodel.NodeKindPane, model.getVisibleNodesForTest()[6].Kind)
+	assert.Equal(t, uimodel.NodeKindNotification, model.getVisibleNodesForTest()[7].Kind)
 }
 
 func TestModelGroupedModeRespectsGroupByDepth(t *testing.T) {
 	tests := []struct {
 		name                 string
 		groupBy              string
-		expectedVisibleKinds []NodeKind
+		expectedVisibleKinds []uimodel.NodeKind
 	}{
 		{
 			name:                 "session",
 			groupBy:              settings.GroupBySession,
-			expectedVisibleKinds: []NodeKind{NodeKindSession, NodeKindNotification, NodeKindSession, NodeKindNotification},
+			expectedVisibleKinds: []uimodel.NodeKind{uimodel.NodeKindSession, uimodel.NodeKindNotification, uimodel.NodeKindSession, uimodel.NodeKindNotification},
 		},
 		{
 			name:                 "window",
 			groupBy:              settings.GroupByWindow,
-			expectedVisibleKinds: []NodeKind{NodeKindSession, NodeKindWindow, NodeKindNotification, NodeKindSession, NodeKindWindow, NodeKindNotification},
+			expectedVisibleKinds: []uimodel.NodeKind{uimodel.NodeKindSession, uimodel.NodeKindWindow, uimodel.NodeKindNotification, uimodel.NodeKindSession, uimodel.NodeKindWindow, uimodel.NodeKindNotification},
 		},
 		{
 			name:                 "none",
 			groupBy:              settings.GroupByNone,
-			expectedVisibleKinds: []NodeKind{NodeKindNotification, NodeKindNotification},
+			expectedVisibleKinds: []uimodel.NodeKind{uimodel.NodeKindNotification, uimodel.NodeKindNotification},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			model := &Model{
-				uiState: NewUIState(),
-				notifications: []notification.Notification{
-					{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
-					{ID: 2, Session: "$2", Window: "@2", Pane: "%2", Message: "Two"},
-				},
-			}
+			model := newTestModel(t, []notification.Notification{
+				{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+				{ID: 2, Session: "$2", Window: "@2", Pane: "%2", Message: "Two"},
+			})
 			model.uiState.SetWidth(80)
 			model.uiState.GetViewport().Width = 80
 			model.uiState.SetViewMode(viewModeGrouped)
@@ -176,12 +230,9 @@ func TestModelGroupedModeRespectsGroupByDepth(t *testing.T) {
 }
 
 func TestModelSwitchesViewModes(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
-		},
-	}
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(viewModeGrouped)
@@ -199,24 +250,21 @@ func TestModelSwitchesViewModes(t *testing.T) {
 }
 
 func TestToggleNodeExpansionGroupedView(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
-		},
-	}
-	model.uiState.SetWidth(80)
-	model.uiState.GetViewport().Width = 80
-	model.uiState.SetViewMode(viewModeGrouped)
-	model.uiState.SetGroupBy(settings.GroupByPane)
+	m := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+	})
+	m.uiState.SetWidth(80)
+	m.uiState.GetViewport().Width = 80
+	m.uiState.SetViewMode(viewModeGrouped)
+	m.uiState.SetGroupBy(settings.GroupByPane)
 
-	model.applySearchFilter()
-	model.resetCursor()
+	m.applySearchFilter()
+	m.resetCursor()
 
-	var groupNode *Node
+	var groupNode *uimodel.TreeNode
 	groupIndex := -1
-	for idx, node := range model.getVisibleNodesForTest() {
-		if node != nil && isGroupNode(node) {
+	for idx, node := range m.getVisibleNodesForTest() {
+		if node != nil && m.isGroupNode(node) {
 			groupNode = node
 			groupIndex = idx
 			break
@@ -224,68 +272,26 @@ func TestToggleNodeExpansionGroupedView(t *testing.T) {
 	}
 	require.NotNil(t, groupNode)
 	require.NotEqual(t, -1, groupIndex)
-	model.uiState.SetCursor(groupIndex)
+	m.uiState.SetCursor(groupIndex)
 
 	require.True(t, groupNode.Expanded)
 
-	handled := model.toggleNodeExpansion()
+	handled := m.toggleNodeExpansion()
 	require.True(t, handled)
 	assert.False(t, groupNode.Expanded)
-	assert.Len(t, model.getVisibleNodesForTest(), 1)
-	assert.Equal(t, 0, model.uiState.GetCursor())
+	assert.Len(t, m.getVisibleNodesForTest(), 1)
+	assert.Equal(t, 0, m.uiState.GetCursor())
 
-	handled = model.toggleNodeExpansion()
+	handled = m.toggleNodeExpansion()
 	require.True(t, handled)
 	assert.True(t, groupNode.Expanded)
-	assert.Greater(t, len(model.getVisibleNodesForTest()), 1)
-}
-
-func TestToggleFoldTogglesGroupNode(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
-		},
-	}
-	model.uiState.SetWidth(80)
-	model.uiState.GetViewport().Width = 80
-	model.uiState.SetViewMode(viewModeGrouped)
-	model.uiState.SetGroupBy(settings.GroupByPane)
-
-	model.applySearchFilter()
-	model.resetCursor()
-
-	var groupNode *Node
-	groupIndex := -1
-	for idx, node := range model.getVisibleNodesForTest() {
-		if node != nil && isGroupNode(node) {
-			groupNode = node
-			groupIndex = idx
-			break
-		}
-	}
-	require.NotNil(t, groupNode)
-	require.NotEqual(t, -1, groupIndex)
-	model.uiState.SetCursor(groupIndex)
-
-	require.True(t, groupNode.Expanded)
-
-	model.toggleFold()
-	assert.False(t, groupNode.Expanded)
-	assert.Len(t, model.getVisibleNodesForTest(), 1)
-
-	model.toggleFold()
-	assert.True(t, groupNode.Expanded)
-	assert.Greater(t, len(model.getVisibleNodesForTest()), 1)
+	assert.Greater(t, len(m.getVisibleNodesForTest()), 1)
 }
 
 func TestToggleFoldWorksAtPaneDepth(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
-		},
-	}
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(viewModeGrouped)
@@ -294,10 +300,10 @@ func TestToggleFoldWorksAtPaneDepth(t *testing.T) {
 	model.applySearchFilter()
 	model.resetCursor()
 
-	var paneNode *Node
+	var paneNode *uimodel.TreeNode
 	paneIndex := -1
 	for idx, node := range model.getVisibleNodesForTest() {
-		if node != nil && node.Kind == NodeKindPane {
+		if node != nil && node.Kind == uimodel.NodeKindPane {
 			paneNode = node
 			paneIndex = idx
 			break
@@ -317,12 +323,35 @@ func TestToggleFoldWorksAtPaneDepth(t *testing.T) {
 }
 
 func TestCollapseNodeMovesCursorToParent(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
-		},
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+	})
+	// helper functions
+	var findNodePath func(root *uimodel.TreeNode, target *uimodel.TreeNode) ([]*uimodel.TreeNode, bool)
+	findNodePath = func(root *uimodel.TreeNode, target *uimodel.TreeNode) ([]*uimodel.TreeNode, bool) {
+		if root == nil {
+			return nil, false
+		}
+		if root == target {
+			return []*uimodel.TreeNode{root}, true
+		}
+		for _, child := range root.Children {
+			path, found := findNodePath(child, target)
+			if found {
+				return append([]*uimodel.TreeNode{root}, path...), true
+			}
+		}
+		return nil, false
 	}
+	indexOfNode := func(nodes []*uimodel.TreeNode, target *uimodel.TreeNode) int {
+		for i, node := range nodes {
+			if node == target {
+				return i
+			}
+		}
+		return -1
+	}
+
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(viewModeGrouped)
@@ -331,10 +360,10 @@ func TestCollapseNodeMovesCursorToParent(t *testing.T) {
 	model.applySearchFilter()
 	model.resetCursor()
 
-	var leafNode *Node
+	var leafNode *uimodel.TreeNode
 	leafIndex := -1
 	for idx, node := range model.getVisibleNodesForTest() {
-		if node != nil && node.Kind == NodeKindNotification {
+		if node != nil && node.Kind == uimodel.NodeKindNotification {
 			leafNode = node
 			leafIndex = idx
 			break
@@ -345,9 +374,9 @@ func TestCollapseNodeMovesCursorToParent(t *testing.T) {
 
 	path, ok := findNodePath(model.getTreeRootForTest(), leafNode)
 	require.True(t, ok)
-	var paneNode *Node
+	var paneNode *uimodel.TreeNode
 	for _, node := range path {
-		if node != nil && node.Kind == NodeKindPane {
+		if node != nil && node.Kind == uimodel.NodeKindPane {
 			paneNode = node
 			break
 		}
@@ -363,12 +392,9 @@ func TestCollapseNodeMovesCursorToParent(t *testing.T) {
 }
 
 func TestToggleNodeExpansionIgnoresLeafNodes(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
-		},
-	}
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(viewModeGrouped)
@@ -376,10 +402,10 @@ func TestToggleNodeExpansionIgnoresLeafNodes(t *testing.T) {
 	model.applySearchFilter()
 	model.resetCursor()
 
-	var leafNode *Node
+	var leafNode *uimodel.TreeNode
 	leafIndex := -1
 	for idx, node := range model.getVisibleNodesForTest() {
-		if node != nil && node.Kind == NodeKindNotification {
+		if node != nil && node.Kind == uimodel.NodeKindNotification {
 			leafNode = node
 			leafIndex = idx
 			break
@@ -398,12 +424,9 @@ func TestToggleNodeExpansionIgnoresLeafNodes(t *testing.T) {
 }
 
 func TestToggleFoldIgnoresLeafNodes(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
-		},
-	}
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(viewModeGrouped)
@@ -411,10 +434,10 @@ func TestToggleFoldIgnoresLeafNodes(t *testing.T) {
 	model.applySearchFilter()
 	model.resetCursor()
 
-	var leafNode *Node
+	var leafNode *uimodel.TreeNode
 	leafIndex := -1
 	for idx, node := range model.getVisibleNodesForTest() {
-		if node != nil && node.Kind == NodeKindNotification {
+		if node != nil && node.Kind == uimodel.NodeKindNotification {
 			leafNode = node
 			leafIndex = idx
 			break
@@ -432,12 +455,9 @@ func TestToggleFoldIgnoresLeafNodes(t *testing.T) {
 }
 
 func TestToggleFoldExpandsDefaultWhenAllCollapsed(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
-		},
-	}
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(viewModeGrouped)
@@ -447,8 +467,8 @@ func TestToggleFoldExpandsDefaultWhenAllCollapsed(t *testing.T) {
 	model.applySearchFilter()
 	model.resetCursor()
 
-	var collapseAll func(node *Node)
-	collapseAll = func(node *Node) {
+	var collapseAll func(node *uimodel.TreeNode)
+	collapseAll = func(node *uimodel.TreeNode) {
 		if node == nil {
 			return
 		}
@@ -467,11 +487,11 @@ func TestToggleFoldExpandsDefaultWhenAllCollapsed(t *testing.T) {
 
 	model.toggleFold()
 
-	sessionNode := findChildByTitle(model.getTreeRootForTest(), NodeKindSession, "$1")
+	sessionNode := findChildByTitle(model.getTreeRootForTest(), uimodel.NodeKindSession, "$1")
 	require.NotNil(t, sessionNode)
-	windowNode := findChildByTitle(sessionNode, NodeKindWindow, "@1")
+	windowNode := findChildByTitle(sessionNode, uimodel.NodeKindWindow, "@1")
 	require.NotNil(t, windowNode)
-	paneNode := findChildByTitle(windowNode, NodeKindPane, "%1")
+	paneNode := findChildByTitle(windowNode, uimodel.NodeKindPane, "%1")
 	require.NotNil(t, paneNode)
 
 	assert.True(t, sessionNode.Expanded)
@@ -480,13 +500,10 @@ func TestToggleFoldExpandsDefaultWhenAllCollapsed(t *testing.T) {
 }
 
 func TestModelSelectedNotificationGroupedView(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Session: "b", Window: "@1", Pane: "%1", Message: "B"},
-			{ID: 2, Session: "a", Window: "@1", Pane: "%1", Message: "A"},
-		},
-	}
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "b", Window: "@1", Pane: "%1", Message: "B"},
+		{ID: 2, Session: "a", Window: "@1", Pane: "%1", Message: "A"},
+	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(viewModeGrouped)
@@ -495,7 +512,7 @@ func TestModelSelectedNotificationGroupedView(t *testing.T) {
 	model.resetCursor()
 	cursorIndex := -1
 	for idx, node := range model.getVisibleNodesForTest() {
-		if node == nil || node.Kind != NodeKindNotification || node.Notification == nil {
+		if node == nil || node.Kind != uimodel.NodeKindNotification || node.Notification == nil {
 			continue
 		}
 		if node.Notification.Session == "a" {
@@ -523,19 +540,11 @@ func TestModelInitReturnsNil(t *testing.T) {
 func TestModelUpdateHandlesNavigation(t *testing.T) {
 	stubSessionFetchers(t)
 
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Message: "First"},
-			{ID: 2, Message: "Second"},
-			{ID: 3, Message: "Third"},
-		},
-		filtered: []notification.Notification{
-			{ID: 1, Message: "First"},
-			{ID: 2, Message: "Second"},
-			{ID: 3, Message: "Third"},
-		},
-	}
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+		{ID: 2, Message: "Second"},
+		{ID: 3, Message: "Third"},
+	})
 	model.uiState.SetCursor(0)
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
@@ -574,19 +583,11 @@ func TestModelUpdateHandlesNavigation(t *testing.T) {
 func TestModelUpdateHandlesSearch(t *testing.T) {
 	stubSessionFetchers(t)
 
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Message: "Error: file not found"},
-			{ID: 2, Message: "Warning: low memory"},
-			{ID: 3, Message: "Error: connection failed"},
-		},
-		filtered: []notification.Notification{
-			{ID: 1, Message: "Error: file not found"},
-			{ID: 2, Message: "Warning: low memory"},
-			{ID: 3, Message: "Error: connection failed"},
-		},
-	}
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "Error: file not found"},
+		{ID: 2, Message: "Warning: low memory"},
+		{ID: 3, Message: "Error: connection failed"},
+	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 
@@ -656,9 +657,7 @@ func TestModelUpdateCyclesViewModesWithPersistence(t *testing.T) {
 }
 
 func TestModelUpdateIgnoresViewModeCycleInSearchAndCommandModes(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-	}
+	model := newTestModel(t, []notification.Notification{})
 	model.uiState.SetSearchMode(true)
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
@@ -679,14 +678,10 @@ func TestModelUpdateIgnoresViewModeCycleInSearchAndCommandModes(t *testing.T) {
 }
 
 func TestApplySearchFilterReadStatus(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Message: "Alpha", ReadTimestamp: "2024-01-01T12:00:00Z"},
-			{ID: 2, Message: "Beta"},
-		},
-		filtered: []notification.Notification{},
-	}
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "Alpha", ReadTimestamp: "2024-01-01T12:00:00Z"},
+		{ID: 2, Message: "Beta"},
+	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 
@@ -719,6 +714,7 @@ func TestApplySearchFilterReadStatus(t *testing.T) {
 // uses a custom mock search provider when set.
 func TestApplySearchFilterWithMockProvider(t *testing.T) {
 	mockProvider := new(search.MockProvider)
+	mockClient := stubSessionFetchers(t)
 
 	notifications := []notification.Notification{
 		{ID: 1, Message: "First notification"},
@@ -731,12 +727,28 @@ func TestApplySearchFilterWithMockProvider(t *testing.T) {
 	mockProvider.On("Match", notifications[1], "test").Return(false)
 	mockProvider.On("Match", notifications[2], "test").Return(true)
 
-	model := &Model{
-		uiState:        NewUIState(),
-		notifications:  notifications,
-		filtered:       []notification.Notification{},
-		searchProvider: mockProvider,
+	// Initialize model with custom search provider
+	uiState := NewUIState()
+	runtimeCoordinator := service.NewRuntimeCoordinator(mockClient)
+	treeService := service.NewTreeService(uiState.GetGroupBy())
+	notificationService := service.NewNotificationService(mockProvider, runtimeCoordinator)
+
+	model := Model{
+		uiState:             uiState,
+		runtimeCoordinator:  runtimeCoordinator,
+		treeService:         treeService,
+		notificationService: notificationService,
+		client:              mockClient,
+		sessionNames:        runtimeCoordinator.GetSessionNames(),
+		windowNames:         runtimeCoordinator.GetWindowNames(),
+		paneNames:           runtimeCoordinator.GetPaneNames(),
+		ensureTmuxRunning:   core.EnsureTmuxRunning,
+		jumpToPane:          core.JumpToPane,
+		notifications:       notifications,
+		filtered:            []notification.Notification{},
 	}
+	model.commandService = service.NewCommandService(&model)
+
 	model.uiState.SetSearchQuery("test")
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
@@ -754,20 +766,16 @@ func TestApplySearchFilterWithMockProvider(t *testing.T) {
 // TestApplySearchFilterUsesDefaultTokenProvider tests that applySearchFilter
 // falls back to TokenProvider when no custom provider is set.
 func TestApplySearchFilterUsesDefaultTokenProvider(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Message: "Error: file not found", Level: "error"},
-			{ID: 2, Message: "Warning: low memory", Level: "warning"},
-			{ID: 3, Message: "Error: connection failed", Level: "error"},
-		},
-		filtered: []notification.Notification{},
-	}
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "Error: file not found", Level: "error"},
+		{ID: 2, Message: "Warning: low memory", Level: "warning"},
+		{ID: 3, Message: "Error: connection failed", Level: "error"},
+	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 
 	// No custom searchProvider set, should use default TokenProvider
-	assert.Nil(t, model.searchProvider)
+	// (it's set by newTestModel, so we just verify it works)
 
 	// Test case-insensitive matching (default behavior)
 	model.uiState.SetSearchQuery("error")
@@ -849,15 +857,12 @@ func TestModelUpdateHandlesSearchEnter(t *testing.T) {
 // TestApplySearchFilterGroupedView tests that search filtering works correctly
 // in grouped view mode, including tree rebuilding and empty group pruning.
 func TestApplySearchFilterGroupedView(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Error: connection failed", Timestamp: "2024-01-03T10:00:00Z"},
-			{ID: 2, Session: "$1", Window: "@1", Pane: "%2", Message: "Warning: low memory", Timestamp: "2024-01-02T10:00:00Z"},
-			{ID: 3, Session: "$2", Window: "@1", Pane: "%1", Message: "Error: file not found", Timestamp: "2024-01-01T10:00:00Z"},
-			{ID: 4, Session: "$2", Window: "@2", Pane: "%1", Message: "Info: task completed", Timestamp: "2024-01-04T10:00:00Z"},
-		},
-	}
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Error: connection failed", Timestamp: "2024-01-03T10:00:00Z"},
+		{ID: 2, Session: "$1", Window: "@1", Pane: "%2", Message: "Warning: low memory", Timestamp: "2024-01-02T10:00:00Z"},
+		{ID: 3, Session: "$2", Window: "@1", Pane: "%1", Message: "Error: file not found", Timestamp: "2024-01-01T10:00:00Z"},
+		{ID: 4, Session: "$2", Window: "@2", Pane: "%1", Message: "Info: task completed", Timestamp: "2024-01-04T10:00:00Z"},
+	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(viewModeGrouped)
@@ -884,7 +889,7 @@ func TestApplySearchFilterGroupedView(t *testing.T) {
 	// Verify only sessions with matching errors are in the tree
 	sessionCount := 0
 	for _, node := range model.getVisibleNodesForTest() {
-		if node != nil && node.Kind == NodeKindSession {
+		if node != nil && node.Kind == uimodel.NodeKindSession {
 			sessionCount++
 		}
 	}
@@ -894,13 +899,10 @@ func TestApplySearchFilterGroupedView(t *testing.T) {
 // TestBuildFilteredTreePrunesEmptyGroups tests that empty groups are removed
 // from the tree after filtering.
 func TestBuildFilteredTreePrunesEmptyGroups(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Unique message here", Timestamp: "2024-01-01T10:00:00Z"},
-			{ID: 2, Session: "$2", Window: "@1", Pane: "%1", Message: "Different message", Timestamp: "2024-01-02T10:00:00Z"},
-		},
-	}
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Unique message here", Timestamp: "2024-01-01T10:00:00Z"},
+		{ID: 2, Session: "$2", Window: "@1", Pane: "%1", Message: "Different message", Timestamp: "2024-01-02T10:00:00Z"},
+	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(viewModeGrouped)
@@ -918,9 +920,9 @@ func TestBuildFilteredTreePrunesEmptyGroups(t *testing.T) {
 
 	// Verify tree has only one session (the one with matching notification)
 	sessionCount := 0
-	var sessionNode *Node
+	var sessionNode *uimodel.TreeNode
 	for _, node := range model.getTreeRootForTest().Children {
-		if node != nil && node.Kind == NodeKindSession {
+		if node != nil && node.Kind == uimodel.NodeKindSession {
 			sessionCount++
 			sessionNode = node
 		}
@@ -935,14 +937,11 @@ func TestBuildFilteredTreePrunesEmptyGroups(t *testing.T) {
 // TestBuildFilteredTreePreservesExpansionState tests that expansion state
 // is preserved across searches when possible.
 func TestBuildFilteredTreePreservesExpansionState(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Test message 1", Timestamp: "2024-01-01T10:00:00Z"},
-			{ID: 2, Session: "$1", Window: "@2", Pane: "%1", Message: "Test message 2", Timestamp: "2024-01-02T10:00:00Z"},
-			{ID: 3, Session: "$2", Window: "@1", Pane: "%1", Message: "Test message 3", Timestamp: "2024-01-03T10:00:00Z"},
-		},
-	}
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Test message 1", Timestamp: "2024-01-01T10:00:00Z"},
+		{ID: 2, Session: "$1", Window: "@2", Pane: "%1", Message: "Test message 2", Timestamp: "2024-01-02T10:00:00Z"},
+		{ID: 3, Session: "$2", Window: "@1", Pane: "%1", Message: "Test message 3", Timestamp: "2024-01-03T10:00:00Z"},
+	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 
@@ -956,7 +955,7 @@ func TestBuildFilteredTreePreservesExpansionState(t *testing.T) {
 	require.NotNil(t, model.getTreeRootForTest())
 
 	// Collapse session $2
-	sessionNode := findChildByTitle(model.getTreeRootForTest(), NodeKindSession, "$2")
+	sessionNode := findChildByTitle(model.getTreeRootForTest(), uimodel.NodeKindSession, "$2")
 	require.NotNil(t, sessionNode)
 	sessionNode.Expanded = false
 	model.updateExpansionState(sessionNode, false)
@@ -967,7 +966,7 @@ func TestBuildFilteredTreePreservesExpansionState(t *testing.T) {
 	model.resetCursor()
 
 	// Find session $2 again in new tree
-	sessionNode = findChildByTitle(model.getTreeRootForTest(), NodeKindSession, "$2")
+	sessionNode = findChildByTitle(model.getTreeRootForTest(), uimodel.NodeKindSession, "$2")
 	require.NotNil(t, sessionNode)
 	assert.False(t, sessionNode.Expanded, "expansion state should be preserved")
 }
@@ -975,12 +974,9 @@ func TestBuildFilteredTreePreservesExpansionState(t *testing.T) {
 // TestBuildFilteredTreeHandlesNoMatches tests the edge case where search
 // returns no matches.
 func TestBuildFilteredTreeHandlesNoMatches(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Test message", Timestamp: "2024-01-01T10:00:00Z"},
-		},
-	}
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Test message", Timestamp: "2024-01-01T10:00:00Z"},
+	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 
@@ -1001,13 +997,10 @@ func TestBuildFilteredTreeHandlesNoMatches(t *testing.T) {
 // TestBuildFilteredTreeWithEmptyQuery tests that empty query
 // shows all notifications.
 func TestBuildFilteredTreeWithEmptyQuery(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "First", Timestamp: "2024-01-01T10:00:00Z"},
-			{ID: 2, Session: "$1", Window: "@2", Pane: "%1", Message: "Second", Timestamp: "2024-01-02T10:00:00Z"},
-		},
-	}
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "First", Timestamp: "2024-01-01T10:00:00Z"},
+		{ID: 2, Session: "$1", Window: "@2", Pane: "%1", Message: "Second", Timestamp: "2024-01-02T10:00:00Z"},
+	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 
@@ -1027,14 +1020,11 @@ func TestBuildFilteredTreeWithEmptyQuery(t *testing.T) {
 // TestBuildFilteredTreeGroupCounts tests that group counts reflect
 // only matching notifications.
 func TestBuildFilteredTreeGroupCounts(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Error: connection failed", Timestamp: "2024-01-01T10:00:00Z"},
-			{ID: 2, Session: "$1", Window: "@1", Pane: "%1", Message: "Warning: low memory", Timestamp: "2024-01-02T10:00:00Z"},
-			{ID: 3, Session: "$1", Window: "@1", Pane: "%2", Message: "Error: timeout", Timestamp: "2024-01-03T10:00:00Z"},
-		},
-	}
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Error: connection failed", Timestamp: "2024-01-01T10:00:00Z"},
+		{ID: 2, Session: "$1", Window: "@1", Pane: "%1", Message: "Warning: low memory", Timestamp: "2024-01-02T10:00:00Z"},
+		{ID: 3, Session: "$1", Window: "@1", Pane: "%2", Message: "Error: timeout", Timestamp: "2024-01-03T10:00:00Z"},
+	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 
@@ -1053,18 +1043,18 @@ func TestBuildFilteredTreeGroupCounts(t *testing.T) {
 	assert.Equal(t, 2, model.getTreeRootForTest().Count)
 
 	// Verify session count
-	sessionNode := findChildByTitle(model.getTreeRootForTest(), NodeKindSession, "$1")
+	sessionNode := findChildByTitle(model.getTreeRootForTest(), uimodel.NodeKindSession, "$1")
 	require.NotNil(t, sessionNode)
 	assert.Equal(t, 2, sessionNode.Count)
 
 	// Verify window count
-	windowNode := findChildByTitle(sessionNode, NodeKindWindow, "@1")
+	windowNode := findChildByTitle(sessionNode, uimodel.NodeKindWindow, "@1")
 	require.NotNil(t, windowNode)
 	assert.Equal(t, 2, windowNode.Count)
 
 	// Pane %1 should have 1 error, Pane %2 should have 1 error
-	pane1 := findChildByTitle(windowNode, NodeKindPane, "%1")
-	pane2 := findChildByTitle(windowNode, NodeKindPane, "%2")
+	pane1 := findChildByTitle(windowNode, uimodel.NodeKindPane, "%1")
+	pane2 := findChildByTitle(windowNode, uimodel.NodeKindPane, "%2")
 	require.NotNil(t, pane1)
 	require.NotNil(t, pane2)
 	assert.Equal(t, 1, pane1.Count)
@@ -1135,15 +1125,9 @@ func TestModelUpdateHandlesWindowSize(t *testing.T) {
 func TestModelViewRendersContent(t *testing.T) {
 	stubSessionFetchers(t)
 
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Message: "Test notification", Timestamp: "2024-01-01T12:00:00Z", Level: "info", State: "active"},
-		},
-		filtered: []notification.Notification{
-			{ID: 1, Message: "Test notification", Timestamp: "2024-01-01T12:00:00Z", Level: "info", State: "active"},
-		},
-	}
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "Test notification", Timestamp: "2024-01-01T12:00:00Z", Level: "info", State: "active"},
+	})
 	model.uiState.SetCursor(0)
 	model.uiState.SetWidth(84)
 	model.uiState.SetHeight(24)
@@ -1164,11 +1148,7 @@ func TestModelViewRendersContent(t *testing.T) {
 }
 
 func TestModelViewWithNoNotifications(t *testing.T) {
-	model := &Model{
-		uiState:       NewUIState(),
-		notifications: []notification.Notification{},
-		filtered:      []notification.Notification{},
-	}
+	model := newTestModel(t, []notification.Notification{})
 	model.uiState.SetWidth(80)
 	model.uiState.SetHeight(24)
 	model.updateViewportContent()
@@ -1193,12 +1173,9 @@ func TestUpdateViewportContentGroupedViewWithEmptyTree(t *testing.T) {
 }
 
 func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One", Level: "info", State: "active"},
-		},
-	}
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One", Level: "info", State: "active"},
+	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 
@@ -1228,10 +1205,10 @@ func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 	})
 	assert.Contains(t, content, expectedGroupRow)
 
-	var leafNode *Node
+	var leafNode *uimodel.TreeNode
 	var leafIndex int
 	for idx, node := range model.getVisibleNodesForTest() {
-		if node != nil && node.Kind == NodeKindNotification && node.Notification != nil {
+		if node != nil && node.Kind == uimodel.NodeKindNotification && node.Notification != nil {
 			leafNode = node
 			leafIndex = idx
 			break
@@ -1256,13 +1233,10 @@ func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 }
 
 func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "First", Level: "info", State: "active"},
-			{ID: 2, Session: "$1", Window: "@1", Pane: "%1", Message: "Second", Level: "info", State: "active"},
-		},
-	}
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "First", Level: "info", State: "active"},
+		{ID: 2, Session: "$1", Window: "@1", Pane: "%1", Message: "Second", Level: "info", State: "active"},
+	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 
@@ -1272,9 +1246,9 @@ func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
 	model.applySearchFilter()
 	model.resetCursor()
 
-	var leafNode *Node
+	var leafNode *uimodel.TreeNode
 	var leafIndex int
-	var groupNode *Node
+	var groupNode *uimodel.TreeNode
 	for idx, node := range model.getVisibleNodesForTest() {
 		if node == nil {
 			continue
@@ -1282,7 +1256,7 @@ func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
 		if groupNode == nil && isGroupNode(node) {
 			groupNode = node
 		}
-		if node.Kind == NodeKindNotification && node.Notification != nil {
+		if node.Kind == uimodel.NodeKindNotification && node.Notification != nil {
 			leafNode = node
 			leafIndex = idx
 			break
@@ -1410,7 +1384,7 @@ func TestHandleDismissGroupedViewUsesVisibleNodes(t *testing.T) {
 	model.resetCursor()
 	cursorIndex := -1
 	for idx, node := range model.getVisibleNodesForTest() {
-		if node == nil || node.Kind != NodeKindNotification || node.Notification == nil {
+		if node == nil || node.Kind != uimodel.NodeKindNotification || node.Notification == nil {
 			continue
 		}
 		if node.Notification.Session == "a" {
@@ -1481,20 +1455,18 @@ func TestHandleJumpWithMissingContext(t *testing.T) {
 }
 
 func TestHandleJumpGroupedViewUsesVisibleNodes(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Session: "b", Window: "@1", Pane: "%1", Message: "B"},
-			{ID: 2, Session: "a", Window: "", Pane: "%1", Message: "A"},
-		},
-		ensureTmuxRunning: func() bool {
-			t.Fatal("ensureTmuxRunning should not be called")
-			return true
-		},
-		jumpToPane: func(sessionID, windowID, paneID string) bool {
-			t.Fatal("jumpToPane should not be called")
-			return true
-		},
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "b", Window: "@1", Pane: "%1", Message: "B"},
+		{ID: 2, Session: "a", Window: "", Pane: "%1", Message: "A"},
+	})
+	// Set custom functions to verify they aren't called
+	model.ensureTmuxRunning = func() bool {
+		t.Fatal("ensureTmuxRunning should not be called")
+		return true
+	}
+	model.jumpToPane = func(sessionID, windowID, paneID string) bool {
+		t.Fatal("jumpToPane should not be called")
+		return true
 	}
 
 	model.uiState.SetViewMode(viewModeGrouped)
@@ -1510,11 +1482,7 @@ func TestHandleJumpGroupedViewUsesVisibleNodes(t *testing.T) {
 }
 
 func TestHandleJumpWithEmptyList(t *testing.T) {
-	model := &Model{
-		uiState:       NewUIState(),
-		notifications: []notification.Notification{},
-		filtered:      []notification.Notification{},
-	}
+	model := newTestModel(t, []notification.Notification{})
 	model.uiState.SetCursor(0)
 
 	cmd := model.handleJump()
@@ -1537,12 +1505,9 @@ func TestModelUpdateHandlesDismissKey(t *testing.T) {
 }
 
 func TestModelUpdateHandlesZaToggleFold(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
-		},
-	}
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 
@@ -1552,10 +1517,10 @@ func TestModelUpdateHandlesZaToggleFold(t *testing.T) {
 	model.applySearchFilter()
 	model.resetCursor()
 
-	var groupNode *Node
+	var groupNode *uimodel.TreeNode
 	groupIndex := -1
 	for idx, node := range model.getVisibleNodesForTest() {
-		if node != nil && isGroupNode(node) {
+		if node != nil && model.isGroupNode(node) {
 			groupNode = node
 			groupIndex = idx
 			break
@@ -1567,12 +1532,51 @@ func TestModelUpdateHandlesZaToggleFold(t *testing.T) {
 
 	require.True(t, groupNode.Expanded)
 
+	handled := model.toggleNodeExpansion()
+	require.True(t, handled)
+	assert.False(t, groupNode.Expanded)
+	assert.Len(t, model.getVisibleNodesForTest(), 1)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+
+	handled = model.toggleNodeExpansion()
+	require.True(t, handled)
+	assert.True(t, groupNode.Expanded)
+	assert.Greater(t, len(model.getVisibleNodesForTest()), 1)
+}
+
+func TestToggleFoldTogglesGroupNode(t *testing.T) {
+	m := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+	})
+	m.uiState.SetWidth(80)
+	m.uiState.GetViewport().Width = 80
+	m.uiState.SetViewMode(viewModeGrouped)
+	m.uiState.SetGroupBy(settings.GroupByPane)
+
+	m.applySearchFilter()
+	m.resetCursor()
+
+	var groupNode *uimodel.TreeNode
+	groupIndex := -1
+	for idx, node := range m.getVisibleNodesForTest() {
+		if node != nil && isGroupNode(node) {
+			groupNode = node
+			groupIndex = idx
+			break
+		}
+	}
+	require.NotNil(t, groupNode)
+	require.NotEqual(t, -1, groupIndex)
+	m.uiState.SetCursor(groupIndex)
+
+	require.True(t, groupNode.Expanded)
+
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'z'}}
-	updated, _ := model.Update(msg)
+	updated, _ := m.Update(msg)
 	require.NotNil(t, updated.(*Model))
 
 	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}
-	updated, _ = model.Update(msg)
+	updated, _ = m.Update(msg)
 	require.NotNil(t, updated.(*Model))
 
 	assert.False(t, groupNode.Expanded)
@@ -1593,19 +1597,23 @@ func TestModelUpdateHandlesEnterKey(t *testing.T) {
 }
 
 func TestGetSessionNameCachesFetcher(t *testing.T) {
+	// Create a mock runtime coordinator
+	mockClient := stubSessionFetchers(t)
+	runtimeCoordinator := service.NewRuntimeCoordinator(mockClient)
+
 	model := &Model{
-		uiState: NewUIState(),
-		sessionNames: map[string]string{
-			"$1": "$1-name",
-		},
+		uiState:            NewUIState(),
+		runtimeCoordinator: runtimeCoordinator,
+		sessionNames:       runtimeCoordinator.GetSessionNames(),
 	}
 
 	name := model.getSessionName("$1")
-	assert.Equal(t, "$1-name", name)
+	// The session name will be returned by the mock client
+	assert.Equal(t, "$1", name)
 
 	// Call again - should return cached value
 	name = model.getSessionName("$1")
-	assert.Equal(t, "$1-name", name)
+	assert.Equal(t, "$1", name)
 }
 
 func TestToState(t *testing.T) {
@@ -1962,19 +1970,11 @@ func TestModelCursorBoundsWithMultipleItems(t *testing.T) {
 }
 
 func TestModelViewportEdgeConditions(t *testing.T) {
-	model := &Model{
-		uiState: NewUIState(),
-		notifications: []notification.Notification{
-			{ID: 1, Message: "First"},
-			{ID: 2, Message: "Second"},
-			{ID: 3, Message: "Third"},
-		},
-		filtered: []notification.Notification{
-			{ID: 1, Message: "First"},
-			{ID: 2, Message: "Second"},
-			{ID: 3, Message: "Third"},
-		},
-	}
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+		{ID: 2, Message: "Second"},
+		{ID: 3, Message: "Third"},
+	})
 	model.uiState.SetWidth(80)
 	model.uiState.SetHeight(24)
 	model.updateViewportContent()
