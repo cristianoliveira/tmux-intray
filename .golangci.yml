@@ -5,23 +5,8 @@ version: "2"
 run:
   # Default timeout for analysis
   timeout: 5m
-  # Build tags
-  build-tags:
-    - integration
-  # Which directories to skip
-  skip-dirs:
-    - .tmp
-    - .gwt
-    - .bv
-    - .local
-    - tmp
-    - vendor
-    - integration
-    - integration/cmd
-  # Which files to skip
-  skip-files:
-    - ".*_gen\\.go$"   # Generated files
-    - "integration/.*\\.go$" # Integration tests (require build tag)
+
+
 
 # Linter settings
 linters:
@@ -64,6 +49,16 @@ issues:
   # Exclude files with default patterns
   exclude-files:
     - ".*_gen\\.go$"
+    - "integration/.*\\.go$"
+  exclude-dirs:
+    - .tmp
+    - .gwt
+    - .bv
+    - .local
+    - tmp
+    - vendor
+    - integration
+    - integration/cmd
   # Exclude rules
   exclude-rules:
     # Exclude errcheck and funlen for test files (common to ignore errors in tests)
