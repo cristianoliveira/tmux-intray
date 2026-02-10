@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"errors"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
@@ -16,6 +18,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/tui/render"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/service"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -104,6 +107,7 @@ func stubSessionFetchers(t *testing.T) *tmux.MockClient {
 	mockClient.On("ListWindows").Return(map[string]string{}, nil)
 	// Mock ListPanes to return empty map
 	mockClient.On("ListPanes").Return(map[string]string{}, nil)
+	mockClient.On("GetSessionName", mock.Anything).Return("", errors.New("session not found"))
 
 	return mockClient
 }
@@ -1369,6 +1373,8 @@ func TestMarkSelectedUnread(t *testing.T) {
 func TestHandleDismissGroupedViewUsesVisibleNodes(t *testing.T) {
 	setupStorage(t)
 	mockClient := stubSessionFetchers(t)
+	mockClient.On("GetSessionName", "a").Return("", errors.New("session not found")).Once()
+	mockClient.On("GetSessionName", "b").Return("", errors.New("session not found")).Once()
 
 	_, err := storage.AddNotification("B msg", "2024-02-02T12:00:00Z", "b", "@1", "%1", "", "info")
 	require.NoError(t, err)
@@ -1597,8 +1603,11 @@ func TestModelUpdateHandlesEnterKey(t *testing.T) {
 }
 
 func TestGetSessionNameCachesFetcher(t *testing.T) {
-	// Create a mock runtime coordinator
-	mockClient := stubSessionFetchers(t)
+	mockClient := new(tmux.MockClient)
+	mockClient.On("ListSessions").Return(map[string]string{"$1": "$1-name"}, nil)
+	mockClient.On("ListWindows").Return(map[string]string{}, nil)
+	mockClient.On("ListPanes").Return(map[string]string{}, nil)
+
 	runtimeCoordinator := service.NewRuntimeCoordinator(mockClient)
 
 	model := &Model{
@@ -1608,12 +1617,13 @@ func TestGetSessionNameCachesFetcher(t *testing.T) {
 	}
 
 	name := model.getSessionName("$1")
-	// The session name will be returned by the mock client
-	assert.Equal(t, "$1", name)
+	// Session names are preloaded by the runtime coordinator and returned from cache.
+	assert.Equal(t, "$1-name", name)
 
 	// Call again - should return cached value
 	name = model.getSessionName("$1")
-	assert.Equal(t, "$1", name)
+	assert.Equal(t, "$1-name", name)
+	mockClient.AssertNumberOfCalls(t, "GetSessionName", 0)
 }
 
 func TestToState(t *testing.T) {
