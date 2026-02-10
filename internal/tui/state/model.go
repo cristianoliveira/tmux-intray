@@ -2,7 +2,6 @@ package state
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -14,7 +13,6 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
-	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/render"
@@ -36,6 +34,9 @@ type Model struct {
 	filtered           []notification.Notification
 	uiState            *UIState // Extracted UI state management
 	runtimeCoordinator model.RuntimeCoordinator
+	notificationSvc    *notificationService
+	treeSvc            *treeService
+	settingsSvc        *settingsService
 
 	// Settings fields (non-UI state)
 	sortBy         string
@@ -272,92 +273,22 @@ func (m *Model) View() string {
 
 // SetLoadedSettings stores the loaded settings reference for later comparison.
 func (m *Model) SetLoadedSettings(loaded *settings.Settings) {
+	m.ensureSettingsService().setLoadedSettings(loaded)
 	m.loadedSettings = loaded
 }
 
 // ToState converts the Model to a TUIState DTO for settings persistence.
 // Only persists user-configurable settings (columns, sort, filters, view mode).
 func (m *Model) ToState() settings.TUIState {
-	dto := m.uiState.ToDTO()
-	return settings.TUIState{
-		Columns:               m.columns,
-		SortBy:                m.sortBy,
-		SortOrder:             m.sortOrder,
-		Filters:               m.filters,
-		ViewMode:              string(dto.ViewMode),
-		GroupBy:               string(dto.GroupBy),
-		DefaultExpandLevel:    dto.ExpandLevel,
-		DefaultExpandLevelSet: true,
-		ExpansionState:        dto.ExpansionState,
-	}
+	return m.ensureSettingsService().toState(m.uiState, m.columns, m.sortBy, m.sortOrder, m.filters)
 }
 
 // FromState applies settings from TUIState to the Model.
 // Supports partial updates - only updates non-empty fields.
 // Returns an error if the settings are invalid.
 func (m *Model) FromState(state settings.TUIState) error {
-	if state.GroupBy != "" && !settings.IsValidGroupBy(state.GroupBy) {
-		return fmt.Errorf("invalid groupBy value: %s", state.GroupBy)
-	}
-	if state.DefaultExpandLevelSet {
-		if state.DefaultExpandLevel < settings.MinExpandLevel || state.DefaultExpandLevel > settings.MaxExpandLevel {
-			return fmt.Errorf("invalid defaultExpandLevel value: %d", state.DefaultExpandLevel)
-		}
-	}
-
-	// Apply non-empty fields only (support partial updates)
-	if len(state.Columns) > 0 {
-		m.columns = state.Columns
-	}
-	if state.SortBy != "" {
-		m.sortBy = state.SortBy
-	}
-	if state.SortOrder != "" {
-		m.sortOrder = state.SortOrder
-	}
-
-	// Update UI state via DTO
-	dto := model.UIDTO{}
-	if state.ViewMode != "" {
-		dto.ViewMode = model.ViewMode(state.ViewMode)
-	}
-	if state.GroupBy != "" {
-		dto.GroupBy = model.GroupBy(state.GroupBy)
-	}
-	if state.DefaultExpandLevelSet {
-		dto.ExpandLevel = state.DefaultExpandLevel
-		dto.ExpandLevelSet = true
-	}
-	if state.ExpansionState != nil {
-		dto.ExpansionState = state.ExpansionState
-	}
-
-	// Apply UI state - preserve current values if not explicitly set
-	if err := m.uiState.FromDTO(dto); err != nil {
+	if err := m.ensureSettingsService().fromState(state, m.uiState, &m.columns, &m.sortBy, &m.sortOrder, &m.filters); err != nil {
 		return err
-	}
-
-	// Apply filters - only update non-empty fields
-	if state.Filters.Level != "" ||
-		state.Filters.State != "" ||
-		state.Filters.Session != "" ||
-		state.Filters.Window != "" ||
-		state.Filters.Pane != "" {
-		if state.Filters.Level != "" {
-			m.filters.Level = state.Filters.Level
-		}
-		if state.Filters.State != "" {
-			m.filters.State = state.Filters.State
-		}
-		if state.Filters.Session != "" {
-			m.filters.Session = state.Filters.Session
-		}
-		if state.Filters.Window != "" {
-			m.filters.Window = state.Filters.Window
-		}
-		if state.Filters.Pane != "" {
-			m.filters.Pane = state.Filters.Pane
-		}
 	}
 
 	m.applySearchFilter()
@@ -380,6 +311,9 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 	m := Model{
 		uiState:            NewUIState(), // Initialize UI state
 		runtimeCoordinator: runtimeCoordinator,
+		notificationSvc:    newNotificationService(),
+		treeSvc:            newTreeService(),
+		settingsSvc:        newSettingsService(),
 		ensureTmuxRunning:  core.EnsureTmuxRunning,
 		jumpToPane:         core.JumpToPane,
 	}
@@ -391,6 +325,28 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 		return &Model{}, err
 	}
 	return &m, nil
+}
+
+func (m *Model) ensureNotificationService() {
+	if m.notificationSvc == nil {
+		m.notificationSvc = newNotificationService()
+	}
+}
+
+func (m *Model) ensureTreeService() {
+	if m.treeSvc == nil {
+		m.treeSvc = newTreeService()
+	}
+}
+
+func (m *Model) ensureSettingsService() *settingsService {
+	if m.settingsSvc == nil {
+		m.settingsSvc = newSettingsService()
+		if m.loadedSettings != nil {
+			m.settingsSvc.setLoadedSettings(m.loadedSettings)
+		}
+	}
+	return m.settingsSvc
 }
 
 // saveSettingsSuccessMsg is sent when settings are saved successfully.
@@ -415,34 +371,22 @@ type SaveSettingsFailedMsg struct {
 // This function only updates the filtered notifications; cursor management
 // should be handled separately by resetCursor() or restoreCursor().
 func (m *Model) applySearchFilter() {
+	m.ensureNotificationService()
+	m.ensureTreeService()
 	m.invalidateCache()
 
-	query := strings.TrimSpace(m.uiState.GetSearchQuery())
-	if query == "" {
-		m.filtered = m.notifications
-	} else {
-		// Use custom provider if set, otherwise use default token provider
-		var provider search.Provider
-		if m.searchProvider != nil {
-			provider = m.searchProvider
-		} else {
-			// Default: token-based search with case-insensitivity and name maps (backward compatible)
-			provider = search.NewTokenProvider(
-				search.WithCaseInsensitive(true),
-				search.WithSessionNames(m.getSessionNames()),
-				search.WithWindowNames(m.getWindowNames()),
-				search.WithPaneNames(m.getPaneNames()),
-			)
-		}
-
-		// Filter using the provider
-		m.filtered = []notification.Notification{}
-		for _, n := range m.notifications {
-			if provider.Match(n, query) {
-				m.filtered = append(m.filtered, n)
-			}
-		}
+	provider := m.searchProvider
+	if provider == nil {
+		provider = search.NewTokenProvider(
+			search.WithCaseInsensitive(true),
+			search.WithSessionNames(m.getSessionNames()),
+			search.WithWindowNames(m.getWindowNames()),
+			search.WithPaneNames(m.getPaneNames()),
+		)
 	}
+
+	m.filtered = m.notificationSvc.filterNotifications(m.notifications, m.uiState.GetSearchQuery(), provider)
+
 	if m.isGroupedView() {
 		m.treeRoot = m.buildFilteredTree(m.filtered)
 		m.visibleNodes = m.computeVisibleNodes()
@@ -501,38 +445,14 @@ func (m *Model) SetExpandLevel(level int) error {
 // For notification nodes, this is the notification ID.
 // For group nodes, this is a combination of the node kind and title.
 func (m *Model) getNodeIdentifier(node *Node) string {
-	if node == nil {
-		return ""
-	}
-	if node.Kind == NodeKindNotification && node.Notification != nil {
-		return fmt.Sprintf("notif:%d", node.Notification.ID)
-	}
-	// For group nodes, use the node kind and path
-	if node.Kind == NodeKindRoot {
-		return "root"
-	}
-	path, ok := findNodePath(m.treeRoot, node)
-	if !ok || len(path) == 0 {
-		return ""
-	}
-	var parts []string
-	for _, n := range path {
-		if n.Kind == NodeKindRoot {
-			continue
-		}
-		parts = append(parts, string(n.Kind), n.Title)
-	}
-	return strings.Join(parts, ":")
+	m.ensureTreeService()
+	return m.treeSvc.getNodeIdentifier(m.treeRoot, node)
 }
 
 // findNodeByIdentifier finds a node by its identifier in the visible nodes list.
 func (m *Model) findNodeByIdentifier(identifier string) *Node {
-	for _, node := range m.visibleNodes {
-		if m.getNodeIdentifier(node) == identifier {
-			return node
-		}
-	}
-	return nil
+	m.ensureTreeService()
+	return m.treeSvc.findNodeByIdentifier(m.treeRoot, m.visibleNodes, identifier)
 }
 
 // restoreCursor restores the cursor to the node with the given identifier.
@@ -722,9 +642,10 @@ func (m *Model) saveSettings() error {
 	// Extract current settings state
 	state := m.ToState()
 	colors.Debug("Saving settings from TUI state")
-	if err := settings.Save(state.ToSettings()); err != nil {
-		return fmt.Errorf("failed to save settings: %w", err)
+	if err := m.ensureSettingsService().save(state); err != nil {
+		return err
 	}
+	m.loadedSettings = state.ToSettings()
 	colors.Info("Settings saved")
 	return nil
 }
@@ -817,6 +738,7 @@ func (m *Model) ensureCursorVisible() {
 
 // handleDismiss handles the dismiss action for the selected notification.
 func (m *Model) handleDismiss() tea.Cmd {
+	m.ensureNotificationService()
 	if m.currentListLen() == 0 {
 		return nil
 	}
@@ -829,7 +751,7 @@ func (m *Model) handleDismiss() tea.Cmd {
 
 	// Dismiss the notification using storage
 	id := strconv.Itoa(selected.ID)
-	if err := storage.DismissNotification(id); err != nil {
+	if err := m.notificationSvc.dismissNotification(id); err != nil {
 		colors.Error(fmt.Sprintf("Failed to dismiss notification: %v", err))
 		return nil
 	}
@@ -861,6 +783,7 @@ func (m *Model) handleDismiss() tea.Cmd {
 
 // markSelectedRead marks the selected notification as read.
 func (m *Model) markSelectedRead() tea.Cmd {
+	m.ensureNotificationService()
 	if m.currentListLen() == 0 {
 		return nil
 	}
@@ -874,7 +797,7 @@ func (m *Model) markSelectedRead() tea.Cmd {
 	selectedID := selected.ID
 
 	id := strconv.Itoa(selected.ID)
-	if err := storage.MarkNotificationRead(id); err != nil {
+	if err := m.notificationSvc.markNotificationRead(id); err != nil {
 		colors.Error(fmt.Sprintf("Failed to mark notification read: %v", err))
 		return nil
 	}
@@ -894,6 +817,7 @@ func (m *Model) markSelectedRead() tea.Cmd {
 
 // markSelectedUnread marks the selected notification as unread.
 func (m *Model) markSelectedUnread() tea.Cmd {
+	m.ensureNotificationService()
 	if m.currentListLen() == 0 {
 		return nil
 	}
@@ -907,7 +831,7 @@ func (m *Model) markSelectedUnread() tea.Cmd {
 	selectedID := selected.ID
 
 	id := strconv.Itoa(selected.ID)
-	if err := storage.MarkNotificationUnread(id); err != nil {
+	if err := m.notificationSvc.markNotificationUnread(id); err != nil {
 		colors.Error(fmt.Sprintf("tui: failed to mark notification unread: %v", err))
 		return nil
 	}
@@ -943,7 +867,18 @@ func (m *Model) handleJump() tea.Cmd {
 		return nil
 	}
 
-	// Ensure tmux is running
+	if m.runtimeCoordinator != nil {
+		if !m.runtimeCoordinator.EnsureTmuxRunning() {
+			colors.Error("tmux not running")
+			return nil
+		}
+		if !m.runtimeCoordinator.JumpToPane(selected.Session, selected.Window, selected.Pane) {
+			colors.Error("jump: failed to jump to pane")
+			return nil
+		}
+		return tea.Quit
+	}
+
 	ensureTmuxRunning := m.ensureTmuxRunning
 	if ensureTmuxRunning == nil {
 		ensureTmuxRunning = core.EnsureTmuxRunning
@@ -980,6 +915,7 @@ func (m *Model) ResetCursor() {
 // loadNotifications loads notifications from storage.
 // If preserveCursor is true, attempts to maintain the current cursor position.
 func (m *Model) loadNotifications(preserveCursor bool) error {
+	m.ensureNotificationService()
 	var savedCursorPos int
 	var savedNodeID string
 
@@ -994,11 +930,11 @@ func (m *Model) loadNotifications(preserveCursor bool) error {
 		}
 	}
 
-	lines, err := storage.ListNotifications("active", "", "", "", "", "", "", "")
+	notifications, err := m.notificationSvc.loadActiveNotifications()
 	if err != nil {
-		return fmt.Errorf("failed to load notifications: %w", err)
+		return err
 	}
-	if lines == "" {
+	if len(notifications) == 0 {
 		m.notifications = []notification.Notification{}
 		m.filtered = []notification.Notification{}
 		m.treeRoot = nil
@@ -1012,23 +948,6 @@ func (m *Model) loadNotifications(preserveCursor bool) error {
 		m.updateViewportContent()
 		return nil
 	}
-
-	var notifications []notification.Notification
-	for _, line := range strings.Split(lines, "\n") {
-		if line == "" {
-			continue
-		}
-		notif, err := notification.ParseNotification(line)
-		if err != nil {
-			continue
-		}
-		notifications = append(notifications, notif)
-	}
-
-	// Sort notifications by timestamp descending (most recent first)
-	sort.Slice(notifications, func(i, j int) bool {
-		return notifications[i].Timestamp > notifications[j].Timestamp
-	})
 
 	m.notifications = notifications
 	m.applySearchFilter()
@@ -1071,40 +990,14 @@ func (m *Model) cycleViewMode() {
 }
 
 func (m *Model) computeVisibleNodes() []*Node {
+	m.ensureTreeService()
 	if m.cacheValid {
 		return m.visibleNodesCache
 	}
 
-	if m.treeRoot == nil {
-		m.visibleNodesCache = nil
-		m.cacheValid = true
-		return nil
-	}
-
-	var visible []*Node
-	var walk func(node *Node)
-	walk = func(node *Node) {
-		if node == nil {
-			return
-		}
-		if node.Kind != NodeKindRoot {
-			visible = append(visible, node)
-		}
-		if node.Kind == NodeKindNotification {
-			return
-		}
-		if node.Kind != NodeKindRoot && !node.Expanded {
-			return
-		}
-		for _, child := range node.Children {
-			walk(child)
-		}
-	}
-
-	walk(m.treeRoot)
-	m.visibleNodesCache = visible
+	m.visibleNodesCache = m.treeSvc.computeVisibleNodes(m.treeRoot)
 	m.cacheValid = true
-	return visible
+	return m.visibleNodesCache
 }
 
 func (m *Model) invalidateCache() {
@@ -1233,6 +1126,7 @@ func (m *Model) allGroupsCollapsed() bool {
 }
 
 func (m *Model) applyDefaultExpansion() {
+	m.ensureTreeService()
 	if m.treeRoot == nil {
 		return
 	}
@@ -1251,22 +1145,7 @@ func (m *Model) applyDefaultExpansion() {
 		level = settings.MaxExpandLevel
 	}
 
-	var walk func(node *Node)
-	walk = func(node *Node) {
-		if node == nil {
-			return
-		}
-		if isGroupNode(node) {
-			nodeLevel := getTreeLevel(node) + 1
-			expanded := nodeLevel <= level
-			node.Expanded = expanded
-			m.updateExpansionState(node, expanded)
-		}
-		for _, child := range node.Children {
-			walk(child)
-		}
-	}
-	walk(m.treeRoot)
+	m.treeSvc.applyDefaultExpansion(m.treeRoot, level, m.uiState.GetExpansionState())
 
 	m.invalidateCache()
 	m.visibleNodes = m.computeVisibleNodes()
@@ -1380,78 +1259,23 @@ func (m *Model) collapseNode(node *Node) {
 }
 
 func (m *Model) updateExpansionState(node *Node, expanded bool) {
-	key := m.nodeExpansionKey(node)
-	if key == "" {
-		return
-	}
+	m.ensureTreeService()
 	expansionState := m.uiState.GetExpansionState()
 	if expansionState == nil {
 		expansionState = map[string]bool{}
 		m.uiState.SetExpansionState(expansionState)
 	}
-	legacyKey := m.nodeExpansionLegacyKey(node)
-	if legacyKey != "" && legacyKey != key {
-		delete(expansionState, legacyKey)
-	}
-	m.uiState.UpdateExpansionState(key, expanded)
+	m.treeSvc.updateExpansionState(m.treeRoot, expansionState, node, expanded)
 }
 
 func (m *Model) nodeExpansionKey(node *Node) string {
-	if node == nil || node.Kind == NodeKindNotification || node.Kind == NodeKindRoot {
-		return ""
-	}
-	path, ok := findNodePath(m.treeRoot, node)
-	if !ok || len(path) == 0 {
-		return ""
-	}
-
-	session, window, pane := nodePathSegments(path)
-
-	switch node.Kind {
-	case NodeKindSession:
-		return serializeNodeExpansionPath(NodeKindSession, session)
-	case NodeKindWindow:
-		if session == "" {
-			return ""
-		}
-		return serializeNodeExpansionPath(NodeKindWindow, session, window)
-	case NodeKindPane:
-		if session == "" || window == "" {
-			return ""
-		}
-		return serializeNodeExpansionPath(NodeKindPane, session, window, pane)
-	default:
-		return ""
-	}
+	m.ensureTreeService()
+	return m.treeSvc.nodeExpansionKey(m.treeRoot, node)
 }
 
 func (m *Model) nodeExpansionLegacyKey(node *Node) string {
-	if node == nil || node.Kind == NodeKindNotification || node.Kind == NodeKindRoot {
-		return ""
-	}
-	path, ok := findNodePath(m.treeRoot, node)
-	if !ok || len(path) == 0 {
-		return ""
-	}
-
-	session, window, pane := nodePathSegments(path)
-
-	switch node.Kind {
-	case NodeKindSession:
-		return serializeLegacyNodeExpansionPath(NodeKindSession, session)
-	case NodeKindWindow:
-		if session == "" {
-			return ""
-		}
-		return serializeLegacyNodeExpansionPath(NodeKindWindow, session, window)
-	case NodeKindPane:
-		if session == "" || window == "" {
-			return ""
-		}
-		return serializeLegacyNodeExpansionPath(NodeKindPane, session, window, pane)
-	default:
-		return ""
-	}
+	m.ensureTreeService()
+	return m.treeSvc.nodeExpansionLegacyKey(m.treeRoot, node)
 }
 
 func serializeNodeExpansionPath(kind NodeKind, parts ...string) string {
@@ -1549,105 +1373,28 @@ func expandTree(node *Node) {
 // buildFilteredTree builds a tree from filtered notifications and applies saved expansion state.
 // Returns a tree where group counts reflect only matching notifications.
 func (m *Model) buildFilteredTree(notifications []notification.Notification) *Node {
+	m.ensureTreeService()
 	m.invalidateCache()
-
-	if len(notifications) == 0 {
-		return nil
-	}
-
-	root := BuildTree(notifications, string(m.uiState.GetGroupBy()))
-
-	// Prune empty groups (groups with no matching notifications)
-	m.pruneEmptyGroups(root)
-
-	// FIX: Set treeRoot before applying expansion state
-	// to ensure consistent key generation
-	m.treeRoot = root
-
-	// Apply saved expansion state where possible
-	expansionState := m.uiState.GetExpansionState()
-	if expansionState != nil {
-		m.applyExpansionState(root)
-	} else {
-		// If no saved state, expand all by default
-		expandTree(root)
-	}
-
-	return root
+	return m.treeSvc.buildFilteredTree(notifications, string(m.uiState.GetGroupBy()), m.uiState.GetExpansionState())
 }
 
 // pruneEmptyGroups removes groups from the tree that have no children or count of 0.
 // This ensures that empty groups created by filtering don't appear in the UI.
 func (m *Model) pruneEmptyGroups(node *Node) {
-	if node == nil {
-		return
-	}
-
-	// Recursively prune children first
-	var filteredChildren []*Node
-	for _, child := range node.Children {
-		m.pruneEmptyGroups(child)
-		// Keep the child if it has children (even if it's a leaf with notifications)
-		// or if it's a notification node
-		if len(child.Children) > 0 || child.Kind == NodeKindNotification {
-			filteredChildren = append(filteredChildren, child)
-		}
-	}
-	node.Children = filteredChildren
+	m.ensureTreeService()
+	m.treeSvc.pruneEmptyGroups(node)
 }
 
 // applyExpansionState applies the saved expansion state to the tree nodes.
 // Only applies state to nodes that still exist in the tree (after pruning).
 func (m *Model) applyExpansionState(node *Node) {
-	if node == nil {
-		return
-	}
-
-	// Apply expansion state to group nodes
-	if isGroupNode(node) {
-		if expanded, ok := m.expansionStateValue(node); ok {
-			node.Expanded = expanded
-		} else {
-			// Default to expanded for nodes without saved state
-			node.Expanded = true
-		}
-
-	}
-
-	// Recursively apply to children
-	for _, child := range node.Children {
-		m.applyExpansionState(child)
-	}
+	m.ensureTreeService()
+	m.treeSvc.applyExpansionState(m.treeRoot, node, m.uiState.GetExpansionState())
 }
 
 func (m *Model) expansionStateValue(node *Node) (bool, bool) {
-	expansionState := m.uiState.GetExpansionState()
-	if expansionState == nil {
-		return false, false
-	}
-
-	key := m.nodeExpansionKey(node)
-	if key != "" {
-		expanded, ok := expansionState[key]
-		if ok {
-			return expanded, true
-		}
-	}
-
-	legacyKey := m.nodeExpansionLegacyKey(node)
-	if legacyKey == "" {
-		return false, false
-	}
-
-	expanded, ok := expansionState[legacyKey]
-	if !ok {
-		return false, false
-	}
-	if key != "" {
-		m.uiState.UpdateExpansionState(key, expanded)
-		delete(expansionState, legacyKey)
-	}
-	return expanded, true
+	m.ensureTreeService()
+	return m.treeSvc.expansionStateValue(m.treeRoot, node, m.uiState.GetExpansionState())
 }
 
 // getSessionName returns the session name for a session ID.
