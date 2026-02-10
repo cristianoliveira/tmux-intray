@@ -1,0 +1,80 @@
+# golangci-lint configuration for tmux-intray
+# Focus on complexity metrics with conservative thresholds for existing codebase
+version: "2"
+
+run:
+  # Default timeout for analysis
+  timeout: 5m
+
+
+
+# Linter settings
+linters:
+  # Enable specific linters
+  enable:
+    - gocyclo      # Cyclomatic complexity
+    - gocognit     # Cognitive complexity
+    - funlen       # Function length
+    - nestif       # Nested if statements
+    - staticcheck  # Static analysis
+    - errcheck     # Error checking
+  
+  # Disable default linters we don't want
+  disable:
+    - govet
+    - unused
+    - ineffassign
+    - revive
+
+# Linter-specific configuration (using default thresholds for now)
+linters-settings:
+  gocyclo:
+    min-complexity: 20
+  gocognit:
+    min-complexity: 30
+  funlen:
+    lines: 80
+    statements: 50
+  nestif:
+    min-complexity: 5
+
+# Severity settings
+issues:
+  # Maximum allowed issues with same text (0 = unlimited)
+  max-same: 0
+  # Maximum allowed issues (0 = unlimited)
+  max: 0
+  # Exclude generated files
+  exclude-generated: true
+  # Exclude files with default patterns
+  exclude-files:
+    - ".*_gen\\.go$"
+    - "integration/.*\\.go$"
+  exclude-dirs:
+    - .tmp
+    - .gwt
+    - .bv
+    - .local
+    - tmp
+    - vendor
+    - integration
+    - integration/cmd
+  # Exclude rules
+  exclude-rules:
+    # Exclude errcheck and funlen for test files (common to ignore errors in tests)
+    - path: _test\.go
+      linters:
+        - errcheck
+        - funlen
+    # Exclude gocyclo for generated files
+    - path: _gen\.go
+      linters:
+        - gocyclo
+        - gocognit
+        - funlen
+
+# Output format
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
