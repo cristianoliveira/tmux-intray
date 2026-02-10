@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"os"
 	"strings"
 	"testing"
 
@@ -207,30 +206,31 @@ func TestJumpOptimizedRetrieval(t *testing.T) {
 	originalEnsureTmuxRunningFunc := ensureTmuxRunningFunc
 	originalValidatePaneExistsFunc := validatePaneExistsFunc
 	originalJumpToPaneFunc := jumpToPaneFunc
+	originalFileStorage := fileStorage
 	defer func() {
 		ensureTmuxRunningFunc = originalEnsureTmuxRunningFunc
 		validatePaneExistsFunc = originalValidatePaneExistsFunc
 		jumpToPaneFunc = originalJumpToPaneFunc
+		fileStorage = originalFileStorage
 	}()
 
 	ensureTmuxRunningFunc = func() bool { return true }
 	validatePaneExistsFunc = func(session, window, pane string) bool { return true }
 	jumpToPaneFunc = func(session, window, pane string) bool { return true }
 
-	// Create a temporary directory for testing
-	tempDir, err := os.MkdirTemp("", "tmux-intray-jump-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
+	t.Setenv("TMUX_INTRAY_STATE_DIR", tempDir)
 
-	// Reset storage state
-	os.Setenv("TMUX_INTRAY_STATE_DIR", tempDir)
+	// Reset and recreate backend storage in test state directory.
 	storage.Reset()
-	storage.Init()
+	t.Cleanup(storage.Reset)
+
+	var err error
+	fileStorage, err = storage.NewFromConfig()
+	require.NoError(t, err)
 
 	// Add a test notification
-	id, err := storage.AddNotification("test message", "2025-02-04T10:00:00Z", "session1", "window1", "pane1", "123456", "info")
+	id, err := fileStorage.AddNotification("test message", "2025-02-04T10:00:00Z", "session1", "window1", "pane1", "123456", "info")
 	if err != nil {
 		t.Fatalf("Failed to add notification: %v", err)
 	}
