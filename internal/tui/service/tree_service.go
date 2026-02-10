@@ -12,7 +12,12 @@ import (
 
 // DefaultTreeService implements the TreeService interface.
 type DefaultTreeService struct {
-	groupBy model.GroupBy
+	groupBy  model.GroupBy
+	treeRoot *model.TreeNode
+
+	visibleNodes      []*model.TreeNode
+	visibleNodesCache []*model.TreeNode
+	cacheValid        bool
 }
 
 // NewTreeService creates a new DefaultTreeService.
@@ -23,7 +28,7 @@ func NewTreeService(groupBy model.GroupBy) model.TreeService {
 }
 
 // BuildTree creates a tree structure from a list of notifications.
-func (s *DefaultTreeService) BuildTree(notifications []notification.Notification, groupBy string) (*model.TreeNode, error) {
+func (s *DefaultTreeService) BuildTree(notifications []notification.Notification, groupBy string) error {
 	resolvedGroupBy := s.resolveGroupBy(groupBy)
 
 	root := &model.TreeNode{
@@ -73,16 +78,31 @@ func (s *DefaultTreeService) BuildTree(notifications []notification.Notification
 	}
 
 	s.sortTree(root)
-	return root, nil
+	s.treeRoot = root
+	s.InvalidateCache()
+	return nil
+}
+
+// ClearTree clears all internally managed tree state and cache.
+func (s *DefaultTreeService) ClearTree() {
+	s.treeRoot = nil
+	s.visibleNodes = nil
+	s.visibleNodesCache = nil
+	s.cacheValid = false
+}
+
+// GetTreeRoot returns the current internally managed tree root.
+func (s *DefaultTreeService) GetTreeRoot() *model.TreeNode {
+	return s.treeRoot
 }
 
 // FindNotificationPath locates a notification in the tree and returns the path.
-func (s *DefaultTreeService) FindNotificationPath(root *model.TreeNode, notif notification.Notification) ([]*model.TreeNode, error) {
-	if root == nil {
+func (s *DefaultTreeService) FindNotificationPath(notif notification.Notification) ([]*model.TreeNode, error) {
+	if s.treeRoot == nil {
 		return nil, fmt.Errorf("root node cannot be nil")
 	}
 
-	path, ok := s.findNotificationPathRecursive(root, notif)
+	path, ok := s.findNotificationPathRecursive(s.treeRoot, notif)
 	if !ok {
 		return nil, fmt.Errorf("notification not found in tree")
 	}
@@ -109,12 +129,12 @@ func (s *DefaultTreeService) findNotificationPathRecursive(node *model.TreeNode,
 }
 
 // FindNodeByID finds a tree node by its unique identifier.
-func (s *DefaultTreeService) FindNodeByID(root *model.TreeNode, identifier string) *model.TreeNode {
-	if root == nil {
+func (s *DefaultTreeService) FindNodeByID(identifier string) *model.TreeNode {
+	if s.treeRoot == nil {
 		return nil
 	}
 
-	return s.findNodeByIDRecursive(root, identifier)
+	return s.findNodeByIDRecursive(s.treeRoot, identifier)
 }
 
 // findNodeByIDRecursive is a helper that recursively searches for a node by identifier.
@@ -137,8 +157,15 @@ func (s *DefaultTreeService) findNodeByIDRecursive(node *model.TreeNode, identif
 }
 
 // GetVisibleNodes returns all nodes that should be visible in the UI.
-func (s *DefaultTreeService) GetVisibleNodes(root *model.TreeNode) []*model.TreeNode {
-	if root == nil {
+func (s *DefaultTreeService) GetVisibleNodes() []*model.TreeNode {
+	if s.cacheValid {
+		return s.visibleNodesCache
+	}
+
+	if s.treeRoot == nil {
+		s.visibleNodes = nil
+		s.visibleNodesCache = nil
+		s.cacheValid = true
 		return nil
 	}
 
@@ -162,8 +189,18 @@ func (s *DefaultTreeService) GetVisibleNodes(root *model.TreeNode) []*model.Tree
 		}
 	}
 
-	walk(root)
-	return visible
+	walk(s.treeRoot)
+	s.visibleNodes = visible
+	s.visibleNodesCache = visible
+	s.cacheValid = true
+	return s.visibleNodesCache
+}
+
+// InvalidateCache invalidates visible nodes cache.
+func (s *DefaultTreeService) InvalidateCache() {
+	s.visibleNodes = nil
+	s.visibleNodesCache = nil
+	s.cacheValid = false
 }
 
 // GetNodeIdentifier returns a stable identifier for a node.
@@ -183,27 +220,50 @@ func (s *DefaultTreeService) GetNodeIdentifier(node *model.TreeNode) string {
 }
 
 // PruneEmptyGroups removes group nodes with no children from the tree.
-func (s *DefaultTreeService) PruneEmptyGroups(root *model.TreeNode) *model.TreeNode {
-	if root == nil {
-		return nil
+func (s *DefaultTreeService) PruneEmptyGroups() {
+	if s.treeRoot == nil {
+		return
 	}
 
 	// Recursively prune children first
 	var filteredChildren []*model.TreeNode
-	for _, child := range root.Children {
-		s.PruneEmptyGroups(child)
+	for _, child := range s.treeRoot.Children {
+		s.pruneEmptyGroupsNode(child)
 		// Keep the child if it has children (even if it's a leaf with notifications)
 		// or if it's a notification node
 		if len(child.Children) > 0 || child.Kind == model.NodeKindNotification {
 			filteredChildren = append(filteredChildren, child)
 		}
 	}
+	s.treeRoot.Children = filteredChildren
+	s.InvalidateCache()
+}
+
+func (s *DefaultTreeService) pruneEmptyGroupsNode(root *model.TreeNode) {
+	if root == nil {
+		return
+	}
+
+	var filteredChildren []*model.TreeNode
+	for _, child := range root.Children {
+		s.pruneEmptyGroupsNode(child)
+		if len(child.Children) > 0 || child.Kind == model.NodeKindNotification {
+			filteredChildren = append(filteredChildren, child)
+		}
+	}
 	root.Children = filteredChildren
-	return root
 }
 
 // ApplyExpansionState applies saved expansion state to tree nodes.
-func (s *DefaultTreeService) ApplyExpansionState(root *model.TreeNode, expansionState map[string]bool) {
+func (s *DefaultTreeService) ApplyExpansionState(expansionState map[string]bool) {
+	if s.treeRoot == nil {
+		return
+	}
+	s.applyExpansionStateNode(s.treeRoot, expansionState)
+	s.InvalidateCache()
+}
+
+func (s *DefaultTreeService) applyExpansionStateNode(root *model.TreeNode, expansionState map[string]bool) {
 	if root == nil {
 		return
 	}
@@ -220,7 +280,7 @@ func (s *DefaultTreeService) ApplyExpansionState(root *model.TreeNode, expansion
 
 	// Recursively apply to children
 	for _, child := range root.Children {
-		s.ApplyExpansionState(child, expansionState)
+		s.applyExpansionStateNode(child, expansionState)
 	}
 }
 
@@ -233,6 +293,7 @@ func (s *DefaultTreeService) ExpandNode(node *model.TreeNode) {
 		return
 	}
 	node.Expanded = true
+	s.InvalidateCache()
 }
 
 // CollapseNode collapses a group node.
@@ -244,6 +305,7 @@ func (s *DefaultTreeService) CollapseNode(node *model.TreeNode) {
 		return
 	}
 	node.Expanded = false
+	s.InvalidateCache()
 }
 
 // ToggleNodeExpansion toggles the expansion state of a group node.
@@ -252,6 +314,7 @@ func (s *DefaultTreeService) ToggleNodeExpansion(node *model.TreeNode) {
 		return
 	}
 	node.Expanded = !node.Expanded
+	s.InvalidateCache()
 }
 
 // GetTreeLevel returns the depth level of a node in the tree.
