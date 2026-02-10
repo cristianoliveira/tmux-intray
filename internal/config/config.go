@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -217,119 +218,19 @@ func loadFromEnv() {
 
 // validate checks and normalizes configuration values.
 func validate() {
-	// max_notifications must be positive integer
-	if val, ok := config["max_notifications"]; ok {
-		if n, err := strconv.Atoi(val); err != nil || n <= 0 {
-			colors.Warning(fmt.Sprintf("invalid max_notifications value '%s': must be a positive integer, using default: %s", val, configMap["max_notifications"]))
-			config["max_notifications"] = configMap["max_notifications"]
-		}
-	}
+	validatePositiveInteger("max_notifications")
+	validatePositiveInteger("auto_cleanup_days")
+	validatePositiveInteger("hooks_async_timeout")
+	validatePositiveInteger("max_hooks")
+	validatePositiveInteger("dual_verify_sample_size")
 
-	// auto_cleanup_days must be positive integer
-	if val, ok := config["auto_cleanup_days"]; ok {
-		if n, err := strconv.Atoi(val); err != nil || n <= 0 {
-			colors.Warning(fmt.Sprintf("invalid auto_cleanup_days value '%s': must be a positive integer, using default: %s", val, configMap["auto_cleanup_days"]))
-			config["auto_cleanup_days"] = configMap["auto_cleanup_days"]
-		}
-	}
+	validateEnum("table_format", map[string]bool{"default": true, "minimal": true, "fancy": true})
+	validateEnum("storage_backend", map[string]bool{"tsv": true, "sqlite": true, "dual": true})
+	validateEnum("status_format", map[string]bool{"compact": true, "detailed": true, "count-only": true})
+	validateEnum("hooks_failure_mode", map[string]bool{"ignore": true, "warn": true, "abort": true})
+	validateEnum("dual_read_backend", map[string]bool{"tsv": true, "sqlite": true})
 
-	// hooks_async_timeout must be positive integer
-	if val, ok := config["hooks_async_timeout"]; ok {
-		if n, err := strconv.Atoi(val); err != nil || n <= 0 {
-			colors.Warning(fmt.Sprintf("invalid hooks_async_timeout value '%s': must be a positive integer, using default: %s", val, configMap["hooks_async_timeout"]))
-			config["hooks_async_timeout"] = configMap["hooks_async_timeout"]
-		}
-	}
-
-	// max_hooks must be positive integer
-	if val, ok := config["max_hooks"]; ok {
-		if n, err := strconv.Atoi(val); err != nil || n <= 0 {
-			colors.Warning(fmt.Sprintf("invalid max_hooks value '%s': must be a positive integer, using default: %s", val, configMap["max_hooks"]))
-			config["max_hooks"] = configMap["max_hooks"]
-		}
-	}
-
-	// table_format must be one of allowed values
-	if val, ok := config["table_format"]; ok {
-		valLower := strings.ToLower(val)
-		allowed := map[string]bool{"default": true, "minimal": true, "fancy": true}
-		if !allowed[valLower] {
-			colors.Warning(fmt.Sprintf("invalid table_format value '%s': must be one of: default, minimal, fancy; using default: %s", val, configMap["table_format"]))
-			config["table_format"] = configMap["table_format"]
-		} else if valLower != val {
-			config["table_format"] = valLower
-		}
-	}
-
-	// storage_backend must be one of allowed values
-	if val, ok := config["storage_backend"]; ok {
-		valLower := strings.ToLower(val)
-		allowed := map[string]bool{"tsv": true, "sqlite": true, "dual": true}
-		if !allowed[valLower] {
-			colors.Warning(fmt.Sprintf("invalid storage_backend value '%s': must be one of: tsv, sqlite, dual; using default: %s", val, configMap["storage_backend"]))
-			config["storage_backend"] = configMap["storage_backend"]
-		} else if valLower != val {
-			config["storage_backend"] = valLower
-		}
-	}
-
-	// status_format validation
-	if val, ok := config["status_format"]; ok {
-		valLower := strings.ToLower(val)
-		allowed := map[string]bool{"compact": true, "detailed": true, "count-only": true}
-		if !allowed[valLower] {
-			colors.Warning(fmt.Sprintf("invalid status_format value '%s': must be one of: compact, detailed, count-only; using default: %s", val, configMap["status_format"]))
-			config["status_format"] = configMap["status_format"]
-		} else if valLower != val {
-			config["status_format"] = valLower
-		}
-	}
-
-	// hooks_failure_mode validation
-	if val, ok := config["hooks_failure_mode"]; ok {
-		valLower := strings.ToLower(val)
-		allowed := map[string]bool{"ignore": true, "warn": true, "abort": true}
-		if !allowed[valLower] {
-			colors.Warning(fmt.Sprintf("invalid hooks_failure_mode value '%s': must be one of: ignore, warn, abort; using default: %s", val, configMap["hooks_failure_mode"]))
-			config["hooks_failure_mode"] = configMap["hooks_failure_mode"]
-		} else if valLower != val {
-			config["hooks_failure_mode"] = valLower
-		}
-	}
-
-	if val, ok := config["dual_read_backend"]; ok {
-		valLower := strings.ToLower(val)
-		allowed := map[string]bool{"tsv": true, "sqlite": true}
-		if !allowed[valLower] {
-			colors.Warning(fmt.Sprintf("invalid dual_read_backend value '%s': must be one of: tsv, sqlite; using default: %s", val, configMap["dual_read_backend"]))
-			config["dual_read_backend"] = configMap["dual_read_backend"]
-		} else if valLower != val {
-			config["dual_read_backend"] = valLower
-		}
-	}
-
-	if val, ok := config["dual_verify_sample_size"]; ok {
-		n, err := strconv.Atoi(val)
-		if err != nil || n <= 0 {
-			colors.Warning(fmt.Sprintf("invalid dual_verify_sample_size value '%s': must be a positive integer, using default: %s", val, configMap["dual_verify_sample_size"]))
-			config["dual_verify_sample_size"] = configMap["dual_verify_sample_size"]
-		}
-	}
-
-	// Normalize and validate boolean values
-	for key, val := range config {
-		if isBoolKey(key) {
-			normalized := normalizeBool(val)
-			config[key] = normalized
-			if normalized != "true" && normalized != "false" {
-				// Invalid boolean, revert to default
-				if def, ok := configMap[key]; ok {
-					colors.Warning(fmt.Sprintf("invalid boolean value for %s: '%s', must be one of: 1, true, yes, on, 0, false, no, off; using default: %s", key, val, def))
-					config[key] = def
-				}
-			}
-		}
-	}
+	validateBooleans()
 }
 
 // isBoolKey returns true if the key expects a boolean value.
@@ -358,6 +259,57 @@ func normalizeBool(val string) string {
 	default:
 		// If invalid, return default false? We'll keep as is and validation will fix later.
 		return val
+	}
+}
+
+// validatePositiveInteger validates that a config key has a positive integer value.
+func validatePositiveInteger(key string) {
+	if val, ok := config[key]; ok {
+		if n, err := strconv.Atoi(val); err != nil || n <= 0 {
+			colors.Warning(fmt.Sprintf("invalid %s value '%s': must be a positive integer, using default: %s", key, val, configMap[key]))
+			config[key] = configMap[key]
+		}
+	}
+}
+
+// validateEnum validates that a config key has one of the allowed enum values.
+func validateEnum(key string, allowed map[string]bool) {
+	if val, ok := config[key]; ok {
+		valLower := strings.ToLower(val)
+		if !allowed[valLower] {
+			colors.Warning(fmt.Sprintf("invalid %s value '%s': must be one of: %s; using default: %s", key, val, allowedValues(allowed), configMap[key]))
+			config[key] = configMap[key]
+		} else if valLower != val {
+			config[key] = valLower
+		}
+	}
+}
+
+// allowedValues returns a comma-separated string of allowed values.
+func allowedValues(allowed map[string]bool) string {
+	values := make([]string, 0, len(allowed))
+	for k := range allowed {
+		values = append(values, k)
+	}
+	// Sort for consistent output
+	sort.Strings(values)
+	return strings.Join(values, ", ")
+}
+
+// validateBooleans normalizes and validates all boolean configuration values.
+func validateBooleans() {
+	for key, val := range config {
+		if isBoolKey(key) {
+			normalized := normalizeBool(val)
+			config[key] = normalized
+			if normalized != "true" && normalized != "false" {
+				// Invalid boolean, revert to default
+				if def, ok := configMap[key]; ok {
+					colors.Warning(fmt.Sprintf("invalid boolean value for %s: '%s', must be one of: 1, true, yes, on, 0, false, no, off; using default: %s", key, val, def))
+					config[key] = def
+				}
+			}
+		}
 	}
 }
 
