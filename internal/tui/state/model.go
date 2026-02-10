@@ -2,7 +2,6 @@ package state
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -33,17 +32,17 @@ const (
 // Model represents the TUI model for bubbletea.
 type Model struct {
 	// Core state
+	uiState *UIState // Extracted UI state management
+
+	// Legacy mirrors retained for backward-compatible tests.
 	notifications []notification.Notification
 	filtered      []notification.Notification
-	uiState       *UIState // Extracted UI state management
 
 	// Settings fields (non-UI state)
-	sortBy         string
-	sortOrder      string
-	columns        []string
-	filters        settings.Filter
-	loadedSettings *settings.Settings // Track loaded settings for comparison
-
+	sortBy    string
+	sortOrder string
+	columns   []string
+	filters   settings.Filter
 	// Services - implementing BubbleTea nested model pattern
 	treeService         model.TreeService
 	notificationService model.NotificationService
@@ -282,7 +281,7 @@ func (m *Model) View() string {
 
 // SetLoadedSettings stores the loaded settings reference for later comparison.
 func (m *Model) SetLoadedSettings(loaded *settings.Settings) {
-	m.loadedSettings = loaded
+	_ = loaded
 }
 
 // ToState converts the Model to a TUIState DTO for settings persistence.
@@ -440,26 +439,62 @@ func (m *Model) ensureTreeService() model.TreeService {
 	return m.treeService
 }
 
+func (m *Model) ensureNotificationService() model.NotificationService {
+	if m.notificationService != nil {
+		return m.notificationService
+	}
+	m.notificationService = service.NewNotificationService(nil, m.runtimeCoordinator)
+	return m.notificationService
+}
+
 // applySearchFilter filters notifications based on the search query.
 // This function only updates the filtered notifications; cursor management
 // should be handled separately by resetCursor() or restoreCursor().
 func (m *Model) applySearchFilter() {
 	treeService := m.ensureTreeService()
+	notificationService := m.ensureNotificationService()
 	treeService.InvalidateCache()
-
-	query := strings.TrimSpace(m.uiState.GetSearchQuery())
-	if query == "" {
-		m.filtered = m.notifications
-	} else {
-		// Use NotificationService to filter notifications
-		m.filtered = m.notificationService.FilterNotifications(m.notifications, query)
+	if len(notificationService.GetNotifications()) == 0 && len(m.notifications) > 0 {
+		notificationService.SetNotifications(m.notifications)
 	}
+
+	notificationService.ApplyFiltersAndSearch(
+		m.uiState.GetSearchQuery(),
+		m.filters.State,
+		m.filters.Level,
+		m.filters.Session,
+		m.filters.Window,
+		m.filters.Pane,
+		m.sortBy,
+		m.sortOrder,
+	)
 	if m.isGroupedView() {
-		m.buildFilteredTree(m.filtered)
+		_ = m.treeService.RebuildTreeForFilter(
+			m.filteredNotifications(),
+			string(m.uiState.GetGroupBy()),
+			m.uiState.GetExpansionState(),
+		)
 	} else {
 		treeService.ClearTree()
 	}
+	m.syncNotificationMirrors()
 	m.updateViewportContent()
+}
+
+func (m *Model) allNotifications() []notification.Notification {
+	if m.notificationService == nil {
+		return nil
+	}
+	return m.ensureNotificationService().GetNotifications()
+}
+
+func (m *Model) filteredNotifications() []notification.Notification {
+	return m.ensureNotificationService().GetFilteredNotifications()
+}
+
+func (m *Model) syncNotificationMirrors() {
+	m.notifications = m.allNotifications()
+	m.filtered = m.filteredNotifications()
 }
 
 // ApplySearchFilter is the public version of applySearchFilter.
@@ -774,11 +809,12 @@ func (m *Model) updateViewportContent() {
 		return
 	}
 
-	if len(m.filtered) == 0 {
+	filtered := m.filtered
+	if len(filtered) == 0 {
 		content.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("No notifications found"))
 	} else {
 		now := time.Now()
-		for i, notif := range m.filtered {
+		for i, notif := range filtered {
 			if i > 0 {
 				content.WriteString("\n")
 			}
@@ -982,8 +1018,8 @@ func (m *Model) loadNotifications(preserveCursor bool) error {
 		return fmt.Errorf("failed to load notifications: %w", err)
 	}
 	if lines == "" {
-		m.notifications = []notification.Notification{}
-		m.filtered = []notification.Notification{}
+		m.ensureNotificationService().SetNotifications([]notification.Notification{})
+		m.syncNotificationMirrors()
 		m.treeService.ClearTree()
 		if preserveCursor {
 			m.adjustCursorBounds()
@@ -1006,12 +1042,7 @@ func (m *Model) loadNotifications(preserveCursor bool) error {
 		notifications = append(notifications, notif)
 	}
 
-	// Sort notifications by timestamp descending (most recent first)
-	sort.Slice(notifications, func(i, j int) bool {
-		return notifications[i].Timestamp > notifications[j].Timestamp
-	})
-
-	m.notifications = notifications
+	m.ensureNotificationService().SetNotifications(notifications)
 	m.applySearchFilter()
 
 	if preserveCursor {
@@ -1430,136 +1461,6 @@ func serializeLegacyNodeExpansionPath(kind model.NodeKind, parts ...string) stri
 		return ""
 	}
 	return fmt.Sprintf("%s:%s", kind, strings.Join(parts, ":"))
-}
-
-func (m *Model) nodePathSegments(path []*model.TreeNode) (session string, window string, pane string) {
-	for _, current := range path {
-		switch current.Kind {
-		case model.NodeKindSession:
-			session = current.Title
-		case model.NodeKindWindow:
-			window = current.Title
-		case model.NodeKindPane:
-			pane = current.Title
-		}
-	}
-	return session, window, pane
-}
-
-// buildFilteredTree builds a tree from filtered notifications and applies saved expansion state.
-func (m *Model) buildFilteredTree(notifications []notification.Notification) {
-	m.invalidateCache()
-
-	if len(notifications) == 0 {
-		m.treeService.ClearTree()
-		return
-	}
-
-	// Use TreeService to build the tree
-	err := m.treeService.BuildTree(notifications, string(m.uiState.GetGroupBy()))
-	if err != nil {
-		m.treeService.ClearTree()
-		return
-	}
-
-	// Prune empty groups (groups with no matching notifications)
-	m.treeService.PruneEmptyGroups()
-
-	// Apply saved expansion state where possible
-	expansionState := m.uiState.GetExpansionState()
-	if expansionState != nil {
-		m.treeService.ApplyExpansionState(expansionState)
-	} else {
-		// If no saved state, expand all by default
-		m.expandTreeRecursive(m.treeService.GetTreeRoot())
-	}
-}
-
-// expandTreeRecursive is a helper that expands all group nodes.
-func (m *Model) expandTreeRecursive(node *model.TreeNode) {
-	if node == nil {
-		return
-	}
-	if node.Kind != model.NodeKindNotification {
-		node.Expanded = true
-	}
-	for _, child := range node.Children {
-		m.expandTreeRecursive(child)
-	}
-}
-
-// pruneEmptyGroups removes groups from the tree that have no children or count of 0.
-// This ensures that empty groups created by filtering don't appear in the UI.
-func (m *Model) pruneEmptyGroups(node *Node) {
-	if node == nil {
-		return
-	}
-
-	// Recursively prune children first
-	var filteredChildren []*Node
-	for _, child := range node.Children {
-		m.pruneEmptyGroups(child)
-		// Keep the child if it has children (even if it's a leaf with notifications)
-		// or if it's a notification node
-		if len(child.Children) > 0 || child.Kind == NodeKindNotification {
-			filteredChildren = append(filteredChildren, child)
-		}
-	}
-	node.Children = filteredChildren
-}
-
-// applyExpansionState applies the saved expansion state to the tree nodes.
-// Only applies state to nodes that still exist in the tree (after pruning).
-func (m *Model) applyExpansionState(node *model.TreeNode) {
-	if node == nil {
-		return
-	}
-
-	// Apply expansion state to group nodes
-	if m.isGroupNode(node) {
-		if expanded, ok := m.expansionStateValue(node); ok {
-			node.Expanded = expanded
-		} else {
-			// Default to expanded for nodes without saved state
-			node.Expanded = true
-		}
-
-	}
-
-	// Recursively apply to children
-	for _, child := range node.Children {
-		m.applyExpansionState(child)
-	}
-}
-
-func (m *Model) expansionStateValue(node *model.TreeNode) (bool, bool) {
-	expansionState := m.uiState.GetExpansionState()
-	if expansionState == nil {
-		return false, false
-	}
-
-	key := m.nodeExpansionKey(node)
-	if key != "" {
-		expanded, ok := expansionState[key]
-		if ok {
-			return expanded, true
-		}
-	}
-
-	legacyKey := m.nodeExpansionLegacyKey(node)
-	if legacyKey == "" {
-		return false, false
-	}
-
-	expanded, ok := expansionState[legacyKey]
-	if !ok {
-		return false, false
-	}
-	if key != "" {
-		m.uiState.UpdateExpansionState(key, expanded)
-		delete(expansionState, legacyKey)
-	}
-	return expanded, true
 }
 
 // getSessionName returns the session name for a session ID.

@@ -60,6 +60,7 @@ func newTestModel(t *testing.T, notifications []notification.Notification) *Mode
 		search.WithPaneNames(runtimeCoordinator.GetPaneNames()),
 	)
 	notificationService := service.NewNotificationService(searchProvider, runtimeCoordinator)
+	notificationService.SetNotifications(notifications)
 
 	// Create model without loading from storage
 	m := Model{
@@ -74,9 +75,8 @@ func newTestModel(t *testing.T, notifications []notification.Notification) *Mode
 		paneNames:         runtimeCoordinator.GetPaneNames(),
 		ensureTmuxRunning: core.EnsureTmuxRunning,
 		jumpToPane:        core.JumpToPane,
-		notifications:     notifications,
-		filtered:          notifications,
 	}
+	m.syncNotificationMirrors()
 
 	// Initialize command service after model creation (needs ModelInterface)
 	m.commandService = service.NewCommandService(&m)
@@ -141,10 +141,13 @@ func BenchmarkComputeVisibleNodesCache(b *testing.B) {
 		})
 	}
 
+	notificationService := service.NewNotificationService(nil, nil)
+	notificationService.SetNotifications(notifications)
 	model := &Model{
-		uiState:       NewUIState(),
-		notifications: notifications,
+		uiState:             NewUIState(),
+		notificationService: notificationService,
 	}
+	model.syncNotificationMirrors()
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(viewModeGrouped)
@@ -795,7 +798,9 @@ func TestApplySearchFilterUsesDefaultTokenProvider(t *testing.T) {
 	assert.Contains(t, model.filtered[0].Message, "file not found")
 
 	// Test read/unread filtering
-	model.notifications[0].ReadTimestamp = "2024-01-01T12:00:00Z"
+	updatedNotifications := model.allNotifications()
+	updatedNotifications[0].ReadTimestamp = "2024-01-01T12:00:00Z"
+	model.notificationService.SetNotifications(updatedNotifications)
 	model.uiState.SetSearchQuery("read error")
 	model.applySearchFilter()
 	model.resetCursor()

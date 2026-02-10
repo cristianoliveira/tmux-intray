@@ -7,6 +7,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
+	"github.com/cristianoliveira/tmux-intray/internal/tui/service"
 )
 
 func BenchmarkBuildTree(b *testing.B) {
@@ -123,11 +124,15 @@ func BenchmarkApplySearchFilterGrouped(b *testing.B) {
 }
 
 func benchmarkModel(notifications []notification.Notification) *Model {
+	notificationService := service.NewNotificationService(nil, nil)
+	notificationService.SetNotifications(notifications)
+
 	m := &Model{
-		uiState:       NewUIState(),
-		notifications: notifications,
-		treeService:   &dummyTreeService{},
+		uiState:             NewUIState(),
+		notificationService: notificationService,
+		treeService:         &dummyTreeService{},
 	}
+	m.syncNotificationMirrors()
 	m.uiState.SetWidth(120)
 	m.uiState.SetHeight(40)
 	m.uiState.UpdateViewportSize()
@@ -192,6 +197,13 @@ func (s *dummyTreeService) BuildTree(notifications []notification.Notification, 
 	}
 	s.treeRoot = s.convertNode(stateTree)
 	s.InvalidateCache()
+	return nil
+}
+
+func (s *dummyTreeService) RebuildTreeForFilter(notifications []notification.Notification, groupBy string, expansionState map[string]bool) error {
+	if err := s.BuildTree(notifications, groupBy); err != nil {
+		return err
+	}
 	return nil
 }
 

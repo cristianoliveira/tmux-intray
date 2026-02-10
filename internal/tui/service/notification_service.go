@@ -14,6 +14,8 @@ import (
 type DefaultNotificationService struct {
 	searchProvider search.Provider
 	nameResolver   model.NameResolver
+	notifications  []notification.Notification
+	filtered       []notification.Notification
 }
 
 // NewNotificationService creates a new DefaultNotificationService.
@@ -22,6 +24,40 @@ func NewNotificationService(provider search.Provider, resolver model.NameResolve
 		searchProvider: provider,
 		nameResolver:   resolver,
 	}
+}
+
+// SetNotifications updates the underlying notification dataset.
+func (s *DefaultNotificationService) SetNotifications(notifications []notification.Notification) {
+	s.notifications = append([]notification.Notification(nil), notifications...)
+	s.filtered = append([]notification.Notification(nil), notifications...)
+}
+
+// GetNotifications returns all notifications currently tracked by the service.
+func (s *DefaultNotificationService) GetNotifications() []notification.Notification {
+	return append([]notification.Notification(nil), s.notifications...)
+}
+
+// GetFilteredNotifications returns the latest filtered notification view.
+func (s *DefaultNotificationService) GetFilteredNotifications() []notification.Notification {
+	return append([]notification.Notification(nil), s.filtered...)
+}
+
+// ApplyFiltersAndSearch applies filters, search and sorting to tracked notifications.
+func (s *DefaultNotificationService) ApplyFiltersAndSearch(query, state, level, sessionID, windowID, paneID, sortBy, sortOrder string) {
+	working := append([]notification.Notification(nil), s.notifications...)
+	working = s.FilterByState(working, state)
+	working = s.FilterByLevel(working, level)
+	working = s.FilterBySession(working, sessionID)
+	working = s.FilterByWindow(working, windowID)
+	working = s.FilterByPane(working, paneID)
+
+	trimmedQuery := strings.TrimSpace(query)
+	if trimmedQuery != "" {
+		working = s.FilterNotifications(working, trimmedQuery)
+	}
+
+	working = s.SortNotifications(working, sortBy, sortOrder)
+	s.filtered = working
 }
 
 // FilterNotifications filters notifications based on a search query.

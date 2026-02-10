@@ -83,6 +83,29 @@ func (s *DefaultTreeService) BuildTree(notifications []notification.Notification
 	return nil
 }
 
+// RebuildTreeForFilter rebuilds tree and applies filtering-oriented behavior.
+func (s *DefaultTreeService) RebuildTreeForFilter(notifications []notification.Notification, groupBy string, expansionState map[string]bool) error {
+	if len(notifications) == 0 {
+		s.ClearTree()
+		return nil
+	}
+
+	if err := s.BuildTree(notifications, groupBy); err != nil {
+		s.ClearTree()
+		return err
+	}
+
+	s.PruneEmptyGroups()
+	if len(expansionState) > 0 {
+		s.ApplyExpansionState(expansionState)
+		return nil
+	}
+
+	s.expandAllGroups(s.treeRoot)
+	s.InvalidateCache()
+	return nil
+}
+
 // ClearTree clears all internally managed tree state and cache.
 func (s *DefaultTreeService) ClearTree() {
 	s.treeRoot = nil
@@ -426,6 +449,18 @@ func (s *DefaultTreeService) expansionStateValue(node *model.TreeNode, expansion
 	}
 
 	return false, false
+}
+
+func (s *DefaultTreeService) expandAllGroups(node *model.TreeNode) {
+	if node == nil {
+		return
+	}
+	if s.isGroupNode(node) {
+		node.Expanded = true
+	}
+	for _, child := range node.Children {
+		s.expandAllGroups(child)
+	}
 }
 
 // notificationNodeMatches checks if a notification node matches the given notification.

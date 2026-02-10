@@ -14,6 +14,10 @@ type TreeService interface {
 	// The resulting tree is stored internally by the service.
 	BuildTree(notifications []notification.Notification, groupBy string) error
 
+	// RebuildTreeForFilter rebuilds the tree for filtered notifications, pruning empty
+	// groups and applying expansion state (or expanding all nodes when no state exists).
+	RebuildTreeForFilter(notifications []notification.Notification, groupBy string, expansionState map[string]bool) error
+
 	// ClearTree clears all internally stored tree state and cache.
 	ClearTree()
 
