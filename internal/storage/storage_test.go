@@ -286,6 +286,7 @@ func TestBashStorageCompatibility(t *testing.T) {
 			filepath.Join("..", "lib"),
 			filepath.Join("..", "..", "lib"),
 			filepath.Join("../../../lib"),
+			filepath.Join("..", "..", "scripts", "lib"),
 		}
 		for _, cand := range candidates {
 			if _, err := os.Stat(cand); err == nil {

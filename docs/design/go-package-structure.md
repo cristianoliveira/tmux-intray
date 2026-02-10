@@ -9,7 +9,7 @@ This document describes the Go package organization that preserves the modular a
 The previous Bash implementation consisted of:
 
 - **`bin/tmux-intray`**: Main entry point, command dispatch (removed)
-- **`lib/`**: Shared libraries (core, storage, colors, config, hooks)
+- **`scripts/lib/`**: Shell libraries for tmux integration scripts only (legacy)
 - **`commands/`**: Individual command implementations (add, list, dismiss, etc.)
 
 ## Current Go Implementation
