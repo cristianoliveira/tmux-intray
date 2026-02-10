@@ -62,6 +62,10 @@ go-vet:
 
 go-lint: go-fmt-check go-vet
 
+go-complexity-lint:
+	@echo "Running Go complexity linting with golangci-lint..."
+	golangci-lint run --issues-exit-code=0
+
 go-cover:
 	@echo "Running Go test coverage..."
 	go test ./... -coverprofile=coverage.out
@@ -79,7 +83,7 @@ go-build:
 	@echo "  Commit: $(COMMIT)"
 	go build $(LDFLAGS) -o tmux-intray ./cmd/tmux-intray
 
-lint: check-fmt go-lint
+lint: check-fmt go-lint go-complexity-lint
 	@echo "Running linter..."
 	./scripts/lint.sh
 

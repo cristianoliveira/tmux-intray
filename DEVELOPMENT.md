@@ -23,20 +23,19 @@ tmux-intray/
 │   ├── config/             # Configuration management
 │   ├── hooks/              # Hook subsystem for async operations
 │   └── tmuxintray/        # Library initialization and orchestration
-├── lib/                      # Shared shell libraries (for integration)
-│   ├── storage.sh          # TSV storage helpers
-│   ├── config.sh           # Configuration helpers
-│   ├── hooks.sh            # Hook system
-│   └── colors.sh           # Color utilities
+├── scripts/                  # Helper scripts
+│   ├── lib/                # Shell libraries for tmux integration scripts
+│   │   ├── common.sh       # Shared utilities
+│   │   ├── storage.sh      # TSV storage helpers (legacy, used by tmux scripts)
+│   │   └── colors.sh       # Color utilities (legacy, used by tmux scripts)
+│   ├── lint.sh             # ShellCheck linter
+│   ├── security-check.sh   # Security-focused ShellCheck
+│   └── generate-docs.sh    # Documentation generator
 ├── tests/                    # Integration tests (Bats)
 │   ├── basic.bats          # Basic CLI tests
 │   ├── storage.bats        # Storage tests
 │   ├── tray.bats           # Tray management tests
 │   └── commands/          # Command-specific tests
-├── scripts/                  # Helper scripts
-│   ├── lint.sh             # ShellCheck linter
-│   ├── security-check.sh   # Security-focused ShellCheck
-│   └── generate-docs.sh    # Documentation generator
 ├── tmux-intray.tmux         # Tmux plugin entry point
 ├── Makefile                  # Build automation
 ├── go.mod                   # Go module definition
@@ -116,10 +115,10 @@ The CLI follows Go's standard project layout with Cobra framework:
    - `hooks/` - Hook subsystem
    - `tmuxintray/` - Library initialization
 
-4. **Libraries** (`lib/*.sh`):
-   - Shared shell utilities for integration testing
-   - TSV storage helpers
-   - Configuration helpers
+4. **Shell libraries** (`scripts/lib/*.sh`):
+    - Legacy libraries for tmux integration scripts only
+    - TSV storage helpers (used by tmux scripts)
+    - Color utilities (used by tmux scripts)
 
 5. **Tests** (`tests/**/*.bats`):
    - Integration tests using Bats

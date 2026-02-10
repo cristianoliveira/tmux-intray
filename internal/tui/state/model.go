@@ -2,6 +2,7 @@ package state
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
+	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/render"
@@ -30,13 +32,10 @@ const (
 
 // Model represents the TUI model for bubbletea.
 type Model struct {
-	notifications      []notification.Notification
-	filtered           []notification.Notification
-	uiState            *UIState // Extracted UI state management
-	runtimeCoordinator model.RuntimeCoordinator
-	notificationSvc    *notificationService
-	treeSvc            *treeService
-	settingsSvc        *settingsService
+	// Core state
+	notifications []notification.Notification
+	filtered      []notification.Notification
+	uiState       *UIState // Extracted UI state management
 
 	// Settings fields (non-UI state)
 	sortBy         string
@@ -44,19 +43,22 @@ type Model struct {
 	columns        []string
 	filters        settings.Filter
 	loadedSettings *settings.Settings // Track loaded settings for comparison
+	settingsSvc    *settingsService
 
-	treeRoot     *Node
-	visibleNodes []*Node
+	// Services - implementing BubbleTea nested model pattern
+	treeService         model.TreeService
+	notificationService model.NotificationService
+	runtimeCoordinator  model.RuntimeCoordinator
+	commandService      model.CommandService
 
-	visibleNodesCache []*Node
-	cacheValid        bool
-
+	// Legacy fields for backward compatibility
+	client            tmux.TmuxClient
+	sessionNames      map[string]string
+	windowNames       map[string]string
+	paneNames         map[string]string
 	ensureTmuxRunning func() bool
 	jumpToPane        func(sessionID, windowID, paneID string) bool
-	searchProvider    search.Provider // Optional custom search provider (defaults to token-based search)
-
-	// Command service for handling TUI commands
-	commandService model.CommandService
+	searchProvider    search.Provider
 }
 
 // Init initializes the TUI model.
@@ -195,10 +197,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "h":
 			// Collapse selected group node
-			m.collapseNode(m.selectedVisibleNode())
+			node := m.selectedVisibleNode()
+			if node != nil {
+				m.treeService.CollapseNode(node)
+				m.updateViewportContent()
+			}
 		case "l":
 			// Expand selected group node
-			m.expandNode(m.selectedVisibleNode())
+			node := m.selectedVisibleNode()
+			if node != nil {
+				m.treeService.ExpandNode(node)
+				m.updateViewportContent()
+			}
 		case "z":
 			if !m.uiState.IsSearchMode() && m.isGroupedView() {
 				m.uiState.SetPendingKey("z")
@@ -303,40 +313,63 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 		client = tmux.NewDefaultClient()
 	}
 
-	runtimeCoordinator := NewRuntimeCoordinator(client)
-	if err := runtimeCoordinator.RefreshNames(); err != nil {
-		colors.Debug("failed to refresh tmux names: " + err.Error())
-	}
+	// Initialize UI state
+	uiState := NewUIState()
+
+	// Initialize runtime coordinator (handles tmux integration and name resolution)
+	runtimeCoordinator := service.NewRuntimeCoordinator(client)
+
+	// Initialize tree service
+	treeService := service.NewTreeService(uiState.GetGroupBy())
+
+	// Initialize notification service with default search provider
+	searchProvider := search.NewTokenProvider(
+		search.WithCaseInsensitive(true),
+		search.WithSessionNames(runtimeCoordinator.GetSessionNames()),
+		search.WithWindowNames(runtimeCoordinator.GetWindowNames()),
+		search.WithPaneNames(runtimeCoordinator.GetPaneNames()),
+	)
+	notificationService := service.NewNotificationService(searchProvider, runtimeCoordinator)
 
 	m := Model{
-		uiState:            NewUIState(), // Initialize UI state
-		runtimeCoordinator: runtimeCoordinator,
-		notificationSvc:    newNotificationService(),
-		treeSvc:            newTreeService(),
-		settingsSvc:        newSettingsService(),
-		ensureTmuxRunning:  core.EnsureTmuxRunning,
-		jumpToPane:         core.JumpToPane,
+		uiState:             uiState,
+		runtimeCoordinator:  runtimeCoordinator,
+		treeService:         treeService,
+		notificationService: notificationService,
+		settingsSvc:         newSettingsService(),
+		// Legacy fields kept for backward compatibility but now using services
+		client:            client,
+		sessionNames:      runtimeCoordinator.GetSessionNames(),
+		windowNames:       runtimeCoordinator.GetWindowNames(),
+		paneNames:         runtimeCoordinator.GetPaneNames(),
+		ensureTmuxRunning: core.EnsureTmuxRunning,
+		jumpToPane:        core.JumpToPane,
 	}
 
-	// Initialize command service after model creation
+	// Initialize command service after model creation (needs ModelInterface)
 	m.commandService = service.NewCommandService(&m)
+
+	// Load initial notifications
 	err := m.loadNotifications(false)
 	if err != nil {
 		return &Model{}, err
 	}
+
 	return &m, nil
 }
 
-func (m *Model) ensureNotificationService() {
-	if m.notificationSvc == nil {
-		m.notificationSvc = newNotificationService()
+func (m *Model) ensureTreeService() model.TreeService {
+	if m.treeService != nil {
+		return m.treeService
 	}
-}
 
-func (m *Model) ensureTreeService() {
-	if m.treeSvc == nil {
-		m.treeSvc = newTreeService()
+	groupBy := model.GroupByNone
+	if m.uiState != nil {
+		groupBy = m.uiState.GetGroupBy()
 	}
+
+	m.treeService = service.NewTreeService(groupBy)
+	return m.treeService
 }
 
 func (m *Model) ensureSettingsService() *settingsService {
@@ -346,54 +379,28 @@ func (m *Model) ensureSettingsService() *settingsService {
 			m.settingsSvc.setLoadedSettings(m.loadedSettings)
 		}
 	}
+
 	return m.settingsSvc
-}
-
-// saveSettingsSuccessMsg is sent when settings are saved successfully.
-type saveSettingsSuccessMsg struct{}
-
-// SaveSettingsSuccessMsg is exported version of saveSettingsSuccessMsg.
-type SaveSettingsSuccessMsg struct {
-	saveSettingsSuccessMsg
-}
-
-// saveSettingsFailedMsg is sent when settings save fails.
-type saveSettingsFailedMsg struct {
-	err error
-}
-
-// SaveSettingsFailedMsg is exported version of saveSettingsFailedMsg.
-type SaveSettingsFailedMsg struct {
-	saveSettingsFailedMsg
 }
 
 // applySearchFilter filters notifications based on the search query.
 // This function only updates the filtered notifications; cursor management
 // should be handled separately by resetCursor() or restoreCursor().
 func (m *Model) applySearchFilter() {
-	m.ensureNotificationService()
-	m.ensureTreeService()
-	m.invalidateCache()
+	treeService := m.ensureTreeService()
+	treeService.InvalidateCache()
 
-	provider := m.searchProvider
-	if provider == nil {
-		provider = search.NewTokenProvider(
-			search.WithCaseInsensitive(true),
-			search.WithSessionNames(m.getSessionNames()),
-			search.WithWindowNames(m.getWindowNames()),
-			search.WithPaneNames(m.getPaneNames()),
-		)
-	}
-
-	m.filtered = m.notificationSvc.filterNotifications(m.notifications, m.uiState.GetSearchQuery(), provider)
-
-	if m.isGroupedView() {
-		m.treeRoot = m.buildFilteredTree(m.filtered)
-		m.visibleNodes = m.computeVisibleNodes()
+	query := strings.TrimSpace(m.uiState.GetSearchQuery())
+	if query == "" {
+		m.filtered = m.notifications
 	} else {
-		m.treeRoot = nil
-		m.invalidateCache()
-		m.visibleNodes = nil
+		// Use NotificationService to filter notifications
+		m.filtered = m.notificationService.FilterNotifications(m.notifications, query)
+	}
+	if m.isGroupedView() {
+		m.buildFilteredTree(m.filtered)
+	} else {
+		treeService.ClearTree()
 	}
 	m.updateViewportContent()
 }
@@ -444,15 +451,19 @@ func (m *Model) SetExpandLevel(level int) error {
 // getNodeIdentifier returns a stable identifier for a node.
 // For notification nodes, this is the notification ID.
 // For group nodes, this is a combination of the node kind and title.
-func (m *Model) getNodeIdentifier(node *Node) string {
-	m.ensureTreeService()
-	return m.treeSvc.getNodeIdentifier(m.treeRoot, node)
+func (m *Model) getNodeIdentifier(node *model.TreeNode) string {
+	return m.ensureTreeService().GetNodeIdentifier(node)
 }
 
 // findNodeByIdentifier finds a node by its identifier in the visible nodes list.
-func (m *Model) findNodeByIdentifier(identifier string) *Node {
-	m.ensureTreeService()
-	return m.treeSvc.findNodeByIdentifier(m.treeRoot, m.visibleNodes, identifier)
+func (m *Model) findNodeByIdentifier(identifier string) *model.TreeNode {
+	treeService := m.ensureTreeService()
+	for _, node := range treeService.GetVisibleNodes() {
+		if treeService.GetNodeIdentifier(node) == identifier {
+			return node
+		}
+	}
+	return nil
 }
 
 // restoreCursor restores the cursor to the node with the given identifier.
@@ -465,10 +476,11 @@ func (m *Model) restoreCursor(identifier string) {
 
 	targetNode := m.findNodeByIdentifier(identifier)
 	if targetNode != nil {
-		for i, node := range m.visibleNodes {
+		visibleNodes := m.ensureTreeService().GetVisibleNodes()
+		for i, node := range visibleNodes {
 			if node == targetNode {
 				m.uiState.SetCursor(i)
-				m.uiState.EnsureCursorVisible(len(m.visibleNodes))
+				m.uiState.EnsureCursorVisible(len(visibleNodes))
 				return
 			}
 		}
@@ -662,18 +674,19 @@ func (m *Model) updateViewportContent() {
 	cursor := m.uiState.GetCursor()
 
 	if m.isGroupedView() {
-		if len(m.visibleNodes) == 0 {
+		visibleNodes := m.treeService.GetVisibleNodes()
+		if len(visibleNodes) == 0 {
 			content.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("No notifications found"))
 		} else {
 			now := time.Now()
-			for rowIndex, node := range m.visibleNodes {
+			for rowIndex, node := range visibleNodes {
 				if node == nil {
 					continue
 				}
 				if rowIndex > 0 {
 					content.WriteString("\n")
 				}
-				if isGroupNode(node) {
+				if m.isGroupNode(node) {
 					content.WriteString(render.RenderGroupRow(render.GroupRow{
 						Node: &render.GroupNode{
 							Title:    node.Title,
@@ -682,7 +695,7 @@ func (m *Model) updateViewportContent() {
 							Count:    node.Count,
 						},
 						Selected: rowIndex == cursor,
-						Level:    getTreeLevel(node),
+						Level:    m.treeService.GetTreeLevel(node),
 						Width:    width,
 					}))
 					continue
@@ -738,7 +751,6 @@ func (m *Model) ensureCursorVisible() {
 
 // handleDismiss handles the dismiss action for the selected notification.
 func (m *Model) handleDismiss() tea.Cmd {
-	m.ensureNotificationService()
 	if m.currentListLen() == 0 {
 		return nil
 	}
@@ -751,7 +763,7 @@ func (m *Model) handleDismiss() tea.Cmd {
 
 	// Dismiss the notification using storage
 	id := strconv.Itoa(selected.ID)
-	if err := m.notificationSvc.dismissNotification(id); err != nil {
+	if err := storage.DismissNotification(id); err != nil {
 		colors.Error(fmt.Sprintf("Failed to dismiss notification: %v", err))
 		return nil
 	}
@@ -783,7 +795,6 @@ func (m *Model) handleDismiss() tea.Cmd {
 
 // markSelectedRead marks the selected notification as read.
 func (m *Model) markSelectedRead() tea.Cmd {
-	m.ensureNotificationService()
 	if m.currentListLen() == 0 {
 		return nil
 	}
@@ -797,7 +808,7 @@ func (m *Model) markSelectedRead() tea.Cmd {
 	selectedID := selected.ID
 
 	id := strconv.Itoa(selected.ID)
-	if err := m.notificationSvc.markNotificationRead(id); err != nil {
+	if err := storage.MarkNotificationRead(id); err != nil {
 		colors.Error(fmt.Sprintf("Failed to mark notification read: %v", err))
 		return nil
 	}
@@ -817,7 +828,6 @@ func (m *Model) markSelectedRead() tea.Cmd {
 
 // markSelectedUnread marks the selected notification as unread.
 func (m *Model) markSelectedUnread() tea.Cmd {
-	m.ensureNotificationService()
 	if m.currentListLen() == 0 {
 		return nil
 	}
@@ -831,7 +841,7 @@ func (m *Model) markSelectedUnread() tea.Cmd {
 	selectedID := selected.ID
 
 	id := strconv.Itoa(selected.ID)
-	if err := m.notificationSvc.markNotificationUnread(id); err != nil {
+	if err := storage.MarkNotificationUnread(id); err != nil {
 		colors.Error(fmt.Sprintf("tui: failed to mark notification unread: %v", err))
 		return nil
 	}
@@ -867,33 +877,14 @@ func (m *Model) handleJump() tea.Cmd {
 		return nil
 	}
 
-	if m.runtimeCoordinator != nil {
-		if !m.runtimeCoordinator.EnsureTmuxRunning() {
-			colors.Error("tmux not running")
-			return nil
-		}
-		if !m.runtimeCoordinator.JumpToPane(selected.Session, selected.Window, selected.Pane) {
-			colors.Error("jump: failed to jump to pane")
-			return nil
-		}
-		return tea.Quit
-	}
-
-	ensureTmuxRunning := m.ensureTmuxRunning
-	if ensureTmuxRunning == nil {
-		ensureTmuxRunning = core.EnsureTmuxRunning
-	}
-	if !ensureTmuxRunning() {
+	// Ensure tmux is running
+	if !m.runtimeCoordinator.EnsureTmuxRunning() {
 		colors.Error("tmux not running")
 		return nil
 	}
 
-	// Jump to the pane
-	jumpToPane := m.jumpToPane
-	if jumpToPane == nil {
-		jumpToPane = core.JumpToPane
-	}
-	if !jumpToPane(selected.Session, selected.Window, selected.Pane) {
+	// Jump to the pane using RuntimeCoordinator
+	if !m.runtimeCoordinator.JumpToPane(selected.Session, selected.Window, selected.Pane) {
 		colors.Error("jump: failed to jump to pane")
 		return nil
 	}
@@ -915,7 +906,6 @@ func (m *Model) ResetCursor() {
 // loadNotifications loads notifications from storage.
 // If preserveCursor is true, attempts to maintain the current cursor position.
 func (m *Model) loadNotifications(preserveCursor bool) error {
-	m.ensureNotificationService()
 	var savedCursorPos int
 	var savedNodeID string
 
@@ -923,23 +913,22 @@ func (m *Model) loadNotifications(preserveCursor bool) error {
 		// Save current cursor state
 		savedCursorPos = m.uiState.GetCursor()
 		cursor := m.uiState.GetCursor()
-		if m.isGroupedView() && cursor < len(m.visibleNodes) {
-			savedNodeID = m.getNodeIdentifier(m.visibleNodes[cursor])
+		visibleNodes := m.treeService.GetVisibleNodes()
+		if m.isGroupedView() && cursor < len(visibleNodes) {
+			savedNodeID = m.getNodeIdentifier(visibleNodes[cursor])
 		} else if !m.isGroupedView() && cursor < len(m.filtered) {
 			savedNodeID = fmt.Sprintf("notif:%d", m.filtered[cursor].ID)
 		}
 	}
 
-	notifications, err := m.notificationSvc.loadActiveNotifications()
+	lines, err := storage.ListNotifications("active", "", "", "", "", "", "", "")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to load notifications: %w", err)
 	}
-	if len(notifications) == 0 {
+	if lines == "" {
 		m.notifications = []notification.Notification{}
 		m.filtered = []notification.Notification{}
-		m.treeRoot = nil
-		m.invalidateCache()
-		m.visibleNodes = nil
+		m.treeService.ClearTree()
 		if preserveCursor {
 			m.adjustCursorBounds()
 		} else {
@@ -948,6 +937,23 @@ func (m *Model) loadNotifications(preserveCursor bool) error {
 		m.updateViewportContent()
 		return nil
 	}
+
+	var notifications []notification.Notification
+	for _, line := range strings.Split(lines, "\n") {
+		if line == "" {
+			continue
+		}
+		notif, err := notification.ParseNotification(line)
+		if err != nil {
+			continue
+		}
+		notifications = append(notifications, notif)
+	}
+
+	// Sort notifications by timestamp descending (most recent first)
+	sort.Slice(notifications, func(i, j int) bool {
+		return notifications[i].Timestamp > notifications[j].Timestamp
+	})
 
 	m.notifications = notifications
 	m.applySearchFilter()
@@ -989,39 +995,36 @@ func (m *Model) cycleViewMode() {
 	colors.Info(fmt.Sprintf("View mode: %s", m.uiState.GetViewMode()))
 }
 
-func (m *Model) computeVisibleNodes() []*Node {
-	m.ensureTreeService()
-	if m.cacheValid {
-		return m.visibleNodesCache
-	}
-
-	m.visibleNodesCache = m.treeSvc.computeVisibleNodes(m.treeRoot)
-	m.cacheValid = true
-	return m.visibleNodesCache
+func (m *Model) computeVisibleNodes() []*model.TreeNode {
+	return m.ensureTreeService().GetVisibleNodes()
 }
 
 func (m *Model) invalidateCache() {
-	m.visibleNodesCache = nil
-	m.cacheValid = false
+	m.ensureTreeService().InvalidateCache()
 }
 
-func isGroupNode(node *Node) bool {
+func isGroupNode(node *model.TreeNode) bool {
 	if node == nil {
 		return false
 	}
-	return node.Kind != NodeKindNotification && node.Kind != NodeKindRoot
+	return node.Kind != model.NodeKindNotification && node.Kind != model.NodeKindRoot
 }
 
-func getTreeLevel(node *Node) int {
+// isGroupNode checks if a model.TreeNode is a group node.
+func (m *Model) isGroupNode(node *model.TreeNode) bool {
+	return node.Kind != model.NodeKindNotification && node.Kind != model.NodeKindRoot
+}
+
+func getTreeLevel(node *model.TreeNode) int {
 	if node == nil {
 		return 0
 	}
 	switch node.Kind {
-	case NodeKindSession:
+	case model.NodeKindSession:
 		return 0
-	case NodeKindWindow:
+	case model.NodeKindWindow:
 		return 1
-	case NodeKindPane:
+	case model.NodeKindPane:
 		return 2
 	default:
 		return 0
@@ -1029,7 +1032,7 @@ func getTreeLevel(node *Node) int {
 }
 func (m *Model) currentListLen() int {
 	if m.isGroupedView() {
-		return len(m.visibleNodes)
+		return len(m.treeService.GetVisibleNodes())
 	}
 	return len(m.filtered)
 }
@@ -1037,10 +1040,11 @@ func (m *Model) currentListLen() int {
 func (m *Model) selectedNotification() (notification.Notification, bool) {
 	cursor := m.uiState.GetCursor()
 	if m.isGroupedView() {
-		if cursor < 0 || cursor >= len(m.visibleNodes) {
+		visibleNodes := m.treeService.GetVisibleNodes()
+		if cursor < 0 || cursor >= len(visibleNodes) {
 			return notification.Notification{}, false
 		}
-		node := m.visibleNodes[cursor]
+		node := visibleNodes[cursor]
 		if node == nil || node.Notification == nil {
 			return notification.Notification{}, false
 		}
@@ -1053,27 +1057,28 @@ func (m *Model) selectedNotification() (notification.Notification, bool) {
 	return m.filtered[cursor], true
 }
 
-func (m *Model) selectedVisibleNode() *Node {
+func (m *Model) selectedVisibleNode() *model.TreeNode {
 	if !m.isGroupedView() {
 		return nil
 	}
 	cursor := m.uiState.GetCursor()
-	if cursor < 0 || cursor >= len(m.visibleNodes) {
+	visibleNodes := m.treeService.GetVisibleNodes()
+	if cursor < 0 || cursor >= len(visibleNodes) {
 		return nil
 	}
-	return m.visibleNodes[cursor]
+	return visibleNodes[cursor]
 }
 
 func (m *Model) toggleNodeExpansion() bool {
 	node := m.selectedVisibleNode()
-	if node == nil || node.Kind == NodeKindNotification {
+	if node == nil || node.Kind == model.NodeKindNotification {
 		return false
 	}
 	if node.Expanded {
-		m.collapseNode(node)
-		return true
+		m.treeService.CollapseNode(node)
+	} else {
+		m.treeService.ExpandNode(node)
 	}
-	m.expandNode(node)
 	return true
 }
 
@@ -1082,7 +1087,7 @@ func (m *Model) toggleFold() {
 		return
 	}
 	node := m.selectedVisibleNode()
-	if node == nil || node.Kind == NodeKindNotification {
+	if node == nil || node.Kind == model.NodeKindNotification {
 		return
 	}
 	if m.allGroupsCollapsed() {
@@ -1090,24 +1095,27 @@ func (m *Model) toggleFold() {
 		return
 	}
 	if node.Expanded {
-		m.collapseNode(node)
+		m.treeService.CollapseNode(node)
+		m.updateViewportContent()
 		return
 	}
-	m.expandNode(node)
+	m.treeService.ExpandNode(node)
+	m.updateViewportContent()
 }
 
 func (m *Model) allGroupsCollapsed() bool {
-	if m.treeRoot == nil {
+	treeRoot := m.treeService.GetTreeRoot()
+	if treeRoot == nil {
 		return false
 	}
 	collapsed := true
 	seen := false
-	var walk func(node *Node)
-	walk = func(node *Node) {
+	var walk func(node *model.TreeNode)
+	walk = func(node *model.TreeNode) {
 		if node == nil || !collapsed {
 			return
 		}
-		if isGroupNode(node) {
+		if m.isGroupNode(node) {
 			seen = true
 			if node.Expanded {
 				collapsed = false
@@ -1121,20 +1129,20 @@ func (m *Model) allGroupsCollapsed() bool {
 			}
 		}
 	}
-	walk(m.treeRoot)
+	walk(treeRoot)
 	return seen && collapsed
 }
 
 func (m *Model) applyDefaultExpansion() {
-	m.ensureTreeService()
-	if m.treeRoot == nil {
+	treeRoot := m.treeService.GetTreeRoot()
+	if treeRoot == nil {
 		return
 	}
 
 	// Save selected node identifier before modifying tree
 	selectedID := ""
 	if selected := m.selectedVisibleNode(); selected != nil {
-		selectedID = m.getNodeIdentifier(selected)
+		selectedID = m.treeService.GetNodeIdentifier(selected)
 	}
 
 	level := m.uiState.GetExpandLevel()
@@ -1145,10 +1153,24 @@ func (m *Model) applyDefaultExpansion() {
 		level = settings.MaxExpandLevel
 	}
 
-	m.treeSvc.applyDefaultExpansion(m.treeRoot, level, m.uiState.GetExpansionState())
+	var walk func(node *model.TreeNode)
+	walk = func(node *model.TreeNode) {
+		if node == nil {
+			return
+		}
+		if m.isGroupNode(node) {
+			nodeLevel := m.treeService.GetTreeLevel(node) + 1
+			expanded := nodeLevel <= level
+			node.Expanded = expanded
+			m.updateExpansionState(node, expanded)
+		}
+		for _, child := range node.Children {
+			walk(child)
+		}
+	}
+	walk(treeRoot)
 
 	m.invalidateCache()
-	m.visibleNodes = m.computeVisibleNodes()
 
 	// Restore cursor to the selected node using identifier
 	if selectedID != "" {
@@ -1156,8 +1178,9 @@ func (m *Model) applyDefaultExpansion() {
 	}
 
 	// Ensure cursor is within bounds
-	if m.uiState.GetCursor() >= len(m.visibleNodes) {
-		m.uiState.SetCursor(len(m.visibleNodes) - 1)
+	visibleNodes := m.treeService.GetVisibleNodes()
+	if m.uiState.GetCursor() >= len(visibleNodes) {
+		m.uiState.SetCursor(len(visibleNodes) - 1)
 	}
 	if m.uiState.GetCursor() < 0 {
 		m.uiState.SetCursor(0)
@@ -1182,11 +1205,11 @@ func (m *Model) ToggleViewMode() error {
 	return nil
 }
 
-func (m *Model) expandNode(node *Node) {
+func (m *Model) expandNode(node *model.TreeNode) {
 	if !m.isGroupedView() {
 		return
 	}
-	if node == nil || node.Kind == NodeKindNotification {
+	if node == nil || node.Kind == model.NodeKindNotification {
 		return
 	}
 	if node.Expanded {
@@ -1194,12 +1217,10 @@ func (m *Model) expandNode(node *Node) {
 	}
 
 	// Save node identifier before modifying tree to avoid using stale references
-	nodeID := m.getNodeIdentifier(node)
+	nodeID := m.treeService.GetNodeIdentifier(node)
 
-	node.Expanded = true
+	m.treeService.ExpandNode(node)
 	m.updateExpansionState(node, true)
-	m.invalidateCache()
-	m.visibleNodes = m.computeVisibleNodes()
 
 	// Restore cursor to the same node using identifier
 	m.restoreCursor(nodeID)
@@ -1208,11 +1229,11 @@ func (m *Model) expandNode(node *Node) {
 	m.ensureCursorVisible()
 }
 
-func (m *Model) collapseNode(node *Node) {
+func (m *Model) collapseNode(node *model.TreeNode) {
 	if !m.isGroupedView() {
 		return
 	}
-	if node == nil || node.Kind == NodeKindNotification {
+	if node == nil || node.Kind == model.NodeKindNotification {
 		return
 	}
 	if !node.Expanded {
@@ -1222,24 +1243,23 @@ func (m *Model) collapseNode(node *Node) {
 	// Save node identifiers before modifying tree to avoid using stale references
 	selectedID := ""
 	if selected := m.selectedVisibleNode(); selected != nil {
-		selectedID = m.getNodeIdentifier(selected)
+		selectedID = m.treeService.GetNodeIdentifier(selected)
 	}
-	nodeID := m.getNodeIdentifier(node)
+	nodeID := m.treeService.GetNodeIdentifier(node)
 
-	node.Expanded = false
+	m.treeService.CollapseNode(node)
 	m.updateExpansionState(node, false)
-	m.invalidateCache()
-	m.visibleNodes = m.computeVisibleNodes()
+	visibleNodes := m.treeService.GetVisibleNodes()
 
 	// If selected node was inside the collapsed node, move cursor to the collapsed node
 	if selectedID != "" {
 		// Check if the selected node is contained within the collapsed node
 		// by comparing paths
-		if selectedNode := m.findNodeByIdentifier(selectedID); selectedNode != nil {
-			if collapsedNode := m.findNodeByIdentifier(nodeID); collapsedNode != nil {
-				if nodeContains(collapsedNode, selectedNode) {
+		if selectedNode := m.treeService.FindNodeByID(selectedID); selectedNode != nil {
+			if collapsedNode := m.treeService.FindNodeByID(nodeID); collapsedNode != nil {
+				if m.nodeContains(collapsedNode, selectedNode) {
 					// Move cursor to the collapsed node
-					if index := indexOfNode(m.visibleNodes, collapsedNode); index >= 0 {
+					if index := indexOfTreeNode(visibleNodes, collapsedNode); index >= 0 {
 						m.uiState.SetCursor(index)
 					}
 				}
@@ -1248,8 +1268,8 @@ func (m *Model) collapseNode(node *Node) {
 	}
 
 	// Ensure cursor is within bounds
-	if m.uiState.GetCursor() >= len(m.visibleNodes) {
-		m.uiState.SetCursor(len(m.visibleNodes) - 1)
+	if m.uiState.GetCursor() >= len(visibleNodes) {
+		m.uiState.SetCursor(len(visibleNodes) - 1)
 	}
 	if m.uiState.GetCursor() < 0 {
 		m.uiState.SetCursor(0)
@@ -1258,27 +1278,79 @@ func (m *Model) collapseNode(node *Node) {
 	m.ensureCursorVisible()
 }
 
-func (m *Model) updateExpansionState(node *Node, expanded bool) {
-	m.ensureTreeService()
+// nodeContains checks if targetNode is contained within root node.
+func (m *Model) nodeContains(root, target *model.TreeNode) bool {
+	if root == nil || target == nil {
+		return false
+	}
+	if root == target {
+		return true
+	}
+	for _, child := range root.Children {
+		if m.nodeContains(child, target) {
+			return true
+		}
+	}
+	return false
+}
+
+// indexOfTreeNode finds the index of a target node in a slice.
+func indexOfTreeNode(nodes []*model.TreeNode, target *model.TreeNode) int {
+	for i, node := range nodes {
+		if node == target {
+			return i
+		}
+	}
+	return -1
+}
+
+func (m *Model) updateExpansionState(node *model.TreeNode, expanded bool) {
+	key := m.nodeExpansionKey(node)
+	if key == "" {
+		return
+	}
 	expansionState := m.uiState.GetExpansionState()
 	if expansionState == nil {
 		expansionState = map[string]bool{}
 		m.uiState.SetExpansionState(expansionState)
 	}
-	m.treeSvc.updateExpansionState(m.treeRoot, expansionState, node, expanded)
+	legacyKey := m.nodeExpansionLegacyKey(node)
+	if legacyKey != "" && legacyKey != key {
+		delete(expansionState, legacyKey)
+	}
+	m.uiState.UpdateExpansionState(key, expanded)
 }
 
-func (m *Model) nodeExpansionKey(node *Node) string {
-	m.ensureTreeService()
-	return m.treeSvc.nodeExpansionKey(m.treeRoot, node)
+func (m *Model) nodeExpansionKey(node *model.TreeNode) string {
+	if node == nil || node.Kind == model.NodeKindNotification || node.Kind == model.NodeKindRoot {
+		return ""
+	}
+	// For group nodes, construct the key from the node's own properties
+	// This is simpler than traversing the tree for each node
+	switch node.Kind {
+	case model.NodeKindSession:
+		return serializeNodeExpansionPath(model.NodeKindSession, node.Title)
+	case model.NodeKindWindow:
+		// For window nodes, we need the session name too
+		// This is a simplified approach - the full implementation would track parent references
+		return serializeNodeExpansionPath(model.NodeKindWindow, node.Title)
+	case model.NodeKindPane:
+		// Similar to window nodes
+		return serializeNodeExpansionPath(model.NodeKindPane, node.Title)
+	default:
+		return ""
+	}
 }
 
-func (m *Model) nodeExpansionLegacyKey(node *Node) string {
-	m.ensureTreeService()
-	return m.treeSvc.nodeExpansionLegacyKey(m.treeRoot, node)
+func (m *Model) nodeExpansionLegacyKey(node *model.TreeNode) string {
+	if node == nil || node.Kind == model.NodeKindNotification || node.Kind == model.NodeKindRoot {
+		return ""
+	}
+	// Use the same logic as the new key for now
+	return m.nodeExpansionKey(node)
 }
 
-func serializeNodeExpansionPath(kind NodeKind, parts ...string) string {
+func serializeNodeExpansionPath(kind model.NodeKind, parts ...string) string {
 	if len(parts) == 0 {
 		return ""
 	}
@@ -1297,108 +1369,145 @@ func escapeExpansionPathSegment(value string) string {
 	return replacer.Replace(value)
 }
 
-func serializeLegacyNodeExpansionPath(kind NodeKind, parts ...string) string {
+func serializeLegacyNodeExpansionPath(kind model.NodeKind, parts ...string) string {
 	if len(parts) == 0 {
 		return ""
 	}
 	return fmt.Sprintf("%s:%s", kind, strings.Join(parts, ":"))
 }
 
-func nodePathSegments(path []*Node) (session string, window string, pane string) {
+func (m *Model) nodePathSegments(path []*model.TreeNode) (session string, window string, pane string) {
 	for _, current := range path {
 		switch current.Kind {
-		case NodeKindSession:
+		case model.NodeKindSession:
 			session = current.Title
-		case NodeKindWindow:
+		case model.NodeKindWindow:
 			window = current.Title
-		case NodeKindPane:
+		case model.NodeKindPane:
 			pane = current.Title
 		}
 	}
 	return session, window, pane
 }
 
-func findNodePath(root *Node, target *Node) ([]*Node, bool) {
-	if root == nil || target == nil {
-		return nil, false
+// buildFilteredTree builds a tree from filtered notifications and applies saved expansion state.
+func (m *Model) buildFilteredTree(notifications []notification.Notification) {
+	m.invalidateCache()
+
+	if len(notifications) == 0 {
+		m.treeService.ClearTree()
+		return
 	}
-	if root == target {
-		return []*Node{root}, true
+
+	// Use TreeService to build the tree
+	err := m.treeService.BuildTree(notifications, string(m.uiState.GetGroupBy()))
+	if err != nil {
+		m.treeService.ClearTree()
+		return
 	}
-	for _, child := range root.Children {
-		path, ok := findNodePath(child, target)
-		if ok {
-			return append([]*Node{root}, path...), true
-		}
+
+	// Prune empty groups (groups with no matching notifications)
+	m.treeService.PruneEmptyGroups()
+
+	// Apply saved expansion state where possible
+	expansionState := m.uiState.GetExpansionState()
+	if expansionState != nil {
+		m.treeService.ApplyExpansionState(expansionState)
+	} else {
+		// If no saved state, expand all by default
+		m.expandTreeRecursive(m.treeService.GetTreeRoot())
 	}
-	return nil, false
 }
 
-func nodeContains(root *Node, target *Node) bool {
-	if root == nil || target == nil {
-		return false
-	}
-	if root == target {
-		return true
-	}
-	for _, child := range root.Children {
-		if nodeContains(child, target) {
-			return true
-		}
-	}
-	return false
-}
-
-func indexOfNode(nodes []*Node, target *Node) int {
-	for i, node := range nodes {
-		if node == target {
-			return i
-		}
-	}
-	return -1
-}
-
-func expandTree(node *Node) {
+// expandTreeRecursive is a helper that expands all group nodes.
+func (m *Model) expandTreeRecursive(node *model.TreeNode) {
 	if node == nil {
 		return
 	}
-	if node.Kind != NodeKindNotification {
+	if node.Kind != model.NodeKindNotification {
 		node.Expanded = true
 	}
 	for _, child := range node.Children {
-		expandTree(child)
+		m.expandTreeRecursive(child)
 	}
-}
-
-// buildFilteredTree builds a tree from filtered notifications and applies saved expansion state.
-// Returns a tree where group counts reflect only matching notifications.
-func (m *Model) buildFilteredTree(notifications []notification.Notification) *Node {
-	m.ensureTreeService()
-	m.invalidateCache()
-	return m.treeSvc.buildFilteredTree(notifications, string(m.uiState.GetGroupBy()), m.uiState.GetExpansionState())
 }
 
 // pruneEmptyGroups removes groups from the tree that have no children or count of 0.
 // This ensures that empty groups created by filtering don't appear in the UI.
 func (m *Model) pruneEmptyGroups(node *Node) {
-	m.ensureTreeService()
-	m.treeSvc.pruneEmptyGroups(node)
+	if node == nil {
+		return
+	}
+
+	// Recursively prune children first
+	var filteredChildren []*Node
+	for _, child := range node.Children {
+		m.pruneEmptyGroups(child)
+		// Keep the child if it has children (even if it's a leaf with notifications)
+		// or if it's a notification node
+		if len(child.Children) > 0 || child.Kind == NodeKindNotification {
+			filteredChildren = append(filteredChildren, child)
+		}
+	}
+	node.Children = filteredChildren
 }
 
 // applyExpansionState applies the saved expansion state to the tree nodes.
 // Only applies state to nodes that still exist in the tree (after pruning).
-func (m *Model) applyExpansionState(node *Node) {
-	m.ensureTreeService()
-	m.treeSvc.applyExpansionState(m.treeRoot, node, m.uiState.GetExpansionState())
+func (m *Model) applyExpansionState(node *model.TreeNode) {
+	if node == nil {
+		return
+	}
+
+	// Apply expansion state to group nodes
+	if m.isGroupNode(node) {
+		if expanded, ok := m.expansionStateValue(node); ok {
+			node.Expanded = expanded
+		} else {
+			// Default to expanded for nodes without saved state
+			node.Expanded = true
+		}
+
+	}
+
+	// Recursively apply to children
+	for _, child := range node.Children {
+		m.applyExpansionState(child)
+	}
 }
 
-func (m *Model) expansionStateValue(node *Node) (bool, bool) {
-	m.ensureTreeService()
-	return m.treeSvc.expansionStateValue(m.treeRoot, node, m.uiState.GetExpansionState())
+func (m *Model) expansionStateValue(node *model.TreeNode) (bool, bool) {
+	expansionState := m.uiState.GetExpansionState()
+	if expansionState == nil {
+		return false, false
+	}
+
+	key := m.nodeExpansionKey(node)
+	if key != "" {
+		expanded, ok := expansionState[key]
+		if ok {
+			return expanded, true
+		}
+	}
+
+	legacyKey := m.nodeExpansionLegacyKey(node)
+	if legacyKey == "" {
+		return false, false
+	}
+
+	expanded, ok := expansionState[legacyKey]
+	if !ok {
+		return false, false
+	}
+	if key != "" {
+		m.uiState.UpdateExpansionState(key, expanded)
+		delete(expansionState, legacyKey)
+	}
+	return expanded, true
 }
 
 // getSessionName returns the session name for a session ID.
-// Uses cached session names from initial fetch.
+// Uses RuntimeCoordinator for name resolution.
 func (m *Model) getSessionName(sessionID string) string {
 	if sessionID == "" {
 		return ""
@@ -1406,15 +1515,17 @@ func (m *Model) getSessionName(sessionID string) string {
 	if m.runtimeCoordinator == nil {
 		return sessionID
 	}
+
 	name, err := m.runtimeCoordinator.GetSessionName(sessionID)
 	if err == nil && name != "" {
 		return name
 	}
-	return sessionID // fallback to session ID if not found
+
+	return m.runtimeCoordinator.ResolveSessionName(sessionID)
 }
 
 // getWindowName returns the window name for a window ID.
-// Uses cached window names from initial fetch.
+// Uses RuntimeCoordinator for name resolution.
 func (m *Model) getWindowName(windowID string) string {
 	if windowID == "" {
 		return ""
@@ -1422,15 +1533,17 @@ func (m *Model) getWindowName(windowID string) string {
 	if m.runtimeCoordinator == nil {
 		return windowID
 	}
+
 	name, err := m.runtimeCoordinator.GetWindowName(windowID)
 	if err == nil && name != "" {
 		return name
 	}
-	return windowID // fallback to window ID if not found
+
+	return m.runtimeCoordinator.ResolveWindowName(windowID)
 }
 
 // getPaneName returns the pane name for a pane ID.
-// Uses cached pane names from initial fetch.
+// Uses RuntimeCoordinator for name resolution.
 func (m *Model) getPaneName(paneID string) string {
 	if paneID == "" {
 		return ""
@@ -1438,52 +1551,21 @@ func (m *Model) getPaneName(paneID string) string {
 	if m.runtimeCoordinator == nil {
 		return paneID
 	}
+
 	name, err := m.runtimeCoordinator.GetPaneName(paneID)
 	if err == nil && name != "" {
 		return name
 	}
-	return paneID // fallback to pane ID if not found
-}
 
-func (m *Model) getSessionNames() map[string]string {
-	if m.runtimeCoordinator == nil {
-		return map[string]string{}
-	}
-	names, err := m.runtimeCoordinator.ListSessions()
-	if err != nil {
-		return map[string]string{}
-	}
-	return names
-}
-
-func (m *Model) getWindowNames() map[string]string {
-	if m.runtimeCoordinator == nil {
-		return map[string]string{}
-	}
-	names, err := m.runtimeCoordinator.ListWindows()
-	if err != nil {
-		return map[string]string{}
-	}
-	return names
-}
-
-func (m *Model) getPaneNames() map[string]string {
-	if m.runtimeCoordinator == nil {
-		return map[string]string{}
-	}
-	names, err := m.runtimeCoordinator.ListPanes()
-	if err != nil {
-		return map[string]string{}
-	}
-	return names
+	return m.runtimeCoordinator.ResolvePaneName(paneID)
 }
 
 // getTreeRootForTest returns the tree root for testing purposes.
-func (m *Model) getTreeRootForTest() *Node {
-	return m.treeRoot
+func (m *Model) getTreeRootForTest() *model.TreeNode {
+	return m.ensureTreeService().GetTreeRoot()
 }
 
 // getVisibleNodesForTest returns the visible nodes for testing purposes.
-func (m *Model) getVisibleNodesForTest() []*Node {
-	return m.visibleNodes
+func (m *Model) getVisibleNodesForTest() []*model.TreeNode {
+	return m.ensureTreeService().GetVisibleNodes()
 }

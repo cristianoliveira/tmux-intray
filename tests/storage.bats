@@ -58,7 +58,7 @@ teardown() {
 }
 
 @test "storage_init creates directories" {
-    source ./lib/storage.sh
+    source scripts/lib/storage.sh
 
     storage_init
 
@@ -69,7 +69,7 @@ teardown() {
 }
 
 @test "storage_add_notification adds entry" {
-    source ./lib/storage.sh
+    source scripts/lib/storage.sh
 
     local id
     id=$(storage_add_notification "Test message")
@@ -99,7 +99,7 @@ teardown() {
 }
 
 @test "storage_list_notifications filters by state" {
-    source ./lib/storage.sh
+    source scripts/lib/storage.sh
 
     storage_add_notification "Active 1"
     storage_add_notification "Active 2"
@@ -118,7 +118,7 @@ teardown() {
 }
 
 @test "storage_dismiss_notification updates state" {
-    source ./lib/storage.sh
+    source scripts/lib/storage.sh
 
     storage_add_notification "Test"
 
@@ -133,7 +133,7 @@ teardown() {
 }
 
 @test "storage_dismiss_all dismisses all active" {
-    source ./lib/storage.sh
+    source scripts/lib/storage.sh
 
     storage_add_notification "Test 1"
     storage_add_notification "Test 2"
@@ -147,7 +147,7 @@ teardown() {
 }
 
 @test "storage_get_active_count returns correct number" {
-    source ./lib/storage.sh
+    source scripts/lib/storage.sh
 
     [ "$(storage_get_active_count)" -eq 0 ]
 
@@ -162,7 +162,7 @@ teardown() {
 }
 
 @test "escape and unescape roundtrip" {
-    source ./lib/storage.sh
+    source scripts/lib/storage.sh
 
     local original="Test	tab
 newline"

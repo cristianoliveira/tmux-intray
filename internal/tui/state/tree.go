@@ -6,6 +6,7 @@ import (
 
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
+	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
 
 // NodeKind represents the type of a tree node.
@@ -182,7 +183,7 @@ func sortTree(node *Node) {
 	}
 }
 
-func findChildByTitle(node *Node, kind NodeKind, title string) *Node {
+func findChildByTitle(node *model.TreeNode, kind model.NodeKind, title string) *model.TreeNode {
 	for _, child := range node.Children {
 		if child.Kind == kind && child.Title == title {
 			return child
