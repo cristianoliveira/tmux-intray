@@ -43,7 +43,7 @@ teardown() {
     # Tiger Style Integration Test: ASSERTION 1 - Jump command should succeed when pane exists
     # Tiger Style Integration Test: ASSERTION 2 - Output should show success message
 
-    source ./lib/storage.sh
+    source scripts/lib/storage.sh
     local session window pane pane_created
     read -r session window pane pane_created <<<"$(tmux -L "$TMUX_SOCKET_NAME" display -p -t test:0 '#{session_id} #{window_id} #{pane_id} #{pane_created}')"
 
@@ -57,7 +57,7 @@ teardown() {
 @test "jump to dismissed notification still works" {
     # Tiger Style Integration Test: ASSERTION - Should succeed even if notification is dismissed
 
-    source ./lib/storage.sh
+    source scripts/lib/storage.sh
     local session window pane pane_created
     read -r session window pane pane_created <<<"$(tmux -L "$TMUX_SOCKET_NAME" display -p -t test:0 '#{session_id} #{window_id} #{pane_id} #{pane_created}')"
 
@@ -74,7 +74,7 @@ teardown() {
 @test "jump fails when pane no longer exists" {
     # Tiger Style Integration Test: ASSERTION - Should fail gracefully with error when pane/window invalid
 
-    source ./lib/storage.sh
+    source scripts/lib/storage.sh
     local id
     id=$(storage_add_notification "Test" "" '$none' '@none' '%none' "123")
 
@@ -87,7 +87,7 @@ teardown() {
     # ASSERTION: When jump fails, error message shown (not success message)
     # This verifies the fix for error swallowing in the original code
 
-    source ./lib/storage.sh
+    source scripts/lib/storage.sh
     local id
     id=$(storage_add_notification "Error test" "" '$invalid' '@invalid' '%invalid' "123")
 

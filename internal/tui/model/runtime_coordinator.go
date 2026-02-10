@@ -50,6 +50,9 @@ type RuntimeCoordinator interface {
 
 	// SetTmuxVisibility sets the visibility state in tmux environment.
 	SetTmuxVisibility(visible bool) error
+
+	// NameResolver interface methods (embedded for convenience)
+	NameResolver
 }
 
 // TmuxContext represents the current tmux session/window/pane context.

@@ -1,6 +1,0 @@
-1	2026-02-04T07:22:12Z	active	session1	window0	pane0	Hello world		info
-2	2026-02-04T07:22:12Z	active	session1	window0	pane1	Warning: disk full		warning
-3	2026-02-04T07:22:12Z	active	session2	window1	pane2	Error: cannot connect		error
-4	2026-02-05T05:52:12Z	active				[2026-02-05 06:52:12] 'Test from Go CLI'		info
-2	2026-02-04T07:22:12Z	dismissed	session1	window0	pane1	Warning: disk full		warning
-5	2026-02-05T05:54:27Z	active	$3	@14	%21	[2026-02-05 06:54:27] 'Error test from Go'		error

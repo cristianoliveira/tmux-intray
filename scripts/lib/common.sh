@@ -15,7 +15,7 @@ find_shell_scripts() {
         -not -path "*/.local/*" \
         -not -path "*/tmp/*" \
         -not -path "*/tmp*/*" \
-        -not -path "*/.gwt" \
+        -not -path "*/.gwt/*" \
         -not -path "*/.gwt-main" \
         -not -path "*/.direnv/*" \
         -not -path "*/.beads/*" |

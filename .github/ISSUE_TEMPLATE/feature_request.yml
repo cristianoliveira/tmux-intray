@@ -1,0 +1,104 @@
+name: Feature Request
+description: Suggest a new feature for tmux-intray
+title: "[FEATURE] "
+labels:
+  - feature
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature for tmux-intray!
+        Please provide as much detail as possible to help us understand and evaluate your request.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Brief description of the feature you're proposing
+      placeholder: Add a one-sentence summary of your feature idea
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem are you trying to solve? What limitation are you facing?
+      placeholder: Describe the current limitation or pain point this feature would address
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe your ideal solution in detail
+      placeholder: How would you like this feature to work? What would be the user experience?
+    validations:
+      required: true
+
+  - type: textarea
+    id: user_experience
+    attributes:
+      label: User Experience
+      description: How would users interact with this feature?
+      placeholder: |
+        - CLI command examples:
+        - TUI interface changes:
+        - Configuration options (if any):
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria
+      description: What must work for this feature to be considered complete?
+      placeholder: |
+        1. 
+        2. 
+        3. 
+    validations:
+      required: true
+
+  - type: textarea
+    id: related_issues
+    attributes:
+      label: Related Issues
+      description: Link to any related issues or discussions
+      placeholder: "Issue #123, discussion link, etc."
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional Context
+      description: Any additional information, screenshots, or examples
+      placeholder: Include any relevant details that would help us understand your request better
+    validations:
+      required: false
+
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Implementation Suggestions (Optional)
+      description: If you have thoughts on implementation, share them here
+      placeholder: |
+        - Components to modify:
+        - New files needed:
+        - Similar features to reference:
+    validations:
+      required: false
+
+  - type: textarea
+    id: testing
+    attributes:
+      label: Testing Ideas
+      description: How would you expect this to be tested?
+      placeholder: |
+        - Unit test scenarios:
+        - Integration test scenarios:
+        - Manual test scenarios:
+    validations:
+      required: false

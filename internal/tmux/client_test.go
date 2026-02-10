@@ -1095,8 +1095,19 @@ func TestDefaultClientGetTmuxVisibility(t *testing.T) {
 
 	client := NewDefaultClient()
 
-	// Test default visibility (not set - should be false)
-	visible, err := client.GetTmuxVisibility()
+	// Clear any existing visibility state before test
+	err = client.SetEnvironment("TMUX_INTRAY_VISIBLE", "")
+	assert.NoError(t, err, "clearing visibility should succeed")
+
+	// Test default visibility (not set - should be false) with retry due to tmux eventual consistency
+	var visible bool
+	for i := 0; i < 5; i++ {
+		visible, err = client.GetTmuxVisibility()
+		if err == nil && !visible {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 	assert.NoError(t, err, "GetTmuxVisibility should succeed")
 	assert.False(t, visible, "default visibility should be false")
 
@@ -1104,8 +1115,14 @@ func TestDefaultClientGetTmuxVisibility(t *testing.T) {
 	err = client.SetTmuxVisibility(true)
 	assert.NoError(t, err, "SetTmuxVisibility should succeed")
 
-	// Verify visibility is now true
-	visible, err = client.GetTmuxVisibility()
+	// Verify visibility is now true (with retry due to tmux eventual consistency)
+	for i := 0; i < 5; i++ {
+		visible, err = client.GetTmuxVisibility()
+		if err == nil && visible {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 	assert.NoError(t, err, "GetTmuxVisibility should succeed after setting")
 	assert.True(t, visible, "visibility should be true after setting to true")
 
@@ -1113,8 +1130,14 @@ func TestDefaultClientGetTmuxVisibility(t *testing.T) {
 	err = client.SetTmuxVisibility(false)
 	assert.NoError(t, err, "SetTmuxVisibility should succeed")
 
-	// Verify visibility is now false
-	visible, err = client.GetTmuxVisibility()
+	// Verify visibility is now false (with retry due to tmux eventual consistency)
+	for i := 0; i < 5; i++ {
+		visible, err = client.GetTmuxVisibility()
+		if err == nil && !visible {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 	assert.NoError(t, err, "GetTmuxVisibility should succeed after setting to false")
 	assert.False(t, visible, "visibility should be false after setting to false")
 
@@ -1136,6 +1159,10 @@ func TestDefaultClientSetTmuxVisibility(t *testing.T) {
 	}
 
 	client := NewDefaultClient()
+
+	// Clear any existing visibility state before test
+	err = client.SetEnvironment("TMUX_INTRAY_VISIBLE", "")
+	assert.NoError(t, err, "clearing visibility should succeed")
 
 	tests := []struct {
 		name        string
@@ -1159,8 +1186,15 @@ func TestDefaultClientSetTmuxVisibility(t *testing.T) {
 			err := client.SetTmuxVisibility(tt.visible)
 			assert.NoError(t, err, tt.description)
 
-			// Verify the value was set
-			visible, err := client.GetTmuxVisibility()
+			// Verify the value was set (with retry due to tmux eventual consistency)
+			var visible bool
+			for i := 0; i < 5; i++ {
+				visible, err = client.GetTmuxVisibility()
+				if err == nil && visible == tt.visible {
+					break
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
 			assert.NoError(t, err, "GetTmuxVisibility should succeed")
 			assert.Equal(t, tt.visible, visible, "visibility should match what was set")
 		})
