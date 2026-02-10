@@ -83,7 +83,6 @@ func BenchmarkComputeVisibleNodesCache(b *testing.B) {
 
 	model := &Model{
 		uiState:       NewUIState(),
-		treeService:   NewTreeService(),
 		notifications: notifications,
 	}
 	model.uiState.SetWidth(80)
@@ -102,8 +101,7 @@ func BenchmarkComputeVisibleNodesCache(b *testing.B) {
 
 func TestModelGroupedModeBuildsVisibleNodes(t *testing.T) {
 	model := &Model{
-		uiState:     NewUIState(),
-		treeService: NewTreeService(),
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 			{ID: 2, Session: "$2", Window: "@1", Pane: "%2", Message: "Two"},
@@ -119,44 +117,43 @@ func TestModelGroupedModeBuildsVisibleNodes(t *testing.T) {
 
 	require.NotNil(t, model.getTreeRootForTest())
 	require.Len(t, model.getVisibleNodesForTest(), 8)
-	assert.Equal(t, uimodel.NodeKindSession, model.getVisibleNodesForTest()[0].Kind)
-	assert.Equal(t, uimodel.NodeKindWindow, model.getVisibleNodesForTest()[1].Kind)
-	assert.Equal(t, uimodel.NodeKindPane, model.getVisibleNodesForTest()[2].Kind)
-	assert.Equal(t, uimodel.NodeKindNotification, model.getVisibleNodesForTest()[3].Kind)
-	assert.Equal(t, uimodel.NodeKindSession, model.getVisibleNodesForTest()[4].Kind)
-	assert.Equal(t, uimodel.NodeKindWindow, model.getVisibleNodesForTest()[5].Kind)
-	assert.Equal(t, uimodel.NodeKindPane, model.getVisibleNodesForTest()[6].Kind)
-	assert.Equal(t, uimodel.NodeKindNotification, model.getVisibleNodesForTest()[7].Kind)
+	assert.Equal(t, NodeKindSession, model.getVisibleNodesForTest()[0].Kind)
+	assert.Equal(t, NodeKindWindow, model.getVisibleNodesForTest()[1].Kind)
+	assert.Equal(t, NodeKindPane, model.getVisibleNodesForTest()[2].Kind)
+	assert.Equal(t, NodeKindNotification, model.getVisibleNodesForTest()[3].Kind)
+	assert.Equal(t, NodeKindSession, model.getVisibleNodesForTest()[4].Kind)
+	assert.Equal(t, NodeKindWindow, model.getVisibleNodesForTest()[5].Kind)
+	assert.Equal(t, NodeKindPane, model.getVisibleNodesForTest()[6].Kind)
+	assert.Equal(t, NodeKindNotification, model.getVisibleNodesForTest()[7].Kind)
 }
 
 func TestModelGroupedModeRespectsGroupByDepth(t *testing.T) {
 	tests := []struct {
 		name                 string
 		groupBy              string
-		expectedVisibleKinds []uimodel.NodeKind
+		expectedVisibleKinds []NodeKind
 	}{
 		{
 			name:                 "session",
 			groupBy:              settings.GroupBySession,
-			expectedVisibleKinds: []uimodel.NodeKind{uimodel.NodeKindSession, uimodel.NodeKindNotification, uimodel.NodeKindSession, uimodel.NodeKindNotification},
+			expectedVisibleKinds: []NodeKind{NodeKindSession, NodeKindNotification, NodeKindSession, NodeKindNotification},
 		},
 		{
 			name:                 "window",
 			groupBy:              settings.GroupByWindow,
-			expectedVisibleKinds: []uimodel.NodeKind{uimodel.NodeKindSession, uimodel.NodeKindWindow, uimodel.NodeKindNotification, uimodel.NodeKindSession, uimodel.NodeKindWindow, uimodel.NodeKindNotification},
+			expectedVisibleKinds: []NodeKind{NodeKindSession, NodeKindWindow, NodeKindNotification, NodeKindSession, NodeKindWindow, NodeKindNotification},
 		},
 		{
 			name:                 "none",
 			groupBy:              settings.GroupByNone,
-			expectedVisibleKinds: []uimodel.NodeKind{uimodel.NodeKindNotification, uimodel.NodeKindNotification},
+			expectedVisibleKinds: []NodeKind{NodeKindNotification, NodeKindNotification},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			model := &Model{
-				uiState:     NewUIState(),
-				treeService: NewTreeService(),
+				uiState: NewUIState(),
 				notifications: []notification.Notification{
 					{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 					{ID: 2, Session: "$2", Window: "@2", Pane: "%2", Message: "Two"},
@@ -180,8 +177,7 @@ func TestModelGroupedModeRespectsGroupByDepth(t *testing.T) {
 
 func TestModelSwitchesViewModes(t *testing.T) {
 	model := &Model{
-		uiState:     NewUIState(),
-		treeService: NewTreeService(),
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 		},
@@ -204,8 +200,7 @@ func TestModelSwitchesViewModes(t *testing.T) {
 
 func TestToggleNodeExpansionGroupedView(t *testing.T) {
 	model := &Model{
-		uiState:     NewUIState(),
-		treeService: NewTreeService(),
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 		},
@@ -218,7 +213,7 @@ func TestToggleNodeExpansionGroupedView(t *testing.T) {
 	model.applySearchFilter()
 	model.resetCursor()
 
-	var groupNode *uimodel.TreeNode
+	var groupNode *Node
 	groupIndex := -1
 	for idx, node := range model.getVisibleNodesForTest() {
 		if node != nil && isGroupNode(node) {
@@ -247,8 +242,7 @@ func TestToggleNodeExpansionGroupedView(t *testing.T) {
 
 func TestToggleFoldTogglesGroupNode(t *testing.T) {
 	model := &Model{
-		uiState:     NewUIState(),
-		treeService: NewTreeService(),
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 		},
@@ -261,7 +255,7 @@ func TestToggleFoldTogglesGroupNode(t *testing.T) {
 	model.applySearchFilter()
 	model.resetCursor()
 
-	var groupNode *uimodel.TreeNode
+	var groupNode *Node
 	groupIndex := -1
 	for idx, node := range model.getVisibleNodesForTest() {
 		if node != nil && isGroupNode(node) {
@@ -287,8 +281,7 @@ func TestToggleFoldTogglesGroupNode(t *testing.T) {
 
 func TestToggleFoldWorksAtPaneDepth(t *testing.T) {
 	model := &Model{
-		uiState:     NewUIState(),
-		treeService: NewTreeService(),
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 		},
@@ -301,10 +294,10 @@ func TestToggleFoldWorksAtPaneDepth(t *testing.T) {
 	model.applySearchFilter()
 	model.resetCursor()
 
-	var paneNode *uimodel.TreeNode
+	var paneNode *Node
 	paneIndex := -1
 	for idx, node := range model.getVisibleNodesForTest() {
-		if node != nil && node.Kind == uimodel.NodeKindPane {
+		if node != nil && node.Kind == NodeKindPane {
 			paneNode = node
 			paneIndex = idx
 			break
@@ -325,8 +318,7 @@ func TestToggleFoldWorksAtPaneDepth(t *testing.T) {
 
 func TestCollapseNodeMovesCursorToParent(t *testing.T) {
 	model := &Model{
-		uiState:     NewUIState(),
-		treeService: NewTreeService(),
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 		},
@@ -339,10 +331,10 @@ func TestCollapseNodeMovesCursorToParent(t *testing.T) {
 	model.applySearchFilter()
 	model.resetCursor()
 
-	var leafNode *uimodel.TreeNode
+	var leafNode *Node
 	leafIndex := -1
 	for idx, node := range model.getVisibleNodesForTest() {
-		if node != nil && node.Kind == uimodel.NodeKindNotification {
+		if node != nil && node.Kind == NodeKindNotification {
 			leafNode = node
 			leafIndex = idx
 			break
@@ -353,9 +345,9 @@ func TestCollapseNodeMovesCursorToParent(t *testing.T) {
 
 	path, ok := findNodePath(model.getTreeRootForTest(), leafNode)
 	require.True(t, ok)
-	var paneNode *uimodel.TreeNode
+	var paneNode *Node
 	for _, node := range path {
-		if node != nil && node.Kind == uimodel.NodeKindPane {
+		if node != nil && node.Kind == NodeKindPane {
 			paneNode = node
 			break
 		}
@@ -372,8 +364,7 @@ func TestCollapseNodeMovesCursorToParent(t *testing.T) {
 
 func TestToggleNodeExpansionIgnoresLeafNodes(t *testing.T) {
 	model := &Model{
-		uiState:     NewUIState(),
-		treeService: NewTreeService(),
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 		},
@@ -385,10 +376,10 @@ func TestToggleNodeExpansionIgnoresLeafNodes(t *testing.T) {
 	model.applySearchFilter()
 	model.resetCursor()
 
-	var leafNode *uimodel.TreeNode
+	var leafNode *Node
 	leafIndex := -1
 	for idx, node := range model.getVisibleNodesForTest() {
-		if node != nil && node.Kind == uimodel.NodeKindNotification {
+		if node != nil && node.Kind == NodeKindNotification {
 			leafNode = node
 			leafIndex = idx
 			break
@@ -408,8 +399,7 @@ func TestToggleNodeExpansionIgnoresLeafNodes(t *testing.T) {
 
 func TestToggleFoldIgnoresLeafNodes(t *testing.T) {
 	model := &Model{
-		uiState:     NewUIState(),
-		treeService: NewTreeService(),
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 		},
@@ -421,10 +411,10 @@ func TestToggleFoldIgnoresLeafNodes(t *testing.T) {
 	model.applySearchFilter()
 	model.resetCursor()
 
-	var leafNode *uimodel.TreeNode
+	var leafNode *Node
 	leafIndex := -1
 	for idx, node := range model.getVisibleNodesForTest() {
-		if node != nil && node.Kind == uimodel.NodeKindNotification {
+		if node != nil && node.Kind == NodeKindNotification {
 			leafNode = node
 			leafIndex = idx
 			break
@@ -443,8 +433,7 @@ func TestToggleFoldIgnoresLeafNodes(t *testing.T) {
 
 func TestToggleFoldExpandsDefaultWhenAllCollapsed(t *testing.T) {
 	model := &Model{
-		uiState:     NewUIState(),
-		treeService: NewTreeService(),
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 		},
@@ -458,8 +447,8 @@ func TestToggleFoldExpandsDefaultWhenAllCollapsed(t *testing.T) {
 	model.applySearchFilter()
 	model.resetCursor()
 
-	var collapseAll func(node *uimodel.TreeNode)
-	collapseAll = func(node *uimodel.TreeNode) {
+	var collapseAll func(node *Node)
+	collapseAll = func(node *Node) {
 		if node == nil {
 			return
 		}
@@ -478,11 +467,11 @@ func TestToggleFoldExpandsDefaultWhenAllCollapsed(t *testing.T) {
 
 	model.toggleFold()
 
-	sessionNode := findChildByTitle(model.getTreeRootForTest(), uimodel.NodeKindSession, "$1")
+	sessionNode := findChildByTitle(model.getTreeRootForTest(), NodeKindSession, "$1")
 	require.NotNil(t, sessionNode)
-	windowNode := findChildByTitle(sessionNode, uimodel.NodeKindWindow, "@1")
+	windowNode := findChildByTitle(sessionNode, NodeKindWindow, "@1")
 	require.NotNil(t, windowNode)
-	paneNode := findChildByTitle(windowNode, uimodel.NodeKindPane, "%1")
+	paneNode := findChildByTitle(windowNode, NodeKindPane, "%1")
 	require.NotNil(t, paneNode)
 
 	assert.True(t, sessionNode.Expanded)
@@ -492,8 +481,7 @@ func TestToggleFoldExpandsDefaultWhenAllCollapsed(t *testing.T) {
 
 func TestModelSelectedNotificationGroupedView(t *testing.T) {
 	model := &Model{
-		uiState:     NewUIState(),
-		treeService: NewTreeService(),
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "b", Window: "@1", Pane: "%1", Message: "B"},
 			{ID: 2, Session: "a", Window: "@1", Pane: "%1", Message: "A"},
@@ -507,7 +495,7 @@ func TestModelSelectedNotificationGroupedView(t *testing.T) {
 	model.resetCursor()
 	cursorIndex := -1
 	for idx, node := range model.getVisibleNodesForTest() {
-		if node == nil || node.Kind != uimodel.NodeKindNotification || node.Notification == nil {
+		if node == nil || node.Kind != NodeKindNotification || node.Notification == nil {
 			continue
 		}
 		if node.Notification.Session == "a" {
@@ -637,8 +625,7 @@ func TestModelUpdateCyclesViewModesWithPersistence(t *testing.T) {
 	setupConfig(t, tmpDir)
 
 	model := &Model{
-		uiState:     NewUIState(),
-		treeService: NewTreeService(),
+		uiState: NewUIState(),
 	}
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
@@ -863,8 +850,7 @@ func TestModelUpdateHandlesSearchEnter(t *testing.T) {
 // in grouped view mode, including tree rebuilding and empty group pruning.
 func TestApplySearchFilterGroupedView(t *testing.T) {
 	model := &Model{
-		uiState:     NewUIState(),
-		treeService: NewTreeService(),
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Error: connection failed", Timestamp: "2024-01-03T10:00:00Z"},
 			{ID: 2, Session: "$1", Window: "@1", Pane: "%2", Message: "Warning: low memory", Timestamp: "2024-01-02T10:00:00Z"},
@@ -898,7 +884,7 @@ func TestApplySearchFilterGroupedView(t *testing.T) {
 	// Verify only sessions with matching errors are in the tree
 	sessionCount := 0
 	for _, node := range model.getVisibleNodesForTest() {
-		if node != nil && node.Kind == uimodel.NodeKindSession {
+		if node != nil && node.Kind == NodeKindSession {
 			sessionCount++
 		}
 	}
@@ -909,8 +895,7 @@ func TestApplySearchFilterGroupedView(t *testing.T) {
 // from the tree after filtering.
 func TestBuildFilteredTreePrunesEmptyGroups(t *testing.T) {
 	model := &Model{
-		uiState:     NewUIState(),
-		treeService: NewTreeService(),
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Unique message here", Timestamp: "2024-01-01T10:00:00Z"},
 			{ID: 2, Session: "$2", Window: "@1", Pane: "%1", Message: "Different message", Timestamp: "2024-01-02T10:00:00Z"},
@@ -933,9 +918,9 @@ func TestBuildFilteredTreePrunesEmptyGroups(t *testing.T) {
 
 	// Verify tree has only one session (the one with matching notification)
 	sessionCount := 0
-	var sessionNode *uimodel.TreeNode
+	var sessionNode *Node
 	for _, node := range model.getTreeRootForTest().Children {
-		if node != nil && node.Kind == uimodel.NodeKindSession {
+		if node != nil && node.Kind == NodeKindSession {
 			sessionCount++
 			sessionNode = node
 		}
@@ -951,8 +936,7 @@ func TestBuildFilteredTreePrunesEmptyGroups(t *testing.T) {
 // is preserved across searches when possible.
 func TestBuildFilteredTreePreservesExpansionState(t *testing.T) {
 	model := &Model{
-		uiState:     NewUIState(),
-		treeService: NewTreeService(),
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Test message 1", Timestamp: "2024-01-01T10:00:00Z"},
 			{ID: 2, Session: "$1", Window: "@2", Pane: "%1", Message: "Test message 2", Timestamp: "2024-01-02T10:00:00Z"},
@@ -972,12 +956,10 @@ func TestBuildFilteredTreePreservesExpansionState(t *testing.T) {
 	require.NotNil(t, model.getTreeRootForTest())
 
 	// Collapse session $2
-	sessionNode := findChildByTitle(model.getTreeRootForTest(), uimodel.NodeKindSession, "$2")
+	sessionNode := findChildByTitle(model.getTreeRootForTest(), NodeKindSession, "$2")
 	require.NotNil(t, sessionNode)
 	sessionNode.Expanded = false
-	// Note: In the new implementation, expansion state is managed through uiState
-	// and applied via treeService.ApplyExpansionState. For this test, we manually
-	// set the node's Expanded property and let the test proceed.
+	model.updateExpansionState(sessionNode, false)
 
 	// Second search - should preserve expansion state
 	model.uiState.SetSearchQuery("message")
@@ -985,7 +967,7 @@ func TestBuildFilteredTreePreservesExpansionState(t *testing.T) {
 	model.resetCursor()
 
 	// Find session $2 again in new tree
-	sessionNode = findChildByTitle(model.getTreeRootForTest(), uimodel.NodeKindSession, "$2")
+	sessionNode = findChildByTitle(model.getTreeRootForTest(), NodeKindSession, "$2")
 	require.NotNil(t, sessionNode)
 	assert.False(t, sessionNode.Expanded, "expansion state should be preserved")
 }
@@ -994,8 +976,7 @@ func TestBuildFilteredTreePreservesExpansionState(t *testing.T) {
 // returns no matches.
 func TestBuildFilteredTreeHandlesNoMatches(t *testing.T) {
 	model := &Model{
-		uiState:     NewUIState(),
-		treeService: NewTreeService(),
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Test message", Timestamp: "2024-01-01T10:00:00Z"},
 		},
@@ -1021,8 +1002,7 @@ func TestBuildFilteredTreeHandlesNoMatches(t *testing.T) {
 // shows all notifications.
 func TestBuildFilteredTreeWithEmptyQuery(t *testing.T) {
 	model := &Model{
-		uiState:     NewUIState(),
-		treeService: NewTreeService(),
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "First", Timestamp: "2024-01-01T10:00:00Z"},
 			{ID: 2, Session: "$1", Window: "@2", Pane: "%1", Message: "Second", Timestamp: "2024-01-02T10:00:00Z"},
@@ -1048,8 +1028,7 @@ func TestBuildFilteredTreeWithEmptyQuery(t *testing.T) {
 // only matching notifications.
 func TestBuildFilteredTreeGroupCounts(t *testing.T) {
 	model := &Model{
-		uiState:     NewUIState(),
-		treeService: NewTreeService(),
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Error: connection failed", Timestamp: "2024-01-01T10:00:00Z"},
 			{ID: 2, Session: "$1", Window: "@1", Pane: "%1", Message: "Warning: low memory", Timestamp: "2024-01-02T10:00:00Z"},
@@ -1074,18 +1053,18 @@ func TestBuildFilteredTreeGroupCounts(t *testing.T) {
 	assert.Equal(t, 2, model.getTreeRootForTest().Count)
 
 	// Verify session count
-	sessionNode := findChildByTitle(model.getTreeRootForTest(), uimodel.NodeKindSession, "$1")
+	sessionNode := findChildByTitle(model.getTreeRootForTest(), NodeKindSession, "$1")
 	require.NotNil(t, sessionNode)
 	assert.Equal(t, 2, sessionNode.Count)
 
 	// Verify window count
-	windowNode := findChildByTitle(sessionNode, uimodel.NodeKindWindow, "@1")
+	windowNode := findChildByTitle(sessionNode, NodeKindWindow, "@1")
 	require.NotNil(t, windowNode)
 	assert.Equal(t, 2, windowNode.Count)
 
 	// Pane %1 should have 1 error, Pane %2 should have 1 error
-	pane1 := findChildByTitle(windowNode, uimodel.NodeKindPane, "%1")
-	pane2 := findChildByTitle(windowNode, uimodel.NodeKindPane, "%2")
+	pane1 := findChildByTitle(windowNode, NodeKindPane, "%1")
+	pane2 := findChildByTitle(windowNode, NodeKindPane, "%2")
 	require.NotNil(t, pane1)
 	require.NotNil(t, pane2)
 	assert.Equal(t, 1, pane1.Count)
@@ -1203,7 +1182,6 @@ func TestModelViewWithNoNotifications(t *testing.T) {
 func TestUpdateViewportContentGroupedViewWithEmptyTree(t *testing.T) {
 	model := &Model{
 		uiState:       NewUIState(),
-		treeService:   NewTreeService(),
 		notifications: []notification.Notification{},
 	}
 	model.uiState.SetViewMode(viewModeGrouped)
@@ -1216,8 +1194,7 @@ func TestUpdateViewportContentGroupedViewWithEmptyTree(t *testing.T) {
 
 func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 	model := &Model{
-		uiState:     NewUIState(),
-		treeService: NewTreeService(),
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One", Level: "info", State: "active"},
 		},
@@ -1251,10 +1228,10 @@ func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 	})
 	assert.Contains(t, content, expectedGroupRow)
 
-	var leafNode *uimodel.TreeNode
+	var leafNode *Node
 	var leafIndex int
 	for idx, node := range model.getVisibleNodesForTest() {
-		if node != nil && node.Kind == uimodel.NodeKindNotification && node.Notification != nil {
+		if node != nil && node.Kind == NodeKindNotification && node.Notification != nil {
 			leafNode = node
 			leafIndex = idx
 			break
@@ -1280,8 +1257,7 @@ func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 
 func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
 	model := &Model{
-		uiState:     NewUIState(),
-		treeService: NewTreeService(),
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "First", Level: "info", State: "active"},
 			{ID: 2, Session: "$1", Window: "@1", Pane: "%1", Message: "Second", Level: "info", State: "active"},
@@ -1296,9 +1272,9 @@ func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
 	model.applySearchFilter()
 	model.resetCursor()
 
-	var leafNode *uimodel.TreeNode
+	var leafNode *Node
 	var leafIndex int
-	var groupNode *uimodel.TreeNode
+	var groupNode *Node
 	for idx, node := range model.getVisibleNodesForTest() {
 		if node == nil {
 			continue
@@ -1306,7 +1282,7 @@ func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
 		if groupNode == nil && isGroupNode(node) {
 			groupNode = node
 		}
-		if node.Kind == uimodel.NodeKindNotification && node.Notification != nil {
+		if node.Kind == NodeKindNotification && node.Notification != nil {
 			leafNode = node
 			leafIndex = idx
 			break
@@ -1434,7 +1410,7 @@ func TestHandleDismissGroupedViewUsesVisibleNodes(t *testing.T) {
 	model.resetCursor()
 	cursorIndex := -1
 	for idx, node := range model.getVisibleNodesForTest() {
-		if node == nil || node.Kind != uimodel.NodeKindNotification || node.Notification == nil {
+		if node == nil || node.Kind != NodeKindNotification || node.Notification == nil {
 			continue
 		}
 		if node.Notification.Session == "a" {
@@ -1506,8 +1482,7 @@ func TestHandleJumpWithMissingContext(t *testing.T) {
 
 func TestHandleJumpGroupedViewUsesVisibleNodes(t *testing.T) {
 	model := &Model{
-		uiState:     NewUIState(),
-		treeService: NewTreeService(),
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "b", Window: "@1", Pane: "%1", Message: "B"},
 			{ID: 2, Session: "a", Window: "", Pane: "%1", Message: "A"},
@@ -1563,8 +1538,7 @@ func TestModelUpdateHandlesDismissKey(t *testing.T) {
 
 func TestModelUpdateHandlesZaToggleFold(t *testing.T) {
 	model := &Model{
-		uiState:     NewUIState(),
-		treeService: NewTreeService(),
+		uiState: NewUIState(),
 		notifications: []notification.Notification{
 			{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 		},
@@ -1578,7 +1552,7 @@ func TestModelUpdateHandlesZaToggleFold(t *testing.T) {
 	model.applySearchFilter()
 	model.resetCursor()
 
-	var groupNode *uimodel.TreeNode
+	var groupNode *Node
 	groupIndex := -1
 	for idx, node := range model.getVisibleNodesForTest() {
 		if node != nil && isGroupNode(node) {

@@ -1137,7 +1137,13 @@ func (m *Model) applyDefaultExpansion() {
 	if m.treeRoot == nil {
 		return
 	}
-	selected := m.selectedVisibleNode()
+
+	// Save selected node identifier before modifying tree
+	selectedID := ""
+	if selected := m.selectedVisibleNode(); selected != nil {
+		selectedID = m.getNodeIdentifier(selected)
+	}
+
 	level := m.uiState.GetExpandLevel()
 	if level < settings.MinExpandLevel {
 		level = settings.MinExpandLevel
@@ -1165,11 +1171,13 @@ func (m *Model) applyDefaultExpansion() {
 
 	m.invalidateCache()
 	m.visibleNodes = m.computeVisibleNodes()
-	if selected != nil {
-		if index := indexOfNode(m.visibleNodes, selected); index >= 0 {
-			m.uiState.SetCursor(index)
-		}
+
+	// Restore cursor to the selected node using identifier
+	if selectedID != "" {
+		m.restoreCursor(selectedID)
 	}
+
+	// Ensure cursor is within bounds
 	if m.uiState.GetCursor() >= len(m.visibleNodes) {
 		m.uiState.SetCursor(len(m.visibleNodes) - 1)
 	}
@@ -1190,10 +1198,17 @@ func (m *Model) expandNode(node *Node) {
 		return
 	}
 
+	// Save node identifier before modifying tree to avoid using stale references
+	nodeID := m.getNodeIdentifier(node)
+
 	node.Expanded = true
 	m.updateExpansionState(node, true)
 	m.invalidateCache()
 	m.visibleNodes = m.computeVisibleNodes()
+
+	// Restore cursor to the same node using identifier
+	m.restoreCursor(nodeID)
+
 	m.updateViewportContent()
 	m.ensureCursorVisible()
 }
@@ -1209,16 +1224,35 @@ func (m *Model) collapseNode(node *Node) {
 		return
 	}
 
-	selected := m.selectedVisibleNode()
+	// Save node identifiers before modifying tree to avoid using stale references
+	selectedID := ""
+	if selected := m.selectedVisibleNode(); selected != nil {
+		selectedID = m.getNodeIdentifier(selected)
+	}
+	nodeID := m.getNodeIdentifier(node)
+
 	node.Expanded = false
 	m.updateExpansionState(node, false)
 	m.invalidateCache()
 	m.visibleNodes = m.computeVisibleNodes()
-	if selected != nil && nodeContains(node, selected) {
-		if index := indexOfNode(m.visibleNodes, node); index >= 0 {
-			m.uiState.SetCursor(index)
+
+	// If selected node was inside the collapsed node, move cursor to the collapsed node
+	if selectedID != "" {
+		// Check if the selected node is contained within the collapsed node
+		// by comparing paths
+		if selectedNode := m.findNodeByIdentifier(selectedID); selectedNode != nil {
+			if collapsedNode := m.findNodeByIdentifier(nodeID); collapsedNode != nil {
+				if nodeContains(collapsedNode, selectedNode) {
+					// Move cursor to the collapsed node
+					if index := indexOfNode(m.visibleNodes, collapsedNode); index >= 0 {
+						m.uiState.SetCursor(index)
+					}
+				}
+			}
 		}
 	}
+
+	// Ensure cursor is within bounds
 	if m.uiState.GetCursor() >= len(m.visibleNodes) {
 		m.uiState.SetCursor(len(m.visibleNodes) - 1)
 	}
@@ -1543,4 +1577,14 @@ func (m *Model) getPaneName(paneID string) string {
 		return name
 	}
 	return paneID // fallback to pane ID if not found
+}
+
+// getTreeRootForTest returns the tree root for testing purposes.
+func (m *Model) getTreeRootForTest() *Node {
+	return m.treeRoot
+}
+
+// getVisibleNodesForTest returns the visible nodes for testing purposes.
+func (m *Model) getVisibleNodesForTest() []*Node {
+	return m.visibleNodes
 }
