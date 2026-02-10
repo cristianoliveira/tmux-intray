@@ -60,16 +60,16 @@ func BenchmarkComputeVisibleNodes(b *testing.B) {
 
 		for _, scenario := range scenarios {
 			benchmarkSetExpansionState(tree, scenario.expands)
-			model := benchmarkModel(notifications)
-			model.treeRoot = tree
+			benchModel := benchmarkModel(notifications)
+			benchModel.treeService = &dummyTreeService{treeRoot: tree}
 
 			name := fmt.Sprintf("n=%d/%s", size, scenario.name)
 			b.Run(name, func(b *testing.B) {
 				b.ReportAllocs()
 				b.ResetTimer()
 				for i := 0; i < b.N; i++ {
-					model.invalidateCache()
-					_ = model.computeVisibleNodes()
+					benchModel.invalidateCache()
+					_ = benchModel.computeVisibleNodes()
 				}
 			})
 		}
@@ -79,15 +79,15 @@ func BenchmarkComputeVisibleNodes(b *testing.B) {
 func BenchmarkUpdateViewportContentGrouped(b *testing.B) {
 	for _, size := range []int{1000, 5000, 10000} {
 		notifications := benchmarkNotifications(size)
-		model := benchmarkModel(notifications)
-		model.visibleNodes = model.computeVisibleNodes()
-		model.uiState.SetCursor(len(model.visibleNodes) / 2)
+		benchModel := benchmarkModel(notifications)
+		visibleNodes := benchModel.computeVisibleNodes()
+		benchModel.uiState.SetCursor(len(visibleNodes) / 2)
 
 		b.Run(fmt.Sprintf("n=%d", size), func(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				model.updateViewportContent()
+				benchModel.updateViewportContent()
 			}
 		})
 	}
@@ -126,6 +126,7 @@ func benchmarkModel(notifications []notification.Notification) *Model {
 	m := &Model{
 		uiState:       NewUIState(),
 		notifications: notifications,
+		treeService:   &dummyTreeService{},
 	}
 	m.uiState.SetWidth(120)
 	m.uiState.SetHeight(40)
@@ -133,13 +134,13 @@ func benchmarkModel(notifications []notification.Notification) *Model {
 
 	m.applySearchFilter()
 	m.resetCursor()
-	benchmarkSetExpansionState(m.treeRoot, map[model.NodeKind]bool{
+	benchmarkSetExpansionState(m.getTreeRootForTest(), map[model.NodeKind]bool{
 		model.NodeKindSession: true,
 		model.NodeKindWindow:  true,
 		model.NodeKindPane:    true,
 	})
 	m.invalidateCache()
-	m.visibleNodes = m.computeVisibleNodes()
+	_ = m.computeVisibleNodes()
 	return m
 }
 
@@ -147,8 +148,8 @@ func benchmarkModel(notifications []notification.Notification) *Model {
 func benchmarkBuildTree(notifications []notification.Notification, groupBy string) *model.TreeNode {
 	// For benchmarking, use a simple service without full initialization
 	treeService := &dummyTreeService{}
-	tree, _ := treeService.BuildTree(notifications, groupBy)
-	return tree
+	_ = treeService.BuildTree(notifications, groupBy)
+	return treeService.GetTreeRoot()
 }
 
 // benchmarkSetExpansionState sets expansion state for benchmarking.
@@ -175,16 +176,32 @@ func benchmarkSetExpansionState(root *model.TreeNode, expanded map[model.NodeKin
 	walk(root)
 }
 
-// dummyTreeService is a minimal tree service for benchmarking.
-type dummyTreeService struct{}
+type dummyTreeService struct {
+	treeRoot          *model.TreeNode
+	visibleNodesCache []*model.TreeNode
+	cacheValid        bool
+}
 
-func (s *dummyTreeService) BuildTree(notifications []notification.Notification, groupBy string) (*model.TreeNode, error) {
+func (s *dummyTreeService) BuildTree(notifications []notification.Notification, groupBy string) error {
 	// Minimal implementation - convert from state.BuildTree result
 	stateTree := BuildTree(notifications, groupBy)
 	if stateTree == nil {
-		return nil, nil
+		s.treeRoot = nil
+		s.InvalidateCache()
+		return nil
 	}
-	return s.convertNode(stateTree), nil
+	s.treeRoot = s.convertNode(stateTree)
+	s.InvalidateCache()
+	return nil
+}
+
+func (s *dummyTreeService) ClearTree() {
+	s.treeRoot = nil
+	s.InvalidateCache()
+}
+
+func (s *dummyTreeService) GetTreeRoot() *model.TreeNode {
+	return s.treeRoot
 }
 
 func (s *dummyTreeService) convertNode(stateNode *Node) *model.TreeNode {
@@ -211,22 +228,57 @@ func (s *dummyTreeService) convertNode(stateNode *Node) *model.TreeNode {
 }
 
 // Other required TreeService methods (not used in benchmarking)
-func (s *dummyTreeService) FindNotificationPath(root *model.TreeNode, notif notification.Notification) ([]*model.TreeNode, error) {
+func (s *dummyTreeService) FindNotificationPath(notif notification.Notification) ([]*model.TreeNode, error) {
 	return nil, nil
 }
-func (s *dummyTreeService) FindNodeByID(root *model.TreeNode, identifier string) *model.TreeNode {
+func (s *dummyTreeService) FindNodeByID(identifier string) *model.TreeNode {
 	return nil
 }
-func (s *dummyTreeService) GetVisibleNodes(root *model.TreeNode) []*model.TreeNode {
-	return nil
+func (s *dummyTreeService) GetVisibleNodes() []*model.TreeNode {
+	if s.cacheValid {
+		return s.visibleNodesCache
+	}
+	if s.treeRoot == nil {
+		s.visibleNodesCache = nil
+		s.cacheValid = true
+		return nil
+	}
+
+	var visible []*model.TreeNode
+	var walk func(node *model.TreeNode)
+	walk = func(node *model.TreeNode) {
+		if node == nil {
+			return
+		}
+		if node.Kind != model.NodeKindRoot {
+			visible = append(visible, node)
+		}
+		if node.Kind == model.NodeKindNotification {
+			return
+		}
+		if node.Kind != model.NodeKindRoot && !node.Expanded {
+			return
+		}
+		for _, child := range node.Children {
+			walk(child)
+		}
+	}
+
+	walk(s.treeRoot)
+	s.visibleNodesCache = visible
+	s.cacheValid = true
+	return s.visibleNodesCache
+}
+func (s *dummyTreeService) InvalidateCache() {
+	s.visibleNodesCache = nil
+	s.cacheValid = false
 }
 func (s *dummyTreeService) GetNodeIdentifier(node *model.TreeNode) string {
 	return ""
 }
-func (s *dummyTreeService) PruneEmptyGroups(root *model.TreeNode) *model.TreeNode {
-	return root
+func (s *dummyTreeService) PruneEmptyGroups() {
 }
-func (s *dummyTreeService) ApplyExpansionState(root *model.TreeNode, expansionState map[string]bool) {
+func (s *dummyTreeService) ApplyExpansionState(expansionState map[string]bool) {
 }
 func (s *dummyTreeService) ExpandNode(node *model.TreeNode)          {}
 func (s *dummyTreeService) CollapseNode(node *model.TreeNode)        {}
