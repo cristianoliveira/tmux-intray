@@ -50,6 +50,16 @@ func (m *MockStorage) MarkNotificationUnread(id string) error {
 	return args.Error(0)
 }
 
+func (m *MockStorage) MarkNotificationReadWithTimestamp(id, timestamp string) error {
+	args := m.Called(id, timestamp)
+	return args.Error(0)
+}
+
+func (m *MockStorage) MarkNotificationUnreadWithTimestamp(id, timestamp string) error {
+	args := m.Called(id, timestamp)
+	return args.Error(0)
+}
+
 func (m *MockStorage) CleanupOldNotifications(daysThreshold int, dryRun bool) error {
 	args := m.Called(daysThreshold, dryRun)
 	return args.Error(0)

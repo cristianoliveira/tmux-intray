@@ -234,17 +234,19 @@ func (d *DualWriter) DismissAll() error {
 	return nil
 }
 
-// MarkNotificationRead writes to TSV then SQLite.
+// MarkNotificationRead writes to TSV then SQLite with the same timestamp.
 func (d *DualWriter) MarkNotificationRead(id string) error {
 	start := time.Now()
-	if err := d.tsv.MarkNotificationRead(id); err != nil {
+	timestamp := time.Now().UTC().Format(time.RFC3339)
+
+	if err := d.tsv.MarkNotificationReadWithTimestamp(id, timestamp); err != nil {
 		d.recordWrite(start, true, false)
 		return err
 	}
 
 	sqliteFailed := false
 	if !d.verifyOnly {
-		if err := d.sqlite.MarkNotificationRead(id); err != nil {
+		if err := d.sqlite.MarkNotificationReadWithTimestamp(id, timestamp); err != nil {
 			sqliteFailed = true
 			d.handleSQLiteWriteFailure(fmt.Sprintf("mark-read failed for id %s", id), err)
 		}
@@ -254,17 +256,61 @@ func (d *DualWriter) MarkNotificationRead(id string) error {
 	return nil
 }
 
-// MarkNotificationUnread writes to TSV then SQLite.
+// MarkNotificationUnread writes to TSV then SQLite with the same timestamp (empty string for unread).
 func (d *DualWriter) MarkNotificationUnread(id string) error {
 	start := time.Now()
-	if err := d.tsv.MarkNotificationUnread(id); err != nil {
+	timestamp := "" // Empty string for unread
+
+	if err := d.tsv.MarkNotificationUnreadWithTimestamp(id, timestamp); err != nil {
 		d.recordWrite(start, true, false)
 		return err
 	}
 
 	sqliteFailed := false
 	if !d.verifyOnly {
-		if err := d.sqlite.MarkNotificationUnread(id); err != nil {
+		if err := d.sqlite.MarkNotificationUnreadWithTimestamp(id, timestamp); err != nil {
+			sqliteFailed = true
+			d.handleSQLiteWriteFailure(fmt.Sprintf("mark-unread failed for id %s", id), err)
+		}
+	}
+
+	d.recordWrite(start, false, sqliteFailed)
+	return nil
+}
+
+// MarkNotificationReadWithTimestamp writes to TSV then SQLite with the same provided timestamp.
+func (d *DualWriter) MarkNotificationReadWithTimestamp(id, timestamp string) error {
+	start := time.Now()
+
+	if err := d.tsv.MarkNotificationReadWithTimestamp(id, timestamp); err != nil {
+		d.recordWrite(start, true, false)
+		return err
+	}
+
+	sqliteFailed := false
+	if !d.verifyOnly {
+		if err := d.sqlite.MarkNotificationReadWithTimestamp(id, timestamp); err != nil {
+			sqliteFailed = true
+			d.handleSQLiteWriteFailure(fmt.Sprintf("mark-read failed for id %s", id), err)
+		}
+	}
+
+	d.recordWrite(start, false, sqliteFailed)
+	return nil
+}
+
+// MarkNotificationUnreadWithTimestamp writes to TSV then SQLite with the same provided timestamp (typically empty string for unread).
+func (d *DualWriter) MarkNotificationUnreadWithTimestamp(id, timestamp string) error {
+	start := time.Now()
+
+	if err := d.tsv.MarkNotificationUnreadWithTimestamp(id, timestamp); err != nil {
+		d.recordWrite(start, true, false)
+		return err
+	}
+
+	sqliteFailed := false
+	if !d.verifyOnly {
+		if err := d.sqlite.MarkNotificationUnreadWithTimestamp(id, timestamp); err != nil {
 			sqliteFailed = true
 			d.handleSQLiteWriteFailure(fmt.Sprintf("mark-unread failed for id %s", id), err)
 		}
