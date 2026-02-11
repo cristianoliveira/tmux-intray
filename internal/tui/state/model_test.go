@@ -112,6 +112,99 @@ func stubSessionFetchers(t *testing.T) *tmux.MockClient {
 	return mockClient
 }
 
+type testRuntimeCoordinator struct {
+	ensureTmuxRunningFn func() bool
+	jumpToPaneFn        func(sessionID, windowID, paneID string) bool
+}
+
+func (t *testRuntimeCoordinator) EnsureTmuxRunning() bool {
+	if t.ensureTmuxRunningFn != nil {
+		return t.ensureTmuxRunningFn()
+	}
+	return true
+}
+
+func (t *testRuntimeCoordinator) JumpToPane(sessionID, windowID, paneID string) bool {
+	if t.jumpToPaneFn != nil {
+		return t.jumpToPaneFn(sessionID, windowID, paneID)
+	}
+	return false
+}
+
+func (t *testRuntimeCoordinator) ValidatePaneExists(sessionID, windowID, paneID string) (bool, error) {
+	return true, nil
+}
+
+func (t *testRuntimeCoordinator) GetCurrentContext() (*uimodel.TmuxContext, error) {
+	return nil, nil
+}
+
+func (t *testRuntimeCoordinator) ListSessions() (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
+func (t *testRuntimeCoordinator) ListWindows() (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
+func (t *testRuntimeCoordinator) ListPanes() (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
+func (t *testRuntimeCoordinator) GetSessionName(sessionID string) (string, error) {
+	return sessionID, nil
+}
+
+func (t *testRuntimeCoordinator) GetWindowName(windowID string) (string, error) {
+	return windowID, nil
+}
+
+func (t *testRuntimeCoordinator) GetPaneName(paneID string) (string, error) {
+	return paneID, nil
+}
+
+func (t *testRuntimeCoordinator) RefreshNames() error {
+	return nil
+}
+
+func (t *testRuntimeCoordinator) GetTmuxVisibility() (bool, error) {
+	return false, nil
+}
+
+func (t *testRuntimeCoordinator) SetTmuxVisibility(visible bool) error {
+	return nil
+}
+
+func (t *testRuntimeCoordinator) ResolveSessionName(sessionID string) string {
+	return sessionID
+}
+
+func (t *testRuntimeCoordinator) ResolveWindowName(windowID string) string {
+	return windowID
+}
+
+func (t *testRuntimeCoordinator) ResolvePaneName(paneID string) string {
+	return paneID
+}
+
+func (t *testRuntimeCoordinator) GetSessionNames() map[string]string {
+	return map[string]string{}
+}
+
+func (t *testRuntimeCoordinator) GetWindowNames() map[string]string {
+	return map[string]string{}
+}
+
+func (t *testRuntimeCoordinator) GetPaneNames() map[string]string {
+	return map[string]string{}
+}
+
+func (t *testRuntimeCoordinator) SetSessionNames(names map[string]string) {}
+
+func (t *testRuntimeCoordinator) SetWindowNames(names map[string]string) {}
+
+func (t *testRuntimeCoordinator) SetPaneNames(names map[string]string) {}
+
 func TestNewModelInitialState(t *testing.T) {
 	setupStorage(t)
 	mockClient := stubSessionFetchers(t)
@@ -1463,6 +1556,58 @@ func TestHandleJumpWithMissingContext(t *testing.T) {
 	model.filtered[0].Pane = ""
 	cmd = model.handleJump()
 	assert.Nil(t, cmd)
+}
+
+func TestHandleJumpMarksNotificationReadOnSuccess(t *testing.T) {
+	setupStorage(t)
+
+	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "$1", "@2", "%3", "", "info")
+	require.NoError(t, err)
+
+	mockClient := stubSessionFetchers(t)
+	model, err := NewModel(mockClient)
+	require.NoError(t, err)
+	require.Len(t, model.filtered, 1)
+	model.runtimeCoordinator = &testRuntimeCoordinator{
+		ensureTmuxRunningFn: func() bool { return true },
+		jumpToPaneFn: func(sessionID, windowID, paneID string) bool {
+			return sessionID == "$1" && windowID == "@2" && paneID == "%3"
+		},
+	}
+
+	cmd := model.handleJump()
+	assert.NotNil(t, cmd)
+
+	line, err := storage.GetNotificationByID(id)
+	require.NoError(t, err)
+	loaded, err := notification.ParseNotification(line)
+	require.NoError(t, err)
+	assert.True(t, loaded.IsRead())
+}
+
+func TestHandleJumpDoesNotMarkReadWhenJumpFails(t *testing.T) {
+	setupStorage(t)
+
+	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "$1", "@2", "%3", "", "info")
+	require.NoError(t, err)
+
+	mockClient := stubSessionFetchers(t)
+	model, err := NewModel(mockClient)
+	require.NoError(t, err)
+	require.Len(t, model.filtered, 1)
+	model.runtimeCoordinator = &testRuntimeCoordinator{
+		ensureTmuxRunningFn: func() bool { return true },
+		jumpToPaneFn:        func(sessionID, windowID, paneID string) bool { return false },
+	}
+
+	cmd := model.handleJump()
+	assert.Nil(t, cmd)
+
+	line, err := storage.GetNotificationByID(id)
+	require.NoError(t, err)
+	loaded, err := notification.ParseNotification(line)
+	require.NoError(t, err)
+	assert.False(t, loaded.IsRead())
 }
 
 func TestHandleJumpGroupedViewUsesVisibleNodes(t *testing.T) {

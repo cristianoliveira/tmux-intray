@@ -997,6 +997,11 @@ func (m *Model) handleJump() tea.Cmd {
 		return nil
 	}
 
+	id := strconv.Itoa(selected.ID)
+	if err := storage.MarkNotificationRead(id); err != nil {
+		colors.Warning(fmt.Sprintf("jump: jumped, but failed to mark notification as read: %v", err))
+	}
+
 	// Exit TUI after successful jump
 	return tea.Quit
 }
