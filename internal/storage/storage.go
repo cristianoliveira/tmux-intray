@@ -530,6 +530,18 @@ func MarkNotificationUnread(id string) error {
 	return markNotificationReadState(id, "")
 }
 
+// MarkNotificationReadWithTimestamp marks a notification as read by setting read_timestamp to the provided timestamp.
+// Preconditions: id must be non-empty and reference an existing notification; timestamp must be RFC3339 format.
+func MarkNotificationReadWithTimestamp(id, timestamp string) error {
+	return markNotificationReadState(id, timestamp)
+}
+
+// MarkNotificationUnreadWithTimestamp marks a notification as unread by clearing read_timestamp.
+// Preconditions: id must be non-empty and reference an existing notification.
+func MarkNotificationUnreadWithTimestamp(id, timestamp string) error {
+	return markNotificationReadState(id, timestamp)
+}
+
 func markNotificationReadState(id, readTimestamp string) error {
 	if err := Init(); err != nil {
 		return fmt.Errorf("markNotificationReadState: %w", err)
