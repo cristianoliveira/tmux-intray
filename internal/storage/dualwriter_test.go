@@ -252,3 +252,187 @@ func TestDualWriterMigrateNotificationLinesParsesTSV(t *testing.T) {
 	// Test that migration can parse TSV lines correctly
 	// This is tested via integration tests with real backends
 }
+
+// DismissAll tests
+
+func TestDualWriterDismissAllWritesToBothBackends(t *testing.T) {
+	tsv := &fakeStorage{}
+	sql := &fakeStorage{}
+
+	dw, err := NewDualWriterWithBackends(tsv, sql, DualWriterOptions{})
+	require.NoError(t, err)
+
+	err = dw.DismissAll()
+	require.NoError(t, err)
+	require.Equal(t, 1, tsv.dismissAllCalls)
+	require.Equal(t, 1, sql.dismissAllCalls)
+}
+
+func TestDualWriterDismissAllReturnsTSVErrorAndSkipsSQLite(t *testing.T) {
+	tsv := &fakeStorage{dismissAllErr: fmt.Errorf("tsv failed")}
+	sql := &fakeStorage{}
+
+	dw, err := NewDualWriterWithBackends(tsv, sql, DualWriterOptions{})
+	require.NoError(t, err)
+
+	err = dw.DismissAll()
+	require.Error(t, err)
+	require.Equal(t, 1, tsv.dismissAllCalls)
+	require.Equal(t, 0, sql.dismissAllCalls)
+}
+
+func TestDualWriterDismissAllVerifyOnlySkipsSQLiteWrites(t *testing.T) {
+	tsv := &fakeStorage{}
+	sql := &fakeStorage{}
+
+	dw, err := NewDualWriterWithBackends(tsv, sql, DualWriterOptions{VerifyOnly: true})
+	require.NoError(t, err)
+
+	err = dw.DismissAll()
+	require.NoError(t, err)
+	require.Equal(t, 1, tsv.dismissAllCalls)
+	require.Equal(t, 0, sql.dismissAllCalls)
+}
+
+// MarkNotificationUnread tests
+
+func TestDualWriterMarkNotificationUnreadWritesToBothBackends(t *testing.T) {
+	tsv := &fakeStorage{}
+	sql := &fakeStorage{}
+
+	dw, err := NewDualWriterWithBackends(tsv, sql, DualWriterOptions{})
+	require.NoError(t, err)
+
+	err = dw.MarkNotificationUnread("1")
+	require.NoError(t, err)
+	require.Equal(t, 1, tsv.markUnreadCalls)
+	require.Equal(t, 1, sql.markUnreadCalls)
+}
+
+func TestDualWriterMarkNotificationUnreadReturnsTSVErrorAndSkipsSQLite(t *testing.T) {
+	tsv := &fakeStorage{markUnreadErr: fmt.Errorf("tsv failed")}
+	sql := &fakeStorage{}
+
+	dw, err := NewDualWriterWithBackends(tsv, sql, DualWriterOptions{})
+	require.NoError(t, err)
+
+	err = dw.MarkNotificationUnread("1")
+	require.Error(t, err)
+	require.Equal(t, 1, tsv.markUnreadCalls)
+	require.Equal(t, 0, sql.markUnreadCalls)
+}
+
+func TestDualWriterMarkNotificationUnreadVerifyOnlySkipsSQLiteWrites(t *testing.T) {
+	tsv := &fakeStorage{}
+	sql := &fakeStorage{}
+
+	dw, err := NewDualWriterWithBackends(tsv, sql, DualWriterOptions{VerifyOnly: true})
+	require.NoError(t, err)
+
+	err = dw.MarkNotificationUnread("1")
+	require.NoError(t, err)
+	require.Equal(t, 1, tsv.markUnreadCalls)
+	require.Equal(t, 0, sql.markUnreadCalls)
+}
+
+// CleanupOldNotifications tests
+
+func TestDualWriterCleanupOldNotificationsWritesToBothBackends(t *testing.T) {
+	tsv := &fakeStorage{}
+	sql := &fakeStorage{}
+
+	dw, err := NewDualWriterWithBackends(tsv, sql, DualWriterOptions{})
+	require.NoError(t, err)
+
+	err = dw.CleanupOldNotifications(7, false)
+	require.NoError(t, err)
+	require.Equal(t, 1, tsv.cleanupCalls)
+	require.Equal(t, 1, sql.cleanupCalls)
+}
+
+func TestDualWriterCleanupOldNotificationsWithDryRun(t *testing.T) {
+	tsv := &fakeStorage{}
+	sql := &fakeStorage{}
+
+	dw, err := NewDualWriterWithBackends(tsv, sql, DualWriterOptions{})
+	require.NoError(t, err)
+
+	err = dw.CleanupOldNotifications(7, true)
+	require.NoError(t, err)
+	require.Equal(t, 1, tsv.cleanupCalls)
+	require.Equal(t, 1, sql.cleanupCalls)
+}
+
+func TestDualWriterCleanupOldNotificationsReturnsTSVErrorAndSkipsSQLite(t *testing.T) {
+	tsv := &fakeStorage{cleanupErr: fmt.Errorf("tsv failed")}
+	sql := &fakeStorage{}
+
+	dw, err := NewDualWriterWithBackends(tsv, sql, DualWriterOptions{})
+	require.NoError(t, err)
+
+	err = dw.CleanupOldNotifications(7, false)
+	require.Error(t, err)
+	require.Equal(t, 1, tsv.cleanupCalls)
+	require.Equal(t, 0, sql.cleanupCalls)
+}
+
+func TestDualWriterCleanupOldNotificationsVerifyOnlySkipsSQLiteWrites(t *testing.T) {
+	tsv := &fakeStorage{}
+	sql := &fakeStorage{}
+
+	dw, err := NewDualWriterWithBackends(tsv, sql, DualWriterOptions{VerifyOnly: true})
+	require.NoError(t, err)
+
+	err = dw.CleanupOldNotifications(7, false)
+	require.NoError(t, err)
+	require.Equal(t, 1, tsv.cleanupCalls)
+	require.Equal(t, 0, sql.cleanupCalls)
+}
+
+func TestDualWriterDismissAllTracksMetrics(t *testing.T) {
+	tsv := &fakeStorage{}
+	sql := &fakeStorage{}
+
+	dw, err := NewDualWriterWithBackends(tsv, sql, DualWriterOptions{})
+	require.NoError(t, err)
+
+	err = dw.DismissAll()
+	require.NoError(t, err)
+
+	metrics := dw.Metrics()
+	require.Equal(t, int64(1), metrics.WriteOperations)
+	require.Equal(t, int64(0), metrics.TSVWriteFailures)
+	require.Equal(t, int64(0), metrics.SQLiteWriteFailure)
+}
+
+func TestDualWriterMarkNotificationUnreadTracksMetrics(t *testing.T) {
+	tsv := &fakeStorage{}
+	sql := &fakeStorage{markUnreadErr: fmt.Errorf("sqlite failed")}
+
+	dw, err := NewDualWriterWithBackends(tsv, sql, DualWriterOptions{})
+	require.NoError(t, err)
+
+	err = dw.MarkNotificationUnread("1")
+	require.NoError(t, err)
+
+	metrics := dw.Metrics()
+	require.Equal(t, int64(1), metrics.WriteOperations)
+	require.Equal(t, int64(0), metrics.TSVWriteFailures)
+	require.Equal(t, int64(1), metrics.SQLiteWriteFailure)
+}
+
+func TestDualWriterCleanupOldNotificationsTracksMetrics(t *testing.T) {
+	tsv := &fakeStorage{}
+	sql := &fakeStorage{cleanupErr: fmt.Errorf("sqlite failed")}
+
+	dw, err := NewDualWriterWithBackends(tsv, sql, DualWriterOptions{})
+	require.NoError(t, err)
+
+	err = dw.CleanupOldNotifications(7, false)
+	require.NoError(t, err)
+
+	metrics := dw.Metrics()
+	require.Equal(t, int64(1), metrics.WriteOperations)
+	require.Equal(t, int64(0), metrics.TSVWriteFailures)
+	require.Equal(t, int64(1), metrics.SQLiteWriteFailure)
+}
