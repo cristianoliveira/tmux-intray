@@ -70,179 +70,238 @@ func (m *Model) Init() tea.Cmd {
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if m.uiState.IsSearchMode() || m.uiState.IsCommandMode() {
-			m.uiState.ClearPendingKey()
-		} else if m.uiState.GetPendingKey() != "" {
-			if msg.String() == "a" && m.uiState.GetPendingKey() == "z" && m.isGroupedView() {
-				m.uiState.ClearPendingKey()
-				m.toggleFold()
-				return m, nil
-			}
-			if msg.String() != "z" {
-				m.uiState.ClearPendingKey()
-			}
-		}
-		switch msg.Type {
-		case tea.KeyCtrlC:
-			// Save settings before exiting
-			if err := m.saveSettings(); err != nil {
-				colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
-			}
-			// Exit
-			return m, tea.Quit
-		case tea.KeyEsc:
-			if m.uiState.IsSearchMode() {
-				m.uiState.SetSearchMode(false)
-				m.applySearchFilter()
-				m.uiState.ResetCursor()
-			} else if m.uiState.IsCommandMode() {
-				m.uiState.SetCommandMode(false)
-			} else {
-				return m, tea.Quit
-			}
-
-		case tea.KeyEnter:
-			if m.uiState.IsSearchMode() {
-				m.uiState.SetSearchMode(false)
-				return m, nil
-			}
-			if m.uiState.IsCommandMode() {
-				// Execute command using CommandService
-				cmd := m.executeCommandViaService()
-				m.uiState.SetCommandMode(false)
-				return m, cmd
-			}
-			if m.isGroupedView() && m.toggleNodeExpansion() {
-				return m, nil
-			}
-			// Jump to pane of selected notification
-			return m, m.handleJump()
-
-		case tea.KeyRunes:
-			if m.uiState.IsSearchMode() {
-				// In search mode, append runes to search query
-				for _, r := range msg.Runes {
-					m.uiState.AppendToSearchQuery(r)
-				}
-				m.applySearchFilter()
-				m.uiState.ResetCursor()
-			} else if m.uiState.IsCommandMode() {
-				// In command mode, append runes to command query
-				for _, r := range msg.Runes {
-					m.uiState.AppendToCommandQuery(r)
-				}
-			}
-
-		case tea.KeyBackspace:
-			if m.uiState.IsSearchMode() {
-				if len(m.uiState.GetSearchQuery()) > 0 {
-					m.uiState.BackspaceSearchQuery()
-					m.applySearchFilter()
-					m.uiState.ResetCursor()
-				}
-			} else if m.uiState.IsCommandMode() {
-				if len(m.uiState.GetCommandQuery()) > 0 {
-					m.uiState.BackspaceCommandQuery()
-				}
-			}
-
-		case tea.KeyUp, tea.KeyDown:
-			// Navigation handled below
-			break
-		}
-
-		// If we're in command mode, don't process other key bindings
-		if m.uiState.IsCommandMode() {
-			return m, nil
-		}
-
-		// Handle specific key bindings
-		switch msg.String() {
-		case "j":
-			// Move cursor down
-			listLen := m.currentListLen()
-			m.uiState.MoveCursorDown(listLen)
-			m.updateViewportContent()
-			// Auto-scroll viewport if needed
-			m.uiState.EnsureCursorVisible(listLen)
-		case "k":
-			// Move cursor up
-			listLen := m.currentListLen()
-			m.uiState.MoveCursorUp(listLen)
-			m.updateViewportContent()
-			// Auto-scroll viewport if needed
-			m.uiState.EnsureCursorVisible(listLen)
-		case "/":
-			// Enter search mode
-			m.uiState.SetSearchMode(true)
-			m.applySearchFilter()
-			m.uiState.ResetCursor()
-		case ":":
-			// Enter command mode
-			if !m.uiState.IsSearchMode() && !m.uiState.IsCommandMode() {
-				m.uiState.SetCommandMode(true)
-			}
-		case "d":
-			// Dismiss selected notification
-			return m, m.handleDismiss()
-		case "r":
-			// Mark selected notification as read
-			return m, m.markSelectedRead()
-		case "u":
-			// Mark selected notification as unread
-			return m, m.markSelectedUnread()
-		case "v":
-			if !m.uiState.IsSearchMode() && !m.uiState.IsCommandMode() {
-				m.cycleViewMode()
-			}
-		case "h":
-			// Collapse selected group node
-			node := m.selectedVisibleNode()
-			if node != nil {
-				m.treeService.CollapseNode(node)
-				m.invalidateCache()
-				m.updateViewportContent()
-			}
-		case "l":
-			// Expand selected group node
-			node := m.selectedVisibleNode()
-			if node != nil {
-				m.treeService.ExpandNode(node)
-				m.invalidateCache()
-				m.updateViewportContent()
-			}
-		case "z":
-			if !m.uiState.IsSearchMode() && m.isGroupedView() {
-				m.uiState.SetPendingKey("z")
-			}
-		case "i":
-			// In search mode, 'i' is handled by KeyRunes
-			// This is a no-op but kept for documentation
-		case "q":
-			if err := m.saveSettings(); err != nil {
-				colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
-			}
-			// Quit
-			return m, tea.Quit
-		}
-
+		return m.handleKeyMsg(msg)
 	case saveSettingsSuccessMsg:
-		// Settings saved successfully - already displayed info message in saveSettings
-		return m, nil
-
+		return m.handleSaveSettingsSuccess(msg)
 	case saveSettingsFailedMsg:
-		// Settings save failed - already displayed warning message in saveSettings
-		return m, nil
-
+		return m.handleSaveSettingsFailed(msg)
 	case tea.WindowSizeMsg:
-		m.uiState.SetWidth(msg.Width)
-		m.uiState.SetHeight(msg.Height)
-		// Initialize or update viewport dimensions
-		m.uiState.UpdateViewportSize()
-		// Update viewport content
-		m.updateViewportContent()
+		return m.handleWindowSizeMsg(msg)
+	}
+	return m, nil
+}
+
+func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if handled, cmd := m.handlePendingKey(msg); handled {
+		return m, cmd
 	}
 
+	switch msg.Type {
+	case tea.KeyCtrlC:
+		return m.handleCtrlC()
+	case tea.KeyEsc:
+		return m.handleEsc()
+	case tea.KeyEnter:
+		return m.handleEnter()
+	case tea.KeyRunes:
+		m.handleRunes(msg)
+	case tea.KeyBackspace:
+		m.handleBackspace()
+	case tea.KeyUp, tea.KeyDown:
+		// Navigation handled below
+		break
+	}
+
+	// If we're in command mode, don't process other key bindings
+	if m.uiState.IsCommandMode() {
+		return m, nil
+	}
+
+	// Handle specific key bindings
+	switch msg.String() {
+	case "j":
+		m.handleMoveDown()
+	case "k":
+		m.handleMoveUp()
+	case "/":
+		m.handleSearchMode()
+	case ":":
+		m.handleCommandMode()
+	case "d":
+		return m, m.handleDismiss()
+	case "r":
+		return m, m.markSelectedRead()
+	case "u":
+		return m, m.markSelectedUnread()
+	case "v":
+		if !m.uiState.IsSearchMode() && !m.uiState.IsCommandMode() {
+			m.cycleViewMode()
+		}
+	case "h":
+		m.handleCollapseNode()
+	case "l":
+		m.handleExpandNode()
+	case "z":
+		if !m.uiState.IsSearchMode() && m.isGroupedView() {
+			m.uiState.SetPendingKey("z")
+		}
+	case "i":
+		// In search mode, 'i' is handled by KeyRunes
+		// This is a no-op but kept for documentation
+	case "q":
+		return m.handleQuit()
+	}
+
+	return m, nil
+}
+
+func (m *Model) handlePendingKey(msg tea.KeyMsg) (bool, tea.Cmd) {
+	if m.uiState.IsSearchMode() || m.uiState.IsCommandMode() {
+		m.uiState.ClearPendingKey()
+	} else if m.uiState.GetPendingKey() != "" {
+		if msg.String() == "a" && m.uiState.GetPendingKey() == "z" && m.isGroupedView() {
+			m.uiState.ClearPendingKey()
+			m.toggleFold()
+			return true, nil
+		}
+		if msg.String() != "z" {
+			m.uiState.ClearPendingKey()
+		}
+	}
+	return false, nil
+}
+
+func (m *Model) handleCtrlC() (tea.Model, tea.Cmd) {
+	// Save settings before exiting
+	if err := m.saveSettings(); err != nil {
+		colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+	}
+	// Exit
+	return m, tea.Quit
+}
+
+func (m *Model) handleEsc() (tea.Model, tea.Cmd) {
+	if m.uiState.IsSearchMode() {
+		m.uiState.SetSearchMode(false)
+		m.applySearchFilter()
+		m.uiState.ResetCursor()
+	} else if m.uiState.IsCommandMode() {
+		m.uiState.SetCommandMode(false)
+	} else {
+		return m, tea.Quit
+	}
+	return m, nil
+}
+
+func (m *Model) handleEnter() (tea.Model, tea.Cmd) {
+	if m.uiState.IsSearchMode() {
+		m.uiState.SetSearchMode(false)
+		return m, nil
+	}
+	if m.uiState.IsCommandMode() {
+		// Execute command using CommandService
+		cmd := m.executeCommandViaService()
+		m.uiState.SetCommandMode(false)
+		return m, cmd
+	}
+	if m.isGroupedView() && m.toggleNodeExpansion() {
+		return m, nil
+	}
+	// Jump to pane of selected notification
+	return m, m.handleJump()
+}
+
+func (m *Model) handleRunes(msg tea.KeyMsg) {
+	if m.uiState.IsSearchMode() {
+		// In search mode, append runes to search query
+		for _, r := range msg.Runes {
+			m.uiState.AppendToSearchQuery(r)
+		}
+		m.applySearchFilter()
+		m.uiState.ResetCursor()
+	} else if m.uiState.IsCommandMode() {
+		// In command mode, append runes to command query
+		for _, r := range msg.Runes {
+			m.uiState.AppendToCommandQuery(r)
+		}
+	}
+}
+
+func (m *Model) handleBackspace() {
+	if m.uiState.IsSearchMode() {
+		if len(m.uiState.GetSearchQuery()) > 0 {
+			m.uiState.BackspaceSearchQuery()
+			m.applySearchFilter()
+			m.uiState.ResetCursor()
+		}
+	} else if m.uiState.IsCommandMode() {
+		if len(m.uiState.GetCommandQuery()) > 0 {
+			m.uiState.BackspaceCommandQuery()
+		}
+	}
+}
+
+func (m *Model) handleMoveDown() {
+	listLen := m.currentListLen()
+	m.uiState.MoveCursorDown(listLen)
+	m.updateViewportContent()
+	// Auto-scroll viewport if needed
+	m.uiState.EnsureCursorVisible(listLen)
+}
+
+func (m *Model) handleMoveUp() {
+	listLen := m.currentListLen()
+	m.uiState.MoveCursorUp(listLen)
+	m.updateViewportContent()
+	// Auto-scroll viewport if needed
+	m.uiState.EnsureCursorVisible(listLen)
+}
+
+func (m *Model) handleSearchMode() {
+	m.uiState.SetSearchMode(true)
+	m.applySearchFilter()
+	m.uiState.ResetCursor()
+}
+
+func (m *Model) handleCommandMode() {
+	if !m.uiState.IsSearchMode() && !m.uiState.IsCommandMode() {
+		m.uiState.SetCommandMode(true)
+	}
+}
+
+func (m *Model) handleCollapseNode() {
+	node := m.selectedVisibleNode()
+	if node != nil {
+		m.treeService.CollapseNode(node)
+		m.invalidateCache()
+		m.updateViewportContent()
+	}
+}
+
+func (m *Model) handleExpandNode() {
+	node := m.selectedVisibleNode()
+	if node != nil {
+		m.treeService.ExpandNode(node)
+		m.invalidateCache()
+		m.updateViewportContent()
+	}
+}
+
+func (m *Model) handleQuit() (tea.Model, tea.Cmd) {
+	if err := m.saveSettings(); err != nil {
+		colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+	}
+	// Quit
+	return m, tea.Quit
+}
+
+func (m *Model) handleSaveSettingsSuccess(msg saveSettingsSuccessMsg) (tea.Model, tea.Cmd) {
+	// Settings saved successfully - already displayed info message in saveSettings
+	return m, nil
+}
+
+func (m *Model) handleSaveSettingsFailed(msg saveSettingsFailedMsg) (tea.Model, tea.Cmd) {
+	// Settings save failed - already displayed warning message in saveSettings
+	return m, nil
+}
+
+func (m *Model) handleWindowSizeMsg(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
+	m.uiState.SetWidth(msg.Width)
+	m.uiState.SetHeight(msg.Height)
+	// Initialize or update viewport dimensions
+	m.uiState.UpdateViewportSize()
+	// Update viewport content
+	m.updateViewportContent()
 	return m, nil
 }
 
