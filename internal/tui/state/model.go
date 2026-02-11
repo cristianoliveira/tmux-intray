@@ -440,14 +440,6 @@ func (m *Model) ensureTreeService() model.TreeService {
 }
 
 func (m *Model) ensureNotificationService() model.NotificationService {
-	if m.notificationService != nil {
-		return m.notificationService
-	}
-	m.notificationService = service.NewNotificationService(nil, m.runtimeCoordinator)
-	return m.notificationService
-}
-
-func (m *Model) ensureNotificationService() model.NotificationService {
 	if m.notificationService == nil {
 		// Get the search provider from runtime coordinator
 		searchProvider := search.NewTokenProvider(
