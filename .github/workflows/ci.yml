@@ -165,6 +165,10 @@ jobs:
       - name: Run coverage
         run: make go-cover
 
+      # Enforce coverage budget (threshold=65, override via THRESHOLD env)
+      - name: Check coverage threshold
+        run: make check-coverage THRESHOLD=65
+
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v6
         with:
