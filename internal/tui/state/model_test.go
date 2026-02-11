@@ -1405,6 +1405,77 @@ func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
 	assert.Contains(t, content, expectedGroupRow)
 }
 
+func TestUpdateViewportContentUsesPaneNameForDetailedRows(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%60", Message: "One", Level: "info", State: "active"},
+	})
+	model.runtimeCoordinator.SetPaneNames(map[string]string{"%60": "editor"})
+	model.uiState.SetWidth(120)
+	model.uiState.GetViewport().Width = 120
+	model.uiState.SetViewMode(viewModeDetailed)
+
+	model.applySearchFilter()
+	model.resetCursor()
+	model.updateViewportContent()
+
+	content := model.uiState.GetViewport().View()
+	resolvedNotif := model.filtered[0]
+	resolvedNotif.Pane = "editor"
+
+	expectedRow := render.Row(render.RowState{
+		Notification: resolvedNotif,
+		SessionName:  model.getSessionName(resolvedNotif.Session),
+		Width:        model.uiState.GetWidth(),
+		Selected:     true,
+		Now:          time.Time{},
+	})
+
+	assert.Contains(t, content, expectedRow)
+	assert.NotContains(t, content, "%60")
+}
+
+func TestUpdateViewportContentUsesPaneNameForGroupedLeafRows(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%60", Message: "One", Level: "info", State: "active"},
+	})
+	model.runtimeCoordinator.SetPaneNames(map[string]string{"%60": "editor"})
+	model.uiState.SetWidth(120)
+	model.uiState.GetViewport().Width = 120
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByPane)
+
+	model.applySearchFilter()
+	model.resetCursor()
+
+	var leafNode *uimodel.TreeNode
+	var leafIndex int
+	for idx, node := range model.getVisibleNodesForTest() {
+		if node != nil && node.Kind == uimodel.NodeKindNotification && node.Notification != nil {
+			leafNode = node
+			leafIndex = idx
+			break
+		}
+	}
+	require.NotNil(t, leafNode)
+
+	model.uiState.SetCursor(leafIndex)
+	model.updateViewportContent()
+
+	content := model.uiState.GetViewport().View()
+	resolvedNotif := *leafNode.Notification
+	resolvedNotif.Pane = "editor"
+
+	expectedLeafRow := render.Row(render.RowState{
+		Notification: resolvedNotif,
+		SessionName:  model.getSessionName(resolvedNotif.Session),
+		Width:        model.uiState.GetWidth(),
+		Selected:     true,
+		Now:          time.Time{},
+	})
+
+	assert.Contains(t, content, expectedLeafRow)
+}
+
 func TestHandleDismiss(t *testing.T) {
 	setupStorage(t)
 	mockClient := stubSessionFetchers(t)

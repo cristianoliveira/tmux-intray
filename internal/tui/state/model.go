@@ -821,6 +821,7 @@ func (m *Model) updateViewportContent() {
 					continue
 				}
 				notif := *node.Notification
+				notif.Pane = m.getPaneName(notif.Pane)
 				content.WriteString(render.Row(render.RowState{
 					Notification: notif,
 					SessionName:  m.getSessionName(notif.Session),
@@ -841,12 +842,14 @@ func (m *Model) updateViewportContent() {
 	} else {
 		now := time.Now()
 		for i, notif := range filtered {
+			notifCopy := notif
+			notifCopy.Pane = m.getPaneName(notifCopy.Pane)
 			if i > 0 {
 				content.WriteString("\n")
 			}
 			content.WriteString(render.Row(render.RowState{
-				Notification: notif,
-				SessionName:  m.getSessionName(notif.Session),
+				Notification: notifCopy,
+				SessionName:  m.getSessionName(notifCopy.Session),
 				Width:        width,
 				Selected:     i == cursor,
 				Now:          now,
