@@ -109,8 +109,13 @@ OPTIONS:
     --regex              Use regex search with --search
     --group-by <field>   Group notifications by field (session, window, pane, level)
     --group-count        Show only group counts (requires --group-by)
+    --filter <status>    Filter notifications by read status: read, unread
     --format=<format>    Output format: legacy, table, compact, json
     -h, --help           Show this help
+
+ORDERING:
+    Unread notifications are listed first, then read notifications.
+    Relative order stays the same within unread and read groups.
 ```
 
 ### dismiss <id>
