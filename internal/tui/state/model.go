@@ -795,10 +795,19 @@ func (m *Model) updateViewportContent() {
 					content.WriteString("\n")
 				}
 				if m.isGroupNode(node) {
+					display := node.Display
+					switch node.Kind {
+					case model.NodeKindSession:
+						display = m.getSessionName(node.Title)
+					case model.NodeKindWindow:
+						display = m.getWindowName(node.Title)
+					case model.NodeKindPane:
+						display = m.getPaneName(node.Title)
+					}
 					content.WriteString(render.RenderGroupRow(render.GroupRow{
 						Node: &render.GroupNode{
 							Title:    node.Title,
-							Display:  node.Display,
+							Display:  display,
 							Expanded: node.Expanded,
 							Count:    node.Count,
 						},
