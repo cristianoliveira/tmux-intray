@@ -165,11 +165,22 @@ jobs:
       - name: Run coverage
         run: make go-cover
 
+      # Enforce coverage budget (threshold=65, override via THRESHOLD env)
+      - name: Check coverage threshold
+        run: make check-coverage THRESHOLD=65
+
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v6
         with:
           name: coverage-report
           path: coverage.out
+
+      - name: tmux-intray-coverage
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.out
+          flags: unittests
+          # token: ${{ secrets.CODECOV_TOKEN }}  # optional for public repositories
 
   install:
     runs-on: macos-latest

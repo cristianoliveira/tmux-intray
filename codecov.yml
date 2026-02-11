@@ -1,0 +1,52 @@
+# Codecov configuration for tmux-intray
+# Based on coverage analysis: total 68.5%, per-package breakdown in .tmp/reports/coverage-budget-report.md
+
+codecov:
+  require_ci_to_pass: true
+
+coverage:
+  status:
+    # Enforce blocking status checks (not informational)
+    informational: false
+    
+    project:
+      default:
+        # Compare to base (previous commit/PR) and allow up to 2% drop
+        target: auto
+        threshold: 2%
+    
+    patch:
+      default:
+        # Minimum coverage for new or changed lines
+        target: 80%
+
+  ignore:
+    # Generated SQLC code (internal/storage/sqlite/sqlcgen/)
+    - "internal/storage/sqlite/sqlcgen/**"
+    # Protobuf generated files (if any in future)
+    - "**/*.pb.go"
+    # Other generated files
+    - "**/*_generated.go"
+    - "**/mocks/*"
+    # Exempt packages with no test files (optional)
+    # - "internal/tui/model/**"
+
+comment:
+  layout: "reach,diff,flags,tree"
+  behavior: default
+  require_changes: false
+
+flags:
+  go:
+    paths:
+      - "."
+    carryforward: true
+    # You can add per-package thresholds here if needed, e.g.:
+    # thresholds:
+    #   internal/config: 90%
+    #   internal/core: 75%
+    #   internal/storage: 70%
+
+# If coverage reports use relative paths, no fixes are needed.
+# The Go module is at the repository root (github.com/cristianoliveira/tmux-intray).
+# Codecov's Go processor automatically handles module paths.
