@@ -47,6 +47,16 @@ func (fs *FileStorage) MarkNotificationUnread(id string) error {
 	return MarkNotificationUnread(id)
 }
 
+// MarkNotificationReadWithTimestamp marks a notification as read by setting read_timestamp to the provided timestamp.
+func (fs *FileStorage) MarkNotificationReadWithTimestamp(id, timestamp string) error {
+	return MarkNotificationReadWithTimestamp(id, timestamp)
+}
+
+// MarkNotificationUnreadWithTimestamp marks a notification as unread by setting read_timestamp to the provided value (typically empty string).
+func (fs *FileStorage) MarkNotificationUnreadWithTimestamp(id, timestamp string) error {
+	return MarkNotificationUnreadWithTimestamp(id, timestamp)
+}
+
 // CleanupOldNotifications cleans up notifications older than the threshold.
 func (fs *FileStorage) CleanupOldNotifications(daysThreshold int, dryRun bool) error {
 	return CleanupOldNotifications(daysThreshold, dryRun)
