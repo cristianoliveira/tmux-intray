@@ -113,6 +113,14 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.handleMoveDown()
 	case "k":
 		m.handleMoveUp()
+	case "G":
+		if !m.uiState.IsSearchMode() && !m.uiState.IsCommandMode() {
+			m.handleMoveBottom()
+		}
+	case "g":
+		if !m.uiState.IsSearchMode() && !m.uiState.IsCommandMode() {
+			m.uiState.SetPendingKey("g")
+		}
 	case "/":
 		m.handleSearchMode()
 	case ":":
@@ -154,7 +162,12 @@ func (m *Model) handlePendingKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 			m.toggleFold()
 			return true, nil
 		}
-		if msg.String() != "z" {
+		if msg.String() == "g" && m.uiState.GetPendingKey() == "g" {
+			m.uiState.ClearPendingKey()
+			m.handleMoveTop()
+			return true, nil
+		}
+		if !(m.uiState.GetPendingKey() == "z" && msg.String() == "z") {
 			m.uiState.ClearPendingKey()
 		}
 	}
@@ -244,6 +257,26 @@ func (m *Model) handleMoveUp() {
 	m.uiState.MoveCursorUp(listLen)
 	m.updateViewportContent()
 	// Auto-scroll viewport if needed
+	m.uiState.EnsureCursorVisible(listLen)
+}
+
+func (m *Model) handleMoveTop() {
+	listLen := m.currentListLen()
+	if listLen == 0 {
+		return
+	}
+	m.uiState.SetCursor(0)
+	m.updateViewportContent()
+	m.uiState.EnsureCursorVisible(listLen)
+}
+
+func (m *Model) handleMoveBottom() {
+	listLen := m.currentListLen()
+	if listLen == 0 {
+		return
+	}
+	m.uiState.SetCursor(listLen - 1)
+	m.updateViewportContent()
 	m.uiState.EnsureCursorVisible(listLen)
 }
 

@@ -178,6 +178,7 @@ func TestFooterGroupedHelpText(t *testing.T) {
 
 	assert.Contains(t, footer, "mode: [G]")
 	assert.Contains(t, footer, "v: cycle view mode")
+	assert.Contains(t, footer, "gg/G: top/bottom")
 	assert.Contains(t, footer, "h/l: collapse/expand")
 	assert.Contains(t, footer, "za: toggle fold")
 	assert.Contains(t, footer, "Enter: toggle/jump")
