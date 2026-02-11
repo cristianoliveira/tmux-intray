@@ -45,6 +45,10 @@ OPTIONS:
     --group-count        Show only group counts (requires --group-by)
     --filter <status>    Filter notifications by read status: read, unread
     --format=<format>    Output format: simple (default), legacy, table, compact, json
+
+ORDERING:
+    Unread notifications are listed first, then read notifications.
+    Relative order remains unchanged within each group.
     -h, --help           Show this help`,
 	Run: runList,
 }
@@ -171,6 +175,8 @@ func printList(opts FilterOptions, w io.Writer) {
 		return
 	}
 
+	notifications = orderUnreadFirst(notifications)
+
 	// Apply grouping if requested
 	if opts.GroupBy != "" {
 		grouped := groupNotifications(notifications, opts.GroupBy)
@@ -197,6 +203,28 @@ func printList(opts FilterOptions, w io.Writer) {
 	default:
 		fmt.Fprintf(w, "list: unknown format: %s\n", opts.Format)
 	}
+}
+
+// orderUnreadFirst places unread notifications before read notifications.
+// It keeps the existing relative order within each bucket (stable).
+func orderUnreadFirst(notifs []notification.Notification) []notification.Notification {
+	if len(notifs) == 0 {
+		return notifs
+	}
+
+	ordered := make([]notification.Notification, len(notifs))
+	copy(ordered, notifs)
+
+	sort.SliceStable(ordered, func(i, j int) bool {
+		iUnread := !ordered[i].IsRead()
+		jUnread := !ordered[j].IsRead()
+		if iUnread == jUnread {
+			return false
+		}
+		return iUnread && !jUnread
+	})
+
+	return ordered
 }
 
 // groupNotifications groups notifications by field.
