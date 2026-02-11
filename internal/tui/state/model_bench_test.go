@@ -7,7 +7,6 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
-	"github.com/cristianoliveira/tmux-intray/internal/tui/service"
 )
 
 func BenchmarkBuildTree(b *testing.B) {
@@ -124,13 +123,14 @@ func BenchmarkApplySearchFilterGrouped(b *testing.B) {
 }
 
 func benchmarkModel(notifications []notification.Notification) *Model {
-	notificationService := service.NewNotificationService(nil, nil)
-	notificationService.SetNotifications(notifications)
+	dummySvc := &dummyNotificationService{}
+	dummySvc.SetNotifications(notifications)
 
 	m := &Model{
 		uiState:             NewUIState(),
-		notificationService: notificationService,
 		treeService:         &dummyTreeService{},
+		runtimeCoordinator:  &dummyRuntimeCoordinator{},
+		notificationService: dummySvc,
 	}
 	m.syncNotificationMirrors()
 	m.uiState.SetWidth(120)
@@ -326,4 +326,250 @@ func benchmarkLevel(index int) string {
 	default:
 		return "info"
 	}
+}
+
+type dummyRuntimeCoordinator struct{}
+
+func (d *dummyRuntimeCoordinator) ResolveSessionName(sessionID string) string {
+	return sessionID
+}
+
+func (d *dummyRuntimeCoordinator) ResolveWindowName(windowID string) string {
+	return windowID
+}
+
+func (d *dummyRuntimeCoordinator) ResolvePaneName(paneID string) string {
+	return paneID
+}
+
+func (d *dummyRuntimeCoordinator) GetSessionNames() map[string]string {
+	return nil
+}
+
+func (d *dummyRuntimeCoordinator) GetWindowNames() map[string]string {
+	return nil
+}
+
+func (d *dummyRuntimeCoordinator) GetPaneNames() map[string]string {
+	return nil
+}
+
+func (d *dummyRuntimeCoordinator) SetSessionNames(names map[string]string) {}
+
+func (d *dummyRuntimeCoordinator) SetWindowNames(names map[string]string) {}
+
+func (d *dummyRuntimeCoordinator) SetPaneNames(names map[string]string) {}
+
+func (d *dummyRuntimeCoordinator) EnsureTmuxRunning() bool {
+	return true
+}
+
+func (d *dummyRuntimeCoordinator) JumpToPane(sessionID, windowID, paneID string) bool {
+	return true
+}
+
+func (d *dummyRuntimeCoordinator) ValidatePaneExists(sessionID, windowID, paneID string) (bool, error) {
+	return true, nil
+}
+
+func (d *dummyRuntimeCoordinator) GetCurrentContext() (*model.TmuxContext, error) {
+	return nil, nil
+}
+
+func (d *dummyRuntimeCoordinator) ListSessions() (map[string]string, error) {
+	return nil, nil
+}
+
+func (d *dummyRuntimeCoordinator) ListWindows() (map[string]string, error) {
+	return nil, nil
+}
+
+func (d *dummyRuntimeCoordinator) ListPanes() (map[string]string, error) {
+	return nil, nil
+}
+
+func (d *dummyRuntimeCoordinator) GetSessionName(sessionID string) (string, error) {
+	return sessionID, nil
+}
+
+func (d *dummyRuntimeCoordinator) GetWindowName(windowID string) (string, error) {
+	return windowID, nil
+}
+
+func (d *dummyRuntimeCoordinator) GetPaneName(paneID string) (string, error) {
+	return paneID, nil
+}
+
+func (d *dummyRuntimeCoordinator) RefreshNames() error {
+	return nil
+}
+
+func (d *dummyRuntimeCoordinator) GetTmuxVisibility() (bool, error) {
+	return true, nil
+}
+
+func (d *dummyRuntimeCoordinator) SetTmuxVisibility(visible bool) error {
+	return nil
+}
+
+type dummyNotificationService struct {
+	notifications []notification.Notification
+	filtered      []notification.Notification
+}
+
+func (d *dummyNotificationService) FilterNotifications(notifications []notification.Notification, query string) []notification.Notification {
+	if query == "" {
+		return notifications
+	}
+	var result []notification.Notification
+	for _, n := range notifications {
+		if contains(n.Message, query) {
+			result = append(result, n)
+		}
+	}
+	return result
+}
+
+func (d *dummyNotificationService) FilterByState(notifications []notification.Notification, state string) []notification.Notification {
+	var result []notification.Notification
+	for _, n := range notifications {
+		if n.State == state {
+			result = append(result, n)
+		}
+	}
+	return result
+}
+
+func (d *dummyNotificationService) FilterByLevel(notifications []notification.Notification, level string) []notification.Notification {
+	var result []notification.Notification
+	for _, n := range notifications {
+		if n.Level == level {
+			result = append(result, n)
+		}
+	}
+	return result
+}
+
+func (d *dummyNotificationService) FilterBySession(notifications []notification.Notification, sessionID string) []notification.Notification {
+	var result []notification.Notification
+	for _, n := range notifications {
+		if n.Session == sessionID {
+			result = append(result, n)
+		}
+	}
+	return result
+}
+
+func (d *dummyNotificationService) FilterByWindow(notifications []notification.Notification, windowID string) []notification.Notification {
+	var result []notification.Notification
+	for _, n := range notifications {
+		if n.Window == windowID {
+			result = append(result, n)
+		}
+	}
+	return result
+}
+
+func (d *dummyNotificationService) FilterByPane(notifications []notification.Notification, paneID string) []notification.Notification {
+	var result []notification.Notification
+	for _, n := range notifications {
+		if n.Pane == paneID {
+			result = append(result, n)
+		}
+	}
+	return result
+}
+
+func (d *dummyNotificationService) SortNotifications(notifications []notification.Notification, sortBy, sortOrder string) []notification.Notification {
+	return notifications
+}
+
+func (d *dummyNotificationService) GetUnreadCount(notifications []notification.Notification) int {
+	count := 0
+	for _, n := range notifications {
+		if !n.IsRead() {
+			count++
+		}
+	}
+	return count
+}
+
+func (d *dummyNotificationService) GetReadCount(notifications []notification.Notification) int {
+	count := 0
+	for _, n := range notifications {
+		if n.IsRead() {
+			count++
+		}
+	}
+	return count
+}
+
+func (d *dummyNotificationService) GetCountsByLevel(notifications []notification.Notification) map[string]int {
+	counts := map[string]int{}
+	for _, n := range notifications {
+		counts[n.Level]++
+	}
+	return counts
+}
+
+func (d *dummyNotificationService) Search(notifications []notification.Notification, query string, caseSensitive bool) []notification.Notification {
+	return d.FilterNotifications(notifications, query)
+}
+
+func (d *dummyNotificationService) SetNotifications(notifications []notification.Notification) {
+	d.notifications = notifications
+	d.filtered = notifications
+}
+
+func (d *dummyNotificationService) GetNotifications() []notification.Notification {
+	return d.notifications
+}
+
+func (d *dummyNotificationService) GetFilteredNotifications() []notification.Notification {
+	return d.filtered
+}
+
+func (d *dummyNotificationService) ApplyFiltersAndSearch(query, state, level, sessionID, windowID, paneID, sortBy, sortOrder string) {
+	result := d.notifications
+
+	if state != "" {
+		result = d.FilterByState(result, state)
+	}
+
+	if level != "" {
+		result = d.FilterByLevel(result, level)
+	}
+
+	if sessionID != "" {
+		result = d.FilterBySession(result, sessionID)
+	}
+
+	if windowID != "" {
+		result = d.FilterByWindow(result, windowID)
+	}
+
+	if paneID != "" {
+		result = d.FilterByPane(result, paneID)
+	}
+
+	if query != "" {
+		result = d.FilterNotifications(result, query)
+	}
+
+	result = d.SortNotifications(result, sortBy, sortOrder)
+
+	d.filtered = result
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || len(s) > 0 && findSubstring(s, substr))
+}
+
+func findSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }

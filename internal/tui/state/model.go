@@ -447,6 +447,25 @@ func (m *Model) ensureNotificationService() model.NotificationService {
 	return m.notificationService
 }
 
+func (m *Model) ensureNotificationService() model.NotificationService {
+	if m.notificationService == nil {
+		// Get the search provider from runtime coordinator
+		searchProvider := search.NewTokenProvider(
+			search.WithCaseInsensitive(true),
+		)
+		if m.runtimeCoordinator != nil {
+			searchProvider = search.NewTokenProvider(
+				search.WithCaseInsensitive(true),
+				search.WithSessionNames(m.runtimeCoordinator.GetSessionNames()),
+				search.WithWindowNames(m.runtimeCoordinator.GetWindowNames()),
+				search.WithPaneNames(m.runtimeCoordinator.GetPaneNames()),
+			)
+		}
+		m.notificationService = service.NewNotificationService(searchProvider, m.runtimeCoordinator)
+	}
+	return m.notificationService
+}
+
 // applySearchFilter filters notifications based on the search query.
 // This function only updates the filtered notifications; cursor management
 // should be handled separately by resetCursor() or restoreCursor().

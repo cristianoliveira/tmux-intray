@@ -23,6 +23,8 @@ func NewNotificationService(provider search.Provider, resolver model.NameResolve
 	return &DefaultNotificationService{
 		searchProvider: provider,
 		nameResolver:   resolver,
+		notifications:  []notification.Notification{},
+		filtered:       []notification.Notification{},
 	}
 }
 
