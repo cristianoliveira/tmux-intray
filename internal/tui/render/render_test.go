@@ -192,6 +192,13 @@ func TestFooterCommandModeHelpText(t *testing.T) {
 	assert.Contains(t, footer, "Enter: execute")
 }
 
+func TestFooterClampsToWidthAndClearsLine(t *testing.T) {
+	footer := Footer(FooterState{Grouped: true, ViewMode: settings.ViewModeGrouped, Width: 24})
+
+	assert.Equal(t, 24, lipgloss.Width(footer))
+	assert.True(t, strings.HasSuffix(footer, "\x1b[K"))
+}
+
 func TestViewModeIndicator(t *testing.T) {
 	assert.Equal(t, "[C]", viewModeIndicator(settings.ViewModeCompact))
 	assert.Equal(t, "[D]", viewModeIndicator(settings.ViewModeDetailed))

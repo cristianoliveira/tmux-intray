@@ -337,6 +337,8 @@ func (m *Model) View() string {
 		SearchQuery:  m.uiState.GetSearchQuery(),
 		CommandQuery: m.uiState.GetCommandQuery(),
 		Grouped:      m.isGroupedView(),
+		ViewMode:     string(m.uiState.GetViewMode()),
+		Width:        m.uiState.GetWidth(),
 	}))
 
 	return s.String()
@@ -765,7 +767,6 @@ func (m *Model) saveSettings() error {
 		return err
 	}
 	m.loadedSettings = state.ToSettings()
-	colors.Info("Settings saved")
 	return nil
 }
 
@@ -1100,7 +1101,6 @@ func (m *Model) cycleViewMode() {
 	if err := m.saveSettings(); err != nil {
 		colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 	}
-	colors.Info(fmt.Sprintf("View mode: %s", m.uiState.GetViewMode()))
 }
 
 func (m *Model) computeVisibleNodes() []*model.TreeNode {

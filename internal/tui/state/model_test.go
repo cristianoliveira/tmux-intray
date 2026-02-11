@@ -1231,7 +1231,7 @@ func TestModelViewRendersContent(t *testing.T) {
 		{ID: 1, Message: "Test notification", Timestamp: "2024-01-01T12:00:00Z", Level: "info", State: "active"},
 	})
 	model.uiState.SetCursor(0)
-	model.uiState.SetWidth(84)
+	model.uiState.SetWidth(180)
 	model.uiState.SetHeight(24)
 	model.updateViewportContent()
 
@@ -1259,6 +1259,18 @@ func TestModelViewWithNoNotifications(t *testing.T) {
 
 	assert.NotEmpty(t, view)
 	assert.Contains(t, view, "No notifications found")
+}
+
+func TestModelViewRendersCurrentViewModeInFooter(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{})
+	model.uiState.SetWidth(80)
+	model.uiState.SetHeight(24)
+	model.uiState.SetViewMode(settings.ViewModeGrouped)
+	model.updateViewportContent()
+
+	view := model.View()
+
+	assert.Contains(t, view, "mode: [G]")
 }
 
 func TestUpdateViewportContentGroupedViewWithEmptyTree(t *testing.T) {
