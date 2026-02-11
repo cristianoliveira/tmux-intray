@@ -115,13 +115,15 @@ install:
 	@echo "Installing tmux-intray..."
 	@echo "  Version: $(VERSION)"
 	@echo "  Commit: $(COMMIT)"
-	go install $(LDFLAGS) ./cmd/tmux-intray
-	chmod +x scripts/lint.sh
-	chmod +x scripts/security-check.sh
-	chmod +x tmux-intray.tmux
-	chmod +x install.sh
+	@mkdir -p ~/.local/bin
+	go build $(LDFLAGS) -o ~/.local/bin/tmux-intray ./cmd/tmux-intray
+	@chmod +x ~/.local/bin/tmux-intray
+	@chmod +x scripts/lint.sh
+	@chmod +x scripts/security-check.sh
+	@chmod +x tmux-intray.tmux
+	@chmod +x install.sh
 	@echo "✓ Installation complete"
-	@echo "  - Go binary installed to: $$(go env GOPATH)/bin/tmux-intray"
+	@echo "  - Go binary installed to: ~/.local/bin/tmux-intray"
 
 
 install-npm:
