@@ -610,6 +610,127 @@ func markNotificationReadState(id, readTimestamp string) error {
 	})
 }
 
+type dismissalData struct {
+	id            string
+	idInt         int
+	level         string
+	message       string
+	timestamp     string
+	session       string
+	window        string
+	pane          string
+	paneCreated   string
+	readTimestamp string
+	envVars       []string
+}
+
+func parseDismissalData(fields []string, operation string) (dismissalData, bool, error) {
+	if len(fields) < numFields {
+		for len(fields) < numFields {
+			fields = append(fields, "")
+		}
+	}
+
+	state, err := getField(fields, fieldState)
+	if err != nil {
+		return dismissalData{}, false, fmt.Errorf("%s: failed to get state field: %w", operation, err)
+	}
+	if state != "active" {
+		return dismissalData{}, false, nil
+	}
+
+	id, err := getField(fields, fieldID)
+	if err != nil {
+		return dismissalData{}, false, fmt.Errorf("%s: failed to get id field: %w", operation, err)
+	}
+	level, err := getField(fields, fieldLevel)
+	if err != nil {
+		return dismissalData{}, false, fmt.Errorf("%s: failed to get level field: %w", operation, err)
+	}
+	message, err := getField(fields, fieldMessage)
+	if err != nil {
+		return dismissalData{}, false, fmt.Errorf("%s: failed to get message field: %w", operation, err)
+	}
+	timestamp, err := getField(fields, fieldTimestamp)
+	if err != nil {
+		return dismissalData{}, false, fmt.Errorf("%s: failed to get timestamp field: %w", operation, err)
+	}
+	session, err := getField(fields, fieldSession)
+	if err != nil {
+		return dismissalData{}, false, fmt.Errorf("%s: failed to get session field: %w", operation, err)
+	}
+	window, err := getField(fields, fieldWindow)
+	if err != nil {
+		return dismissalData{}, false, fmt.Errorf("%s: failed to get window field: %w", operation, err)
+	}
+	pane, err := getField(fields, fieldPane)
+	if err != nil {
+		return dismissalData{}, false, fmt.Errorf("%s: failed to get pane field: %w", operation, err)
+	}
+	paneCreated, err := getField(fields, fieldPaneCreated)
+	if err != nil {
+		return dismissalData{}, false, fmt.Errorf("%s: failed to get pane created field: %w", operation, err)
+	}
+	readTimestamp, err := getField(fields, fieldReadTimestamp)
+	if err != nil {
+		return dismissalData{}, false, fmt.Errorf("%s: failed to get read timestamp field: %w", operation, err)
+	}
+	idInt, err := strToInt(id)
+	if err != nil {
+		return dismissalData{}, false, fmt.Errorf("invalid id %s: %w", id, err)
+	}
+
+	envVars := []string{
+		fmt.Sprintf("NOTIFICATION_ID=%s", id),
+		fmt.Sprintf("LEVEL=%s", level),
+		fmt.Sprintf("MESSAGE=%s", message),
+		fmt.Sprintf("ESCAPED_MESSAGE=%s", message),
+		fmt.Sprintf("TIMESTAMP=%s", timestamp),
+		fmt.Sprintf("SESSION=%s", session),
+		fmt.Sprintf("WINDOW=%s", window),
+		fmt.Sprintf("PANE=%s", pane),
+		fmt.Sprintf("PANE_CREATED=%s", paneCreated),
+	}
+
+	return dismissalData{
+		id:            id,
+		idInt:         idInt,
+		level:         level,
+		message:       message,
+		timestamp:     timestamp,
+		session:       session,
+		window:        window,
+		pane:          pane,
+		paneCreated:   paneCreated,
+		readTimestamp: readTimestamp,
+		envVars:       envVars,
+	}, true, nil
+}
+
+func dismissParsedNotification(notification dismissalData) error {
+	if err := hooks.Run("pre-dismiss", notification.envVars...); err != nil {
+		return err
+	}
+	if err := appendLine(
+		notification.idInt,
+		notification.timestamp,
+		"dismissed",
+		notification.session,
+		notification.window,
+		notification.pane,
+		notification.message,
+		notification.paneCreated,
+		notification.level,
+		notification.readTimestamp,
+	); err != nil {
+		return err
+	}
+	if err := hooks.Run("post-dismiss", notification.envVars...); err != nil {
+		return err
+	}
+	return nil
+}
+
 // DismissAll dismisses all active notifications.
 func DismissAll() error {
 	if err := Init(); err != nil {
@@ -626,87 +747,14 @@ func DismissAll() error {
 		}
 		for _, line := range latest {
 			fields := strings.Split(line, "\t")
-			if len(fields) < numFields {
-				for len(fields) < numFields {
-					fields = append(fields, "")
-				}
-			}
-			state, err := getField(fields, fieldState)
+			notification, active, err := parseDismissalData(fields, "dismiss all")
 			if err != nil {
-				return fmt.Errorf("dismiss all: failed to get state field: %w", err)
+				return err
 			}
-			if state != "active" {
+			if !active {
 				continue
 			}
-			id, err := getField(fields, fieldID)
-			if err != nil {
-				return fmt.Errorf("dismiss all: failed to get id field: %w", err)
-			}
-			level, err := getField(fields, fieldLevel)
-			if err != nil {
-				return fmt.Errorf("dismiss all: failed to get level field: %w", err)
-			}
-			message, err := getField(fields, fieldMessage)
-			if err != nil {
-				return fmt.Errorf("dismiss all: failed to get message field: %w", err)
-			}
-			timestamp, err := getField(fields, fieldTimestamp)
-			if err != nil {
-				return fmt.Errorf("dismiss all: failed to get timestamp field: %w", err)
-			}
-			session, err := getField(fields, fieldSession)
-			if err != nil {
-				return fmt.Errorf("dismiss all: failed to get session field: %w", err)
-			}
-			window, err := getField(fields, fieldWindow)
-			if err != nil {
-				return fmt.Errorf("dismiss all: failed to get window field: %w", err)
-			}
-			pane, err := getField(fields, fieldPane)
-			if err != nil {
-				return fmt.Errorf("dismiss all: failed to get pane field: %w", err)
-			}
-			paneCreated, err := getField(fields, fieldPaneCreated)
-			if err != nil {
-				return fmt.Errorf("dismiss all: failed to get pane created field: %w", err)
-			}
-			readTimestamp, err := getField(fields, fieldReadTimestamp)
-			if err != nil {
-				return fmt.Errorf("dismiss all: failed to get read timestamp field: %w", err)
-			}
-			envVars := []string{
-				fmt.Sprintf("NOTIFICATION_ID=%s", id),
-				fmt.Sprintf("LEVEL=%s", level),
-				fmt.Sprintf("MESSAGE=%s", message),
-				fmt.Sprintf("ESCAPED_MESSAGE=%s", message),
-				fmt.Sprintf("TIMESTAMP=%s", timestamp),
-				fmt.Sprintf("SESSION=%s", session),
-				fmt.Sprintf("WINDOW=%s", window),
-				fmt.Sprintf("PANE=%s", pane),
-				fmt.Sprintf("PANE_CREATED=%s", paneCreated),
-			}
-			if err := hooks.Run("pre-dismiss", envVars...); err != nil {
-				return err
-			}
-			idInt, err := strToInt(id)
-			if err != nil {
-				return fmt.Errorf("invalid id %s: %w", id, err)
-			}
-			if err := appendLine(
-				idInt,
-				timestamp,
-				"dismissed",
-				session,
-				window,
-				pane,
-				message,
-				paneCreated,
-				level,
-				readTimestamp,
-			); err != nil {
-				return err
-			}
-			if err := hooks.Run("post-dismiss", envVars...); err != nil {
+			if err := dismissParsedNotification(notification); err != nil {
 				return err
 			}
 		}
