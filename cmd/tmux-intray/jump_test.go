@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -16,11 +17,13 @@ func TestJumpSuccess(t *testing.T) {
 	originalGetNotificationLineFunc := getNotificationLineFunc
 	originalValidatePaneExistsFunc := validatePaneExistsFunc
 	originalJumpToPaneFunc := jumpToPaneFunc
+	originalMarkNotificationReadAfterJumpFunc := markNotificationReadAfterJumpFunc
 	defer func() {
 		ensureTmuxRunningFunc = originalEnsureTmuxRunningFunc
 		getNotificationLineFunc = originalGetNotificationLineFunc
 		validatePaneExistsFunc = originalValidatePaneExistsFunc
 		jumpToPaneFunc = originalJumpToPaneFunc
+		markNotificationReadAfterJumpFunc = originalMarkNotificationReadAfterJumpFunc
 	}()
 
 	ensureTmuxRunningFunc = func() bool { return true }
@@ -33,6 +36,7 @@ func TestJumpSuccess(t *testing.T) {
 	}
 	validatePaneExistsFunc = func(session, window, pane string) bool { return true }
 	jumpToPaneFunc = func(session, window, pane string) bool { return true }
+	markNotificationReadAfterJumpFunc = func(id string) error { return nil }
 
 	result, err := Jump("42")
 	if err != nil {
@@ -123,11 +127,13 @@ func TestJumpPaneDoesNotExistButWindowSelected(t *testing.T) {
 	originalGetNotificationLineFunc := getNotificationLineFunc
 	originalValidatePaneExistsFunc := validatePaneExistsFunc
 	originalJumpToPaneFunc := jumpToPaneFunc
+	originalMarkNotificationReadAfterJumpFunc := markNotificationReadAfterJumpFunc
 	defer func() {
 		ensureTmuxRunningFunc = originalEnsureTmuxRunningFunc
 		getNotificationLineFunc = originalGetNotificationLineFunc
 		validatePaneExistsFunc = originalValidatePaneExistsFunc
 		jumpToPaneFunc = originalJumpToPaneFunc
+		markNotificationReadAfterJumpFunc = originalMarkNotificationReadAfterJumpFunc
 	}()
 
 	// Tiger Style: Test fallback to window when pane doesn't exist
@@ -139,6 +145,7 @@ func TestJumpPaneDoesNotExistButWindowSelected(t *testing.T) {
 	}
 	validatePaneExistsFunc = func(session, window, pane string) bool { return false }
 	jumpToPaneFunc = func(session, window, pane string) bool { return true }
+	markNotificationReadAfterJumpFunc = func(id string) error { return nil }
 
 	result, err := Jump("42")
 	if err != nil {
@@ -206,17 +213,22 @@ func TestJumpOptimizedRetrieval(t *testing.T) {
 	originalEnsureTmuxRunningFunc := ensureTmuxRunningFunc
 	originalValidatePaneExistsFunc := validatePaneExistsFunc
 	originalJumpToPaneFunc := jumpToPaneFunc
+	originalMarkNotificationReadAfterJumpFunc := markNotificationReadAfterJumpFunc
 	originalFileStorage := fileStorage
 	defer func() {
 		ensureTmuxRunningFunc = originalEnsureTmuxRunningFunc
 		validatePaneExistsFunc = originalValidatePaneExistsFunc
 		jumpToPaneFunc = originalJumpToPaneFunc
+		markNotificationReadAfterJumpFunc = originalMarkNotificationReadAfterJumpFunc
 		fileStorage = originalFileStorage
 	}()
 
 	ensureTmuxRunningFunc = func() bool { return true }
 	validatePaneExistsFunc = func(session, window, pane string) bool { return true }
 	jumpToPaneFunc = func(session, window, pane string) bool { return true }
+	markNotificationReadAfterJumpFunc = func(id string) error {
+		return fileStorage.MarkNotificationRead(id)
+	}
 
 	tempDir := t.TempDir()
 	t.Setenv("TMUX_INTRAY_STATE_DIR", tempDir)
@@ -261,6 +273,12 @@ func TestJumpOptimizedRetrieval(t *testing.T) {
 	if !result.PaneExists {
 		t.Error("Expected pane exists true")
 	}
+
+	line, err := fileStorage.GetNotificationByID(id)
+	require.NoError(t, err)
+	loaded, err := notification.ParseNotification(line)
+	require.NoError(t, err)
+	assert.NotEmpty(t, loaded.ReadTimestamp)
 }
 
 func TestJumpToPaneReturnsCorrectBooleans(t *testing.T) {
@@ -270,7 +288,9 @@ func TestJumpToPaneReturnsCorrectBooleans(t *testing.T) {
 	// ASSERTION 3: Returns false when window doesn't exist
 	// ASSERTION 4: Returns false when pane selection fails despite window existing
 	originalJumpToPaneFunc := jumpToPaneFunc
+	originalMarkNotificationReadAfterJumpFunc := markNotificationReadAfterJumpFunc
 	defer func() { jumpToPaneFunc = originalJumpToPaneFunc }()
+	defer func() { markNotificationReadAfterJumpFunc = originalMarkNotificationReadAfterJumpFunc }()
 
 	// Scenario 1: Successful pane jump
 	jumpToPaneFunc = func(session, window, pane string) bool { return true }
@@ -288,6 +308,7 @@ func TestJumpToPaneReturnsCorrectBooleans(t *testing.T) {
 		return "1\t2025-02-04T10:00:00Z\tactive\t$0\t%0\t%1\thello\t1234567890\tinfo", nil
 	}
 	validatePaneExistsFunc = func(session, window, pane string) bool { return true }
+	markNotificationReadAfterJumpFunc = func(id string) error { return nil }
 
 	result, err := Jump("1")
 	require.NoError(t, err, "Jump should succeed when JumpToPane returns true")
@@ -307,6 +328,105 @@ func TestJumpToPaneReturnsCorrectBooleans(t *testing.T) {
 	result, err = Jump("1")
 	assert.Error(t, err, "Jump should fail when window doesn't exist")
 	assert.Nil(t, result, "Result should be nil on failure")
+}
+
+func TestJumpMarksNotificationReadOnSuccess(t *testing.T) {
+	originalEnsureTmuxRunningFunc := ensureTmuxRunningFunc
+	originalGetNotificationLineFunc := getNotificationLineFunc
+	originalValidatePaneExistsFunc := validatePaneExistsFunc
+	originalJumpToPaneFunc := jumpToPaneFunc
+	originalMarkNotificationReadAfterJumpFunc := markNotificationReadAfterJumpFunc
+	defer func() {
+		ensureTmuxRunningFunc = originalEnsureTmuxRunningFunc
+		getNotificationLineFunc = originalGetNotificationLineFunc
+		validatePaneExistsFunc = originalValidatePaneExistsFunc
+		jumpToPaneFunc = originalJumpToPaneFunc
+		markNotificationReadAfterJumpFunc = originalMarkNotificationReadAfterJumpFunc
+	}()
+
+	ensureTmuxRunningFunc = func() bool { return true }
+	getNotificationLineFunc = func(id string) (string, error) {
+		return "42\t2025-02-04T10:00:00Z\tactive\t$0\t%0\t:0.0\thello\t1234567890\tinfo", nil
+	}
+	validatePaneExistsFunc = func(session, window, pane string) bool { return true }
+	jumpToPaneFunc = func(session, window, pane string) bool { return true }
+
+	called := false
+	markedID := ""
+	markNotificationReadAfterJumpFunc = func(id string) error {
+		called = true
+		markedID = id
+		return nil
+	}
+
+	_, err := Jump("42")
+	require.NoError(t, err)
+	assert.True(t, called)
+	assert.Equal(t, "42", markedID)
+}
+
+func TestJumpDoesNotMarkReadWhenJumpFails(t *testing.T) {
+	originalEnsureTmuxRunningFunc := ensureTmuxRunningFunc
+	originalGetNotificationLineFunc := getNotificationLineFunc
+	originalValidatePaneExistsFunc := validatePaneExistsFunc
+	originalJumpToPaneFunc := jumpToPaneFunc
+	originalMarkNotificationReadAfterJumpFunc := markNotificationReadAfterJumpFunc
+	defer func() {
+		ensureTmuxRunningFunc = originalEnsureTmuxRunningFunc
+		getNotificationLineFunc = originalGetNotificationLineFunc
+		validatePaneExistsFunc = originalValidatePaneExistsFunc
+		jumpToPaneFunc = originalJumpToPaneFunc
+		markNotificationReadAfterJumpFunc = originalMarkNotificationReadAfterJumpFunc
+	}()
+
+	ensureTmuxRunningFunc = func() bool { return true }
+	getNotificationLineFunc = func(id string) (string, error) {
+		return "42\t2025-02-04T10:00:00Z\tactive\t$0\t%0\t:0.0\thello\t1234567890\tinfo", nil
+	}
+	validatePaneExistsFunc = func(session, window, pane string) bool { return true }
+	jumpToPaneFunc = func(session, window, pane string) bool { return false }
+
+	called := false
+	markNotificationReadAfterJumpFunc = func(id string) error {
+		called = true
+		return nil
+	}
+
+	_, err := Jump("42")
+	require.Error(t, err)
+	assert.False(t, called)
+}
+
+func TestJumpWithMarkReadFalseSkipsMarkReadAfterSuccessfulJump(t *testing.T) {
+	originalEnsureTmuxRunningFunc := ensureTmuxRunningFunc
+	originalGetNotificationLineFunc := getNotificationLineFunc
+	originalValidatePaneExistsFunc := validatePaneExistsFunc
+	originalJumpToPaneFunc := jumpToPaneFunc
+	originalMarkNotificationReadAfterJumpFunc := markNotificationReadAfterJumpFunc
+	defer func() {
+		ensureTmuxRunningFunc = originalEnsureTmuxRunningFunc
+		getNotificationLineFunc = originalGetNotificationLineFunc
+		validatePaneExistsFunc = originalValidatePaneExistsFunc
+		jumpToPaneFunc = originalJumpToPaneFunc
+		markNotificationReadAfterJumpFunc = originalMarkNotificationReadAfterJumpFunc
+	}()
+
+	ensureTmuxRunningFunc = func() bool { return true }
+	getNotificationLineFunc = func(id string) (string, error) {
+		return "42\t2025-02-04T10:00:00Z\tactive\t$0\t%0\t:0.0\thello\t1234567890\tinfo", nil
+	}
+	validatePaneExistsFunc = func(session, window, pane string) bool { return true }
+	jumpToPaneFunc = func(session, window, pane string) bool { return true }
+
+	called := false
+	markNotificationReadAfterJumpFunc = func(id string) error {
+		called = true
+		return nil
+	}
+
+	_, err := JumpWithMarkRead("42", false)
+	require.NoError(t, err)
+	assert.False(t, called)
 }
 
 func TestJumpInvalidFieldData(t *testing.T) {

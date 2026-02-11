@@ -35,6 +35,7 @@ type FooterState struct {
 	CommandQuery string
 	Grouped      bool
 	ViewMode     string
+	Width        int
 }
 
 // RowState defines the inputs needed to render a notification row.
@@ -238,7 +239,20 @@ func Footer(state FooterState) string {
 	help = append(help, "q: quit")
 	help = append(help, ":w: save")
 
-	return helpStyle.Render(strings.Join(help, "  |  "))
+	footer := strings.Join(help, "  |  ")
+	footer = truncateFooter(footer, state.Width)
+
+	return helpStyle.Render(footer) + "\x1b[K"
+}
+
+func truncateFooter(value string, width int) string {
+	if width <= 0 {
+		return value
+	}
+	if utf8.RuneCountInString(value) <= width {
+		return value
+	}
+	return string([]rune(value)[:width])
 }
 
 func viewModeIndicator(mode string) string {

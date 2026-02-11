@@ -109,8 +109,13 @@ OPTIONS:
     --regex              Use regex search with --search
     --group-by <field>   Group notifications by field (session, window, pane, level)
     --group-count        Show only group counts (requires --group-by)
+    --filter <status>    Filter notifications by read status: read, unread
     --format=<format>    Output format: legacy, table, compact, json
     -h, --help           Show this help
+
+ORDERING:
+    Unread notifications are listed first, then read notifications.
+    Relative order stays the same within unread and read groups.
 ```
 
 ### dismiss <id>
@@ -246,6 +251,11 @@ USAGE:
 DESCRIPTION:
     Navigates to the tmux pane where the notification originated. The pane
     must still exist; if it doesn't, the command falls back to the window.
+    By default, a successful jump automatically marks the notification as read.
+    Use --no-mark-read to disable this behavior.
+
+OPTIONS:
+    --no-mark-read    Do not mark the notification as read after a successful jump
 
 ARGUMENTS:
     <id>    Notification ID (as shown in `tmux-intray list --format=table`)
@@ -253,6 +263,9 @@ ARGUMENTS:
 EXAMPLES:
     # Jump to pane of notification with ID 42
     tmux-intray jump 42
+
+    # Jump without marking notification as read
+    tmux-intray jump --no-mark-read 42
 ```
 
 #### How It Works
@@ -269,6 +282,13 @@ if !core.EnsureTmuxRunning() {
 // Then jump to the specific pane using core.JumpToPane()
 if !core.JumpToPane(sessionID, windowID, paneID) {
     return fmt.Errorf("failed to jump to pane")
+}
+
+// Mark jumped notification as read by default
+if !noMarkRead {
+    if err := storage.MarkNotificationRead(id); err != nil {
+        return fmt.Errorf("failed to mark notification as read: %w", err)
+    }
 }
 ```
 

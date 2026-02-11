@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/cristianoliveira/tmux-intray/internal/search"
+	"github.com/stretchr/testify/assert"
 )
 
 // mockLines returns a fixed TSV string for testing.
@@ -103,6 +105,35 @@ func TestPrintListSimpleFormat(t *testing.T) {
 	if len(lines) != 5 {
 		t.Errorf("Expected 5 lines, got %d", len(lines))
 	}
+}
+
+func TestPrintListUnreadFirstOrdering(t *testing.T) {
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
+		return mockLines()
+	}
+	defer restoreMock()
+
+	var buf bytes.Buffer
+	listOutputWriter = &buf
+	defer func() { listOutputWriter = nil }()
+
+	PrintList(FilterOptions{Format: "simple"})
+	output := strings.TrimSpace(buf.String())
+
+	var ids []int
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		id, err := strconv.Atoi(fields[0])
+		if err != nil {
+			t.Fatalf("failed to parse ID from line %q: %v", line, err)
+		}
+		ids = append(ids, id)
+	}
+
+	assert.Equal(t, []int{2, 4, 1, 3, 5}, ids)
 }
 
 func TestPrintListTableFormat(t *testing.T) {

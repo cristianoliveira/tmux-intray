@@ -337,6 +337,8 @@ func (m *Model) View() string {
 		SearchQuery:  m.uiState.GetSearchQuery(),
 		CommandQuery: m.uiState.GetCommandQuery(),
 		Grouped:      m.isGroupedView(),
+		ViewMode:     string(m.uiState.GetViewMode()),
+		Width:        m.uiState.GetWidth(),
 	}))
 
 	return s.String()
@@ -765,7 +767,6 @@ func (m *Model) saveSettings() error {
 		return err
 	}
 	m.loadedSettings = state.ToSettings()
-	colors.Info("Settings saved")
 	return nil
 }
 
@@ -794,10 +795,19 @@ func (m *Model) updateViewportContent() {
 					content.WriteString("\n")
 				}
 				if m.isGroupNode(node) {
+					display := node.Display
+					switch node.Kind {
+					case model.NodeKindSession:
+						display = m.getSessionName(node.Title)
+					case model.NodeKindWindow:
+						display = m.getWindowName(node.Title)
+					case model.NodeKindPane:
+						display = m.getPaneName(node.Title)
+					}
 					content.WriteString(render.RenderGroupRow(render.GroupRow{
 						Node: &render.GroupNode{
 							Title:    node.Title,
-							Display:  node.Display,
+							Display:  display,
 							Expanded: node.Expanded,
 							Count:    node.Count,
 						},
@@ -811,6 +821,7 @@ func (m *Model) updateViewportContent() {
 					continue
 				}
 				notif := *node.Notification
+				notif.Pane = m.getPaneName(notif.Pane)
 				content.WriteString(render.Row(render.RowState{
 					Notification: notif,
 					SessionName:  m.getSessionName(notif.Session),
@@ -831,12 +842,14 @@ func (m *Model) updateViewportContent() {
 	} else {
 		now := time.Now()
 		for i, notif := range filtered {
+			notifCopy := notif
+			notifCopy.Pane = m.getPaneName(notifCopy.Pane)
 			if i > 0 {
 				content.WriteString("\n")
 			}
 			content.WriteString(render.Row(render.RowState{
-				Notification: notif,
-				SessionName:  m.getSessionName(notif.Session),
+				Notification: notifCopy,
+				SessionName:  m.getSessionName(notifCopy.Session),
 				Width:        width,
 				Selected:     i == cursor,
 				Now:          now,
@@ -997,6 +1010,11 @@ func (m *Model) handleJump() tea.Cmd {
 		return nil
 	}
 
+	id := strconv.Itoa(selected.ID)
+	if err := storage.MarkNotificationRead(id); err != nil {
+		colors.Warning(fmt.Sprintf("jump: jumped, but failed to mark notification as read: %v", err))
+	}
+
 	// Exit TUI after successful jump
 	return tea.Quit
 }
@@ -1095,7 +1113,6 @@ func (m *Model) cycleViewMode() {
 	if err := m.saveSettings(); err != nil {
 		colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 	}
-	colors.Info(fmt.Sprintf("View mode: %s", m.uiState.GetViewMode()))
 }
 
 func (m *Model) computeVisibleNodes() []*model.TreeNode {
