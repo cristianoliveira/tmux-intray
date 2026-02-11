@@ -2,7 +2,6 @@ package state
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -33,9 +32,11 @@ const (
 // Model represents the TUI model for bubbletea.
 type Model struct {
 	// Core state
+	uiState *UIState // Extracted UI state management
+
+	// Legacy mirrors retained for backward-compatible tests.
 	notifications []notification.Notification
 	filtered      []notification.Notification
-	uiState       *UIState // Extracted UI state management
 
 	// Settings fields (non-UI state)
 	sortBy         string
@@ -384,26 +385,73 @@ func (m *Model) ensureSettingsService() *settingsService {
 	return m.settingsSvc
 }
 
+func (m *Model) ensureNotificationService() model.NotificationService {
+	if m.notificationService == nil {
+		// Get the search provider from runtime coordinator
+		searchProvider := search.NewTokenProvider(
+			search.WithCaseInsensitive(true),
+		)
+		if m.runtimeCoordinator != nil {
+			searchProvider = search.NewTokenProvider(
+				search.WithCaseInsensitive(true),
+				search.WithSessionNames(m.runtimeCoordinator.GetSessionNames()),
+				search.WithWindowNames(m.runtimeCoordinator.GetWindowNames()),
+				search.WithPaneNames(m.runtimeCoordinator.GetPaneNames()),
+			)
+		}
+		m.notificationService = service.NewNotificationService(searchProvider, m.runtimeCoordinator)
+	}
+	return m.notificationService
+}
+
 // applySearchFilter filters notifications based on the search query.
 // This function only updates the filtered notifications; cursor management
 // should be handled separately by resetCursor() or restoreCursor().
 func (m *Model) applySearchFilter() {
 	treeService := m.ensureTreeService()
+	notificationService := m.ensureNotificationService()
 	treeService.InvalidateCache()
-
-	query := strings.TrimSpace(m.uiState.GetSearchQuery())
-	if query == "" {
-		m.filtered = m.notifications
-	} else {
-		// Use NotificationService to filter notifications
-		m.filtered = m.notificationService.FilterNotifications(m.notifications, query)
+	if len(notificationService.GetNotifications()) == 0 && len(m.notifications) > 0 {
+		notificationService.SetNotifications(m.notifications)
 	}
+
+	notificationService.ApplyFiltersAndSearch(
+		m.uiState.GetSearchQuery(),
+		m.filters.State,
+		m.filters.Level,
+		m.filters.Session,
+		m.filters.Window,
+		m.filters.Pane,
+		m.sortBy,
+		m.sortOrder,
+	)
 	if m.isGroupedView() {
-		m.buildFilteredTree(m.filtered)
+		_ = m.treeService.RebuildTreeForFilter(
+			m.filteredNotifications(),
+			string(m.uiState.GetGroupBy()),
+			m.uiState.GetExpansionState(),
+		)
 	} else {
 		treeService.ClearTree()
 	}
+	m.syncNotificationMirrors()
 	m.updateViewportContent()
+}
+
+func (m *Model) allNotifications() []notification.Notification {
+	if m.notificationService == nil {
+		return nil
+	}
+	return m.ensureNotificationService().GetNotifications()
+}
+
+func (m *Model) filteredNotifications() []notification.Notification {
+	return m.ensureNotificationService().GetFilteredNotifications()
+}
+
+func (m *Model) syncNotificationMirrors() {
+	m.notifications = m.allNotifications()
+	m.filtered = m.filteredNotifications()
 }
 
 // ApplySearchFilter is the public version of applySearchFilter.
@@ -718,11 +766,12 @@ func (m *Model) updateViewportContent() {
 		return
 	}
 
-	if len(m.filtered) == 0 {
+	filtered := m.filtered
+	if len(filtered) == 0 {
 		content.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("No notifications found"))
 	} else {
 		now := time.Now()
-		for i, notif := range m.filtered {
+		for i, notif := range filtered {
 			if i > 0 {
 				content.WriteString("\n")
 			}
@@ -926,8 +975,8 @@ func (m *Model) loadNotifications(preserveCursor bool) error {
 		return fmt.Errorf("failed to load notifications: %w", err)
 	}
 	if lines == "" {
-		m.notifications = []notification.Notification{}
-		m.filtered = []notification.Notification{}
+		m.ensureNotificationService().SetNotifications([]notification.Notification{})
+		m.syncNotificationMirrors()
 		m.treeService.ClearTree()
 		if preserveCursor {
 			m.adjustCursorBounds()
@@ -950,12 +999,7 @@ func (m *Model) loadNotifications(preserveCursor bool) error {
 		notifications = append(notifications, notif)
 	}
 
-	// Sort notifications by timestamp descending (most recent first)
-	sort.Slice(notifications, func(i, j int) bool {
-		return notifications[i].Timestamp > notifications[j].Timestamp
-	})
-
-	m.notifications = notifications
+	m.ensureNotificationService().SetNotifications(notifications)
 	m.applySearchFilter()
 
 	if preserveCursor {

@@ -14,6 +14,8 @@ import (
 type DefaultNotificationService struct {
 	searchProvider search.Provider
 	nameResolver   model.NameResolver
+	notifications  []notification.Notification
+	filtered       []notification.Notification
 }
 
 // NewNotificationService creates a new DefaultNotificationService.
@@ -21,6 +23,8 @@ func NewNotificationService(provider search.Provider, resolver model.NameResolve
 	return &DefaultNotificationService{
 		searchProvider: provider,
 		nameResolver:   resolver,
+		notifications:  []notification.Notification{},
+		filtered:       []notification.Notification{},
 	}
 }
 
@@ -144,6 +148,11 @@ func (s *DefaultNotificationService) SortNotifications(notifications []notificat
 	}
 
 	domainNotifs := s.convertToDomain(notifications)
+	if len(domainNotifs) != len(notifications) {
+		result := make([]notification.Notification, len(notifications))
+		copy(result, notifications)
+		return result
+	}
 	sorted := domain.SortNotifications(domainNotifs, opts)
 	return s.convertFromDomain(sorted)
 }
@@ -234,4 +243,53 @@ func (s *DefaultNotificationService) simpleMatch(notif notification.Notification
 	}
 
 	return false
+}
+
+// SetNotifications updates the underlying notification dataset.
+func (s *DefaultNotificationService) SetNotifications(notifications []notification.Notification) {
+	s.notifications = notifications
+	// Initialize filtered to match notifications (no filters applied by default)
+	s.filtered = notifications
+}
+
+// GetNotifications returns all notifications currently tracked by the service.
+func (s *DefaultNotificationService) GetNotifications() []notification.Notification {
+	return s.notifications
+}
+
+// GetFilteredNotifications returns the latest filtered notification view.
+func (s *DefaultNotificationService) GetFilteredNotifications() []notification.Notification {
+	return s.filtered
+}
+
+// ApplyFiltersAndSearch applies filters/search/sorting and stores filtered results.
+func (s *DefaultNotificationService) ApplyFiltersAndSearch(query, state, level, sessionID, windowID, paneID, sortBy, sortOrder string) {
+	result := s.notifications
+	// Apply state filter
+	if state != "" {
+		result = s.FilterByState(result, state)
+	}
+	// Apply level filter
+	if level != "" {
+		result = s.FilterByLevel(result, level)
+	}
+	// Apply session filter
+	if sessionID != "" {
+		result = s.FilterBySession(result, sessionID)
+	}
+	// Apply window filter
+	if windowID != "" {
+		result = s.FilterByWindow(result, windowID)
+	}
+	// Apply pane filter
+	if paneID != "" {
+		result = s.FilterByPane(result, paneID)
+	}
+	// Apply search query filter
+	if query != "" {
+		result = s.FilterNotifications(result, query)
+	}
+	// Apply sorting
+	result = s.SortNotifications(result, sortBy, sortOrder)
+	s.filtered = result
 }

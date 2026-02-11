@@ -9,6 +9,18 @@ import (
 // NotificationService defines the interface for notification business logic operations.
 // It handles filtering, searching, and managing notification data.
 type NotificationService interface {
+	// SetNotifications updates the underlying notification dataset.
+	SetNotifications(notifications []notification.Notification)
+
+	// GetNotifications returns all notifications currently tracked by the service.
+	GetNotifications() []notification.Notification
+
+	// GetFilteredNotifications returns the latest filtered notification view.
+	GetFilteredNotifications() []notification.Notification
+
+	// ApplyFiltersAndSearch applies filters/search/sorting and stores filtered results.
+	ApplyFiltersAndSearch(query, state, level, sessionID, windowID, paneID, sortBy, sortOrder string)
+
 	// FilterNotifications filters notifications based on a search query.
 	// Returns a list of matching notifications.
 	FilterNotifications(notifications []notification.Notification, query string) []notification.Notification

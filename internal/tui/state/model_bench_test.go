@@ -7,6 +7,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
+	"github.com/cristianoliveira/tmux-intray/internal/tui/service"
 )
 
 func BenchmarkBuildTree(b *testing.B) {
@@ -123,13 +124,20 @@ func BenchmarkApplySearchFilterGrouped(b *testing.B) {
 }
 
 func benchmarkModel(notifications []notification.Notification) *Model {
+	notificationService := service.NewNotificationService(nil, nil)
+	notificationService.SetNotifications(notifications)
+
+	dummySvc := &dummyNotificationService{}
+	dummySvc.SetNotifications(notifications)
+
 	m := &Model{
 		uiState:             NewUIState(),
 		notifications:       notifications,
 		treeService:         &dummyTreeService{},
 		runtimeCoordinator:  &dummyRuntimeCoordinator{},
-		notificationService: &dummyNotificationService{},
+		notificationService: dummySvc,
 	}
+	m.syncNotificationMirrors()
 	m.uiState.SetWidth(120)
 	m.uiState.SetHeight(40)
 	m.uiState.UpdateViewportSize()
@@ -194,6 +202,13 @@ func (s *dummyTreeService) BuildTree(notifications []notification.Notification, 
 	}
 	s.treeRoot = s.convertNode(stateTree)
 	s.InvalidateCache()
+	return nil
+}
+
+func (s *dummyTreeService) RebuildTreeForFilter(notifications []notification.Notification, groupBy string, expansionState map[string]bool) error {
+	if err := s.BuildTree(notifications, groupBy); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -402,7 +417,10 @@ func (d *dummyRuntimeCoordinator) SetTmuxVisibility(visible bool) error {
 	return nil
 }
 
-type dummyNotificationService struct{}
+type dummyNotificationService struct {
+	notifications []notification.Notification
+	filtered      []notification.Notification
+}
 
 func (d *dummyNotificationService) FilterNotifications(notifications []notification.Notification, query string) []notification.Notification {
 	if query == "" {
@@ -501,6 +519,51 @@ func (d *dummyNotificationService) GetCountsByLevel(notifications []notification
 
 func (d *dummyNotificationService) Search(notifications []notification.Notification, query string, caseSensitive bool) []notification.Notification {
 	return d.FilterNotifications(notifications, query)
+}
+
+func (d *dummyNotificationService) SetNotifications(notifications []notification.Notification) {
+	d.notifications = notifications
+	d.filtered = notifications
+}
+
+func (d *dummyNotificationService) GetNotifications() []notification.Notification {
+	return d.notifications
+}
+
+func (d *dummyNotificationService) GetFilteredNotifications() []notification.Notification {
+	return d.filtered
+}
+
+func (d *dummyNotificationService) ApplyFiltersAndSearch(query, state, level, sessionID, windowID, paneID, sortBy, sortOrder string) {
+	result := d.notifications
+
+	if state != "" {
+		result = d.FilterByState(result, state)
+	}
+
+	if level != "" {
+		result = d.FilterByLevel(result, level)
+	}
+
+	if sessionID != "" {
+		result = d.FilterBySession(result, sessionID)
+	}
+
+	if windowID != "" {
+		result = d.FilterByWindow(result, windowID)
+	}
+
+	if paneID != "" {
+		result = d.FilterByPane(result, paneID)
+	}
+
+	if query != "" {
+		result = d.FilterNotifications(result, query)
+	}
+
+	result = d.SortNotifications(result, sortBy, sortOrder)
+
+	d.filtered = result
 }
 
 func contains(s, substr string) bool {
