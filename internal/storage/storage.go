@@ -625,101 +625,15 @@ func DismissAll() error {
 			return err
 		}
 		for _, line := range latest {
-			fields := strings.Split(line, "\t")
-			if len(fields) < numFields {
-				for len(fields) < numFields {
-					fields = append(fields, "")
-				}
-			}
-			state, err := getField(fields, fieldState)
-			if err != nil {
-				return fmt.Errorf("dismiss all: failed to get state field: %w", err)
-			}
-			if state != "active" {
-				continue
-			}
-			id, err := getField(fields, fieldID)
-			if err != nil {
-				return fmt.Errorf("dismiss all: failed to get id field: %w", err)
-			}
-			level, err := getField(fields, fieldLevel)
-			if err != nil {
-				return fmt.Errorf("dismiss all: failed to get level field: %w", err)
-			}
-			message, err := getField(fields, fieldMessage)
-			if err != nil {
-				return fmt.Errorf("dismiss all: failed to get message field: %w", err)
-			}
-			timestamp, err := getField(fields, fieldTimestamp)
-			if err != nil {
-				return fmt.Errorf("dismiss all: failed to get timestamp field: %w", err)
-			}
-			session, err := getField(fields, fieldSession)
-			if err != nil {
-				return fmt.Errorf("dismiss all: failed to get session field: %w", err)
-			}
-			window, err := getField(fields, fieldWindow)
-			if err != nil {
-				return fmt.Errorf("dismiss all: failed to get window field: %w", err)
-			}
-			pane, err := getField(fields, fieldPane)
-			if err != nil {
-				return fmt.Errorf("dismiss all: failed to get pane field: %w", err)
-			}
-			paneCreated, err := getField(fields, fieldPaneCreated)
-			if err != nil {
-				return fmt.Errorf("dismiss all: failed to get pane created field: %w", err)
-			}
-			readTimestamp, err := getField(fields, fieldReadTimestamp)
-			if err != nil {
-				return fmt.Errorf("dismiss all: failed to get read timestamp field: %w", err)
-			}
-			envVars := []string{
-				fmt.Sprintf("NOTIFICATION_ID=%s", id),
-				fmt.Sprintf("LEVEL=%s", level),
-				fmt.Sprintf("MESSAGE=%s", message),
-				fmt.Sprintf("ESCAPED_MESSAGE=%s", message),
-				fmt.Sprintf("TIMESTAMP=%s", timestamp),
-				fmt.Sprintf("SESSION=%s", session),
-				fmt.Sprintf("WINDOW=%s", window),
-				fmt.Sprintf("PANE=%s", pane),
-				fmt.Sprintf("PANE_CREATED=%s", paneCreated),
-			}
-			if err := hooks.Run("pre-dismiss", envVars...); err != nil {
-				return err
-			}
-			idInt, err := strToInt(id)
-			if err != nil {
-				return fmt.Errorf("invalid id %s: %w", id, err)
-			}
-			if err := appendLine(
-				idInt,
-				timestamp,
-				"dismissed",
-				session,
-				window,
-				pane,
-				message,
-				paneCreated,
-				level,
-				readTimestamp,
-			); err != nil {
-				return err
-			}
-			if err := hooks.Run("post-dismiss", envVars...); err != nil {
+			if err := dismissOneNotification(line); err != nil {
 				return err
 			}
 		}
 		// Calculate active count after dismissing all
 		activeCount := 0
-		latest, err2 := getLatestNotifications()
-		if err2 == nil {
-			for _, line := range latest {
-				fields := strings.Split(line, "\t")
-				if len(fields) > fieldState && fields[fieldState] == "active" {
-					activeCount++
-				}
-			}
+		latestAfter, err := getLatestNotifications()
+		if err == nil {
+			activeCount = countActiveNotifications(latestAfter)
 		}
 		if err := updateTmuxStatusOption(activeCount); err != nil {
 			colors.Error(fmt.Sprintf("failed to update tmux status: %v", err))
@@ -1238,6 +1152,120 @@ func dismissAllActive() error {
 	return nil
 }
 
+// buildHookEnvVars builds environment variable array for hooks.
+func buildHookEnvVars(id, level, message, timestamp, session, window, pane, paneCreated, readTimestamp string) []string {
+	return []string{
+		fmt.Sprintf("NOTIFICATION_ID=%s", id),
+		fmt.Sprintf("LEVEL=%s", level),
+		fmt.Sprintf("MESSAGE=%s", message),
+		fmt.Sprintf("ESCAPED_MESSAGE=%s", message),
+		fmt.Sprintf("TIMESTAMP=%s", timestamp),
+		fmt.Sprintf("SESSION=%s", session),
+		fmt.Sprintf("WINDOW=%s", window),
+		fmt.Sprintf("PANE=%s", pane),
+		fmt.Sprintf("PANE_CREATED=%s", paneCreated),
+	}
+}
+
+// countActiveNotifications counts active notifications from TSV lines.
+func countActiveNotifications(latestLines []string) int {
+	activeCount := 0
+	for _, line := range latestLines {
+		fields := strings.Split(line, "\t")
+		state, err := getField(fields, fieldState)
+		if err != nil {
+			continue
+		}
+		if state == "active" {
+			activeCount++
+		}
+	}
+	return activeCount
+}
+
+// dismissOneNotification dismisses a single notification with hooks (pre-dismiss → appendLine → post-dismiss).
+func dismissOneNotification(line string) error {
+	fields := strings.Split(line, "\t")
+	if len(fields) < numFields {
+		for len(fields) < numFields {
+			fields = append(fields, "")
+		}
+	}
+	id, err := getField(fields, fieldID)
+	if err != nil {
+		return fmt.Errorf("dismissOneNotification: failed to get id field: %w", err)
+	}
+	state, err := getField(fields, fieldState)
+	if err != nil {
+		return fmt.Errorf("dismissOneNotification: failed to get state field: %w", err)
+	}
+	if state != "active" {
+		// Not active, nothing to dismiss
+		return nil
+	}
+	level, err := getField(fields, fieldLevel)
+	if err != nil {
+		return fmt.Errorf("dismissOneNotification: failed to get level field: %w", err)
+	}
+	message, err := getField(fields, fieldMessage)
+	if err != nil {
+		return fmt.Errorf("dismissOneNotification: failed to get message field: %w", err)
+	}
+	timestamp, err := getField(fields, fieldTimestamp)
+	if err != nil {
+		return fmt.Errorf("dismissOneNotification: failed to get timestamp field: %w", err)
+	}
+	session, err := getField(fields, fieldSession)
+	if err != nil {
+		return fmt.Errorf("dismissOneNotification: failed to get session field: %w", err)
+	}
+	window, err := getField(fields, fieldWindow)
+	if err != nil {
+		return fmt.Errorf("dismissOneNotification: failed to get window field: %w", err)
+	}
+	pane, err := getField(fields, fieldPane)
+	if err != nil {
+		return fmt.Errorf("dismissOneNotification: failed to get pane field: %w", err)
+	}
+	paneCreated, err := getField(fields, fieldPaneCreated)
+	if err != nil {
+		return fmt.Errorf("dismissOneNotification: failed to get pane created field: %w", err)
+	}
+	readTimestamp, err := getField(fields, fieldReadTimestamp)
+	if err != nil {
+		return fmt.Errorf("dismissOneNotification: failed to get read timestamp field: %w", err)
+	}
+	// Run pre-dismiss hook
+	envVars := buildHookEnvVars(id, level, message, timestamp, session, window, pane, paneCreated, readTimestamp)
+	if err := hooks.Run("pre-dismiss", envVars...); err != nil {
+		return err
+	}
+	idInt, err := strToInt(id)
+	if err != nil {
+		return fmt.Errorf("dismissOneNotification: invalid id %s: %w", id, err)
+	}
+	// Append dismissed line
+	if err := appendLine(
+		idInt,
+		timestamp,
+		"dismissed",
+		session,
+		window,
+		pane,
+		message,
+		paneCreated,
+		level,
+		readTimestamp,
+	); err != nil {
+		return err
+	}
+	// Run post-dismiss hook
+	if err := hooks.Run("post-dismiss", envVars...); err != nil {
+		return err
+	}
+	return nil
+}
+
 // findNotificationsToDelete collects IDs of dismissed notifications older than cutoff.
 // Returns a slice of notification IDs to delete.
 func findNotificationsToDelete(latestLines []string, allDismissed bool, cutoffStr string) []int {
@@ -1310,6 +1338,29 @@ func writeNotifications(lines []string) error {
 	return nil
 }
 
+// runPostCleanupHook runs the post-cleanup hook with the given environment variables and deleted count.
+func runPostCleanupHook(envVars []string, deletedCount int, dryRun bool) error {
+	// Ensure DRY_RUN is correctly set in envVars (caller should have set it)
+	postEnv := append(envVars, fmt.Sprintf("DELETED_COUNT=%d", deletedCount))
+	if err := hooks.Run("post-cleanup", postEnv...); err != nil {
+		return fmt.Errorf("post-cleanup hook failed: %w", err)
+	}
+	return nil
+}
+
+// deleteNotificationsByIDs removes all lines with the given IDs from the notifications file.
+func deleteNotificationsByIDs(idsToDelete []int) error {
+	lines, err := readAllLines()
+	if err != nil {
+		return fmt.Errorf("failed to read all lines: %w", err)
+	}
+	filtered := filterLinesByIDs(lines, idsToDelete)
+	if err := writeNotifications(filtered); err != nil {
+		return fmt.Errorf("failed to write filtered lines: %w", err)
+	}
+	return nil
+}
+
 // cleanupOld performs the actual cleanup of old notifications.
 func cleanupOld(daysThreshold int, dryRun bool) error {
 	allDismissed := daysThreshold == 0
@@ -1345,9 +1396,8 @@ func cleanupOld(daysThreshold int, dryRun bool) error {
 	if deletedCount == 0 {
 		colors.Info("No old dismissed notifications to clean up")
 		// Run post-cleanup hooks with zero count
-		postEnv := append(envVars, "DELETED_COUNT=0")
-		if err := hooks.Run("post-cleanup", postEnv...); err != nil {
-			return fmt.Errorf("post-cleanup hook failed: %w", err)
+		if err := runPostCleanupHook(envVars, 0, dryRun); err != nil {
+			return err
 		}
 		return nil
 	}
@@ -1357,55 +1407,22 @@ func cleanupOld(daysThreshold int, dryRun bool) error {
 	if dryRun {
 		colors.Info(fmt.Sprintf("Dry run: would delete notifications with IDs: %v", idsToDelete))
 		// Run post-cleanup hooks with dry run
-		postEnv := append(envVars, "DRY_RUN=true", fmt.Sprintf("DELETED_COUNT=%d", deletedCount))
-		if err := hooks.Run("post-cleanup", postEnv...); err != nil {
-			return fmt.Errorf("post-cleanup hook failed: %w", err)
+		if err := runPostCleanupHook(envVars, deletedCount, dryRun); err != nil {
+			return err
 		}
 		return nil
 	}
 
-	// Filter out deleted IDs from all lines
-	lines, err := readAllLines()
-	if err != nil {
-		return fmt.Errorf("failed to read all lines: %w", err)
-	}
-	var filtered []string
-	for _, line := range lines {
-		fields := strings.Split(line, "\t")
-		idField, err := getField(fields, fieldID)
-		if err != nil {
-			continue
-		}
-		id, err := strconv.Atoi(idField)
-		if err != nil {
-			continue
-		}
-		keep := true
-		for _, delID := range idsToDelete {
-			if id == delID {
-				keep = false
-				break
-			}
-		}
-		if keep {
-			filtered = append(filtered, line)
-		}
-	}
-	// Write back filtered lines
-	data := strings.Join(filtered, "\n")
-	if len(filtered) > 0 {
-		data += "\n"
-	}
-	if err := os.WriteFile(notificationsFile, []byte(data), 0644); err != nil {
-		return fmt.Errorf("cleanupOld: failed to write notifications file %s: %w", notificationsFile, err)
+	// Delete notifications by IDs
+	if err := deleteNotificationsByIDs(idsToDelete); err != nil {
+		return fmt.Errorf("failed to delete notifications: %w", err)
 	}
 
 	colors.Info(fmt.Sprintf("Successfully cleaned up %d notification(s)", deletedCount))
 
 	// Run post-cleanup hooks
-	postEnv := append(envVars, fmt.Sprintf("DELETED_COUNT=%d", deletedCount))
-	if err := hooks.Run("post-cleanup", postEnv...); err != nil {
-		return fmt.Errorf("post-cleanup hook failed: %w", err)
+	if err := runPostCleanupHook(envVars, deletedCount, dryRun); err != nil {
+		return err
 	}
 	return nil
 }
