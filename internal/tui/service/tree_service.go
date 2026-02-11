@@ -12,9 +12,8 @@ import (
 
 // DefaultTreeService implements the TreeService interface.
 type DefaultTreeService struct {
-	groupBy  model.GroupBy
-	treeRoot *model.TreeNode
-
+	groupBy           model.GroupBy
+	treeRoot          *model.TreeNode
 	visibleNodes      []*model.TreeNode
 	visibleNodesCache []*model.TreeNode
 	cacheValid        bool
@@ -83,6 +82,29 @@ func (s *DefaultTreeService) BuildTree(notifications []notification.Notification
 	return nil
 }
 
+// RebuildTreeForFilter rebuilds tree and applies filtering-oriented behavior.
+func (s *DefaultTreeService) RebuildTreeForFilter(notifications []notification.Notification, groupBy string, expansionState map[string]bool) error {
+	if len(notifications) == 0 {
+		s.ClearTree()
+		return nil
+	}
+
+	if err := s.BuildTree(notifications, groupBy); err != nil {
+		s.ClearTree()
+		return err
+	}
+
+	s.PruneEmptyGroups()
+	if len(expansionState) > 0 {
+		s.ApplyExpansionState(expansionState)
+		return nil
+	}
+
+	s.expandAllGroups(s.treeRoot)
+	s.InvalidateCache()
+	return nil
+}
+
 // ClearTree clears all internally managed tree state and cache.
 func (s *DefaultTreeService) ClearTree() {
 	s.treeRoot = nil
@@ -97,12 +119,12 @@ func (s *DefaultTreeService) GetTreeRoot() *model.TreeNode {
 }
 
 // FindNotificationPath locates a notification in the tree and returns the path.
-func (s *DefaultTreeService) FindNotificationPath(notif notification.Notification) ([]*model.TreeNode, error) {
-	if s.treeRoot == nil {
+func (s *DefaultTreeService) FindNotificationPath(root *model.TreeNode, notif notification.Notification) ([]*model.TreeNode, error) {
+	if root == nil {
 		return nil, fmt.Errorf("root node cannot be nil")
 	}
 
-	path, ok := s.findNotificationPathRecursive(s.treeRoot, notif)
+	path, ok := s.findNotificationPathRecursive(root, notif)
 	if !ok {
 		return nil, fmt.Errorf("notification not found in tree")
 	}
@@ -129,12 +151,12 @@ func (s *DefaultTreeService) findNotificationPathRecursive(node *model.TreeNode,
 }
 
 // FindNodeByID finds a tree node by its unique identifier.
-func (s *DefaultTreeService) FindNodeByID(identifier string) *model.TreeNode {
-	if s.treeRoot == nil {
+func (s *DefaultTreeService) FindNodeByID(root *model.TreeNode, identifier string) *model.TreeNode {
+	if root == nil {
 		return nil
 	}
 
-	return s.findNodeByIDRecursive(s.treeRoot, identifier)
+	return s.findNodeByIDRecursive(root, identifier)
 }
 
 // findNodeByIDRecursive is a helper that recursively searches for a node by identifier.
@@ -426,6 +448,18 @@ func (s *DefaultTreeService) expansionStateValue(node *model.TreeNode, expansion
 	}
 
 	return false, false
+}
+
+func (s *DefaultTreeService) expandAllGroups(node *model.TreeNode) {
+	if node == nil {
+		return
+	}
+	if s.isGroupNode(node) {
+		node.Expanded = true
+	}
+	for _, child := range node.Children {
+		s.expandAllGroups(child)
+	}
 }
 
 // notificationNodeMatches checks if a notification node matches the given notification.

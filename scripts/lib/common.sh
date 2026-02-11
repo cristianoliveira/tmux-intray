@@ -7,19 +7,20 @@ set -euo pipefail
 # Excludes common temporary and hidden directories
 find_shell_scripts() {
     local root_dir="$1"
-    find "$root_dir" -type f \( -name "*.sh" -o -name "*.bats" -o -name "*.tmux" \) \
-        -not -path "*/.git/*" \
-        -not -path "*/.tmp/*" \
-        -not -path "*/_tmp/*" \
-        -not -path "*/.bv/*" \
-        -not -path "*/.local/*" \
-        -not -path "*/tmp/*" \
-        -not -path "*/tmp*/*" \
-        -not -path "*/.gwt/*" \
-        -not -path "*/.gwt-main" \
-        -not -path "*/.direnv/*" \
-        -not -path "*/.beads/*" |
-        sort
+    (
+        cd "$root_dir" && find . -type f \( -name "*.sh" -o -name "*.bats" -o -name "*.tmux" \) \
+            -not -path "*/.git/*" \
+            -not -path "*/.tmp/*" \
+            -not -path "*/_tmp/*" \
+            -not -path "*/.bv/*" \
+            -not -path "*/.local/*" \
+            -not -path "*/tmp/*" \
+            -not -path "*/tmp*/*" \
+            -not -path "*/.gwt/*" \
+            -not -path "*/.gwt-main" \
+            -not -path "*/.direnv/*" \
+            -not -path "*/.beads/*"
+    ) | sort
 }
 
 # Get extra library files for a given shell script file
@@ -49,10 +50,23 @@ run_shellcheck_on_project() {
     shift
     local shellcheck_args=("$@")
 
+    # Change to project root for relative paths
+    cd "$root_dir" || return 1
+    root_dir="."
+
     local script_files
     script_files=$(find_shell_scripts "$root_dir")
 
+    # Guard against empty result
+    if [[ -z "$script_files" ]]; then
+        echo "No shell scripts found."
+        return 0
+    fi
+
     while IFS= read -r file; do
+        # Skip empty lines (should not happen but be safe)
+        [[ -z "$file" ]] && continue
+
         echo "Checking $file..."
 
         # Get extra files for this script

@@ -14,6 +14,10 @@ type TreeService interface {
 	// The resulting tree is stored internally by the service.
 	BuildTree(notifications []notification.Notification, groupBy string) error
 
+	// RebuildTreeForFilter rebuilds the tree for filtered notifications, pruning empty
+	// groups and applying expansion state (or expanding all nodes when no state exists).
+	RebuildTreeForFilter(notifications []notification.Notification, groupBy string, expansionState map[string]bool) error
+
 	// ClearTree clears all internally stored tree state and cache.
 	ClearTree()
 
@@ -22,11 +26,11 @@ type TreeService interface {
 
 	// FindNotificationPath locates a notification in the tree and returns the path.
 	// Returns a slice of nodes from root to the notification, or an error if not found.
-	FindNotificationPath(notif notification.Notification) ([]*TreeNode, error)
+	FindNotificationPath(root *TreeNode, notif notification.Notification) ([]*TreeNode, error)
 
 	// FindNodeByID finds a tree node by its unique identifier.
 	// Returns the node or nil if not found.
-	FindNodeByID(identifier string) *TreeNode
+	FindNodeByID(root *TreeNode, identifier string) *TreeNode
 
 	// GetVisibleNodes returns all nodes that should be visible in the UI.
 	// This respects expansion state of group nodes and uses an internal cache.
