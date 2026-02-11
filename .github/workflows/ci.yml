@@ -171,6 +171,13 @@ jobs:
           name: coverage-report
           path: coverage.out
 
+      - name: tmux-intray-coverage
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.out
+          flags: unittests
+          # token: ${{ secrets.CODECOV_TOKEN }}  # optional for public repositories
+
   install:
     runs-on: macos-latest
     steps:
