@@ -209,6 +209,7 @@ func Footer(state FooterState) string {
 	var help []string
 	help = append(help, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
 	help = append(help, "j/k: move")
+	help = append(help, "gg/G: top/bottom")
 	if state.SearchMode {
 		help = append(help, "ESC: exit search")
 		help = append(help, fmt.Sprintf("Search: %s", state.SearchQuery))

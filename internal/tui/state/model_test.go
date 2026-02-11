@@ -680,6 +680,102 @@ func TestModelUpdateHandlesNavigation(t *testing.T) {
 	assert.Equal(t, 1, model.uiState.GetCursor())
 }
 
+func TestModelUpdateHandlesJumpToBottomWithG(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+		{ID: 2, Message: "Second"},
+		{ID: 3, Message: "Third"},
+	})
+	model.uiState.SetCursor(0)
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+
+	assert.Equal(t, 2, model.uiState.GetCursor())
+
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+
+	assert.Equal(t, 2, model.uiState.GetCursor())
+}
+
+func TestModelUpdateHandlesJumpToTopWithGG(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+		{ID: 2, Message: "Second"},
+		{ID: 3, Message: "Third"},
+	})
+	model.uiState.SetCursor(2)
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+
+	assert.Equal(t, 2, model.uiState.GetCursor())
+	assert.Equal(t, "g", model.uiState.GetPendingKey())
+
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+
+	assert.Equal(t, 0, model.uiState.GetCursor())
+	assert.Equal(t, "", model.uiState.GetPendingKey())
+}
+
+func TestModelUpdateNavigationJKRemainsAfterPendingG(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+		{ID: 2, Message: "Second"},
+		{ID: 3, Message: "Third"},
+	})
+	model.uiState.SetCursor(1)
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
+	model = updated.(*Model)
+	assert.Equal(t, "g", model.uiState.GetPendingKey())
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	model = updated.(*Model)
+	assert.Equal(t, 2, model.uiState.GetCursor())
+	assert.Equal(t, "", model.uiState.GetPendingKey())
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	model = updated.(*Model)
+	assert.Equal(t, 1, model.uiState.GetCursor())
+}
+
+func TestModelUpdateSearchModeDoesNotUseVimNavigationMappings(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+		{ID: 2, Message: "Second"},
+		{ID: 3, Message: "Third"},
+	})
+	model.uiState.SetCursor(1)
+	model.uiState.SetSearchMode(true)
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+	assert.Equal(t, "G", model.uiState.GetSearchQuery())
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
+	model = updated.(*Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
+	model = updated.(*Model)
+
+	assert.Equal(t, 0, model.uiState.GetCursor())
+	assert.Equal(t, "Ggg", model.uiState.GetSearchQuery())
+	assert.Equal(t, "", model.uiState.GetPendingKey())
+}
+
 func TestModelUpdateHandlesSearch(t *testing.T) {
 	stubSessionFetchers(t)
 
