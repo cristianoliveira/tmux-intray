@@ -23,3 +23,7 @@ initialize_intray() {
 
 initialize_intray
 set_tmux_bindings
+
+# Optional: Show notification alerts in status bar
+# Uncomment the line below to display notification count in status-right
+# set -g status-right "#(tmux-intray status-panel) %H:%M"
