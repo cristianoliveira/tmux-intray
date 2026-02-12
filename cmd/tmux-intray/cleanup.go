@@ -8,60 +8,72 @@ import (
 	"fmt"
 
 	"github.com/cristianoliveira/tmux-intray/cmd"
-
 	"github.com/cristianoliveira/tmux-intray/internal/config"
-	"github.com/cristianoliveira/tmux-intray/internal/core"
 	"github.com/spf13/cobra"
 )
 
-// Flag variables for cleanup command
-var (
-	daysFlag   int
-	dryRunFlag bool
-)
+type cleanupClient interface {
+	EnsureTmuxRunning() bool
+	CleanupOldNotifications(days int, dryRun bool) error
+}
 
-// cleanupCmd represents the cleanup command
-var cleanupCmd = &cobra.Command{
-	Use:   "cleanup",
-	Short: "Clean up old dismissed notifications",
-	Long: `Clean up old dismissed notifications.
+// NewCleanupCmd creates the cleanup command with explicit dependencies.
+func NewCleanupCmd(client cleanupClient) *cobra.Command {
+	if client == nil {
+		panic("NewCleanupCmd: client dependency cannot be nil")
+	}
+
+	var daysFlag int
+	var dryRunFlag bool
+
+	cleanupCmd := &cobra.Command{
+		Use:   "cleanup",
+		Short: "Clean up old dismissed notifications",
+		Long: `Clean up old dismissed notifications.
 
 Automatically cleans up notifications that have been dismissed and are older
 than the configured auto-cleanup days. This helps prevent storage bloat.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		config.Load()
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			config.Load()
 
-		// Ensure tmux is running (matches bash behavior)
-		if !core.EnsureTmuxRunning() {
-			return errors.New("no tmux session running")
-		}
+			// Ensure tmux is running (matches bash behavior)
+			if !client.EnsureTmuxRunning() {
+				return errors.New("no tmux session running")
+			}
 
-		// Get flags
-		days := daysFlag
-		if days == 0 {
-			days = config.GetInt("auto_cleanup_days", 30)
-		}
+			// Get flags
+			days := daysFlag
+			if days == 0 {
+				days = config.GetInt("auto_cleanup_days", 30)
+			}
 
-		if days <= 0 {
-			return fmt.Errorf("days must be a positive integer")
-		}
+			if days <= 0 {
+				return fmt.Errorf("days must be a positive integer")
+			}
 
-		cmd.Printf("Starting cleanup of notifications dismissed more than %d days ago\n", days)
+			cmd.Printf("Starting cleanup of notifications dismissed more than %d days ago\n", days)
 
-		err := fileStorage.CleanupOldNotifications(days, dryRunFlag)
-		if err != nil {
-			return fmt.Errorf("cleanup failed: %w", err)
-		}
+			err := client.CleanupOldNotifications(days, dryRunFlag)
+			if err != nil {
+				return fmt.Errorf("cleanup failed: %w", err)
+			}
 
-		cmd.Println("Cleanup completed")
-		return nil
-	},
-}
-
-func init() {
-	cmd.RootCmd.AddCommand(cleanupCmd)
+			cmd.Println("Cleanup completed")
+			return nil
+		},
+	}
 
 	// Default days 0 means "use config value"
 	cleanupCmd.Flags().IntVar(&daysFlag, "days", 0, "Clean up notifications dismissed more than N days ago (default: TMUX_INTRAY_AUTO_CLEANUP_DAYS config value)")
 	cleanupCmd.Flags().BoolVar(&dryRunFlag, "dryrun", false, "Show what would be deleted without actually deleting")
+
+	return cleanupCmd
+}
+
+// cleanupCmd represents the cleanup command.
+var cleanupCmd = NewCleanupCmd(coreClient)
+
+func init() {
+	cmd.RootCmd.AddCommand(cleanupCmd)
 }
