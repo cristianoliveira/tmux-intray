@@ -19,6 +19,13 @@ var (
 	paneCreatedFlag string
 	noAssociateFlag bool
 	levelFlag       string
+
+	addEnsureTmuxRunningFunc = func() bool {
+		return coreClient.EnsureTmuxRunning()
+	}
+	addTrayItemFunc = func(item, session, window, pane, paneCreated string, noAssociate bool, level string) (string, error) {
+		return coreClient.AddTrayItem(item, session, window, pane, paneCreated, noAssociate, level)
+	}
 )
 
 // addCmd represents the add command
@@ -56,7 +63,7 @@ the current tmux pane (if inside tmux). Use --no-associate to skip.`,
 		paneFlag = strings.TrimSpace(paneFlag)
 
 		needsAutoAssociation := !noAssociateFlag && sessionFlag == "" && windowFlag == "" && paneFlag == ""
-		if needsAutoAssociation && !coreClient.EnsureTmuxRunning() {
+		if needsAutoAssociation && !addEnsureTmuxRunningFunc() {
 			if allowTmuxlessMode() {
 				colors.Warning("tmux not running; adding notification without pane association")
 				noAssociateFlag = true
@@ -88,7 +95,7 @@ the current tmux pane (if inside tmux). Use --no-associate to skip.`,
 		// We'll rely on storage hooks.
 
 		// Add tray item
-		_, err := coreClient.AddTrayItem(formattedMessage, sessionFlag, windowFlag, paneFlag, paneCreatedFlag, noAssociateFlag, level)
+		_, err := addTrayItemFunc(formattedMessage, sessionFlag, windowFlag, paneFlag, paneCreatedFlag, noAssociateFlag, level)
 		if err != nil {
 			return fmt.Errorf("add: failed to add tray item: %w", err)
 		}
