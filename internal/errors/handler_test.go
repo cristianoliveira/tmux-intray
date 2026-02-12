@@ -148,6 +148,18 @@ func TestCLIHandlerRecursiveErrorHandling(t *testing.T) {
 	assert.Equal(t, "third error", mock.errorMsg)
 }
 
+func TestCLIHandlerErrorWhenAlreadyHandling(t *testing.T) {
+	mock := &mockColorOutput{}
+	handler := NewCLIHandler(mock)
+
+	handler.inHandling = true
+	handler.Error("error while already handling")
+
+	assert.True(t, mock.errorCalled, "Error() should be called even when already handling")
+	assert.Equal(t, "error while already handling", mock.errorMsg)
+	assert.True(t, handler.inHandling, "inHandling should stay true on fast path")
+}
+
 // TUIHandler Tests
 
 func TestTUIHandlerError(t *testing.T) {
