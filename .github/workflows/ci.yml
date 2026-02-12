@@ -180,7 +180,7 @@ jobs:
         with:
           files: coverage.out
           flags: unittests
-          # token: ${{ secrets.CODECOV_TOKEN }}  # optional for public repositories
+          token: ${{ secrets.CODECOV_TOKEN }}  # optional for public repositories
 
   install:
     runs-on: macos-latest
