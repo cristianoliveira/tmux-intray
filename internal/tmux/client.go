@@ -69,27 +69,8 @@ type TmuxClient interface {
 	Run(args ...string) (string, string, error)
 }
 
-// colorAdapter adapts the colors package to implement the errors.ColorOutput interface.
-type colorAdapter struct{}
-
-func (a *colorAdapter) Error(msgs ...string) {
-	colors.Error(msgs...)
-}
-
-func (a *colorAdapter) Warning(msgs ...string) {
-	colors.Warning(msgs...)
-}
-
-func (a *colorAdapter) Info(msgs ...string) {
-	colors.Info(msgs...)
-}
-
-func (a *colorAdapter) Success(msgs ...string) {
-	colors.Success(msgs...)
-}
-
 // defaultCLIHandler is the default CLI error handler for backward compatibility.
-var defaultCLIHandler = errors.NewCLIHandler(&colorAdapter{})
+var defaultCLIHandler = errors.NewDefaultCLIHandler()
 
 // DefaultClient implements TmuxClient using exec.Command to run tmux.
 type DefaultClient struct {

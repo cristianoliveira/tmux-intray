@@ -85,6 +85,11 @@ func TestCLIHandlerError(t *testing.T) {
 	assert.Equal(t, "test error", mock.errorMsg, "Error() should have been called with correct message")
 }
 
+func TestNewDefaultCLIHandler(t *testing.T) {
+	handler := NewDefaultCLIHandler()
+	require.NotNil(t, handler)
+}
+
 func TestCLIHandlerWarning(t *testing.T) {
 	mock := &mockColorOutput{}
 	handler := NewCLIHandler(mock)
