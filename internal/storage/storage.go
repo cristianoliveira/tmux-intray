@@ -904,8 +904,120 @@ func getLatestNotifications() ([]string, error) {
 	return result, nil
 }
 
+// predicate is a function that returns true if fields satisfy a condition.
+type predicate func(fields []string) bool
+
+// makeStatePredicate returns a predicate that filters by state.
+// If stateFilter is empty or "all", returns nil (no predicate).
+func makeStatePredicate(stateFilter string) predicate {
+	if stateFilter == "" || stateFilter == "all" {
+		return nil
+	}
+	return func(fields []string) bool {
+		state, err := getField(fields, fieldState)
+		if err != nil {
+			return false
+		}
+		return state == stateFilter
+	}
+}
+
+// makeExactMatchPredicate returns a predicate that filters by exact match of a field.
+// If filterValue is empty, returns nil.
+func makeExactMatchPredicate(fieldIndex int, filterValue string) predicate {
+	if filterValue == "" {
+		return nil
+	}
+	return func(fields []string) bool {
+		value, err := getField(fields, fieldIndex)
+		if err != nil {
+			return false
+		}
+		return value == filterValue
+	}
+}
+
+// makeReadStatusPredicate returns a predicate that filters by read status.
+// Valid readFilter values: "read" (has read_timestamp), "unread" (no read_timestamp), or "" (no filter).
+// If readFilter is empty, returns nil.
+func makeReadStatusPredicate(readFilter string) predicate {
+	if readFilter == "" {
+		return nil
+	}
+	return func(fields []string) bool {
+		readTimestamp, err := getField(fields, fieldReadTimestamp)
+		if err != nil {
+			return false
+		}
+		if readFilter == "read" {
+			return readTimestamp != ""
+		}
+		if readFilter == "unread" {
+			return readTimestamp == ""
+		}
+		// Invalid readFilter value (should not happen), treat as no filter
+		return true
+	}
+}
+
+// makeOlderThanPredicate returns a predicate that filters timestamps older than cutoff.
+// If cutoff is empty, returns nil.
+func makeOlderThanPredicate(cutoff string) predicate {
+	if cutoff == "" {
+		return nil
+	}
+	return func(fields []string) bool {
+		timestamp, err := getField(fields, fieldTimestamp)
+		if err != nil {
+			return false
+		}
+		return timestamp < cutoff
+	}
+}
+
+// makeNewerThanPredicate returns a predicate that filters timestamps newer than cutoff.
+// If cutoff is empty, returns nil.
+func makeNewerThanPredicate(cutoff string) predicate {
+	if cutoff == "" {
+		return nil
+	}
+	return func(fields []string) bool {
+		timestamp, err := getField(fields, fieldTimestamp)
+		if err != nil {
+			return false
+		}
+		return timestamp > cutoff
+	}
+}
+
 func filterNotifications(lines []string, stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) []string {
 	var filtered []string
+	// Build predicates for non-empty filters
+	var predicates []predicate
+	if p := makeStatePredicate(stateFilter); p != nil {
+		predicates = append(predicates, p)
+	}
+	if p := makeExactMatchPredicate(fieldLevel, levelFilter); p != nil {
+		predicates = append(predicates, p)
+	}
+	if p := makeExactMatchPredicate(fieldSession, sessionFilter); p != nil {
+		predicates = append(predicates, p)
+	}
+	if p := makeExactMatchPredicate(fieldWindow, windowFilter); p != nil {
+		predicates = append(predicates, p)
+	}
+	if p := makeExactMatchPredicate(fieldPane, paneFilter); p != nil {
+		predicates = append(predicates, p)
+	}
+	if p := makeReadStatusPredicate(readFilter); p != nil {
+		predicates = append(predicates, p)
+	}
+	if p := makeOlderThanPredicate(olderThanCutoff); p != nil {
+		predicates = append(predicates, p)
+	}
+	if p := makeNewerThanPredicate(newerThanCutoff); p != nil {
+		predicates = append(predicates, p)
+	}
 	for _, line := range lines {
 		fields := strings.Split(line, "\t")
 		if len(fields) < numFields {
@@ -914,90 +1026,16 @@ func filterNotifications(lines []string, stateFilter, levelFilter, sessionFilter
 				fields = append(fields, "")
 			}
 		}
-		// State filter
-		if stateFilter != "" && stateFilter != "all" {
-			state, err := getField(fields, fieldState)
-			if err != nil {
-				continue
-			}
-			if state != stateFilter {
-				continue
+		keep := true
+		for _, p := range predicates {
+			if !p(fields) {
+				keep = false
+				break
 			}
 		}
-		// Level filter
-		if levelFilter != "" {
-			level, err := getField(fields, fieldLevel)
-			if err != nil {
-				continue
-			}
-			if level != levelFilter {
-				continue
-			}
+		if keep {
+			filtered = append(filtered, line)
 		}
-		// Session filter
-		if sessionFilter != "" {
-			session, err := getField(fields, fieldSession)
-			if err != nil {
-				continue
-			}
-			if session != sessionFilter {
-				continue
-			}
-		}
-		// Window filter
-		if windowFilter != "" {
-			window, err := getField(fields, fieldWindow)
-			if err != nil {
-				continue
-			}
-			if window != windowFilter {
-				continue
-			}
-		}
-		// Pane filter
-		if paneFilter != "" {
-			pane, err := getField(fields, fieldPane)
-			if err != nil {
-				continue
-			}
-			if pane != paneFilter {
-				continue
-			}
-		}
-		// Read status filter
-		if readFilter != "" {
-			readTimestamp, err := getField(fields, fieldReadTimestamp)
-			if err != nil {
-				continue
-			}
-			if readFilter == "read" && readTimestamp == "" {
-				continue
-			}
-			if readFilter == "unread" && readTimestamp != "" {
-				continue
-			}
-		}
-		// Older than cutoff
-		if olderThanCutoff != "" {
-			timestamp, err := getField(fields, fieldTimestamp)
-			if err != nil {
-				continue
-			}
-			if timestamp >= olderThanCutoff {
-				continue
-			}
-		}
-		// Newer than cutoff
-		if newerThanCutoff != "" {
-			timestamp, err := getField(fields, fieldTimestamp)
-			if err != nil {
-				continue
-			}
-			if timestamp <= newerThanCutoff {
-				continue
-			}
-		}
-		filtered = append(filtered, line)
 	}
 	return filtered
 }
