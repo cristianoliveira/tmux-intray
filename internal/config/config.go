@@ -14,6 +14,85 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
+// Validator validates and normalizes a configuration value.
+// Returns the normalized value and an error if validation fails.
+type Validator func(key, value, defaultValue string) (normalized string, err error)
+
+// validatorRegistry manages the set of registered validators.
+type validatorRegistry struct {
+	mu         sync.RWMutex
+	validators map[string]Validator
+}
+
+// registry is the global validator registry.
+var registry = &validatorRegistry{
+	validators: make(map[string]Validator),
+}
+
+// RegisterValidator registers a validator for a configuration key.
+// Panics if a validator is already registered for the key.
+func RegisterValidator(key string, validator Validator) {
+	registry.mu.Lock()
+	defer registry.mu.Unlock()
+	if _, exists := registry.validators[key]; exists {
+		panic(fmt.Sprintf("validator already registered for key: %s", key))
+	}
+	registry.validators[key] = validator
+}
+
+// getValidator returns the validator for a key, or nil if not registered.
+func getValidator(key string) Validator {
+	registry.mu.RLock()
+	defer registry.mu.RUnlock()
+	return registry.validators[key]
+}
+
+// PositiveIntValidator returns a validator that ensures a value is a positive integer.
+func PositiveIntValidator() Validator {
+	return func(key, value, defaultValue string) (string, error) {
+		if value == "" {
+			return defaultValue, nil
+		}
+		n, err := strconv.Atoi(value)
+		if err != nil || n <= 0 {
+			colors.Warning(fmt.Sprintf("invalid %s value '%s': must be a positive integer, using default: %s", key, value, defaultValue))
+			return defaultValue, nil
+		}
+		return value, nil
+	}
+}
+
+// EnumValidator returns a validator that ensures a value is one of the allowed enum values.
+func EnumValidator(allowed map[string]bool) Validator {
+	return func(key, value, defaultValue string) (string, error) {
+		if value == "" {
+			return defaultValue, nil
+		}
+		valueLower := strings.ToLower(value)
+		if !allowed[valueLower] {
+			colors.Warning(fmt.Sprintf("invalid %s value '%s': must be one of: %s; using default: %s", key, value, allowedValues(allowed), defaultValue))
+			return defaultValue, nil
+		}
+		return valueLower, nil
+	}
+}
+
+// BoolValidator returns a validator that normalizes and validates boolean values.
+// Returns a shared validator instance for all boolean keys.
+func BoolValidator() Validator {
+	return func(key, value, defaultValue string) (string, error) {
+		if value == "" {
+			return defaultValue, nil
+		}
+		normalized := normalizeBool(value)
+		if normalized != "true" && normalized != "false" {
+			colors.Warning(fmt.Sprintf("invalid boolean value for %s: '%s', must be one of: 1, true, yes, on, 0, false, no, off; using default: %s", key, value, defaultValue))
+			return defaultValue, nil
+		}
+		return normalized, nil
+	}
+}
+
 // File permission constants
 const (
 	// FileModeDir is the permission for directories (rwxr-xr-x)
@@ -33,6 +112,10 @@ var (
 	configMap map[string]string
 	mu        sync.RWMutex
 )
+
+func init() {
+	initValidators()
+}
 
 // Load initializes configuration.
 func Load() {
@@ -198,37 +281,24 @@ func loadFromEnv() {
 	}
 }
 
-// validate checks and normalizes configuration values.
+// validate checks and normalizes configuration values using registered validators.
 func validate() {
-	validatePositiveInteger("max_notifications")
-	validatePositiveInteger("auto_cleanup_days")
-	validatePositiveInteger("hooks_async_timeout")
-	validatePositiveInteger("max_hooks")
-	validatePositiveInteger("dual_verify_sample_size")
-
-	validateEnum("table_format", map[string]bool{"default": true, "minimal": true, "fancy": true})
-	validateEnum("storage_backend", map[string]bool{"tsv": true, "sqlite": true, "dual": true})
-	validateEnum("status_format", map[string]bool{"compact": true, "detailed": true, "count-only": true})
-	validateEnum("hooks_failure_mode", map[string]bool{"ignore": true, "warn": true, "abort": true})
-	validateEnum("dual_read_backend", map[string]bool{"tsv": true, "sqlite": true})
-
-	validateBooleans()
-}
-
-// isBoolKey returns true if the key expects a boolean value.
-func isBoolKey(key string) bool {
-	boolKeys := []string{
-		"status_enabled", "show_levels", "hooks_enabled", "hooks_async", "debug", "quiet",
-		"hooks_enabled_pre_add", "hooks_enabled_post_add", "hooks_enabled_pre_dismiss",
-		"hooks_enabled_post_dismiss", "hooks_enabled_cleanup", "hooks_enabled_post_cleanup",
-		"dual_verify_only",
-	}
-	for _, k := range boolKeys {
-		if key == k {
-			return true
+	for key, value := range config {
+		validator := getValidator(key)
+		if validator == nil {
+			continue // No validator for this key
+		}
+		defaultValue := configMap[key]
+		normalizedValue, err := validator(key, value, defaultValue)
+		if err != nil {
+			// Validators should handle errors themselves and log warnings,
+			// but if one returns an error, we log it and use default
+			colors.Warning(fmt.Sprintf("validation error for %s: %v, using default: %s", key, err, defaultValue))
+			config[key] = defaultValue
+		} else {
+			config[key] = normalizedValue
 		}
 	}
-	return false
 }
 
 // normalizeBool converts various boolean representations to "true"/"false".
@@ -239,32 +309,43 @@ func normalizeBool(val string) string {
 	case "0", "false", "no", "off":
 		return "false"
 	default:
-		// If invalid, return default false? We'll keep as is and validation will fix later.
+		// If invalid, return as-is; validation will fix it.
 		return val
 	}
 }
 
-// validatePositiveInteger validates that a config key has a positive integer value.
-func validatePositiveInteger(key string) {
-	if val, ok := config[key]; ok {
-		if n, err := strconv.Atoi(val); err != nil || n <= 0 {
-			colors.Warning(fmt.Sprintf("invalid %s value '%s': must be a positive integer, using default: %s", key, val, configMap[key]))
-			config[key] = configMap[key]
-		}
-	}
-}
+// initValidators registers all configuration validators.
+func initValidators() {
+	// Positive integer validators (5 keys)
+	positiveIntValidator := PositiveIntValidator()
+	RegisterValidator("max_notifications", positiveIntValidator)
+	RegisterValidator("auto_cleanup_days", positiveIntValidator)
+	RegisterValidator("hooks_async_timeout", positiveIntValidator)
+	RegisterValidator("max_hooks", positiveIntValidator)
+	RegisterValidator("dual_verify_sample_size", positiveIntValidator)
 
-// validateEnum validates that a config key has one of the allowed enum values.
-func validateEnum(key string, allowed map[string]bool) {
-	if val, ok := config[key]; ok {
-		valLower := strings.ToLower(val)
-		if !allowed[valLower] {
-			colors.Warning(fmt.Sprintf("invalid %s value '%s': must be one of: %s; using default: %s", key, val, allowedValues(allowed), configMap[key]))
-			config[key] = configMap[key]
-		} else if valLower != val {
-			config[key] = valLower
-		}
-	}
+	// Enum validators (5 keys)
+	RegisterValidator("table_format", EnumValidator(map[string]bool{"default": true, "minimal": true, "fancy": true}))
+	RegisterValidator("storage_backend", EnumValidator(map[string]bool{"tsv": true, "sqlite": true, "dual": true}))
+	RegisterValidator("status_format", EnumValidator(map[string]bool{"compact": true, "detailed": true, "count-only": true}))
+	RegisterValidator("hooks_failure_mode", EnumValidator(map[string]bool{"ignore": true, "warn": true, "abort": true}))
+	RegisterValidator("dual_read_backend", EnumValidator(map[string]bool{"tsv": true, "sqlite": true}))
+
+	// Boolean validators (13 keys) - shared instance
+	boolValidator := BoolValidator()
+	RegisterValidator("status_enabled", boolValidator)
+	RegisterValidator("show_levels", boolValidator)
+	RegisterValidator("hooks_enabled", boolValidator)
+	RegisterValidator("hooks_async", boolValidator)
+	RegisterValidator("debug", boolValidator)
+	RegisterValidator("quiet", boolValidator)
+	RegisterValidator("hooks_enabled_pre_add", boolValidator)
+	RegisterValidator("hooks_enabled_post_add", boolValidator)
+	RegisterValidator("hooks_enabled_pre_dismiss", boolValidator)
+	RegisterValidator("hooks_enabled_post_dismiss", boolValidator)
+	RegisterValidator("hooks_enabled_cleanup", boolValidator)
+	RegisterValidator("hooks_enabled_post_cleanup", boolValidator)
+	RegisterValidator("dual_verify_only", boolValidator)
 }
 
 // allowedValues returns a comma-separated string of allowed values.
@@ -278,36 +359,15 @@ func allowedValues(allowed map[string]bool) string {
 	return strings.Join(values, ", ")
 }
 
-// validateBooleans normalizes and validates all boolean configuration values.
-func validateBooleans() {
-	for key, val := range config {
-		if isBoolKey(key) {
-			normalized := normalizeBool(val)
-			config[key] = normalized
-			if normalized != "true" && normalized != "false" {
-				// Invalid boolean, revert to default
-				if def, ok := configMap[key]; ok {
-					colors.Warning(fmt.Sprintf("invalid boolean value for %s: '%s', must be one of: 1, true, yes, on, 0, false, no, off; using default: %s", key, val, def))
-					config[key] = def
-				}
-			}
-		}
-	}
-}
-
 // valueToInterface converts a configuration value to appropriate type for TOML.
 func valueToInterface(key, val string) interface{} {
-	// integer keys
-	if key == "max_notifications" || key == "auto_cleanup_days" || key == "hooks_async_timeout" || key == "max_hooks" {
-		if n, err := strconv.Atoi(val); err == nil {
-			return n
-		}
+	// Try to parse as integer first
+	if n, err := strconv.Atoi(val); err == nil {
+		return n
 	}
-	// boolean keys
-	if isBoolKey(key) {
-		if b, err := strconv.ParseBool(val); err == nil {
-			return b
-		}
+	// Try to parse as boolean
+	if b, err := strconv.ParseBool(val); err == nil {
+		return b
 	}
 	// default string
 	return val
