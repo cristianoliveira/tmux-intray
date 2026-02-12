@@ -1,4 +1,4 @@
-.PHONY: all tests fmt check-fmt lint clean install install-docker install-npm install-go install-all verify-install security-check docs test sqlc-generate sqlc-check bench-tui
+.PHONY: all tests fmt check-fmt lint clean install install-docker install-npm install-go install-all verify-install security-check docs test sqlc-generate sqlc-check bench-tui check-coverage
 
 # tmux-intray is a pure Go implementation
 
@@ -6,6 +6,7 @@
 VERSION ?= 1.0.0
 COMMIT ?= $(shell git rev-parse --short HEAD)
 LDFLAGS = -ldflags "-X github.com/cristianoliveira/tmux-intray/internal/version.Version=$(VERSION) -X github.com/cristianoliveira/tmux-intray/internal/version.Commit=$(COMMIT)"
+THRESHOLD ?= 65
 
 all: tests lint
 	@echo "✓ Build and test complete"
@@ -76,6 +77,10 @@ go-cover-html: go-cover
 	@echo "Generating HTML coverage report..."
 	@go tool cover -html=coverage.out -o coverage.html
 	@echo "HTML report: coverage.html"
+
+check-coverage:
+	@echo "Checking test coverage threshold..."
+	@./scripts/check-coverage.sh $(THRESHOLD)
 
 go-build:
 	@echo "Building Go binary..."

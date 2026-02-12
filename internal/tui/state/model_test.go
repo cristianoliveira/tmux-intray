@@ -112,6 +112,99 @@ func stubSessionFetchers(t *testing.T) *tmux.MockClient {
 	return mockClient
 }
 
+type testRuntimeCoordinator struct {
+	ensureTmuxRunningFn func() bool
+	jumpToPaneFn        func(sessionID, windowID, paneID string) bool
+}
+
+func (t *testRuntimeCoordinator) EnsureTmuxRunning() bool {
+	if t.ensureTmuxRunningFn != nil {
+		return t.ensureTmuxRunningFn()
+	}
+	return true
+}
+
+func (t *testRuntimeCoordinator) JumpToPane(sessionID, windowID, paneID string) bool {
+	if t.jumpToPaneFn != nil {
+		return t.jumpToPaneFn(sessionID, windowID, paneID)
+	}
+	return false
+}
+
+func (t *testRuntimeCoordinator) ValidatePaneExists(sessionID, windowID, paneID string) (bool, error) {
+	return true, nil
+}
+
+func (t *testRuntimeCoordinator) GetCurrentContext() (*uimodel.TmuxContext, error) {
+	return nil, nil
+}
+
+func (t *testRuntimeCoordinator) ListSessions() (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
+func (t *testRuntimeCoordinator) ListWindows() (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
+func (t *testRuntimeCoordinator) ListPanes() (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
+func (t *testRuntimeCoordinator) GetSessionName(sessionID string) (string, error) {
+	return sessionID, nil
+}
+
+func (t *testRuntimeCoordinator) GetWindowName(windowID string) (string, error) {
+	return windowID, nil
+}
+
+func (t *testRuntimeCoordinator) GetPaneName(paneID string) (string, error) {
+	return paneID, nil
+}
+
+func (t *testRuntimeCoordinator) RefreshNames() error {
+	return nil
+}
+
+func (t *testRuntimeCoordinator) GetTmuxVisibility() (bool, error) {
+	return false, nil
+}
+
+func (t *testRuntimeCoordinator) SetTmuxVisibility(visible bool) error {
+	return nil
+}
+
+func (t *testRuntimeCoordinator) ResolveSessionName(sessionID string) string {
+	return sessionID
+}
+
+func (t *testRuntimeCoordinator) ResolveWindowName(windowID string) string {
+	return windowID
+}
+
+func (t *testRuntimeCoordinator) ResolvePaneName(paneID string) string {
+	return paneID
+}
+
+func (t *testRuntimeCoordinator) GetSessionNames() map[string]string {
+	return map[string]string{}
+}
+
+func (t *testRuntimeCoordinator) GetWindowNames() map[string]string {
+	return map[string]string{}
+}
+
+func (t *testRuntimeCoordinator) GetPaneNames() map[string]string {
+	return map[string]string{}
+}
+
+func (t *testRuntimeCoordinator) SetSessionNames(names map[string]string) {}
+
+func (t *testRuntimeCoordinator) SetWindowNames(names map[string]string) {}
+
+func (t *testRuntimeCoordinator) SetPaneNames(names map[string]string) {}
+
 func TestNewModelInitialState(t *testing.T) {
 	setupStorage(t)
 	mockClient := stubSessionFetchers(t)
@@ -585,6 +678,102 @@ func TestModelUpdateHandlesNavigation(t *testing.T) {
 	model = updated.(*Model)
 
 	assert.Equal(t, 1, model.uiState.GetCursor())
+}
+
+func TestModelUpdateHandlesJumpToBottomWithG(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+		{ID: 2, Message: "Second"},
+		{ID: 3, Message: "Third"},
+	})
+	model.uiState.SetCursor(0)
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+
+	assert.Equal(t, 2, model.uiState.GetCursor())
+
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+
+	assert.Equal(t, 2, model.uiState.GetCursor())
+}
+
+func TestModelUpdateHandlesJumpToTopWithGG(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+		{ID: 2, Message: "Second"},
+		{ID: 3, Message: "Third"},
+	})
+	model.uiState.SetCursor(2)
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+
+	assert.Equal(t, 2, model.uiState.GetCursor())
+	assert.Equal(t, "g", model.uiState.GetPendingKey())
+
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+
+	assert.Equal(t, 0, model.uiState.GetCursor())
+	assert.Equal(t, "", model.uiState.GetPendingKey())
+}
+
+func TestModelUpdateNavigationJKRemainsAfterPendingG(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+		{ID: 2, Message: "Second"},
+		{ID: 3, Message: "Third"},
+	})
+	model.uiState.SetCursor(1)
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
+	model = updated.(*Model)
+	assert.Equal(t, "g", model.uiState.GetPendingKey())
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	model = updated.(*Model)
+	assert.Equal(t, 2, model.uiState.GetCursor())
+	assert.Equal(t, "", model.uiState.GetPendingKey())
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	model = updated.(*Model)
+	assert.Equal(t, 1, model.uiState.GetCursor())
+}
+
+func TestModelUpdateSearchModeDoesNotUseVimNavigationMappings(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+		{ID: 2, Message: "Second"},
+		{ID: 3, Message: "Third"},
+	})
+	model.uiState.SetCursor(1)
+	model.uiState.SetSearchMode(true)
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+	assert.Equal(t, "G", model.uiState.GetSearchQuery())
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
+	model = updated.(*Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
+	model = updated.(*Model)
+
+	assert.Equal(t, 0, model.uiState.GetCursor())
+	assert.Equal(t, "Ggg", model.uiState.GetSearchQuery())
+	assert.Equal(t, "", model.uiState.GetPendingKey())
 }
 
 func TestModelUpdateHandlesSearch(t *testing.T) {
@@ -1138,7 +1327,7 @@ func TestModelViewRendersContent(t *testing.T) {
 		{ID: 1, Message: "Test notification", Timestamp: "2024-01-01T12:00:00Z", Level: "info", State: "active"},
 	})
 	model.uiState.SetCursor(0)
-	model.uiState.SetWidth(84)
+	model.uiState.SetWidth(180)
 	model.uiState.SetHeight(24)
 	model.updateViewportContent()
 
@@ -1166,6 +1355,18 @@ func TestModelViewWithNoNotifications(t *testing.T) {
 
 	assert.NotEmpty(t, view)
 	assert.Contains(t, view, "No notifications found")
+}
+
+func TestModelViewRendersCurrentViewModeInFooter(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{})
+	model.uiState.SetWidth(80)
+	model.uiState.SetHeight(24)
+	model.uiState.SetViewMode(settings.ViewModeGrouped)
+	model.updateViewportContent()
+
+	view := model.View()
+
+	assert.Contains(t, view, "mode: [G]")
 }
 
 func TestUpdateViewportContentGroupedViewWithEmptyTree(t *testing.T) {
@@ -1298,6 +1499,77 @@ func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
 		Width:    model.uiState.GetWidth(),
 	})
 	assert.Contains(t, content, expectedGroupRow)
+}
+
+func TestUpdateViewportContentUsesPaneNameForDetailedRows(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%60", Message: "One", Level: "info", State: "active"},
+	})
+	model.runtimeCoordinator.SetPaneNames(map[string]string{"%60": "editor"})
+	model.uiState.SetWidth(120)
+	model.uiState.GetViewport().Width = 120
+	model.uiState.SetViewMode(viewModeDetailed)
+
+	model.applySearchFilter()
+	model.resetCursor()
+	model.updateViewportContent()
+
+	content := model.uiState.GetViewport().View()
+	resolvedNotif := model.filtered[0]
+	resolvedNotif.Pane = "editor"
+
+	expectedRow := render.Row(render.RowState{
+		Notification: resolvedNotif,
+		SessionName:  model.getSessionName(resolvedNotif.Session),
+		Width:        model.uiState.GetWidth(),
+		Selected:     true,
+		Now:          time.Time{},
+	})
+
+	assert.Contains(t, content, expectedRow)
+	assert.NotContains(t, content, "%60")
+}
+
+func TestUpdateViewportContentUsesPaneNameForGroupedLeafRows(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%60", Message: "One", Level: "info", State: "active"},
+	})
+	model.runtimeCoordinator.SetPaneNames(map[string]string{"%60": "editor"})
+	model.uiState.SetWidth(120)
+	model.uiState.GetViewport().Width = 120
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByPane)
+
+	model.applySearchFilter()
+	model.resetCursor()
+
+	var leafNode *uimodel.TreeNode
+	var leafIndex int
+	for idx, node := range model.getVisibleNodesForTest() {
+		if node != nil && node.Kind == uimodel.NodeKindNotification && node.Notification != nil {
+			leafNode = node
+			leafIndex = idx
+			break
+		}
+	}
+	require.NotNil(t, leafNode)
+
+	model.uiState.SetCursor(leafIndex)
+	model.updateViewportContent()
+
+	content := model.uiState.GetViewport().View()
+	resolvedNotif := *leafNode.Notification
+	resolvedNotif.Pane = "editor"
+
+	expectedLeafRow := render.Row(render.RowState{
+		Notification: resolvedNotif,
+		SessionName:  model.getSessionName(resolvedNotif.Session),
+		Width:        model.uiState.GetWidth(),
+		Selected:     true,
+		Now:          time.Time{},
+	})
+
+	assert.Contains(t, content, expectedLeafRow)
 }
 
 func TestHandleDismiss(t *testing.T) {
@@ -1463,6 +1735,58 @@ func TestHandleJumpWithMissingContext(t *testing.T) {
 	model.filtered[0].Pane = ""
 	cmd = model.handleJump()
 	assert.Nil(t, cmd)
+}
+
+func TestHandleJumpMarksNotificationReadOnSuccess(t *testing.T) {
+	setupStorage(t)
+
+	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "$1", "@2", "%3", "", "info")
+	require.NoError(t, err)
+
+	mockClient := stubSessionFetchers(t)
+	model, err := NewModel(mockClient)
+	require.NoError(t, err)
+	require.Len(t, model.filtered, 1)
+	model.runtimeCoordinator = &testRuntimeCoordinator{
+		ensureTmuxRunningFn: func() bool { return true },
+		jumpToPaneFn: func(sessionID, windowID, paneID string) bool {
+			return sessionID == "$1" && windowID == "@2" && paneID == "%3"
+		},
+	}
+
+	cmd := model.handleJump()
+	assert.NotNil(t, cmd)
+
+	line, err := storage.GetNotificationByID(id)
+	require.NoError(t, err)
+	loaded, err := notification.ParseNotification(line)
+	require.NoError(t, err)
+	assert.True(t, loaded.IsRead())
+}
+
+func TestHandleJumpDoesNotMarkReadWhenJumpFails(t *testing.T) {
+	setupStorage(t)
+
+	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "$1", "@2", "%3", "", "info")
+	require.NoError(t, err)
+
+	mockClient := stubSessionFetchers(t)
+	model, err := NewModel(mockClient)
+	require.NoError(t, err)
+	require.Len(t, model.filtered, 1)
+	model.runtimeCoordinator = &testRuntimeCoordinator{
+		ensureTmuxRunningFn: func() bool { return true },
+		jumpToPaneFn:        func(sessionID, windowID, paneID string) bool { return false },
+	}
+
+	cmd := model.handleJump()
+	assert.Nil(t, cmd)
+
+	line, err := storage.GetNotificationByID(id)
+	require.NoError(t, err)
+	loaded, err := notification.ParseNotification(line)
+	require.NoError(t, err)
+	assert.False(t, loaded.IsRead())
 }
 
 func TestHandleJumpGroupedViewUsesVisibleNodes(t *testing.T) {

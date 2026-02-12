@@ -2,6 +2,7 @@
 package service
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
@@ -154,7 +155,28 @@ func (s *DefaultNotificationService) SortNotifications(notifications []notificat
 		return result
 	}
 	sorted := domain.SortNotifications(domainNotifs, opts)
-	return s.convertFromDomain(sorted)
+	return orderUnreadFirst(s.convertFromDomain(sorted))
+}
+
+func orderUnreadFirst(notifications []notification.Notification) []notification.Notification {
+	if len(notifications) == 0 {
+		return notifications
+	}
+
+	ordered := make([]notification.Notification, len(notifications))
+	copy(ordered, notifications)
+
+	sort.SliceStable(ordered, func(i, j int) bool {
+		iUnread := !ordered[i].IsRead()
+		jUnread := !ordered[j].IsRead()
+		if iUnread == jUnread {
+			return false
+		}
+
+		return iUnread && !jUnread
+	})
+
+	return ordered
 }
 
 // GetUnreadCount returns the number of unread notifications.

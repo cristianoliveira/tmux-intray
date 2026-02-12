@@ -28,15 +28,25 @@ USAGE:
 DESCRIPTION:
     Navigates to the tmux pane where the notification originated. The pane
     must still exist; if it doesn't, the command falls back to the window.
+    By default, a successful jump automatically marks the notification as read.
+    Use --no-mark-read to disable this behavior.
 
 ARGUMENTS:
     <id>    Notification ID (as shown in 'tmux-intray list --format=table')
 
+OPTIONS:
+    --no-mark-read    Do not mark the notification as read after a successful jump
+
 EXAMPLES:
     # Jump to pane of notification with ID 42
-    tmux-intray jump 42`,
+    tmux-intray jump 42
+
+    # Jump without marking notification as read
+    tmux-intray jump --no-mark-read 42`,
 	Run: runJump,
 }
+
+var jumpNoMarkRead bool
 
 // ensureTmuxRunningFunc is the function used to ensure tmux is running. Can be changed for testing.
 var ensureTmuxRunningFunc = func() bool {
@@ -60,6 +70,11 @@ var jumpToPaneFunc = func(session, window, pane string) bool {
 	return core.JumpToPane(session, window, pane)
 }
 
+// markNotificationReadAfterJumpFunc is the function used to mark notification as read after successful jump.
+var markNotificationReadAfterJumpFunc = func(id string) error {
+	return fileStorage.MarkNotificationRead(id)
+}
+
 // JumpResult holds the result of a jump operation.
 type JumpResult struct {
 	ID         string
@@ -74,6 +89,11 @@ type JumpResult struct {
 // Jump jumps to the pane of the notification with the given ID.
 // Returns jump result and error.
 func Jump(id string) (*JumpResult, error) {
+	return JumpWithMarkRead(id, true)
+}
+
+// JumpWithMarkRead jumps to a notification and optionally marks it as read on success.
+func JumpWithMarkRead(id string, markRead bool) (*JumpResult, error) {
 	if !ensureTmuxRunningFunc() {
 		return nil, fmt.Errorf("tmux not running")
 	}
@@ -124,6 +144,12 @@ func Jump(id string) (*JumpResult, error) {
 		return nil, fmt.Errorf("jump: failed to jump because pane or window does not exist")
 	}
 
+	if markRead {
+		if err := markNotificationReadAfterJumpFunc(id); err != nil {
+			return nil, fmt.Errorf("jump: failed to mark notification as read: %w", err)
+		}
+	}
+
 	return &JumpResult{
 		ID:         id,
 		Session:    session,
@@ -137,6 +163,7 @@ func Jump(id string) (*JumpResult, error) {
 
 func init() {
 	cmd.RootCmd.AddCommand(jumpCmd)
+	jumpCmd.Flags().BoolVar(&jumpNoMarkRead, "no-mark-read", false, "do not mark notification as read after successful jump")
 
 	// Here you will define your flags and configuration settings.
 
@@ -164,7 +191,7 @@ func runJump(cmd *cobra.Command, args []string) {
 	}
 
 	// Jump to pane
-	result, err := Jump(id)
+	result, err := JumpWithMarkRead(id, !jumpNoMarkRead)
 	if err != nil {
 		colors.Error(err.Error())
 		return

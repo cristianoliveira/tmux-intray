@@ -72,6 +72,16 @@ func (f *fakeStorage) MarkNotificationUnread(id string) error {
 	return f.markUnreadErr
 }
 
+func (f *fakeStorage) MarkNotificationReadWithTimestamp(id, timestamp string) error {
+	f.markReadCalls++
+	return f.markReadErr
+}
+
+func (f *fakeStorage) MarkNotificationUnreadWithTimestamp(id, timestamp string) error {
+	f.markUnreadCalls++
+	return f.markUnreadErr
+}
+
 func (f *fakeStorage) CleanupOldNotifications(daysThreshold int, dryRun bool) error {
 	f.cleanupCalls++
 	return f.cleanupErr

@@ -178,6 +178,7 @@ func TestFooterGroupedHelpText(t *testing.T) {
 
 	assert.Contains(t, footer, "mode: [G]")
 	assert.Contains(t, footer, "v: cycle view mode")
+	assert.Contains(t, footer, "gg/G: top/bottom")
 	assert.Contains(t, footer, "h/l: collapse/expand")
 	assert.Contains(t, footer, "za: toggle fold")
 	assert.Contains(t, footer, "Enter: toggle/jump")
@@ -190,6 +191,13 @@ func TestFooterCommandModeHelpText(t *testing.T) {
 	assert.Contains(t, footer, "cmds: "+commandList)
 	assert.Contains(t, footer, ":group-by window")
 	assert.Contains(t, footer, "Enter: execute")
+}
+
+func TestFooterClampsToWidthAndClearsLine(t *testing.T) {
+	footer := Footer(FooterState{Grouped: true, ViewMode: settings.ViewModeGrouped, Width: 24})
+
+	assert.Equal(t, 24, lipgloss.Width(footer))
+	assert.True(t, strings.HasSuffix(footer, "\x1b[K"))
 }
 
 func TestViewModeIndicator(t *testing.T) {

@@ -199,7 +199,6 @@ func (h *WriteCommandHandler) Execute(args []string) (*model.CommandResult, erro
 				colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 				return saveSettingsFailedMsg{err: err}
 			}
-			colors.Info("Settings saved")
 			return saveSettingsSuccessMsg{}
 		},
 	}, nil

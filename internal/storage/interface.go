@@ -10,6 +10,8 @@ type Storage interface {
 	DismissAll() error
 	MarkNotificationRead(id string) error
 	MarkNotificationUnread(id string) error
+	MarkNotificationReadWithTimestamp(id, timestamp string) error
+	MarkNotificationUnreadWithTimestamp(id, timestamp string) error
 	CleanupOldNotifications(daysThreshold int, dryRun bool) error
 	GetActiveCount() int
 }

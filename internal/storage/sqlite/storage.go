@@ -292,6 +292,16 @@ func (s *SQLiteStorage) MarkNotificationUnread(id string) error {
 	return s.markNotificationReadState(id, "")
 }
 
+// MarkNotificationReadWithTimestamp sets read_timestamp to the provided timestamp.
+func (s *SQLiteStorage) MarkNotificationReadWithTimestamp(id, timestamp string) error {
+	return s.markNotificationReadState(id, timestamp)
+}
+
+// MarkNotificationUnreadWithTimestamp clears read_timestamp (timestamp parameter is ignored, kept for consistency).
+func (s *SQLiteStorage) MarkNotificationUnreadWithTimestamp(id, timestamp string) error {
+	return s.markNotificationReadState(id, timestamp)
+}
+
 func (s *SQLiteStorage) markNotificationReadState(id, readTimestamp string) error {
 	idInt, err := parseID(id)
 	if err != nil {
