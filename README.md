@@ -2,7 +2,7 @@
 [![CI](https://github.com/cristianoliveira/tmux-intray/actions/workflows/ci.yml/badge.svg)](https://github.com/cristianoliveira/tmux-intray/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/cristianoliveira/tmux-intray/branch/main/graph/badge.svg)](https://codecov.io/gh/cristianoliveira/tmux-intray)
 
-## Work in Progress
+
 
 <img width="300" height="300" alt="tmux-intray-300" src="https://github.com/user-attachments/assets/4fd9f030-9bb3-43a7-b800-c0d0f479e2a5" align="right" />
 
@@ -10,9 +10,10 @@ A quiet inbox for things that happen while you're not looking.
 
 <div>
 
-tmux-intray provides a persistent in-tmux in-tray where panes, windows, and scripts can drop messages and events without interrupting your flow. Instead of loud notifications or forced context switches, events accumulate calmly until you're ready to review them. Each item keeps its origin, survives pane and window changes, and can be inspected, jumped to, or cleared at your own pace. It's designed for deferred attention: notice now if you want, act later when it makes sense.
+tmux-intray provides a persistent in-tmux in-tray where panes, windows, and scripts can drop messages and events without interrupting your flow. Instead of loud notifications or forced context switching.
 </div>
 
+## Work in Progress
 
 > [!WARNING]
 > 🚧 This plugin is in active development at the moment. It started as an opencode plugin but grew into its own project.
