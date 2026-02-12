@@ -2,7 +2,6 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/pelletier/go-toml/v2"
-	"gopkg.in/yaml.v3"
 )
 
 // File permission constants
@@ -28,12 +26,6 @@ const (
 	// File extension constants for configuration files
 	// FileExtTOML is the file extension for TOML configuration files (primary format).
 	FileExtTOML = ".toml"
-	// FileExtJSON is the file extension for JSON configuration files.
-	FileExtJSON = ".json"
-	// FileExtYAML is the file extension for YAML configuration files.
-	FileExtYAML = ".yaml"
-	// FileExtYML is an alternative file extension for YAML configuration files.
-	FileExtYML = ".yml"
 )
 
 var (
@@ -129,14 +121,8 @@ func loadFromFile() {
 		if configDir, ok := config["config_dir"]; ok {
 			configPath = filepath.Join(configDir, "config"+FileExtTOML)
 			if _, err := os.Stat(configPath); err != nil {
-				// Try other extensions
-				for _, ext := range []string{FileExtJSON, FileExtYAML, FileExtYML} {
-					path := filepath.Join(configDir, "config"+ext)
-					if _, err := os.Stat(path); err == nil {
-						configPath = path
-						break
-					}
-				}
+				// TOML file doesn't exist, no configuration to load
+				configPath = ""
 			}
 		}
 	}
@@ -155,10 +141,6 @@ func loadFromFile() {
 	switch ext {
 	case FileExtTOML:
 		err = toml.Unmarshal(data, &raw)
-	case FileExtJSON:
-		err = json.Unmarshal(data, &raw)
-	case FileExtYAML, FileExtYML:
-		err = yaml.Unmarshal(data, &raw)
 	default:
 		return
 	}

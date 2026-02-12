@@ -2,7 +2,6 @@
 package settings
 
 import (
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -12,6 +11,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
+	"github.com/pelletier/go-toml/v2"
 )
 
 // File permission constants
@@ -23,9 +23,9 @@ const (
 	// Owner: read/write, Group/others: read only
 	FileModeFile os.FileMode = 0644
 
-	// FileExtJSON is the file extension for JSON files.
+	// FileExtTOML is the file extension for TOML files.
 	// Used for user settings persistence.
-	FileExtJSON = ".json"
+	FileExtTOML = ".toml"
 )
 
 // Default column values.
@@ -108,29 +108,29 @@ type Filter struct {
 	// Level filters notifications by severity level.
 	// Empty string means no filter (show all levels).
 	// Valid values: "info", "warning", "error", "critical", "".
-	Level string `json:"level"`
+	Level string
 
 	// State filters notifications by state.
 	// Empty string means no filter (show all states).
 	// Valid values: "active", "dismissed", "".
-	State string `json:"state"`
+	State string
 
 	// Session filters notifications by tmux session name.
 	// Empty string means no filter (show all sessions).
-	Session string `json:"session"`
+	Session string
 
 	// Window filters notifications by tmux window ID.
 	// Empty string means no filter (show all windows).
-	Window string `json:"window"`
+	Window string
 
 	// Pane filters notifications by tmux pane ID.
 	// Empty string means no filter (show all panes).
-	Pane string `json:"pane"`
+	Pane string
 }
 
 // Settings holds TUI user preferences persisted to disk.
 //
-// JSON Schema:
+// TOML Schema:
 //
 //	{
 //	  "columns": ["id", "timestamp", "state", "level", "session", "window", "pane", "message"],
@@ -151,42 +151,42 @@ type Filter struct {
 //
 // Valid viewMode values: "compact", "detailed", "grouped".
 //
-// Settings are stored at ~/.config/tmux-intray/settings.json
+// Settings are stored at ~/.config/tmux-intray/settings.toml
 type Settings struct {
 	// Columns defines which columns are displayed and their order.
 	// Empty slice means use default column order.
 	// Valid column names: "id", "timestamp", "state", "session", "window", "pane", "message", "pane_created", "level".
-	Columns []string `json:"columns"`
+	Columns []string
 
 	// SortBy specifies which column to sort by.
 	// Empty string means use default sort (timestamp).
 	// Valid values: "id", "timestamp", "state", "level", "session".
-	SortBy string `json:"sortBy"`
+	SortBy string
 
 	// SortOrder specifies sort direction: "asc" or "desc".
 	// Empty string means use default sort order (desc).
-	SortOrder string `json:"sortOrder"`
+	SortOrder string
 
 	// Filters contains active filter criteria.
-	Filters Filter `json:"filters"`
+	Filters Filter
 
 	// ViewMode specifies the display layout: "compact", "detailed", or "grouped".
 	// Empty string means use default view mode (grouped).
-	ViewMode string `json:"viewMode"`
+	ViewMode string
 
 	// GroupBy specifies the grouping mode: "none", "session", "window", or "pane".
 	// Empty string means use default grouping (none).
-	GroupBy string `json:"groupBy"`
+	GroupBy string
 
 	// DefaultExpandLevel controls the default grouping expansion level (0-3).
 	// Use 0 to collapse all groups by default.
-	DefaultExpandLevel int `json:"defaultExpandLevel"`
+	DefaultExpandLevel int
 
 	// AutoExpandUnread controls whether groups with unread notifications are auto-expanded.
-	AutoExpandUnread bool `json:"autoExpandUnread"`
+	AutoExpandUnread bool
 
 	// ExpansionState stores explicit expansion overrides by node path.
-	ExpansionState map[string]bool `json:"expansionState"`
+	ExpansionState map[string]bool
 }
 
 // DefaultSettings returns settings with all default values.
@@ -240,10 +240,10 @@ func Load() (*Settings, error) {
 		}
 
 		settings = DefaultSettings()
-		if err := json.Unmarshal(data, settings); err != nil {
-			// Handle corrupted JSON gracefully - return defaults with warning
+		if err := toml.Unmarshal(data, settings); err != nil {
+			// Handle corrupted TOML gracefully - return defaults with warning
 			colors.Warning("Failed to parse settings file:", err.Error(), "- using defaults")
-			colors.Debug("JSON parse error:", err.Error())
+			colors.Debug("TOML parse error:", err.Error())
 			loadErr = nil // Don't return an error, just use defaults
 			settings = DefaultSettings()
 			return nil
@@ -288,8 +288,8 @@ func Save(settings *Settings) error {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	// Marshal settings to JSON with indentation for readability
-	data, err := json.MarshalIndent(settings, "", "  ")
+	// Marshal settings to TOML
+	data, err := toml.Marshal(settings)
 	if err != nil {
 		return fmt.Errorf("failed to marshal settings: %w", err)
 	}
@@ -470,7 +470,7 @@ func validate(settings *Settings) error {
 	return Validate(settings)
 }
 
-// getSettingsPath returns the path to the settings.json file.
+// getSettingsPath returns the path to the settings.toml file.
 func getSettingsPath() string {
 	configDir := config.Get("config_dir", "")
 	if configDir == "" {
@@ -482,5 +482,5 @@ func getSettingsPath() string {
 		}
 		configDir = filepath.Join(xdgConfigHome, "tmux-intray")
 	}
-	return filepath.Join(configDir, "settings"+FileExtJSON)
+	return filepath.Join(configDir, "settings"+FileExtTOML)
 }

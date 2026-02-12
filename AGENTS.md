@@ -12,6 +12,10 @@ bd close <id>         # Complete work
 bd sync               # Sync with git
 ```
 
+## Project Philosophy
+
+This project follows a minimalist, Unix‑style philosophy. See [Project Philosophy](./docs/philosophy.md) for design principles and rationale.
+
 ## Development Guide
 
 Detailed development guidelines in [DEVELOPMENT.md](./DEVELOPMENT.md).
@@ -73,6 +77,7 @@ Detailed development guidelines in [DEVELOPMENT.md](./DEVELOPMENT.md).
 - **Testing**: Use `t.TempDir()` and `t.Setenv()`. Reset package state in `setupTest()`. Use table-driven tests. Follow `Test<FunctionName>` naming. Use subtests with `t.Run()`. Mock external dependencies. Use `github.com/stretchr/testify`. See [Testing Strategy](./docs/testing/testing-strategy.md)
 - **Documentation**: Exported functions must have doc comments: `// FunctionName does X and returns Y.` Package comments at top: `// Package pkgname provides X.`
 - **Cobra CLI**: Commands in `cmd/tmux-intray/` subdirectories. Each command has own package. Use `RunE` for error-prone commands. Hide completion command.
+- **Configuration**: Use TOML format only for all configuration files. See [Project Philosophy](./docs/philosophy.md) for details.
 
 ### Shell Script Style
 - **Formatting**: 4 spaces indentation (no tabs), 80-100 char lines. Use `shfmt -ln bash -i 4 -w <file>`.

@@ -1,10 +1,12 @@
 # tmux-intray Configuration
 
+> **Note**: This project follows a minimalist, Unix‑style philosophy. See [Project Philosophy](./philosophy.md) for design principles and rationale.
+
 tmux-intray can be configured via environment variables, which can be set in your shell profile or in a dedicated configuration file. This guide covers all available configuration options.
 
 ## Configuration File
 
-The primary way to configure tmux-intray is through the configuration file at `$TMUX_INTRAY_CONFIG_DIR/config.sh` (default: `~/.config/tmux-intray/config.sh`). This file is sourced as a bash script when tmux-intray starts, allowing you to set environment variables and define custom behavior.
+The primary way to configure tmux-intray is through the configuration file at `$TMUX_INTRAY_CONFIG_DIR/config.toml` (default: `~/.config/tmux-intray/config.toml`). This file is parsed as a TOML file when tmux-intray starts, allowing you to set configuration options and define custom behavior.
 
 If the file doesn't exist, tmux-intray creates a sample configuration file with default values and helpful comments.
 
@@ -65,51 +67,51 @@ All configuration options are controlled by environment variables with the `TMUX
 
 ## Sample Configuration File
 
-```bash
+```toml
 # tmux-intray configuration
-# This file is sourced by tmux-intray on startup.
+# This file is parsed as TOML by tmux-intray on startup.
 
 # Storage directories (follow XDG Base Directory Specification)
-TMUX_INTRAY_STATE_DIR="$HOME/.local/state/tmux-intray"
-TMUX_INTRAY_CONFIG_DIR="$HOME/.config/tmux-intray"
-TMUX_INTRAY_STORAGE_BACKEND="tsv"
+state_dir = "~/.local/state/tmux-intray"
+config_dir = "~/.config/tmux-intray"
+storage_backend = "tsv"
 
-# Dual-write mode (used when TMUX_INTRAY_STORAGE_BACKEND="dual")
-TMUX_INTRAY_DUAL_READ_BACKEND="sqlite"
-TMUX_INTRAY_DUAL_VERIFY_ONLY=0
-TMUX_INTRAY_DUAL_VERIFY_SAMPLE_SIZE=25
+# Dual-write mode (used when storage_backend="dual")
+dual_read_backend = "sqlite"
+dual_verify_only = false
+dual_verify_sample_size = 25
 
 # Storage limits
-TMUX_INTRAY_MAX_NOTIFICATIONS=1000
-TMUX_INTRAY_AUTO_CLEANUP_DAYS=30
+max_notifications = 1000
+auto_cleanup_days = 30
 
 # Display settings
-TMUX_INTRAY_DATE_FORMAT="%Y-%m-%d %H:%M:%S"
-TMUX_INTRAY_TABLE_FORMAT="default"
+date_format = "%Y-%m-%d %H:%M:%S"
+table_format = "default"
 
 # Status bar integration
-TMUX_INTRAY_STATUS_ENABLED=1
-TMUX_INTRAY_STATUS_FORMAT="compact"
-TMUX_INTRAY_SHOW_LEVELS=0
-TMUX_INTRAY_LEVEL_COLORS="info:green,warning:yellow,error:red,critical:magenta"
+status_enabled = true
+status_format = "compact"
+show_levels = false
+level_colors = "info:green,warning:yellow,error:red,critical:magenta"
 
 # Hook system
-TMUX_INTRAY_HOOKS_ENABLED=1
-TMUX_INTRAY_HOOKS_FAILURE_MODE="warn"
-TMUX_INTRAY_HOOKS_ASYNC=0
-TMUX_INTRAY_HOOKS_DIR="$HOME/.config/tmux-intray/hooks"
+hooks_enabled = true
+hooks_failure_mode = "warn"
+hooks_async = false
+hooks_dir = "~/.config/tmux-intray/hooks"
 
 # Per-hook enable/disable
-TMUX_INTRAY_HOOKS_ENABLED_pre_add=1
-TMUX_INTRAY_HOOKS_ENABLED_post_add=1
-TMUX_INTRAY_HOOKS_ENABLED_pre_dismiss=1
-TMUX_INTRAY_HOOKS_ENABLED_post_dismiss=1
-TMUX_INTRAY_HOOKS_ENABLED_cleanup=1
-TMUX_INTRAY_HOOKS_ENABLED_post_cleanup=1
+hooks_enabled_pre_add = true
+hooks_enabled_post_add = true
+hooks_enabled_pre_dismiss = true
+hooks_enabled_post_dismiss = true
+hooks_enabled_cleanup = true
+hooks_enabled_post_cleanup = true
 
 # Debugging
-TMUX_INTRAY_DEBUG=0
-TMUX_INTRAY_QUIET=0
+debug = false
+quiet = false
 ```
 
 ## Overriding Configuration
@@ -186,29 +188,28 @@ The TUI (Terminal User Interface) automatically saves your preferences when you 
 
 ### Settings File Location
 
-Settings are stored at `~/.config/tmux-intray/settings.json` (or `$XDG_CONFIG_HOME/tmux-intray/settings.json` if XDG_CONFIG_HOME is set).
+Settings are stored at `~/.config/tmux-intray/settings.toml` (or `$XDG_CONFIG_HOME/tmux-intray/settings.toml` if XDG_CONFIG_HOME is set).
 
 ### Available Settings
 
-The settings file uses the following JSON schema:
+The settings file uses the following TOML schema:
 
-```json
-{
-  "columns": ["id", "timestamp", "state", "level", "session", "window", "pane", "message"],
-  "sortBy": "timestamp",
-  "sortOrder": "desc",
-  "filters": {
-    "level": "",
-    "state": "",
-    "session": "",
-    "window": "",
-    "pane": ""
-  },
-  "viewMode": "grouped",
-  "groupBy": "none",
-  "defaultExpandLevel": 1,
-  "expansionState": {}
-}
+```toml
+columns = ["id", "timestamp", "state", "level", "session", "window", "pane", "message"]
+sortBy = "timestamp"
+sortOrder = "desc"
+
+[filters]
+level = ""
+state = ""
+session = ""
+window = ""
+pane = ""
+
+viewMode = "grouped"
+groupBy = "none"
+defaultExpandLevel = 1
+expansionState = {}
 ```
 
 #### Settings Fields
@@ -239,23 +240,22 @@ The settings file uses the following JSON schema:
 
 If the settings file doesn't exist or is corrupted, the TUI uses these defaults:
 
-```json
-{
-  "columns": ["id", "timestamp", "state", "level", "session", "window", "pane", "message"],
-  "sortBy": "timestamp",
-  "sortOrder": "desc",
-  "filters": {
-    "level": "",
-    "state": "",
-    "session": "",
-    "window": "",
-    "pane": ""
-  },
-  "viewMode": "grouped",
-  "groupBy": "none",
-  "defaultExpandLevel": 1,
-  "expansionState": {}
-}
+```toml
+columns = ["id", "timestamp", "state", "level", "session", "window", "pane", "message"]
+sortBy = "timestamp"
+sortOrder = "desc"
+
+[filters]
+level = ""
+state = ""
+session = ""
+window = ""
+pane = ""
+
+viewMode = "grouped"
+groupBy = "none"
+defaultExpandLevel = 1
+expansionState = {}
 ```
 
 ### How Settings Are Saved
@@ -271,7 +271,7 @@ The save operation uses atomic writes to prevent file corruption.
 
 #### View Current Settings
 
-Display your current settings in JSON format:
+Display your current settings in TOML format:
 
 ```bash
 tmux-intray settings show
@@ -289,7 +289,7 @@ tmux-intray settings reset
 tmux-intray settings reset --force
 ```
 
-This command deletes the `settings.json` file. The TUI will use defaults on the next launch.
+This command deletes the `settings.toml` file. The TUI will use defaults on the next launch.
 
 #### Manually Edit Settings
 
@@ -297,7 +297,7 @@ You can edit the settings file directly with any text editor:
 
 ```bash
 # Open settings file
-vim ~/.config/tmux-intray/settings.json
+vim ~/.config/tmux-intray/settings.toml
 ```
 
 After editing, the TUI will load the new settings on the next launch.
@@ -308,51 +308,49 @@ Here are some example settings configurations:
 
 **Show only active errors, sorted by timestamp ascending:**
 
-```json
-{
-  "columns": ["level", "message", "session", "timestamp"],
-  "sortBy": "timestamp",
-  "sortOrder": "asc",
-  "filters": {
-    "level": "error",
-    "state": "active",
-    "session": "",
-    "window": "",
-    "pane": ""
-  },
-  "viewMode": "compact",
-  "groupBy": "none",
-  "defaultExpandLevel": 1,
-  "expansionState": {}
-}
+```toml
+columns = ["level", "message", "session", "timestamp"]
+sortBy = "timestamp"
+sortOrder = "asc"
+
+[filters]
+level = "error"
+state = "active"
+session = ""
+window = ""
+pane = ""
+
+viewMode = "compact"
+groupBy = "none"
+defaultExpandLevel = 1
+expansionState = {}
 ```
 
 **Show warnings and critical messages from specific session:**
 
-```json
-{
-  "columns": ["level", "message", "window", "pane", "timestamp"],
-  "sortBy": "level",
-  "sortOrder": "desc",
-  "filters": {
-    "level": "critical",
-    "state": "",
-    "session": "work",
-    "window": "",
-    "pane": ""
-  },
-  "viewMode": "detailed",
-  "groupBy": "session",
-  "defaultExpandLevel": 2,
-  "expansionState": {
-    "session:work": true
-  }
-}
+```toml
+columns = ["level", "message", "window", "pane", "timestamp"]
+sortBy = "level"
+sortOrder = "desc"
+
+[filters]
+level = "critical"
+state = ""
+session = "work"
+window = ""
+pane = ""
+
+viewMode = "detailed"
+groupBy = "session"
+defaultExpandLevel = 2
+
+[expansionState]
+"session:work" = true
 ```
 
 ### Error Handling
 
-If the settings file is corrupted (invalid JSON), the TUI will:
+If the settings file is corrupted (invalid TOML), the TUI will:
 1. Log a warning message to stderr
 2. Fall back to default settings
 3. Continue operating normally
@@ -361,9 +359,9 @@ This ensures that a corrupted settings file doesn't prevent the TUI from running
 
 ### Notes
 
-- Settings are stored in JSON format with 2-space indentation for readability
+- Settings are stored in TOML format with 2-space indentation for readability
 - The settings directory (`~/.config/tmux-intray`) is created automatically if it doesn't exist
 - File locking is used to prevent concurrent writes when multiple TUI instances are running
 - Empty string values for filters mean "no filter" (show all)
 - Empty or missing `columns` array uses the default column order
-- For XDG Base Directory compliance, the file location is `$XDG_CONFIG_HOME/tmux-intray/settings.json`
+- For XDG Base Directory compliance, the file location is `$XDG_CONFIG_HOME/tmux-intray/settings.toml`

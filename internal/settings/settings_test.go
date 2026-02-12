@@ -1,12 +1,12 @@
 package settings
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/cristianoliveira/tmux-intray/internal/config"
+	"github.com/pelletier/go-toml/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -67,7 +67,7 @@ func TestLoadFromExistingFile(t *testing.T) {
 	configDir := filepath.Join(tmpDir, "tmux-intray")
 	require.NoError(t, os.MkdirAll(configDir, 0755))
 
-	settingsPath := filepath.Join(configDir, "settings.json")
+	settingsPath := filepath.Join(configDir, "settings.toml")
 	customSettings := &Settings{
 		Columns:   []string{ColumnID, ColumnMessage, ColumnLevel},
 		SortBy:    SortByLevel,
@@ -85,7 +85,7 @@ func TestLoadFromExistingFile(t *testing.T) {
 		},
 	}
 
-	data, err := json.MarshalIndent(customSettings, "", "  ")
+	data, err := toml.Marshal(customSettings)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(settingsPath, data, 0644))
 	defer os.Remove(settingsPath)
@@ -117,12 +117,11 @@ func TestLoadPartialSettings(t *testing.T) {
 	configDir := filepath.Join(tmpDir, "tmux-intray")
 	require.NoError(t, os.MkdirAll(configDir, 0755))
 
-	settingsPath := filepath.Join(configDir, "settings.json")
-	partialJSON := `{
-	  "sortBy": "level",
-	  "viewMode": "detailed"
-	}`
-	require.NoError(t, os.WriteFile(settingsPath, []byte(partialJSON), 0644))
+	settingsPath := filepath.Join(configDir, "settings.toml")
+	partialTOML := `sortBy = "level"
+viewMode = "detailed"
+`
+	require.NoError(t, os.WriteFile(settingsPath, []byte(partialTOML), 0644))
 	defer os.Remove(settingsPath)
 
 	// Load settings
@@ -143,20 +142,20 @@ func TestLoadPartialSettings(t *testing.T) {
 	assert.Equal(t, map[string]bool{}, settings.ExpansionState)
 }
 
-func TestLoadInvalidJSON(t *testing.T) {
+func TestLoadInvalidTOML(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", tmpDir)
 	t.Setenv("HOME", tmpDir)
 
-	// Create settings file with invalid JSON
+	// Create settings file with invalid TOML
 	configDir := filepath.Join(tmpDir, "tmux-intray")
 	require.NoError(t, os.MkdirAll(configDir, 0755))
 
-	settingsPath := filepath.Join(configDir, "settings.json")
-	require.NoError(t, os.WriteFile(settingsPath, []byte("invalid json"), 0644))
+	settingsPath := filepath.Join(configDir, "settings.toml")
+	require.NoError(t, os.WriteFile(settingsPath, []byte("invalid toml [unclosed"), 0644))
 	defer os.Remove(settingsPath)
 
-	// Load should succeed with defaults (not error) - corrupted JSON is handled gracefully
+	// Load should succeed with defaults (not error) - corrupted TOML is handled gracefully
 	settings, err := Load()
 	require.NoError(t, err)
 	require.NotNil(t, settings)
@@ -181,15 +180,13 @@ func TestLoadInvalidExpansionStateType(t *testing.T) {
 	configDir := filepath.Join(tmpDir, "tmux-intray")
 	require.NoError(t, os.MkdirAll(configDir, 0755))
 
-	settingsPath := filepath.Join(configDir, "settings.json")
-	invalidJSON := `{
-	  "viewMode": "grouped",
-	  "groupBy": "window",
-	  "expansionState": {
-	    "window:$1:@1": "collapsed"
-	  }
-	}`
-	require.NoError(t, os.WriteFile(settingsPath, []byte(invalidJSON), 0644))
+	settingsPath := filepath.Join(configDir, "settings.toml")
+	invalidTOML := `viewMode = "grouped"
+groupBy = "window"
+[expansionState]
+"window:$1:@1" = "collapsed"
+`
+	require.NoError(t, os.WriteFile(settingsPath, []byte(invalidTOML), 0644))
 	defer os.Remove(settingsPath)
 
 	settings, err := Load()
@@ -211,11 +208,10 @@ func TestLoadInvalidColumn(t *testing.T) {
 	configDir := filepath.Join(tmpDir, "tmux-intray")
 	require.NoError(t, os.MkdirAll(configDir, 0755))
 
-	settingsPath := filepath.Join(configDir, "settings.json")
-	invalidJSON := `{
-	  "columns": ["id", "invalid_column"]
-	}`
-	require.NoError(t, os.WriteFile(settingsPath, []byte(invalidJSON), 0644))
+	settingsPath := filepath.Join(configDir, "settings.toml")
+	invalidTOML := `columns = ["id", "invalid_column"]
+`
+	require.NoError(t, os.WriteFile(settingsPath, []byte(invalidTOML), 0644))
 	defer os.Remove(settingsPath)
 
 	// Load should fail
@@ -254,7 +250,7 @@ func TestSave(t *testing.T) {
 
 	// Verify file exists
 	configDir := filepath.Join(tmpDir, "tmux-intray")
-	settingsPath := filepath.Join(configDir, "settings.json")
+	settingsPath := filepath.Join(configDir, "settings.toml")
 	require.FileExists(t, settingsPath)
 
 	// Verify file contents
@@ -262,7 +258,7 @@ func TestSave(t *testing.T) {
 	require.NoError(t, err)
 
 	var loaded Settings
-	err = json.Unmarshal(data, &loaded)
+	err = toml.Unmarshal(data, &loaded)
 	require.NoError(t, err)
 
 	assert.Equal(t, settings.Columns, loaded.Columns)
@@ -484,7 +480,7 @@ func TestGetSettingsPath(t *testing.T) {
 	config.Load()
 
 	path := getSettingsPath()
-	expected := filepath.Join(tmpDir, "tmux-intray", "settings.json")
+	expected := filepath.Join(tmpDir, "tmux-intray", "settings.toml")
 	assert.Equal(t, expected, path)
 }
 
@@ -499,39 +495,34 @@ func TestGetSettingsPathFallback(t *testing.T) {
 	config.Load()
 
 	path := getSettingsPath()
-	expected := filepath.Join(tmpDir, ".config", "tmux-intray", "settings.json")
+	expected := filepath.Join(tmpDir, ".config", "tmux-intray", "settings.toml")
 	assert.Equal(t, expected, path)
 }
 
-func TestSettingsJSONMarshaling(t *testing.T) {
+func TestSettingsTOMLMarshaling(t *testing.T) {
 	settings := DefaultSettings()
 
-	data, err := json.MarshalIndent(settings, "", "  ")
+	data, err := toml.Marshal(settings)
 	require.NoError(t, err)
 
-	// Verify JSON structure
-	var raw map[string]interface{}
-	err = json.Unmarshal(data, &raw)
+	// Verify TOML can be unmarshaled back
+	var loaded Settings
+	err = toml.Unmarshal(data, &loaded)
 	require.NoError(t, err)
 
-	// Check fields exist
-	assert.Contains(t, raw, "columns")
-	assert.Contains(t, raw, "sortBy")
-	assert.Contains(t, raw, "sortOrder")
-	assert.Contains(t, raw, "filters")
-	assert.Contains(t, raw, "viewMode")
-	assert.Contains(t, raw, "groupBy")
-	assert.Contains(t, raw, "defaultExpandLevel")
-	assert.Contains(t, raw, "expansionState")
-
-	// Check filters substructure
-	filters, ok := raw["filters"].(map[string]interface{})
-	require.True(t, ok)
-	assert.Contains(t, filters, "level")
-	assert.Contains(t, filters, "state")
-	assert.Contains(t, filters, "session")
-	assert.Contains(t, filters, "window")
-	assert.Contains(t, filters, "pane")
+	// Verify all fields are preserved
+	assert.Equal(t, settings.Columns, loaded.Columns)
+	assert.Equal(t, settings.SortBy, loaded.SortBy)
+	assert.Equal(t, settings.SortOrder, loaded.SortOrder)
+	assert.Equal(t, settings.Filters, loaded.Filters)
+	assert.Equal(t, settings.ViewMode, loaded.ViewMode)
+	assert.Equal(t, settings.GroupBy, loaded.GroupBy)
+	assert.Equal(t, settings.DefaultExpandLevel, loaded.DefaultExpandLevel)
+	// ExpansionState may be nil after unmarshal (empty map doesn't serialize)
+	if loaded.ExpansionState == nil {
+		loaded.ExpansionState = map[string]bool{}
+	}
+	assert.Equal(t, settings.ExpansionState, loaded.ExpansionState)
 }
 
 func TestInit(t *testing.T) {
@@ -584,7 +575,7 @@ func TestInitWithExistingFile(t *testing.T) {
 	configDir := filepath.Join(tmpDir, "tmux-intray")
 	require.NoError(t, os.MkdirAll(configDir, 0755))
 
-	settingsPath := filepath.Join(configDir, "settings.json")
+	settingsPath := filepath.Join(configDir, "settings.toml")
 	customSettings := &Settings{
 		SortBy:             SortByLevel,
 		SortOrder:          SortOrderAsc,
@@ -593,7 +584,7 @@ func TestInitWithExistingFile(t *testing.T) {
 		DefaultExpandLevel: 2,
 	}
 
-	data, err := json.MarshalIndent(customSettings, "", "  ")
+	data, err := toml.Marshal(customSettings)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(settingsPath, data, 0644))
 
@@ -616,7 +607,7 @@ func TestReset(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 
 	// Create and save custom settings
-	settingsPath := filepath.Join(tmpDir, "tmux-intray", "settings.json")
+	settingsPath := filepath.Join(tmpDir, "tmux-intray", "settings.toml")
 	customSettings := &Settings{
 		SortBy:             SortByLevel,
 		SortOrder:          SortOrderAsc,
