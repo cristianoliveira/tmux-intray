@@ -10,16 +10,27 @@ import (
 	"strings"
 
 	"github.com/cristianoliveira/tmux-intray/cmd"
-
-	"github.com/cristianoliveira/tmux-intray/internal/core"
 	"github.com/spf13/cobra"
 )
 
-// statusCmd represents the status command
-var statusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Show notification status summary",
-	Long: `Show notification status summary.
+type statusClient interface {
+	EnsureTmuxRunning() bool
+	ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error)
+	GetActiveCount() int
+}
+
+// NewStatusCmd creates the status command with explicit dependencies.
+func NewStatusCmd(client statusClient) *cobra.Command {
+	if client == nil {
+		panic("NewStatusCmd: client dependency cannot be nil")
+	}
+
+	var formatFlag string
+
+	statusCmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show notification status summary",
+		Long: `Show notification status summary.
 
 USAGE:
     tmux-intray status [OPTIONS]
@@ -32,55 +43,71 @@ EXAMPLES:
     tmux-intray status               # Show summary
     tmux-intray status --format=levels # Show counts by level
     tmux-intray status --format=panes  # Show counts by pane`,
-	RunE: runStatus,
-}
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Ensure tmux is running (mirror bash script behavior)
+			if !client.EnsureTmuxRunning() {
+				return fmt.Errorf("tmux not running")
+			}
 
-var statusFormat string
+			// Determine format: flag > environment variable > default
+			format := formatFlag
+			if !cmd.Flag("format").Changed {
+				if envFormat := os.Getenv("TMUX_INTRAY_STATUS_FORMAT"); envFormat != "" {
+					format = envFormat
+				}
+			}
+			if format == "" {
+				format = "summary"
+			}
 
-// statusOutputWriter is the writer used by PrintStatus. Can be changed for testing.
-var statusOutputWriter io.Writer = os.Stdout
+			// Validate format
+			validFormats := map[string]bool{
+				"summary": true,
+				"levels":  true,
+				"panes":   true,
+				"json":    true,
+			}
+			if !validFormats[format] {
+				return fmt.Errorf("status: unknown format: %s", format)
+			}
 
-// statusListFunc is the function used to retrieve notifications. Can be changed for testing.
-var statusListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
-	result, _ := fileStorage.ListNotifications(state, level, session, window, pane, olderThan, newerThan, readFilter)
-	return result
-}
+			// Output writer
+			w := cmd.OutOrStdout()
 
-// statusActiveCountFunc is the function used to get active count. Can be changed for testing.
-var statusActiveCountFunc = func() int {
-	return fileStorage.GetActiveCount()
-}
-
-// PrintStatus prints status summary according to the provided format.
-func PrintStatus(format string) {
-	if statusOutputWriter == nil {
-		statusOutputWriter = os.Stdout
+			switch format {
+			case "summary":
+				return formatSummary(client, w)
+			case "levels":
+				return formatLevels(client, w)
+			case "panes":
+				return formatPanes(client, w)
+			case "json":
+				return formatJSON(client, w)
+			default:
+				return fmt.Errorf("status: unknown format: %s", format)
+			}
+		},
 	}
-	printStatus(format, statusOutputWriter)
+
+	statusCmd.Flags().StringVar(&formatFlag, "format", "summary", "Output format: summary, levels, panes, json")
+	return statusCmd
 }
 
-func printStatus(format string, w io.Writer) {
-	switch format {
-	case "summary":
-		formatSummary(w)
-	case "levels":
-		formatLevels(w)
-	case "panes":
-		formatPanes(w)
-	case "json":
-		formatJSON(w)
-	default:
-		fmt.Fprintf(w, "status: unknown format: %s\n", format)
-	}
+// statusCmd represents the status command.
+var statusCmd = NewStatusCmd(coreClient)
+
+func init() {
+	cmd.RootCmd.AddCommand(statusCmd)
 }
 
-// countByState returns the number of notifications with given state.
-func countByState(state string) int {
-	lines := statusListFunc(state, "", "", "", "", "", "", "")
-	if lines == "" {
+// Helper functions
+
+func countByState(client statusClient, state string) int {
+	lines, err := client.ListNotifications(state, "", "", "", "", "", "", "")
+	if err != nil || lines == "" {
 		return 0
 	}
-	// Count non-empty lines
 	count := 0
 	for _, line := range strings.Split(lines, "\n") {
 		if line != "" {
@@ -90,10 +117,9 @@ func countByState(state string) int {
 	return count
 }
 
-// countByLevel returns counts per level for active notifications.
-func countByLevel() (info, warning, error, critical int) {
-	lines := statusListFunc("active", "", "", "", "", "", "", "")
-	if lines == "" {
+func countByLevel(client statusClient) (info, warning, error, critical int) {
+	lines, err := client.ListNotifications("active", "", "", "", "", "", "", "")
+	if err != nil || lines == "" {
 		return
 	}
 	for _, line := range strings.Split(lines, "\n") {
@@ -121,11 +147,10 @@ func countByLevel() (info, warning, error, critical int) {
 	return
 }
 
-// paneCounts returns map of pane key to count for active notifications.
-func paneCounts() map[string]int {
+func paneCounts(client statusClient) map[string]int {
 	counts := make(map[string]int)
-	lines := statusListFunc("active", "", "", "", "", "", "", "")
-	if lines == "" {
+	lines, err := client.ListNotifications("active", "", "", "", "", "", "", "")
+	if err != nil || lines == "" {
 		return counts
 	}
 	for _, line := range strings.Split(lines, "\n") {
@@ -145,64 +170,33 @@ func paneCounts() map[string]int {
 	return counts
 }
 
-func formatSummary(w io.Writer) {
-	active := countByState("active")
+func formatSummary(client statusClient, w io.Writer) error {
+	active := countByState(client, "active")
 	if active == 0 {
 		fmt.Fprintf(w, "No active notifications\n")
-		return
+		return nil
 	}
 	fmt.Fprintf(w, "Active notifications: %d\n", active)
-	info, warning, error, critical := countByLevel()
+	info, warning, error, critical := countByLevel(client)
 	fmt.Fprintf(w, "  info: %d, warning: %d, error: %d, critical: %d\n", info, warning, error, critical)
+	return nil
 }
 
-func formatLevels(w io.Writer) {
-	info, warning, error, critical := countByLevel()
+func formatLevels(client statusClient, w io.Writer) error {
+	info, warning, error, critical := countByLevel(client)
 	fmt.Fprintf(w, "info:%d\nwarning:%d\nerror:%d\ncritical:%d\n", info, warning, error, critical)
+	return nil
 }
 
-func formatPanes(w io.Writer) {
-	counts := paneCounts()
+func formatPanes(client statusClient, w io.Writer) error {
+	counts := paneCounts(client)
 	for pane, count := range counts {
 		fmt.Fprintf(w, "%s:%d\n", pane, count)
 	}
+	return nil
 }
 
-func formatJSON(w io.Writer) {
+func formatJSON(client statusClient, w io.Writer) error {
 	fmt.Fprintln(w, "JSON format not yet implemented")
-}
-
-func init() {
-	cmd.RootCmd.AddCommand(statusCmd)
-
-	statusCmd.Flags().StringVar(&statusFormat, "format", "summary", "Output format: summary, levels, panes, json")
-}
-
-func runStatus(cmd *cobra.Command, args []string) error {
-	// Ensure tmux is running (mirror bash script behavior)
-	if !core.EnsureTmuxRunning() {
-		return fmt.Errorf("tmux not running")
-	}
-
-	// Determine format: flag > environment variable > default
-	format := statusFormat
-	if !cmd.Flag("format").Changed {
-		if envFormat := os.Getenv("TMUX_INTRAY_STATUS_FORMAT"); envFormat != "" {
-			format = envFormat
-		}
-	}
-
-	// Validate format
-	validFormats := map[string]bool{
-		"summary": true,
-		"levels":  true,
-		"panes":   true,
-		"json":    true,
-	}
-	if !validFormats[format] {
-		return fmt.Errorf("status: unknown format: %s", format)
-	}
-
-	PrintStatus(format)
 	return nil
 }

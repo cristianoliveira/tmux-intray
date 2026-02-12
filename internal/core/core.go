@@ -131,6 +131,36 @@ func (c *Core) MarkNotificationUnread(id string) error {
 	return c.storage.MarkNotificationUnread(id)
 }
 
+// GetNotificationByID retrieves a notification by its ID.
+func GetNotificationByID(id string) (string, error) {
+	return defaultCore.GetNotificationByID(id)
+}
+
+// GetNotificationByID retrieves a notification by its ID using this Core instance.
+func (c *Core) GetNotificationByID(id string) (string, error) {
+	return c.storage.GetNotificationByID(id)
+}
+
+// ListNotifications retrieves notifications with filters.
+func ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error) {
+	return defaultCore.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
+}
+
+// ListNotifications retrieves notifications with filters using this Core instance.
+func (c *Core) ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error) {
+	return c.storage.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
+}
+
+// GetActiveCount returns the number of active notifications.
+func GetActiveCount() int {
+	return defaultCore.GetActiveCount()
+}
+
+// GetActiveCount returns the number of active notifications using this Core instance.
+func (c *Core) GetActiveCount() int {
+	return c.storage.GetActiveCount()
+}
+
 // GetVisibility returns the visibility state as "0" or "1".
 func GetVisibility() (string, error) {
 	return defaultCore.GetVisibility()
