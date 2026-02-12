@@ -8,7 +8,7 @@ A quiet inbox for things that happen while you're not looking.
 
 tmux-intray provides a persistent in-tmux in-tray where panes, windows, and scripts can drop messages and events without interrupting your flow. Instead of loud notifications or forced context switches, events accumulate calmly until you're ready to review them. Each item keeps its origin, survives pane and window changes, and can be inspected, jumped to, or cleared at your own pace. It's designed for deferred attention: notice now if you want, act later when it makes sense.
 </div>
-
+[![codecov](https://codecov.io/gh/cristianoliveira/tmux-intray/branch/main/graph/badge.svg)](https://codecov.io/gh/cristianoliveira/tmux-intray)
 
 ## Work in Progress
 
