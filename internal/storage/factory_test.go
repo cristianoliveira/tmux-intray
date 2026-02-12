@@ -12,11 +12,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func setupIsolatedNewFromConfigTest(t *testing.T) string {
+	t.Helper()
+
+	stateDir := t.TempDir()
+	t.Setenv("TMUX_INTRAY_STATE_DIR", stateDir)
+	t.Setenv("TMUX_INTRAY_CONFIG_PATH", filepath.Join(t.TempDir(), "config.toml"))
+
+	return stateDir
+}
+
 func TestNewFromConfigSelectsTSVByDefault(t *testing.T) {
 	Reset()
 	t.Cleanup(Reset)
 
-	t.Setenv("TMUX_INTRAY_STATE_DIR", t.TempDir())
+	setupIsolatedNewFromConfigTest(t)
 
 	stor, err := NewFromConfig()
 	require.NoError(t, err)
@@ -27,7 +37,7 @@ func TestNewFromConfigSelectsSQLiteBackend(t *testing.T) {
 	Reset()
 	t.Cleanup(Reset)
 
-	t.Setenv("TMUX_INTRAY_STATE_DIR", t.TempDir())
+	setupIsolatedNewFromConfigTest(t)
 	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "sqlite")
 
 	stor, err := NewFromConfig()
@@ -43,7 +53,7 @@ func TestNewFromConfigFallsBackToTSVForNonCanonicalBackendValue(t *testing.T) {
 	Reset()
 	t.Cleanup(Reset)
 
-	t.Setenv("TMUX_INTRAY_STATE_DIR", t.TempDir())
+	setupIsolatedNewFromConfigTest(t)
 	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "  SQlite  ")
 
 	stor, err := NewFromConfig()
@@ -55,7 +65,7 @@ func TestNewFromConfigFallsBackToTSVForInvalidBackend(t *testing.T) {
 	Reset()
 	t.Cleanup(Reset)
 
-	t.Setenv("TMUX_INTRAY_STATE_DIR", t.TempDir())
+	setupIsolatedNewFromConfigTest(t)
 	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "unknown")
 
 	stor, err := NewFromConfig()
@@ -67,7 +77,7 @@ func TestNewFromConfigFallsBackToTSVForEmptyBackendValue(t *testing.T) {
 	Reset()
 	t.Cleanup(Reset)
 
-	t.Setenv("TMUX_INTRAY_STATE_DIR", t.TempDir())
+	setupIsolatedNewFromConfigTest(t)
 	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "")
 
 	stor, err := NewFromConfig()
@@ -79,7 +89,7 @@ func TestNewFromConfigSelectsDualBackend(t *testing.T) {
 	Reset()
 	t.Cleanup(Reset)
 
-	t.Setenv("TMUX_INTRAY_STATE_DIR", t.TempDir())
+	setupIsolatedNewFromConfigTest(t)
 	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "dual")
 
 	stor, err := NewFromConfig()
@@ -91,8 +101,7 @@ func TestNewFromConfigAutoMigratesTSVDataWhenSQLiteOptIn(t *testing.T) {
 	Reset()
 	t.Cleanup(Reset)
 
-	stateDir := t.TempDir()
-	t.Setenv("TMUX_INTRAY_STATE_DIR", stateDir)
+	stateDir := setupIsolatedNewFromConfigTest(t)
 	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "sqlite")
 
 	ts := time.Now().UTC().Format(time.RFC3339)
@@ -121,8 +130,7 @@ func TestNewFromConfigSkipsAutoMigrationWhenSQLiteAlreadyHasData(t *testing.T) {
 	Reset()
 	t.Cleanup(Reset)
 
-	stateDir := t.TempDir()
-	t.Setenv("TMUX_INTRAY_STATE_DIR", stateDir)
+	stateDir := setupIsolatedNewFromConfigTest(t)
 	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "sqlite")
 
 	sqlitePath := filepath.Join(stateDir, "notifications.db")
