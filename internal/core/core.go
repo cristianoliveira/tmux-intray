@@ -101,6 +101,16 @@ func (c *Core) ClearTrayItems() error {
 	return c.storage.DismissAll()
 }
 
+// CleanupOldNotifications cleans up old dismissed notifications.
+func CleanupOldNotifications(days int, dryRun bool) error {
+	return defaultCore.CleanupOldNotifications(days, dryRun)
+}
+
+// CleanupOldNotifications cleans up old dismissed notifications using this Core instance.
+func (c *Core) CleanupOldNotifications(days int, dryRun bool) error {
+	return c.storage.CleanupOldNotifications(days, dryRun)
+}
+
 // MarkNotificationRead marks a notification as read.
 func MarkNotificationRead(id string) error {
 	return defaultCore.MarkNotificationRead(id)
