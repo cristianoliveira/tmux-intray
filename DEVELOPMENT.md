@@ -1,4 +1,9 @@
 # Development Guide
+## Project Philosophy
+
+This project follows a minimalist, Unix‑style philosophy with a "one and only one way" approach to design decisions. Configuration uses TOML format exclusively. When making design decisions, follow this principle to ensure consistency and avoid unnecessary complexity.
+
+See [Project Philosophy](./docs/philosophy.md) for design principles and rationale.
 
 ## Project Structure
 
@@ -20,7 +25,7 @@ tmux-intray/
 │   ├── core/               # Core tmux interaction & tray management
 │   ├── storage/            # File-based TSV storage with locking
 │   ├── colors/             # Color output utilities
-│   ├── config/             # Configuration management
+│   ├── config/             # Configuration management (TOML-only)
 │   ├── hooks/              # Hook subsystem for async operations
 │   └── tmuxintray/        # Library initialization and orchestration
 ├── scripts/                  # Helper scripts
@@ -111,7 +116,7 @@ The CLI follows Go's standard project layout with Cobra framework:
    - `core/` - Core tmux interaction (context detection, tray management)
    - `storage/` - TSV file storage with locking
    - `colors/` - Terminal color output
-   - `config/` - Configuration loading
+   - `config/` - Configuration loading (TOML-only)
    - `hooks/` - Hook subsystem
    - `tmuxintray/` - Library initialization
 
