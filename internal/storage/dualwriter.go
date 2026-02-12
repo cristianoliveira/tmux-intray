@@ -372,6 +372,72 @@ func (d *DualWriter) migrateTSVToSQLiteIfNeeded() error {
 	return d.migrateNotificationLines(tsvLines)
 }
 
+// isValidState checks if a state value is valid.
+// Valid states are "active" and "dismissed".
+func isValidState(state string) bool {
+	return state == "active" || state == "dismissed"
+}
+
+// isValidLevel checks if a level value is valid.
+// Valid levels are "info", "warning", "error", and "critical".
+func isValidLevel(level string) bool {
+	return level == "info" || level == "warning" || level == "error" || level == "critical"
+}
+
+// migrateOneRecord migrates a single notification record to SQLite.
+// Returns an error if the record cannot be migrated, nil otherwise.
+func migrateOneRecord(sqliteStorage *sqlite.SQLiteStorage, idStr string, fields []string) error {
+	if len(fields) < NumFields {
+		return nil
+	}
+
+	// Parse ID as int64 for sqlc
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		colors.Warning(fmt.Sprintf("dual writer: skipping invalid id %s during migration", idStr))
+		return nil
+	}
+
+	// Validate state and level before upsert
+	state := fields[FieldState]
+	level := fields[FieldLevel]
+
+	if !isValidState(state) {
+		colors.Warning(fmt.Sprintf("dual writer: skipping notification id %s with invalid state '%s'", idStr, state))
+		return nil
+	}
+
+	if !isValidLevel(level) {
+		colors.Warning(fmt.Sprintf("dual writer: skipping notification id %s with invalid level '%s'", idStr, level))
+		return nil
+	}
+
+	// Build parameters for UpsertNotification
+	// TSV messages are stored in escaped form in the TSV file.
+	// We store them as-is (still escaped) in SQLite for consistency with the source of truth.
+	// This ensures that messages migrated from TSV appear identical to those added directly via SQLite.
+	params := sqlcgen.UpsertNotificationParams{
+		ID:            id,
+		Timestamp:     fields[FieldTimestamp],
+		State:         state,
+		Session:       fields[FieldSession],
+		Window:        fields[FieldWindow],
+		Pane:          fields[FieldPane],
+		Message:       fields[FieldMessage],
+		PaneCreated:   fields[FieldPaneCreated],
+		Level:         level,
+		ReadTimestamp: fields[FieldReadTimestamp],
+		UpdatedAt:     time.Now().UTC().Format("2006-01-02T15:04:05Z"),
+	}
+
+	if err := sqliteStorage.UpsertNotification(context.Background(), params); err != nil {
+		colors.Warning(fmt.Sprintf("dual writer: failed to migrate notification id %s: %v", idStr, err))
+		return nil
+	}
+
+	return nil
+}
+
 // migrateNotificationLines parses TSV lines and upserts them to SQLite using sqlc.
 func (d *DualWriter) migrateNotificationLines(tsvContent string) error {
 	if strings.TrimSpace(tsvContent) == "" {
@@ -397,47 +463,8 @@ func (d *DualWriter) migrateNotificationLines(tsvContent string) error {
 	// Migrate each notification using sqlc-backed UpsertNotification
 	for _, idStr := range ids {
 		fields := records[idStr]
-		if len(fields) < NumFields {
-			continue
-		}
-
-		// Parse ID as int64 for sqlc
-		id, err := strconv.ParseInt(idStr, 10, 64)
-		if err != nil {
-			colors.Warning(fmt.Sprintf("dual writer: skipping invalid id %s during migration", idStr))
-			continue
-		}
-
-		// Build parameters for UpsertNotification
-		// TSV messages are stored in escaped form in the TSV file.
-		// We store them as-is (still escaped) in SQLite for consistency with the source of truth.
-		// This ensures that messages migrated from TSV appear identical to those added directly via SQLite.
-		params := sqlcgen.UpsertNotificationParams{
-			ID:            id,
-			Timestamp:     fields[FieldTimestamp],
-			State:         fields[FieldState],
-			Session:       fields[FieldSession],
-			Window:        fields[FieldWindow],
-			Pane:          fields[FieldPane],
-			Message:       fields[FieldMessage],
-			PaneCreated:   fields[FieldPaneCreated],
-			Level:         fields[FieldLevel],
-			ReadTimestamp: fields[FieldReadTimestamp],
-			UpdatedAt:     time.Now().UTC().Format("2006-01-02T15:04:05Z"),
-		}
-
-		// Validate state and level before upsert
-		if params.State != "active" && params.State != "dismissed" {
-			colors.Warning(fmt.Sprintf("dual writer: skipping notification id %s with invalid state '%s'", idStr, params.State))
-			continue
-		}
-		if params.Level != "info" && params.Level != "warning" && params.Level != "error" && params.Level != "critical" {
-			colors.Warning(fmt.Sprintf("dual writer: skipping notification id %s with invalid level '%s'", idStr, params.Level))
-			continue
-		}
-
-		if err := sqliteStorage.UpsertNotification(context.Background(), params); err != nil {
-			colors.Warning(fmt.Sprintf("dual writer: failed to migrate notification id %s: %v", idStr, err))
+		if err := migrateOneRecord(sqliteStorage, idStr, fields); err != nil {
+			// migrateOneRecord logs warnings and continues, so we don't need to handle errors here
 			continue
 		}
 	}
