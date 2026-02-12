@@ -1,8 +1,8 @@
 package main
 
 import (
+	"bytes"
 	"errors"
-	"io"
 	"strings"
 	"testing"
 
@@ -14,20 +14,24 @@ func TestAddCmdArgsValidation(t *testing.T) {
 		name    string
 		args    []string
 		wantErr bool
+		wantMsg string
 	}{
-		{name: "no args returns error", args: []string{}, wantErr: true},
+		{name: "no args returns error", args: []string{}, wantErr: true, wantMsg: "add requires a message"},
 		{name: "one arg returns no error", args: []string{"hello"}, wantErr: false},
 		{name: "multiple args returns no error", args: []string{"hello", "world"}, wantErr: false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := runAddArgsSafely(t, tt.args)
+			err, stderr := runAddArgsSafely(t, tt.args)
 			if tt.wantErr && err == nil {
 				t.Fatalf("expected error, got nil")
 			}
 			if !tt.wantErr && err != nil {
 				t.Fatalf("expected no error, got %v", err)
+			}
+			if tt.wantMsg != "" && !strings.Contains(stderr, tt.wantMsg) {
+				t.Fatalf("expected stderr to contain %q, got %q", tt.wantMsg, stderr)
 			}
 		})
 	}
@@ -44,7 +48,7 @@ func TestAddCmdArgsNilAndEmptySlicesAreStable(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := runAddArgsSafely(t, tt.args)
+			err, _ := runAddArgsSafely(t, tt.args)
 			if err == nil {
 				t.Fatalf("expected error for %s, got nil", tt.name)
 			}
@@ -52,11 +56,32 @@ func TestAddCmdArgsNilAndEmptySlicesAreStable(t *testing.T) {
 	}
 }
 
-func runAddArgsSafely(t *testing.T, args []string) (err error) {
+func TestNewAddCmdPanicsWhenClientIsNil(t *testing.T) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatalf("expected panic, got nil")
+		}
+
+		msg, ok := r.(string)
+		if !ok {
+			t.Fatalf("expected panic message as string, got %T", r)
+		}
+		if !strings.Contains(msg, "client dependency cannot be nil") {
+			t.Fatalf("expected panic message to mention nil dependency, got %q", msg)
+		}
+	}()
+
+	NewAddCmd(nil)
+}
+
+func runAddArgsSafely(t *testing.T, args []string) (err error, stderr string) {
 	t.Helper()
 
-	cmd := &cobra.Command{}
-	cmd.SetErr(io.Discard)
+	client := &fakeAddClient{}
+	add := NewAddCmd(client)
+	errBuffer := &bytes.Buffer{}
+	add.SetErr(errBuffer)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -64,7 +89,8 @@ func runAddArgsSafely(t *testing.T, args []string) (err error) {
 		}
 	}()
 
-	return addCmd.Args(cmd, args)
+	err = add.Args(add, args)
+	return err, errBuffer.String()
 }
 
 func TestValidateMessage(t *testing.T) {
@@ -99,101 +125,117 @@ func TestValidateMessage(t *testing.T) {
 }
 
 func TestAddRunEAutoAssociationRequiresTmux(t *testing.T) {
-	resetAddStateForTests()
-
 	t.Setenv("TMUX_INTRAY_ALLOW_NO_TMUX", "")
 	t.Setenv("BATS_TMPDIR", "")
 	t.Setenv("CI", "")
 	t.Setenv("TMUX_AVAILABLE", "")
 
-	originalEnsure := addEnsureTmuxRunningFunc
-	originalAdd := addTrayItemFunc
-	t.Cleanup(func() {
-		addEnsureTmuxRunningFunc = originalEnsure
-		addTrayItemFunc = originalAdd
-	})
+	client := &fakeAddClient{ensureTmuxRunningResult: false}
+	add := NewAddCmd(client)
+	setFlag(t, add, "session", "   ")
+	setFlag(t, add, "window", "\t")
+	setFlag(t, add, "pane", "\n")
 
-	addEnsureTmuxRunningFunc = func() bool { return false }
-	addCalled := false
-	addTrayItemFunc = func(item, session, window, pane, paneCreated string, noAssociate bool, level string) (string, error) {
-		addCalled = true
-		return "", nil
-	}
-
-	sessionFlag = "   "
-	windowFlag = "\t"
-	paneFlag = "\n"
-
-	err := addCmd.RunE(addCmd, []string{"hello"})
+	err := add.RunE(add, []string{"hello"})
 	if err == nil || !strings.Contains(err.Error(), "tmux not running") {
 		t.Fatalf("expected tmux not running error, got %v", err)
 	}
-	if addCalled {
+	if client.addCalled {
 		t.Fatalf("expected AddTrayItem not to be called")
 	}
-	if sessionFlag != "" || windowFlag != "" || paneFlag != "" {
-		t.Fatalf("expected context flags to be trimmed to empty, got session=%q window=%q pane=%q", sessionFlag, windowFlag, paneFlag)
+	if client.ensureCalls != 1 {
+		t.Fatalf("expected EnsureTmuxRunning to be called once, got %d", client.ensureCalls)
 	}
 }
 
 func TestAddRunEAllowsTmuxlessAndStillValidatesMessage(t *testing.T) {
-	resetAddStateForTests()
-
 	t.Setenv("TMUX_INTRAY_ALLOW_NO_TMUX", "true")
 	t.Setenv("BATS_TMPDIR", "")
 	t.Setenv("CI", "")
 	t.Setenv("TMUX_AVAILABLE", "")
 
-	originalEnsure := addEnsureTmuxRunningFunc
-	originalAdd := addTrayItemFunc
-	t.Cleanup(func() {
-		addEnsureTmuxRunningFunc = originalEnsure
-		addTrayItemFunc = originalAdd
-	})
+	client := &fakeAddClient{ensureTmuxRunningResult: false}
+	add := NewAddCmd(client)
 
-	addEnsureTmuxRunningFunc = func() bool { return false }
-	addCalled := false
-	addTrayItemFunc = func(item, session, window, pane, paneCreated string, noAssociate bool, level string) (string, error) {
-		addCalled = true
-		return "", nil
-	}
-
-	err := addCmd.RunE(addCmd, []string{strings.Repeat("a", 1001)})
+	err := add.RunE(add, []string{strings.Repeat("a", 1001)})
 	if err == nil || !strings.Contains(err.Error(), "message too long") {
 		t.Fatalf("expected message length validation error, got %v", err)
 	}
-	if !noAssociateFlag {
-		t.Fatalf("expected noAssociateFlag to be enabled in tmuxless mode")
+	if client.ensureCalls != 1 {
+		t.Fatalf("expected EnsureTmuxRunning to be called once, got %d", client.ensureCalls)
 	}
-	if addCalled {
+	if client.addCalled {
 		t.Fatalf("expected AddTrayItem not to be called")
 	}
 }
 
-func TestAddRunENoAssociateSkipsTmuxAndWrapsAddError(t *testing.T) {
-	resetAddStateForTests()
+func TestAddRunETmuxlessFallbackPassesNoAssociateToClient(t *testing.T) {
+	t.Setenv("TMUX_INTRAY_ALLOW_NO_TMUX", "true")
+	t.Setenv("BATS_TMPDIR", "")
+	t.Setenv("CI", "")
+	t.Setenv("TMUX_AVAILABLE", "")
 
-	originalEnsure := addEnsureTmuxRunningFunc
-	originalAdd := addTrayItemFunc
-	t.Cleanup(func() {
-		addEnsureTmuxRunningFunc = originalEnsure
-		addTrayItemFunc = originalAdd
-	})
+	client := &fakeAddClient{ensureTmuxRunningResult: false}
+	add := NewAddCmd(client)
 
-	ensureCalls := 0
-	addEnsureTmuxRunningFunc = func() bool {
-		ensureCalls++
-		return false
+	err := add.RunE(add, []string{"hello"})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
 	}
+	if client.ensureCalls != 1 {
+		t.Fatalf("expected EnsureTmuxRunning to be called once, got %d", client.ensureCalls)
+	}
+	if !client.addCalled {
+		t.Fatalf("expected AddTrayItem to be called")
+	}
+	if !client.captured.noAssociate {
+		t.Fatalf("expected noAssociate=true in tmuxless fallback")
+	}
+}
 
-	noAssociateFlag = true
-	sessionFlag = " sess-1 "
-	windowFlag = " win-2 "
-	paneFlag = " pane-3 "
-	paneCreatedFlag = "1700000000"
-	levelFlag = ""
+func TestAddRunENoAssociateSkipsTmuxAndWrapsAddError(t *testing.T) {
+	client := &fakeAddClient{
+		ensureTmuxRunningResult: false,
+		addErr:                  errors.New("boom"),
+	}
+	add := NewAddCmd(client)
+	setFlag(t, add, "no-associate", "true")
+	setFlag(t, add, "session", " sess-1 ")
+	setFlag(t, add, "window", " win-2 ")
+	setFlag(t, add, "pane", " pane-3 ")
+	setFlag(t, add, "pane-created", "1700000000")
+	setFlag(t, add, "level", "")
 
-	var captured struct {
+	err := add.RunE(add, []string{"hello", "world"})
+	if err == nil || !strings.Contains(err.Error(), "add: failed to add tray item: boom") {
+		t.Fatalf("expected wrapped add error, got %v", err)
+	}
+	if client.ensureCalls != 0 {
+		t.Fatalf("expected EnsureTmuxRunning not to be called, got %d calls", client.ensureCalls)
+	}
+	if client.captured.message != "hello world" {
+		t.Fatalf("expected joined message, got %q", client.captured.message)
+	}
+	if client.captured.session != "sess-1" || client.captured.window != "win-2" || client.captured.pane != "pane-3" {
+		t.Fatalf("expected trimmed context flags, got session=%q window=%q pane=%q", client.captured.session, client.captured.window, client.captured.pane)
+	}
+	if client.captured.paneCreated != "1700000000" {
+		t.Fatalf("expected paneCreated to pass through, got %q", client.captured.paneCreated)
+	}
+	if !client.captured.noAssociate {
+		t.Fatalf("expected noAssociate=true to be forwarded")
+	}
+	if client.captured.level != "info" {
+		t.Fatalf("expected default level info, got %q", client.captured.level)
+	}
+}
+
+type fakeAddClient struct {
+	ensureTmuxRunningResult bool
+	ensureCalls             int
+	addCalled               bool
+	addErr                  error
+	captured                struct {
 		message     string
 		session     string
 		window      string
@@ -202,46 +244,28 @@ func TestAddRunENoAssociateSkipsTmuxAndWrapsAddError(t *testing.T) {
 		noAssociate bool
 		level       string
 	}
-	addTrayItemFunc = func(item, session, window, pane, paneCreated string, noAssociate bool, level string) (string, error) {
-		captured.message = item
-		captured.session = session
-		captured.window = window
-		captured.pane = pane
-		captured.paneCreated = paneCreated
-		captured.noAssociate = noAssociate
-		captured.level = level
-		return "", errors.New("boom")
-	}
-
-	err := addCmd.RunE(addCmd, []string{"hello", "world"})
-	if err == nil || !strings.Contains(err.Error(), "add: failed to add tray item: boom") {
-		t.Fatalf("expected wrapped add error, got %v", err)
-	}
-	if ensureCalls != 0 {
-		t.Fatalf("expected EnsureTmuxRunning not to be called, got %d calls", ensureCalls)
-	}
-	if captured.message != "hello world" {
-		t.Fatalf("expected joined message, got %q", captured.message)
-	}
-	if captured.session != "sess-1" || captured.window != "win-2" || captured.pane != "pane-3" {
-		t.Fatalf("expected trimmed context flags, got session=%q window=%q pane=%q", captured.session, captured.window, captured.pane)
-	}
-	if captured.paneCreated != "1700000000" {
-		t.Fatalf("expected paneCreated to pass through, got %q", captured.paneCreated)
-	}
-	if !captured.noAssociate {
-		t.Fatalf("expected noAssociate=true to be forwarded")
-	}
-	if captured.level != "info" {
-		t.Fatalf("expected default level info, got %q", captured.level)
-	}
 }
 
-func resetAddStateForTests() {
-	sessionFlag = ""
-	windowFlag = ""
-	paneFlag = ""
-	paneCreatedFlag = ""
-	noAssociateFlag = false
-	levelFlag = "info"
+func (f *fakeAddClient) EnsureTmuxRunning() bool {
+	f.ensureCalls++
+	return f.ensureTmuxRunningResult
+}
+
+func (f *fakeAddClient) AddTrayItem(item, session, window, pane, paneCreated string, noAssociate bool, level string) (string, error) {
+	f.addCalled = true
+	f.captured.message = item
+	f.captured.session = session
+	f.captured.window = window
+	f.captured.pane = pane
+	f.captured.paneCreated = paneCreated
+	f.captured.noAssociate = noAssociate
+	f.captured.level = level
+	return "", f.addErr
+}
+
+func setFlag(t *testing.T, command *cobra.Command, name, value string) {
+	t.Helper()
+	if err := command.Flags().Set(name, value); err != nil {
+		t.Fatalf("set flag %q: %v", name, err)
+	}
 }
