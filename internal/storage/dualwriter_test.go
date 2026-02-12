@@ -2,9 +2,11 @@ package storage
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/cristianoliveira/tmux-intray/internal/storage/sqlite"
 	"github.com/stretchr/testify/require"
 )
 
@@ -435,4 +437,320 @@ func TestDualWriterCleanupOldNotificationsTracksMetrics(t *testing.T) {
 	require.Equal(t, int64(1), metrics.WriteOperations)
 	require.Equal(t, int64(0), metrics.TSVWriteFailures)
 	require.Equal(t, int64(1), metrics.SQLiteWriteFailure)
+}
+
+// Tests for isValidState helper function
+
+func TestIsValidState(t *testing.T) {
+	testCases := []struct {
+		name  string
+		state string
+		want  bool
+	}{
+		{"valid state active", "active", true},
+		{"valid state dismissed", "dismissed", true},
+		{"invalid state empty", "", false},
+		{"invalid state lowercase", "inactive", false},
+		{"invalid state uppercase", "ACTIVE", false},
+		{"invalid state mixed case", "Active", false},
+		{"invalid state partial", "activ", false},
+		{"invalid state number", "123", false},
+		{"invalid state whitespace", "  ", false},
+		{"invalid state tab", "\t", false},
+		{"invalid state with spaces", "active ", false},
+		{"invalid state with prefix", "pre-active", false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := isValidState(tc.state)
+			require.Equal(t, tc.want, result, "unexpected result for state '%s'", tc.state)
+		})
+	}
+}
+
+// Tests for isValidLevel helper function
+
+func TestIsValidLevel(t *testing.T) {
+	testCases := []struct {
+		name  string
+		level string
+		want  bool
+	}{
+		{"valid level info", "info", true},
+		{"valid level warning", "warning", true},
+		{"valid level error", "error", true},
+		{"valid level critical", "critical", true},
+		{"invalid level empty", "", false},
+		{"invalid level lowercase", "debug", false},
+		{"invalid level uppercase", "INFO", false},
+		{"invalid level mixed case", "Info", false},
+		{"invalid level partial", "inf", false},
+		{"invalid level number", "123", false},
+		{"invalid level whitespace", "  ", false},
+		{"invalid level tab", "\t", false},
+		{"invalid level with spaces", "info ", false},
+		{"invalid level with prefix", "pre-info", false},
+		{"invalid level trace", "trace", false},
+		{"invalid level fatal", "fatal", false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := isValidLevel(tc.level)
+			require.Equal(t, tc.want, result, "unexpected result for level '%s'", tc.level)
+		})
+	}
+}
+
+// Tests for migrateOneRecord helper function
+
+func TestMigrateOneRecord(t *testing.T) {
+	// Create a temporary directory for the test database
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
+	sqliteStorage, err := sqlite.NewSQLiteStorage(dbPath)
+	require.NoError(t, err)
+	// Cleanup the SQLite storage connection
+	t.Cleanup(func() {
+		sqliteStorage.Close()
+	})
+
+	testCases := []struct {
+		name          string
+		idStr         string
+		fields        []string
+		wantError     bool
+		errorContains string
+		verifyRecord  bool // If true, verify the record was actually inserted
+	}{
+		{
+			name:  "valid record upserts successfully",
+			idStr: "5",
+			fields: []string{
+				"5",                    // ID
+				"2025-01-01T12:00:00Z", // timestamp
+				"active",               // state
+				"session1",             // session
+				"window0",              // window
+				"pane0",                // pane
+				"test message",         // message
+				"2025-01-01T10:00:00Z", // pane_created (must be empty or valid timestamp)
+				"info",                 // level
+				"",                     // read_timestamp
+			},
+			wantError:    false,
+			verifyRecord: true,
+		},
+		{
+			name:  "valid dismissed record upserts successfully",
+			idStr: "10",
+			fields: []string{
+				"10",
+				"2025-01-01T12:00:00Z",
+				"dismissed",
+				"session1",
+				"window0",
+				"pane0",
+				"test message",
+				"2025-01-01T10:00:00Z", // pane_created (must be empty or valid timestamp)
+				"warning",
+				"2025-01-01T13:00:00Z",
+			},
+			wantError:    false,
+			verifyRecord: true,
+		},
+		{
+			name:  "too few fields returns nil (no error)",
+			idStr: "5",
+			fields: []string{
+				"5",
+				"2025-01-01T12:00:00Z",
+				"active",
+			},
+			wantError:    false,
+			verifyRecord: false,
+		},
+		{
+			name:  "invalid ID (non-numeric) returns nil (no error, logs warning)",
+			idStr: "abc",
+			fields: []string{
+				"abc",
+				"2025-01-01T12:00:00Z",
+				"active",
+				"session1",
+				"window0",
+				"pane0",
+				"test message",
+				"", // pane_created (empty)
+				"info",
+				"",
+			},
+			wantError:    false,
+			verifyRecord: false,
+		},
+		{
+			name:  "invalid state returns nil (no error, logs warning)",
+			idStr: "5",
+			fields: []string{
+				"5",
+				"2025-01-01T12:00:00Z",
+				"invalid",
+				"session1",
+				"window0",
+				"pane0",
+				"test message",
+				"", // pane_created (empty)
+				"info",
+				"",
+			},
+			wantError:    false,
+			verifyRecord: false,
+		},
+		{
+			name:  "empty state returns nil (no error, logs warning)",
+			idStr: "5",
+			fields: []string{
+				"5",
+				"2025-01-01T12:00:00Z",
+				"",
+				"session1",
+				"window0",
+				"pane0",
+				"test message",
+				"", // pane_created (empty)
+				"info",
+				"",
+			},
+			wantError:    false,
+			verifyRecord: false,
+		},
+		{
+			name:  "invalid level returns nil (no error, logs warning)",
+			idStr: "5",
+			fields: []string{
+				"5",
+				"2025-01-01T12:00:00Z",
+				"active",
+				"session1",
+				"window0",
+				"pane0",
+				"test message",
+				"", // pane_created (empty)
+				"debug",
+				"",
+			},
+			wantError:    false,
+			verifyRecord: false,
+		},
+		{
+			name:  "empty level returns nil (no error, logs warning)",
+			idStr: "5",
+			fields: []string{
+				"5",
+				"2025-01-01T12:00:00Z",
+				"active",
+				"session1",
+				"window0",
+				"pane0",
+				"test message",
+				"", // pane_created (empty)
+				"",
+				"",
+			},
+			wantError:    false,
+			verifyRecord: false,
+		},
+		{
+			name:  "record with critical level upserts successfully",
+			idStr: "99",
+			fields: []string{
+				"99",
+				"2025-01-01T12:00:00Z",
+				"active",
+				"session1",
+				"window0",
+				"pane0",
+				"critical error",
+				"2025-01-01T10:00:00Z", // pane_created (valid timestamp)
+				"critical",
+				"",
+			},
+			wantError:    false,
+			verifyRecord: true,
+		},
+		{
+			name:  "record with escaped message upserts successfully",
+			idStr: "7",
+			fields: []string{
+				"7",
+				"2025-01-01T12:00:00Z",
+				"active",
+				"session1",
+				"window0",
+				"pane0",
+				"msg\\nwith\\ttabs\\n",
+				"2025-01-01T10:00:00Z", // pane_created (valid timestamp)
+				"warning",
+				"",
+			},
+			wantError:    false,
+			verifyRecord: true,
+		},
+		{
+			name:  "record with all empty optional fields upserts successfully",
+			idStr: "3",
+			fields: []string{
+				"3",
+				"2025-01-01T12:00:00Z",
+				"active",
+				"",
+				"",
+				"",
+				"",
+				"",
+				"info",
+				"",
+			},
+			wantError:    false,
+			verifyRecord: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := migrateOneRecord(sqliteStorage, tc.idStr, tc.fields)
+
+			if tc.wantError {
+				require.Error(t, err, "expected error for test case: "+tc.name)
+				if tc.errorContains != "" {
+					require.Contains(t, err.Error(), tc.errorContains, "error message should contain: "+tc.errorContains)
+				}
+			} else {
+				require.NoError(t, err, "unexpected error for test case: "+tc.name)
+
+				// If verifyRecord is true, check that the record was actually inserted
+				if tc.verifyRecord {
+					// Query the record from SQLite to verify it was inserted
+					// We need to use the SQLite storage's GetNotificationByID method
+					line, err := sqliteStorage.GetNotificationByID(tc.idStr)
+					require.NoError(t, err, "should be able to retrieve migrated record")
+					require.NotEmpty(t, line, "migrated record should not be empty")
+
+					// Parse the line and verify fields match
+					fields := strings.Split(line, "\t")
+					if len(fields) > 0 {
+						require.Equal(t, tc.idStr, fields[FieldID], "ID should match")
+					}
+					if len(fields) > FieldState {
+						require.Equal(t, tc.fields[FieldState], fields[FieldState], "state should match")
+					}
+					if len(fields) > FieldLevel {
+						require.Equal(t, tc.fields[FieldLevel], fields[FieldLevel], "level should match")
+					}
+				}
+			}
+		})
+	}
 }

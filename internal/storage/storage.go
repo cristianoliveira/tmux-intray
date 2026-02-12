@@ -744,6 +744,44 @@ func getField(fields []string, index int) (string, error) {
 	return fields[index], nil
 }
 
+// parseLineID parses the ID from a TSV line.
+// Returns the parsed ID and a success flag. Returns (0, false) on parse failure.
+func parseLineID(line string) (int, bool) {
+	fields := strings.Split(line, "\t")
+	if len(fields) <= fieldID {
+		return 0, false
+	}
+	id, err := strconv.Atoi(fields[fieldID])
+	if err != nil {
+		return 0, false
+	}
+	return id, true
+}
+
+// findMaxID finds the maximum ID among TSV lines.
+// Returns 0 if no valid IDs are found.
+func findMaxID(lines []string) int {
+	maxID := 0
+	for _, line := range lines {
+		id, ok := parseLineID(line)
+		if ok && id > maxID {
+			maxID = id
+		}
+	}
+	return maxID
+}
+
+// verifyNewID verifies that newID is greater than all existing IDs in the lines.
+// Logs assertion failures if newID is not strictly greater than existing IDs.
+func verifyNewID(newID int, lines []string) {
+	for _, line := range lines {
+		id, ok := parseLineID(line)
+		if ok && newID <= id {
+			colors.Debug(fmt.Sprintf("ASSERTION FAILED: getNextID returned ID %d which is not greater than existing ID %d", newID, id))
+		}
+	}
+}
+
 // getNextID generates the next unique notification ID.
 // Invariants:
 //   - Returned ID must always be > 0
@@ -754,20 +792,7 @@ func getNextID() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	maxID := 0
-	for _, line := range latest {
-		fields := strings.Split(line, "\t")
-		if len(fields) <= fieldID {
-			continue
-		}
-		id, err := strconv.Atoi(fields[fieldID])
-		if err != nil {
-			continue
-		}
-		if id > maxID {
-			maxID = id
-		}
-	}
+	maxID := findMaxID(latest)
 	newID := maxID + 1
 
 	// Assertions: verify invariants
@@ -778,19 +803,7 @@ func getNextID() (int, error) {
 	}
 
 	// Verify ID is strictly greater than all existing IDs
-	for _, line := range latest {
-		fields := strings.Split(line, "\t")
-		if len(fields) <= fieldID {
-			continue
-		}
-		id, err := strconv.Atoi(fields[fieldID])
-		if err != nil {
-			continue
-		}
-		if newID <= id {
-			colors.Debug(fmt.Sprintf("ASSERTION FAILED: getNextID returned ID %d which is not greater than existing ID %d", newID, id))
-		}
-	}
+	verifyNewID(newID, latest)
 	if len(latest) > 0 {
 		colors.Debug(fmt.Sprintf("getNextID monotonic increase assertion passed: ID %d > max existing ID %d", newID, maxID))
 	}
@@ -1233,67 +1246,98 @@ func countActiveNotifications(latestLines []string) int {
 	return activeCount
 }
 
-// dismissOneNotification dismisses a single notification with hooks (pre-dismiss → appendLine → post-dismiss).
-func dismissOneNotification(line string) error {
+// parseDismissalFields parses all required fields from a dismissal line at once.
+// Returns the parsed fields or an error if any field cannot be extracted.
+func parseDismissalFields(line string) (id, level, message, timestamp, session, window, pane, paneCreated, readTimestamp string, err error) {
 	fields := strings.Split(line, "\t")
 	if len(fields) < numFields {
 		for len(fields) < numFields {
 			fields = append(fields, "")
 		}
 	}
-	id, err := getField(fields, fieldID)
+
+	id, err = getField(fields, fieldID)
 	if err != nil {
-		return fmt.Errorf("dismissOneNotification: failed to get id field: %w", err)
+		return "", "", "", "", "", "", "", "", "", fmt.Errorf("dismissOneNotification: failed to get id field: %w", err)
 	}
+
 	state, err := getField(fields, fieldState)
 	if err != nil {
-		return fmt.Errorf("dismissOneNotification: failed to get state field: %w", err)
+		return "", "", "", "", "", "", "", "", "", fmt.Errorf("dismissOneNotification: failed to get state field: %w", err)
 	}
+
 	if state != "active" {
+		// Not active, nothing to dismiss - return empty strings with nil error
+		return "", "", "", "", "", "", "", "", "", nil
+	}
+
+	level, err = getField(fields, fieldLevel)
+	if err != nil {
+		return "", "", "", "", "", "", "", "", "", fmt.Errorf("dismissOneNotification: failed to get level field: %w", err)
+	}
+
+	message, err = getField(fields, fieldMessage)
+	if err != nil {
+		return "", "", "", "", "", "", "", "", "", fmt.Errorf("dismissOneNotification: failed to get message field: %w", err)
+	}
+
+	timestamp, err = getField(fields, fieldTimestamp)
+	if err != nil {
+		return "", "", "", "", "", "", "", "", "", fmt.Errorf("dismissOneNotification: failed to get timestamp field: %w", err)
+	}
+
+	session, err = getField(fields, fieldSession)
+	if err != nil {
+		return "", "", "", "", "", "", "", "", "", fmt.Errorf("dismissOneNotification: failed to get session field: %w", err)
+	}
+
+	window, err = getField(fields, fieldWindow)
+	if err != nil {
+		return "", "", "", "", "", "", "", "", "", fmt.Errorf("dismissOneNotification: failed to get window field: %w", err)
+	}
+
+	pane, err = getField(fields, fieldPane)
+	if err != nil {
+		return "", "", "", "", "", "", "", "", "", fmt.Errorf("dismissOneNotification: failed to get pane field: %w", err)
+	}
+
+	paneCreated, err = getField(fields, fieldPaneCreated)
+	if err != nil {
+		return "", "", "", "", "", "", "", "", "", fmt.Errorf("dismissOneNotification: failed to get pane created field: %w", err)
+	}
+
+	readTimestamp, err = getField(fields, fieldReadTimestamp)
+	if err != nil {
+		return "", "", "", "", "", "", "", "", "", fmt.Errorf("dismissOneNotification: failed to get read timestamp field: %w", err)
+	}
+
+	return id, level, message, timestamp, session, window, pane, paneCreated, readTimestamp, nil
+}
+
+// dismissOneNotification dismisses a single notification with hooks (pre-dismiss → appendLine → post-dismiss).
+func dismissOneNotification(line string) error {
+	id, level, message, timestamp, session, window, pane, paneCreated, readTimestamp, err := parseDismissalFields(line)
+	if err != nil {
+		return err
+	}
+
+	// If all fields are empty, the notification was not active
+	if id == "" {
 		// Not active, nothing to dismiss
 		return nil
 	}
-	level, err := getField(fields, fieldLevel)
-	if err != nil {
-		return fmt.Errorf("dismissOneNotification: failed to get level field: %w", err)
-	}
-	message, err := getField(fields, fieldMessage)
-	if err != nil {
-		return fmt.Errorf("dismissOneNotification: failed to get message field: %w", err)
-	}
-	timestamp, err := getField(fields, fieldTimestamp)
-	if err != nil {
-		return fmt.Errorf("dismissOneNotification: failed to get timestamp field: %w", err)
-	}
-	session, err := getField(fields, fieldSession)
-	if err != nil {
-		return fmt.Errorf("dismissOneNotification: failed to get session field: %w", err)
-	}
-	window, err := getField(fields, fieldWindow)
-	if err != nil {
-		return fmt.Errorf("dismissOneNotification: failed to get window field: %w", err)
-	}
-	pane, err := getField(fields, fieldPane)
-	if err != nil {
-		return fmt.Errorf("dismissOneNotification: failed to get pane field: %w", err)
-	}
-	paneCreated, err := getField(fields, fieldPaneCreated)
-	if err != nil {
-		return fmt.Errorf("dismissOneNotification: failed to get pane created field: %w", err)
-	}
-	readTimestamp, err := getField(fields, fieldReadTimestamp)
-	if err != nil {
-		return fmt.Errorf("dismissOneNotification: failed to get read timestamp field: %w", err)
-	}
+
 	// Run pre-dismiss hook
 	envVars := buildHookEnvVars(id, level, message, timestamp, session, window, pane, paneCreated, readTimestamp)
 	if err := hooks.Run("pre-dismiss", envVars...); err != nil {
 		return err
 	}
+
 	idInt, err := strToInt(id)
 	if err != nil {
 		return fmt.Errorf("dismissOneNotification: invalid id %s: %w", id, err)
 	}
+
 	// Append dismissed line
 	if err := appendLine(
 		idInt,
@@ -1309,6 +1353,7 @@ func dismissOneNotification(line string) error {
 	); err != nil {
 		return err
 	}
+
 	// Run post-dismiss hook
 	if err := hooks.Run("post-dismiss", envVars...); err != nil {
 		return err

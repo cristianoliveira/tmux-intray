@@ -1487,3 +1487,412 @@ func TestListNotificationsValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestParseLineID(t *testing.T) {
+	testCases := []struct {
+		name   string
+		line   string
+		wantID int
+		wantOK bool
+	}{
+		{
+			name:   "valid ID at position 0",
+			line:   "5\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg\t\tinfo\t",
+			wantID: 5,
+			wantOK: true,
+		},
+		{
+			name:   "valid ID zero",
+			line:   "0\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg\t\tinfo\t",
+			wantID: 0,
+			wantOK: true,
+		},
+		{
+			name:   "valid large ID",
+			line:   "99999\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg\t\tinfo\t",
+			wantID: 99999,
+			wantOK: true,
+		},
+		{
+			name:   "empty line",
+			line:   "",
+			wantID: 0,
+			wantOK: false,
+		},
+		{
+			name:   "line with no fields",
+			line:   "\t",
+			wantID: 0,
+			wantOK: false,
+		},
+		{
+			name:   "line with missing ID field (too few fields)",
+			line:   "timestamp\tactive\tsess",
+			wantID: 0,
+			wantOK: false,
+		},
+		{
+			name:   "invalid ID - non-numeric",
+			line:   "abc\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg\t\tinfo\t",
+			wantID: 0,
+			wantOK: false,
+		},
+		{
+			name:   "invalid ID - mixed alphanumeric",
+			line:   "42abc\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg\t\tinfo\t",
+			wantID: 0,
+			wantOK: false,
+		},
+		{
+			name:   "negative ID - parseLineID parses it (validation is separate)",
+			line:   "-1\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg\t\tinfo\t",
+			wantID: -1,
+			wantOK: true, // strconv.Atoi can parse negative numbers
+		},
+		{
+			name:   "invalid ID - float",
+			line:   "3.14\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg\t\tinfo\t",
+			wantID: 0,
+			wantOK: false,
+		},
+		{
+			name:   "valid ID with special characters in other fields",
+			line:   "7\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg\\nwith\\ttabs\t\tinfo\t",
+			wantID: 7,
+			wantOK: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			id, ok := parseLineID(tc.line)
+			if tc.wantOK {
+				require.True(t, ok, "expected OK for test case: "+tc.name)
+				require.Equal(t, tc.wantID, id, "unexpected ID for test case: "+tc.name)
+			} else {
+				require.False(t, ok, "expected not OK for test case: "+tc.name)
+				require.Equal(t, tc.wantID, id, "unexpected ID for test case: "+tc.name)
+			}
+		})
+	}
+}
+
+func TestFindMaxID(t *testing.T) {
+	testCases := []struct {
+		name    string
+		lines   []string
+		wantMax int
+	}{
+		{
+			name:    "empty slice returns 0",
+			lines:   []string{},
+			wantMax: 0,
+		},
+		{
+			name:    "nil slice returns 0",
+			lines:   nil,
+			wantMax: 0,
+		},
+		{
+			name: "single line",
+			lines: []string{
+				"1\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg\t\tinfo\t",
+			},
+			wantMax: 1,
+		},
+		{
+			name: "multiple lines finds max",
+			lines: []string{
+				"3\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg3\t\tinfo\t",
+				"1\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg1\t\tinfo\t",
+				"2\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg2\t\tinfo\t",
+			},
+			wantMax: 3,
+		},
+		{
+			name: "lines with invalid IDs are ignored",
+			lines: []string{
+				"abc\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg\t\tinfo\t",
+				"5\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg5\t\tinfo\t",
+				"invalid\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg\t\tinfo\t",
+				"2\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg2\t\tinfo\t",
+			},
+			wantMax: 5,
+		},
+		{
+			name: "all lines with invalid IDs returns 0",
+			lines: []string{
+				"abc\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg\t\tinfo\t",
+				"invalid\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg\t\tinfo\t",
+			},
+			wantMax: 0,
+		},
+		{
+			name: "lines with zero ID",
+			lines: []string{
+				"0\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg0\t\tinfo\t",
+				"1\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg1\t\tinfo\t",
+			},
+			wantMax: 1,
+		},
+		{
+			name: "large IDs",
+			lines: []string{
+				"100\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg100\t\tinfo\t",
+				"99999\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg99999\t\tinfo\t",
+				"50000\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg50000\t\tinfo\t",
+			},
+			wantMax: 99999,
+		},
+		{
+			name: "mixed valid and malformed lines",
+			lines: []string{
+				"", // Empty line
+				"10\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg10\t\tinfo\t",
+				"malformed", // Malformed line
+				"5\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg5\t\tinfo\t",
+				"\t\t\t", // Line with empty fields
+			},
+			wantMax: 10,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			maxID := findMaxID(tc.lines)
+			require.Equal(t, tc.wantMax, maxID, "unexpected max ID for test case: "+tc.name)
+		})
+	}
+}
+
+func TestVerifyNewID(t *testing.T) {
+	testCases := []struct {
+		name  string
+		newID int
+		lines []string
+		// verifyNewID only logs failures, doesn't return errors
+		// We can't directly test the log output, but we can ensure the function doesn't panic
+	}{
+		{
+			name:  "new ID > all existing (should pass silently)",
+			newID: 10,
+			lines: []string{
+				"1\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg1\t\tinfo\t",
+				"5\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg5\t\tinfo\t",
+				"9\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg9\t\tinfo\t",
+			},
+		},
+		{
+			name:  "new ID equals existing (should log failure)",
+			newID: 5,
+			lines: []string{
+				"1\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg1\t\tinfo\t",
+				"5\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg5\t\tinfo\t",
+				"9\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg9\t\tinfo\t",
+			},
+		},
+		{
+			name:  "new ID < existing (should log failure)",
+			newID: 3,
+			lines: []string{
+				"1\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg1\t\tinfo\t",
+				"5\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg5\t\tinfo\t",
+				"9\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg9\t\tinfo\t",
+			},
+		},
+		{
+			name:  "empty lines (should pass silently)",
+			newID: 1,
+			lines: []string{},
+		},
+		{
+			name:  "nil lines (should pass silently)",
+			newID: 1,
+			lines: nil,
+		},
+		{
+			name:  "new ID zero with existing lines (should log failure)",
+			newID: 0,
+			lines: []string{
+				"1\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg1\t\tinfo\t",
+			},
+		},
+		{
+			name:  "new ID negative with existing lines (should log failure)",
+			newID: -1,
+			lines: []string{
+				"1\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg1\t\tinfo\t",
+			},
+		},
+		{
+			name:  "all lines with invalid IDs (should pass silently)",
+			newID: 1,
+			lines: []string{
+				"abc\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg\t\tinfo\t",
+				"invalid\t2025-01-01T12:00:00Z\tactive\tsess\twin\tpane\tmsg\t\tinfo\t",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// verifyNewID only logs, doesn't panic or return error
+			// We just ensure it runs without panicking
+			require.NotPanics(t, func() {
+				verifyNewID(tc.newID, tc.lines)
+			}, "verifyNewID should not panic for test case: "+tc.name)
+		})
+	}
+}
+
+func TestParseDismissalFields(t *testing.T) {
+	testCases := []struct {
+		name            string
+		line            string
+		wantID          string
+		wantLevel       string
+		wantMessage     string
+		wantTimestamp   string
+		wantSession     string
+		wantWindow      string
+		wantPane        string
+		wantPaneCreated string
+		wantReadTime    string
+		wantError       bool
+		errorContains   string
+	}{
+		{
+			name:            "valid line with all fields active",
+			line:            "5\t2025-01-01T12:00:00Z\tactive\tsess1\twin0\tpane0\ttest message\t123456789\tinfo\t",
+			wantID:          "5",
+			wantLevel:       "info",
+			wantMessage:     "test message",
+			wantTimestamp:   "2025-01-01T12:00:00Z",
+			wantSession:     "sess1",
+			wantWindow:      "win0",
+			wantPane:        "pane0",
+			wantPaneCreated: "123456789",
+			wantReadTime:    "",
+			wantError:       false,
+		},
+		{
+			name:            "valid line with all fields and read timestamp",
+			line:            "10\t2025-01-01T12:00:00Z\tactive\tsess1\twin0\tpane0\ttest message\t123456789\twarning\t2025-01-01T13:00:00Z",
+			wantID:          "10",
+			wantLevel:       "warning",
+			wantMessage:     "test message",
+			wantTimestamp:   "2025-01-01T12:00:00Z",
+			wantSession:     "sess1",
+			wantWindow:      "win0",
+			wantPane:        "pane0",
+			wantPaneCreated: "123456789",
+			wantReadTime:    "2025-01-01T13:00:00Z",
+			wantError:       false,
+		},
+		{
+			name:            "valid line with padded fields (some empty)",
+			line:            "7\t2025-01-01T12:00:00Z\tactive\t\t\t\tmsg\t\t\t",
+			wantID:          "7",
+			wantLevel:       "",
+			wantMessage:     "msg",
+			wantTimestamp:   "2025-01-01T12:00:00Z",
+			wantSession:     "",
+			wantWindow:      "",
+			wantPane:        "",
+			wantPaneCreated: "",
+			wantReadTime:    "",
+			wantError:       false,
+		},
+		{
+			name:            "dismissed state returns empty with no error",
+			line:            "8\t2025-01-01T12:00:00Z\tdismissed\tsess1\twin0\tpane0\ttest message\t123456789\tinfo\t",
+			wantID:          "",
+			wantLevel:       "",
+			wantMessage:     "",
+			wantTimestamp:   "",
+			wantSession:     "",
+			wantWindow:      "",
+			wantPane:        "",
+			wantPaneCreated: "",
+			wantReadTime:    "",
+			wantError:       false,
+		},
+		{
+			name:            "invalid state returns empty with no error",
+			line:            "8\t2025-01-01T12:00:00Z\tinvalid\tsess1\twin0\tpane0\ttest message\t123456789\tinfo\t",
+			wantID:          "",
+			wantLevel:       "",
+			wantMessage:     "",
+			wantTimestamp:   "",
+			wantSession:     "",
+			wantWindow:      "",
+			wantPane:        "",
+			wantPaneCreated: "",
+			wantReadTime:    "",
+			wantError:       false,
+		},
+		{
+			name:          "valid line with special characters in message",
+			line:          "15\t2025-01-01T12:00:00Z\tactive\tsess1\twin0\tpane0\tmsg\\nwith\\ttabs\\n\t\tcritical\t",
+			wantID:        "15",
+			wantLevel:     "critical",
+			wantMessage:   "msg\\nwith\\ttabs\\n",
+			wantTimestamp: "2025-01-01T12:00:00Z",
+			wantSession:   "sess1",
+			wantWindow:    "win0",
+			wantPane:      "pane0",
+			wantReadTime:  "",
+			wantError:     false,
+		},
+		{
+			name:            "valid ID field is non-numeric - function just extracts fields",
+			line:            "abc\t2025-01-01T12:00:00Z\tactive\tsess1\twin0\tpane0\ttest message\t123456789\tinfo\t",
+			wantID:          "abc",
+			wantLevel:       "info",
+			wantMessage:     "test message",
+			wantTimestamp:   "2025-01-01T12:00:00Z",
+			wantSession:     "sess1",
+			wantWindow:      "win0",
+			wantPane:        "pane0",
+			wantPaneCreated: "123456789",
+			wantReadTime:    "",
+			wantError:       false, // parseDismissalFields just extracts fields, doesn't validate ID
+		},
+		{
+			name:          "line with minimum required fields active",
+			line:          "1\t2025-01-01T12:00:00Z\tactive\t\t\t\t\t\tinfo\t",
+			wantID:        "1",
+			wantLevel:     "info",
+			wantMessage:   "",
+			wantTimestamp: "2025-01-01T12:00:00Z",
+			wantSession:   "",
+			wantWindow:    "",
+			wantPane:      "",
+			wantError:     false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			id, level, message, timestamp, session, window, pane, paneCreated, readTimestamp, err := parseDismissalFields(tc.line)
+
+			if tc.wantError {
+				require.Error(t, err, "expected error for test case: "+tc.name)
+				if tc.errorContains != "" {
+					require.Contains(t, err.Error(), tc.errorContains, "error message should contain: "+tc.errorContains)
+				}
+			} else {
+				require.NoError(t, err, "unexpected error for test case: "+tc.name)
+				require.Equal(t, tc.wantID, id, "unexpected ID for test case: "+tc.name)
+				require.Equal(t, tc.wantLevel, level, "unexpected level for test case: "+tc.name)
+				require.Equal(t, tc.wantMessage, message, "unexpected message for test case: "+tc.name)
+				require.Equal(t, tc.wantTimestamp, timestamp, "unexpected timestamp for test case: "+tc.name)
+				require.Equal(t, tc.wantSession, session, "unexpected session for test case: "+tc.name)
+				require.Equal(t, tc.wantWindow, window, "unexpected window for test case: "+tc.name)
+				require.Equal(t, tc.wantPane, pane, "unexpected pane for test case: "+tc.name)
+				require.Equal(t, tc.wantPaneCreated, paneCreated, "unexpected paneCreated for test case: "+tc.name)
+				require.Equal(t, tc.wantReadTime, readTimestamp, "unexpected readTimestamp for test case: "+tc.name)
+			}
+		})
+	}
+}
