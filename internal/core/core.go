@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 )
 
@@ -193,4 +194,24 @@ func (c *Core) DismissAll() error {
 // DismissAll dismisses all active notifications using the default core instance.
 func DismissAll() error {
 	return defaultCore.DismissAll()
+}
+
+// ResetSettings resets settings to defaults.
+func (c *Core) ResetSettings() (*settings.Settings, error) {
+	return settings.Reset()
+}
+
+// ResetSettings resets settings to defaults using the default core instance.
+func ResetSettings() (*settings.Settings, error) {
+	return defaultCore.ResetSettings()
+}
+
+// LoadSettings loads current settings.
+func (c *Core) LoadSettings() (*settings.Settings, error) {
+	return settings.Load()
+}
+
+// LoadSettings loads current settings using the default core instance.
+func LoadSettings() (*settings.Settings, error) {
+	return defaultCore.LoadSettings()
 }
