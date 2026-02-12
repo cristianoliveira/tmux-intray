@@ -20,10 +20,7 @@ All configuration options are controlled by environment variables with the `TMUX
 |----------|---------|-------------|
 | `TMUX_INTRAY_STATE_DIR` | `$XDG_STATE_HOME/tmux-intray` (`~/.local/state/tmux-intray`) | Directory where notification data is stored. Follows XDG Base Directory Specification. |
 | `TMUX_INTRAY_CONFIG_DIR` | `$XDG_CONFIG_HOME/tmux-intray` (`~/.config/tmux-intray`) | Directory for configuration files and hooks. |
-| `TMUX_INTRAY_STORAGE_BACKEND` | `tsv` | Storage backend: `tsv`, `sqlite`, or `dual` (TSV primary + SQLite secondary). |
-| `TMUX_INTRAY_DUAL_READ_BACKEND` | `sqlite` | When `storage_backend=dual`, selects read backend (`sqlite` or `tsv`). |
-| `TMUX_INTRAY_DUAL_VERIFY_ONLY` | `0` | When `storage_backend=dual`, write only to TSV (skip SQLite writes) for verification mode. |
-| `TMUX_INTRAY_DUAL_VERIFY_SAMPLE_SIZE` | `25` | Number of records sampled during consistency verification. |
+| `TMUX_INTRAY_STORAGE_BACKEND` | `sqlite` | Storage backend (only `sqlite` is supported). |
 | `TMUX_INTRAY_MAX_NOTIFICATIONS` | `1000` | Maximum number of notifications to keep (oldest are automatically cleaned up). |
 | `TMUX_INTRAY_AUTO_CLEANUP_DAYS` | `30` | Automatically clean up notifications that have been dismissed for more than this many days. |
 
@@ -74,12 +71,7 @@ All configuration options are controlled by environment variables with the `TMUX
 # Storage directories (follow XDG Base Directory Specification)
 state_dir = "~/.local/state/tmux-intray"
 config_dir = "~/.config/tmux-intray"
-storage_backend = "tsv"
-
-# Dual-write mode (used when storage_backend="dual")
-dual_read_backend = "sqlite"
-dual_verify_only = false
-dual_verify_sample_size = 25
+storage_backend = "sqlite"
 
 # Storage limits
 max_notifications = 1000
@@ -126,52 +118,21 @@ tmux-intray list
 
 This is useful for temporary debugging or for per‑session customization.
 
-## Dual-Write Mode
+## SQLite Storage
 
-Set `TMUX_INTRAY_STORAGE_BACKEND=dual` to enable migration-safe dual writes:
+tmux-intray uses SQLite as its storage backend. Data is stored in `$TMUX_INTRAY_STATE_DIR/notifications.db`.
 
-- All mutating operations write to TSV first, then SQLite.
-- TSV write failures stop the command.
-- SQLite write failures are logged as warnings, and execution continues with TSV as source of truth.
-- Reads use `TMUX_INTRAY_DUAL_READ_BACKEND` (`sqlite` by default for performance checks).
-- `TMUX_INTRAY_DUAL_VERIFY_ONLY=1` keeps writes TSV-only while allowing consistency verification tooling.
+### Migrating from TSV
 
-## SQLite Opt-in Rollout (Beta)
+If you have existing notifications in TSV format, use the migrate command:
 
-> [!WARNING]
-> SQLite is opt-in during rollout. `TMUX_INTRAY_STORAGE_BACKEND=tsv` remains the default.
+```bash
+tmux-intray migrate
+```
 
-Use these backend values during rollout:
+See `tmux-intray migrate --help` for more options.
 
-- `tsv` (default): Stable baseline.
-- `dual`: Recommended first opt-in step. Writes to TSV and SQLite while preserving TSV as source of truth.
-- `sqlite`: Full SQLite mode after successful validation.
-
-### Recommended staged rollout
-
-1. Keep default `tsv` for unchanged behavior.
-2. Opt in with `dual` for verification:
-   ```bash
-   TMUX_INTRAY_STORAGE_BACKEND="dual"
-   TMUX_INTRAY_DUAL_READ_BACKEND="sqlite"
-   TMUX_INTRAY_DUAL_VERIFY_ONLY=0
-   ```
-3. Promote to full SQLite:
-   ```bash
-   TMUX_INTRAY_STORAGE_BACKEND="sqlite"
-   ```
-4. Roll back immediately if needed:
-   ```bash
-   TMUX_INTRAY_STORAGE_BACKEND="tsv"
-   ```
-
-### Safeguards
-
-- Unknown backend values fall back to TSV.
-- If SQLite or dual backend initialization fails, tmux-intray warns and falls back to TSV.
-- In dual mode, SQLite write failures are non-fatal; TSV continues as the source of truth.
-
-### sqlc-backed query layer notes
+### sqlc-backed query layer
 
 SQLite queries are defined in `internal/storage/sqlite/queries.sql` and generated with sqlc into `internal/storage/sqlite/sqlcgen/`.
 

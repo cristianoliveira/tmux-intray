@@ -1,4 +1,4 @@
-// Package storage provides file-based TSV storage with locking.
+// Package storage provides storage backend selection and implementations.
 package storage
 
 import (

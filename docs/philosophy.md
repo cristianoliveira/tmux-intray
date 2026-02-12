@@ -67,7 +67,7 @@ Good configuration:
 ```toml
 # Clear, commented, uses TOML format
 max_notifications = 1000
-storage_backend = "tsv"
+storage_backend = "sqlite"
 
 # Status bar settings
 status_enabled = true

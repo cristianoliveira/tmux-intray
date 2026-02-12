@@ -52,30 +52,19 @@ tmux-intray jump <id>
 tmux-intray list | fzf | awk '{ print $1 }' | xargs -I {} tmux-intray jump {}
 ```
 
-## Using SQLite Storage (Beta Opt-in)
+## SQLite Storage
 
-> [!WARNING]
-> SQLite storage is in a gradual opt-in rollout. The default backend remains TSV.
+tmux-intray uses SQLite for notification storage, providing transactional storage and better scalability. The SQLite backend uses sqlc-generated queries from `internal/storage/sqlite/queries.sql` (generated into `internal/storage/sqlite/sqlcgen/`).
 
-SQLite support is available for users who want transactional storage and better scalability on larger inboxes. The SQLite backend uses sqlc-generated queries from `internal/storage/sqlite/queries.sql` (generated into `internal/storage/sqlite/sqlcgen/`).
+### Migrating from TSV
 
-Quick opt-in:
+If you have existing notifications in TSV format, use the migrate command:
 
 ```bash
-# one session
-export TMUX_INTRAY_STORAGE_BACKEND=sqlite
-
-# or persist in ~/.config/tmux-intray/config.sh
-TMUX_INTRAY_STORAGE_BACKEND="sqlite"
+tmux-intray migrate
 ```
 
-Recommended rollout path:
-
-1. Start with `TMUX_INTRAY_STORAGE_BACKEND=dual` to keep TSV as source-of-truth while validating SQLite writes.
-2. Move to `TMUX_INTRAY_STORAGE_BACKEND=sqlite` after a stable period.
-3. Roll back quickly by setting `TMUX_INTRAY_STORAGE_BACKEND=tsv`.
-
-See the complete migration and rollback guide in [docs/storage-migration.md](docs/storage-migration.md).
+See `tmux-intray migrate --help` for more options.
 
 ## Installation Options
 

@@ -1,7 +1,7 @@
-// Package storage provides file-based TSV storage with locking.
+// Package storage provides the storage interface for tmux-intray.
 package storage
 
-// Field indices for the notifications TSV schema:
+// Field indices for the notification schema used in TSV output format:
 // id, timestamp, state, session, window, pane, message, pane_created, level, read_timestamp.
 // read_timestamp is RFC3339 when read, empty when unread.
 const (

@@ -28,7 +28,7 @@ func TestDefaultConfig(t *testing.T) {
 	// Check some default values.
 	require.Equal(t, "1000", Get("max_notifications", ""))
 	require.Equal(t, "30", Get("auto_cleanup_days", ""))
-	require.Equal(t, "tsv", Get("storage_backend", ""))
+	require.Equal(t, "sqlite", Get("storage_backend", ""))
 	require.Equal(t, "default", Get("table_format", ""))
 	require.Equal(t, "compact", Get("status_format", ""))
 	require.Equal(t, "true", Get("status_enabled", ""))
@@ -38,9 +38,6 @@ func TestDefaultConfig(t *testing.T) {
 	require.Equal(t, "false", Get("hooks_async", ""))
 	require.Equal(t, "30", Get("hooks_async_timeout", ""))
 	require.Equal(t, "10", Get("max_hooks", ""))
-	require.Equal(t, "sqlite", Get("dual_read_backend", ""))
-	require.Equal(t, "false", Get("dual_verify_only", ""))
-	require.Equal(t, "25", Get("dual_verify_sample_size", ""))
 	// Directories should be non-empty.
 	require.NotEmpty(t, Get("state_dir", ""))
 	require.NotEmpty(t, Get("config_dir", ""))
@@ -161,23 +158,7 @@ func TestValidation(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", tmpDir6)
 	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "unknown")
 	Load()
-	require.Equal(t, "tsv", Get("storage_backend", ""))
-
-	// Invalid dual_read_backend
-	reset()
-	tmpDir7 := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", tmpDir7)
-	t.Setenv("TMUX_INTRAY_DUAL_READ_BACKEND", "invalid")
-	Load()
-	require.Equal(t, "sqlite", Get("dual_read_backend", ""))
-
-	// Invalid dual_verify_sample_size
-	reset()
-	tmpDir8 := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", tmpDir8)
-	t.Setenv("TMUX_INTRAY_DUAL_VERIFY_SAMPLE_SIZE", "0")
-	Load()
-	require.Equal(t, "25", Get("dual_verify_sample_size", ""))
+	require.Equal(t, "sqlite", Get("storage_backend", ""))
 }
 
 func TestGetIntGetBool(t *testing.T) {
@@ -491,7 +472,7 @@ func TestGetValidatorNonExistent(t *testing.T) {
 	require.Nil(t, v)
 }
 
-// TestInitValidators verifies all 23 validators are registered.
+// TestInitValidators verifies all validators are registered.
 func TestInitValidators(t *testing.T) {
 	reset()
 	// Reinitialize validators (init() already ran, but we can test the registry)
@@ -499,16 +480,14 @@ func TestInitValidators(t *testing.T) {
 	require.NotNil(t, getValidator("auto_cleanup_days"))
 	require.NotNil(t, getValidator("hooks_async_timeout"))
 	require.NotNil(t, getValidator("max_hooks"))
-	require.NotNil(t, getValidator("dual_verify_sample_size"))
 
-	// Enum validators (5 keys)
+	// Enum validators (3 keys)
 	require.NotNil(t, getValidator("table_format"))
 	require.NotNil(t, getValidator("storage_backend"))
 	require.NotNil(t, getValidator("status_format"))
 	require.NotNil(t, getValidator("hooks_failure_mode"))
-	require.NotNil(t, getValidator("dual_read_backend"))
 
-	// Boolean validators (13 keys)
+	// Boolean validators (12 keys)
 	require.NotNil(t, getValidator("status_enabled"))
 	require.NotNil(t, getValidator("show_levels"))
 	require.NotNil(t, getValidator("hooks_enabled"))
@@ -521,7 +500,6 @@ func TestInitValidators(t *testing.T) {
 	require.NotNil(t, getValidator("hooks_enabled_post_dismiss"))
 	require.NotNil(t, getValidator("hooks_enabled_cleanup"))
 	require.NotNil(t, getValidator("hooks_enabled_post_cleanup"))
-	require.NotNil(t, getValidator("dual_verify_only"))
 }
 
 // TestPositiveIntValidatorEmpty tests that empty value returns default.

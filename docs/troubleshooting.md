@@ -136,9 +136,9 @@ This guide covers common issues and how to resolve them. If you encounter a prob
    ```
 
 4. **Inspect storage file**  
-   The storage file is at `$TMUX_INTRAY_STATE_DIR/notifications.tsv`. You can view its contents (but do not edit while tmux-intray is running):
+   The storage file is at `$TMUX_INTRAY_STATE_DIR/notifications.db`. You can query it with sqlite3:
    ```bash
-   head -20 "$TMUX_INTRAY_STATE_DIR/notifications.tsv"
+   sqlite3 "$TMUX_INTRAY_STATE_DIR/notifications.db" "SELECT * FROM notifications LIMIT 20"
    ```
 
 ### Storage permission problems
