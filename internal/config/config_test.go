@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -413,4 +414,319 @@ func TestConfigFileNotFoundNoDebug(t *testing.T) {
 
 	// Defaults should still be loaded.
 	require.Equal(t, "1000", Get("max_notifications", ""))
+}
+
+// TestRegisterValidatorPanic tests that registering a duplicate validator panics.
+func TestRegisterValidatorPanic(t *testing.T) {
+	reset()
+	// Register a test validator
+	RegisterValidator("test_key", func(key, value, defaultValue string) (string, error) {
+		return value, nil
+	})
+
+	// Attempting to register the same key again should panic
+	require.Panics(t, func() {
+		RegisterValidator("test_key", func(key, value, defaultValue string) (string, error) {
+			return value, nil
+		})
+	})
+}
+
+// TestRegisterValidatorThreadSafety tests that RegisterValidator is thread-safe.
+func TestRegisterValidatorThreadSafety(t *testing.T) {
+	reset()
+	done := make(chan bool)
+
+	// Register multiple validators concurrently
+	for i := 0; i < 10; i++ {
+		go func(idx int) {
+			key := fmt.Sprintf("concurrent_key_%d", idx)
+			RegisterValidator(key, func(key, value, defaultValue string) (string, error) {
+				return value, nil
+			})
+			done <- true
+		}(i)
+	}
+
+	// Wait for all goroutines to complete
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+
+	// Verify all validators were registered
+	require.NotNil(t, getValidator("concurrent_key_0"))
+	require.NotNil(t, getValidator("concurrent_key_5"))
+	require.NotNil(t, getValidator("concurrent_key_9"))
+}
+
+// TestGetValidatorThreadSafety tests that getValidator is thread-safe.
+func TestGetValidatorThreadSafety(t *testing.T) {
+	reset()
+	// Register a validator
+	RegisterValidator("thread_test_key", func(key, value, defaultValue string) (string, error) {
+		return value, nil
+	})
+
+	done := make(chan bool)
+
+	// Read validators concurrently
+	for i := 0; i < 10; i++ {
+		go func() {
+			v := getValidator("thread_test_key")
+			require.NotNil(t, v)
+			done <- true
+		}()
+	}
+
+	// Wait for all goroutines to complete
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+}
+
+// TestGetValidatorNonExistent tests that getValidator returns nil for unregistered keys.
+func TestGetValidatorNonExistent(t *testing.T) {
+	reset()
+	v := getValidator("non_existent_key")
+	require.Nil(t, v)
+}
+
+// TestInitValidators verifies all 23 validators are registered.
+func TestInitValidators(t *testing.T) {
+	reset()
+	// Reinitialize validators (init() already ran, but we can test the registry)
+	require.NotNil(t, getValidator("max_notifications"))
+	require.NotNil(t, getValidator("auto_cleanup_days"))
+	require.NotNil(t, getValidator("hooks_async_timeout"))
+	require.NotNil(t, getValidator("max_hooks"))
+	require.NotNil(t, getValidator("dual_verify_sample_size"))
+
+	// Enum validators (5 keys)
+	require.NotNil(t, getValidator("table_format"))
+	require.NotNil(t, getValidator("storage_backend"))
+	require.NotNil(t, getValidator("status_format"))
+	require.NotNil(t, getValidator("hooks_failure_mode"))
+	require.NotNil(t, getValidator("dual_read_backend"))
+
+	// Boolean validators (13 keys)
+	require.NotNil(t, getValidator("status_enabled"))
+	require.NotNil(t, getValidator("show_levels"))
+	require.NotNil(t, getValidator("hooks_enabled"))
+	require.NotNil(t, getValidator("hooks_async"))
+	require.NotNil(t, getValidator("debug"))
+	require.NotNil(t, getValidator("quiet"))
+	require.NotNil(t, getValidator("hooks_enabled_pre_add"))
+	require.NotNil(t, getValidator("hooks_enabled_post_add"))
+	require.NotNil(t, getValidator("hooks_enabled_pre_dismiss"))
+	require.NotNil(t, getValidator("hooks_enabled_post_dismiss"))
+	require.NotNil(t, getValidator("hooks_enabled_cleanup"))
+	require.NotNil(t, getValidator("hooks_enabled_post_cleanup"))
+	require.NotNil(t, getValidator("dual_verify_only"))
+}
+
+// TestPositiveIntValidatorEmpty tests that empty value returns default.
+func TestPositiveIntValidatorEmpty(t *testing.T) {
+	validator := PositiveIntValidator()
+	result, err := validator("test_key", "", "100")
+	require.NoError(t, err)
+	require.Equal(t, "100", result)
+}
+
+// TestPositiveIntValidatorValid tests valid positive integers.
+func TestPositiveIntValidatorValid(t *testing.T) {
+	validator := PositiveIntValidator()
+
+	for _, val := range []string{"1", "42", "9999"} {
+		result, err := validator("test_key", val, "100")
+		require.NoError(t, err)
+		require.Equal(t, val, result)
+	}
+}
+
+// TestPositiveIntValidatorZero tests that zero is rejected and default is returned.
+func TestPositiveIntValidatorZero(t *testing.T) {
+	validator := PositiveIntValidator()
+	result, err := validator("test_key", "0", "100")
+	require.NoError(t, err)
+	require.Equal(t, "100", result)
+}
+
+// TestPositiveIntValidatorNegative tests that negative numbers are rejected.
+func TestPositiveIntValidatorNegative(t *testing.T) {
+	validator := PositiveIntValidator()
+	result, err := validator("test_key", "-5", "100")
+	require.NoError(t, err)
+	require.Equal(t, "100", result)
+}
+
+// TestPositiveIntValidatorNonInteger tests that non-integers are rejected.
+func TestPositiveIntValidatorNonInteger(t *testing.T) {
+	validator := PositiveIntValidator()
+	result, err := validator("test_key", "abc", "100")
+	require.NoError(t, err)
+	require.Equal(t, "100", result)
+}
+
+// TestPositiveIntValidatorFloat tests that floats are rejected.
+func TestPositiveIntValidatorFloat(t *testing.T) {
+	validator := PositiveIntValidator()
+	result, err := validator("test_key", "3.14", "100")
+	require.NoError(t, err)
+	require.Equal(t, "100", result)
+}
+
+// TestEnumValidatorEmpty tests that empty value returns default.
+func TestEnumValidatorEmpty(t *testing.T) {
+	validator := EnumValidator(map[string]bool{"option1": true, "option2": true})
+	result, err := validator("test_key", "", "option1")
+	require.NoError(t, err)
+	require.Equal(t, "option1", result)
+}
+
+// TestEnumValidatorValid tests valid enum values.
+func TestEnumValidatorValid(t *testing.T) {
+	validator := EnumValidator(map[string]bool{"red": true, "green": true, "blue": true})
+
+	testCases := []struct {
+		input    string
+		expected string
+	}{
+		{"red", "red"},
+		{"RED", "red"},     // Case insensitive
+		{"Green", "green"}, // Case insensitive
+		{"BLUE", "blue"},   // Case insensitive
+	}
+
+	for _, tc := range testCases {
+		result, err := validator("test_key", tc.input, "red")
+		require.NoError(t, err)
+		require.Equal(t, tc.expected, result)
+	}
+}
+
+// TestEnumValidatorInvalid tests that invalid enum values return default.
+func TestEnumValidatorInvalid(t *testing.T) {
+	validator := EnumValidator(map[string]bool{"red": true, "green": true, "blue": true})
+	result, err := validator("test_key", "yellow", "red")
+	require.NoError(t, err)
+	require.Equal(t, "red", result)
+}
+
+// TestEnumValidatorEmptyAllowed tests enum validator with empty allowed map.
+func TestEnumValidatorEmptyAllowed(t *testing.T) {
+	validator := EnumValidator(map[string]bool{})
+	result, err := validator("test_key", "anything", "default")
+	require.NoError(t, err)
+	require.Equal(t, "default", result)
+}
+
+// TestBoolValidatorEmpty tests that empty value returns default.
+func TestBoolValidatorEmpty(t *testing.T) {
+	validator := BoolValidator()
+	result, err := validator("test_key", "", "true")
+	require.NoError(t, err)
+	require.Equal(t, "true", result)
+}
+
+// TestBoolValidatorTrueValues tests all variations that normalize to "true".
+func TestBoolValidatorTrueValues(t *testing.T) {
+	validator := BoolValidator()
+
+	for _, val := range []string{"1", "true", "TRUE", "True", "yes", "YES", "Yes", "on", "ON", "On"} {
+		result, err := validator("test_key", val, "false")
+		require.NoError(t, err)
+		require.Equal(t, "true", result, "value %s should normalize to true", val)
+	}
+}
+
+// TestBoolValidatorFalseValues tests all variations that normalize to "false".
+func TestBoolValidatorFalseValues(t *testing.T) {
+	validator := BoolValidator()
+
+	for _, val := range []string{"0", "false", "FALSE", "False", "no", "NO", "No", "off", "OFF", "Off"} {
+		result, err := validator("test_key", val, "true")
+		require.NoError(t, err)
+		require.Equal(t, "false", result, "value %s should normalize to false", val)
+	}
+}
+
+// TestBoolValidatorInvalid tests completely invalid boolean values.
+func TestBoolValidatorInvalid(t *testing.T) {
+	validator := BoolValidator()
+
+	for _, val := range []string{"maybe", "2", "invalid", "t", "f", "y", "n"} {
+		result, err := validator("test_key", val, "default")
+		require.NoError(t, err)
+		require.Equal(t, "default", result, "value %s should return default", val)
+	}
+}
+
+// TestNormalizeBool tests the normalizeBool helper function.
+func TestNormalizeBool(t *testing.T) {
+	testCases := []struct {
+		input    string
+		expected string
+	}{
+		{"1", "true"},
+		{"true", "true"},
+		{"TRUE", "true"},
+		{"True", "true"},
+		{"yes", "true"},
+		{"YES", "true"},
+		{"on", "true"},
+		{"ON", "true"},
+		{"0", "false"},
+		{"false", "false"},
+		{"FALSE", "false"},
+		{"no", "false"},
+		{"NO", "false"},
+		{"off", "false"},
+		{"OFF", "false"},
+		{"maybe", "maybe"},     // Invalid returns as-is
+		{"invalid", "invalid"}, // Invalid returns as-is
+	}
+
+	for _, tc := range testCases {
+		result := normalizeBool(tc.input)
+		require.Equal(t, tc.expected, result, "normalizeBool(%q)", tc.input)
+	}
+}
+
+// TestAllowedValues tests the allowedValues helper function.
+func TestAllowedValues(t *testing.T) {
+	testCases := []struct {
+		allowed  map[string]bool
+		expected string
+	}{
+		{map[string]bool{"a": true, "b": true, "c": true}, "a, b, c"},
+		{map[string]bool{"zebra": true, "apple": true}, "apple, zebra"},
+		{map[string]bool{"single": true}, "single"},
+		{map[string]bool{}, ""},
+	}
+
+	for _, tc := range testCases {
+		result := allowedValues(tc.allowed)
+		require.Equal(t, tc.expected, result)
+	}
+}
+
+// TestValidatorReturningError tests the validate function with a validator that returns an error.
+func TestValidatorReturningError(t *testing.T) {
+	reset()
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	// Register a validator that returns an error
+	RegisterValidator("error_test_key", func(key, value, defaultValue string) (string, error) {
+		if value == "error" {
+			return "", fmt.Errorf("simulated error")
+		}
+		return value, nil
+	})
+
+	t.Setenv("TMUX_INTRAY_ERROR_TEST_KEY", "error")
+	Load()
+
+	// Should use default value when validator returns error
+	require.Equal(t, "", Get("error_test_key", ""))
 }
