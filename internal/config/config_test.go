@@ -2,7 +2,6 @@ package config
 
 import (
 	"bytes"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -90,62 +89,23 @@ table_format = "minimal"
 	require.Equal(t, "minimal", Get("table_format", ""))
 }
 
-func TestConfigFileJSON(t *testing.T) {
-	reset()
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.json")
-	cfg := map[string]interface{}{
-		"max_notifications": 300,
-		"auto_cleanup_days": 7,
-	}
-	data, err := json.Marshal(cfg)
-	require.NoError(t, err)
-	err = os.WriteFile(configPath, data, 0644)
-	require.NoError(t, err)
-
-	t.Setenv("TMUX_INTRAY_CONFIG_PATH", configPath)
-	Load()
-
-	require.Equal(t, "300", Get("max_notifications", ""))
-	require.Equal(t, "7", Get("auto_cleanup_days", ""))
-}
-
-func TestConfigFileYAML(t *testing.T) {
-	reset()
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.yaml")
-	data := `---
-max_notifications: 400
-status_format: detailed
-`
-	err := os.WriteFile(configPath, []byte(data), 0644)
-	require.NoError(t, err)
-
-	t.Setenv("TMUX_INTRAY_CONFIG_PATH", configPath)
-	Load()
-
-	require.Equal(t, "400", Get("max_notifications", ""))
-	require.Equal(t, "detailed", Get("status_format", ""))
-}
-
 func TestConfigFileTypeValidation(t *testing.T) {
 	reset()
 	tmpDir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", tmpDir)
-	configPath := filepath.Join(tmpDir, "config.json")
-	cfg := map[string]interface{}{
-		"max_notifications":   []int{1, 2},
-		"status_enabled":      map[string]interface{}{"value": true},
-		"table_format":        "minimal",
-		"hooks_async_timeout": 12,
-	}
-	data, err := json.Marshal(cfg)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(configPath, data, 0644))
+	configPath := filepath.Join(tmpDir, "config.toml")
+	data := `
+max_notifications = [1, 2]
+status_enabled = {value = true}
+table_format = "minimal"
+hooks_async_timeout = 12
+`
+	require.NoError(t, os.WriteFile(configPath, []byte(data), 0644))
 
 	t.Setenv("TMUX_INTRAY_CONFIG_PATH", configPath)
 	Load()
 
+	// Unsupported types should be skipped, using defaults
 	require.Equal(t, "1000", Get("max_notifications", ""))
 	require.Equal(t, "true", Get("status_enabled", ""))
 	require.Equal(t, "minimal", Get("table_format", ""))
@@ -381,72 +341,6 @@ func TestConfigFileMalformed(t *testing.T) {
 
 	// Defaults should still be loaded.
 	require.Equal(t, "1000", Get("max_notifications", ""))
-}
-
-// Test that malformed JSON is logged at warning level.
-func TestConfigFileMalformedJSON(t *testing.T) {
-	reset()
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.json")
-
-	// Write malformed JSON.
-	err := os.WriteFile(configPath, []byte(`{"invalid": json}`), 0644)
-	require.NoError(t, err)
-
-	t.Setenv("TMUX_INTRAY_CONFIG_PATH", configPath)
-
-	// Capture stderr to verify warning logging.
-	oldStderr := os.Stderr
-	r, w, _ := os.Pipe()
-	os.Stderr = w
-
-	Load()
-
-	// Close writer and restore stderr.
-	w.Close()
-	os.Stderr = oldStderr
-
-	var buf bytes.Buffer
-	buf.ReadFrom(r)
-	output := buf.String()
-
-	// Should contain warning message about parse error.
-	require.Contains(t, output, "Warning:")
-	require.Contains(t, output, "unable to parse config file")
-	require.Contains(t, output, configPath)
-}
-
-// Test that malformed YAML is logged at warning level.
-func TestConfigFileMalformedYAML(t *testing.T) {
-	reset()
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.yaml")
-
-	// Write malformed YAML (invalid indentation).
-	err := os.WriteFile(configPath, []byte("invalid:\n  - item1\n item2"), 0644)
-	require.NoError(t, err)
-
-	t.Setenv("TMUX_INTRAY_CONFIG_PATH", configPath)
-
-	// Capture stderr to verify warning logging.
-	oldStderr := os.Stderr
-	r, w, _ := os.Pipe()
-	os.Stderr = w
-
-	Load()
-
-	// Close writer and restore stderr.
-	w.Close()
-	os.Stderr = oldStderr
-
-	var buf bytes.Buffer
-	buf.ReadFrom(r)
-	output := buf.String()
-
-	// Should contain warning message about parse error.
-	require.Contains(t, output, "Warning:")
-	require.Contains(t, output, "unable to parse config file")
-	require.Contains(t, output, configPath)
 }
 
 // Test that read errors (permission denied) are logged at debug level.
