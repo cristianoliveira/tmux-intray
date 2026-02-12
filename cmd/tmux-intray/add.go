@@ -41,14 +41,14 @@ OPTIONS:
 
 If no pane association options are provided, automatically associates with
 the current tmux pane (if inside tmux). Use --no-associate to skip.`,
-	Args: cobra.ArbitraryArgs,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		// Check if message is provided to match bash error message
+	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) == 0 {
 			fmt.Fprintf(cmd.ErrOrStderr(), "add requires a message\n")
 			return fmt.Errorf("")
 		}
-
+		return nil
+	},
+	RunE: func(cmd *cobra.Command, args []string) error {
 		// Treat empty strings same as not provided (e.g., --session="" from plugin)
 		// This makes the CLI resilient to the plugin passing empty flag values
 		sessionFlag = strings.TrimSpace(sessionFlag)
