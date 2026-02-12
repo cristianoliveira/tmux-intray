@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/errors"
 )
 
 // TmuxContext captures the current tmux session/window/pane context.
@@ -67,6 +68,9 @@ type TmuxClient interface {
 	// Run executes a tmux command with the given arguments.
 	Run(args ...string) (string, string, error)
 }
+
+// defaultCLIHandler is the default CLI error handler for backward compatibility.
+var defaultCLIHandler = errors.NewDefaultCLIHandler()
 
 // DefaultClient implements TmuxClient using exec.Command to run tmux.
 type DefaultClient struct {
@@ -175,11 +179,8 @@ func (c *DefaultClient) ValidatePaneExists(sessionID, windowID, paneID string) (
 	return false, nil
 }
 
-// JumpToPane jumps to the specified pane or window.
-// If paneID is empty, jumps to the window only.
-// Returns true if jump succeeded, false if failed.
-// Preconditions: sessionID and windowID must be non-empty; paneID is optional.
-func (c *DefaultClient) JumpToPane(sessionID, windowID, paneID string) (bool, error) {
+// jumpToPane is the private implementation that accepts a custom error handler.
+func (c *DefaultClient) jumpToPane(sessionID, windowID, paneID string, handler errors.ErrorHandler) (bool, error) {
 	// Validate required fields (sessionID and windowID)
 	if sessionID == "" || windowID == "" {
 		return false, ErrInvalidTarget
@@ -256,7 +257,7 @@ func (c *DefaultClient) JumpToPane(sessionID, windowID, paneID string) (bool, er
 
 	// If pane doesn't exist, show warning and fall back to window selection
 	if !paneExists {
-		colors.Warning("Pane " + paneID + " does not exist in window " + targetWindow + ", jumping to window instead")
+		handler.Warning("Pane " + paneID + " does not exist in window " + targetWindow + ", jumping to window instead")
 		colors.Debug(fmt.Sprintf("JumpToPane: falling back to window selection (pane %s not found)", paneID))
 		return true, nil
 	}
@@ -274,6 +275,23 @@ func (c *DefaultClient) JumpToPane(sessionID, windowID, paneID string) (bool, er
 
 	colors.Debug(fmt.Sprintf("JumpToPane: successfully selected pane %s", targetPane))
 	return true, nil
+}
+
+// JumpToPane jumps to the specified pane or window.
+// If paneID is empty, jumps to the window only.
+// Returns true if jump succeeded, false if failed.
+// Preconditions: sessionID and windowID must be non-empty; paneID is optional.
+func (c *DefaultClient) JumpToPane(sessionID, windowID, paneID string) (bool, error) {
+	return c.jumpToPane(sessionID, windowID, paneID, defaultCLIHandler)
+}
+
+// JumpToPaneWithHandler jumps to the specified pane or window with a custom error handler.
+// This allows TUI and other UIs to handle errors differently than the CLI.
+// If paneID is empty, jumps to the window only.
+// Returns true if jump succeeded, false if failed.
+// Preconditions: sessionID and windowID must be non-empty; paneID is optional.
+func (c *DefaultClient) JumpToPaneWithHandler(sessionID, windowID, paneID string, handler errors.ErrorHandler) (bool, error) {
+	return c.jumpToPane(sessionID, windowID, paneID, handler)
 }
 
 // SetEnvironment sets a tmux environment variable.

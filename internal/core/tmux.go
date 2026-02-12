@@ -6,9 +6,13 @@ import (
 	"strings"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/errors"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 )
+
+// defaultCLIHandler is the default CLI error handler for backward compatibility.
+var defaultCLIHandler = errors.NewDefaultCLIHandler()
 
 // TmuxContext captures the current tmux session/window/pane context.
 type TmuxContext struct {
@@ -97,10 +101,8 @@ func ValidatePaneExists(sessionID, windowID, paneID string) bool {
 	return defaultCore.ValidatePaneExists(sessionID, windowID, paneID)
 }
 
-// JumpToPane jumps to a specific pane. It returns true if the jump succeeded
-// (either to the pane or fallback to window), false if the jump completely failed.
-// Preconditions: sessionID, windowID, and paneID must be non-empty.
-func (c *Core) JumpToPane(sessionID, windowID, paneID string) bool {
+// jumpToPane is the private implementation that accepts a custom error handler.
+func (c *Core) jumpToPane(sessionID, windowID, paneID string, handler errors.ErrorHandler) bool {
 	// ASSERTION: Validate input parameters are non-empty
 	if sessionID == "" || windowID == "" || paneID == "" {
 		var missing []string
@@ -113,7 +115,7 @@ func (c *Core) JumpToPane(sessionID, windowID, paneID string) bool {
 		if paneID == "" {
 			missing = append(missing, "paneID")
 		}
-		colors.Error(fmt.Sprintf("jump to pane: invalid parameters (empty %s)", strings.Join(missing, ", ")))
+		handler.Error(fmt.Sprintf("jump to pane: invalid parameters (empty %s)", strings.Join(missing, ", ")))
 		return false
 	}
 
@@ -135,7 +137,7 @@ func (c *Core) JumpToPane(sessionID, windowID, paneID string) bool {
 		colors.Debug(fmt.Sprintf("JumpToPane: switching client to session %s", sessionID))
 		_, stderr, err = c.client.Run("switch-client", "-t", sessionID)
 		if err != nil {
-			colors.Error(fmt.Sprintf("jump to pane: failed to switch client to session %s: %v", sessionID, err))
+			handler.Error(fmt.Sprintf("jump to pane: failed to switch client to session %s: %v", sessionID, err))
 			if stderr != "" {
 				colors.Debug("JumpToPane: stderr: " + stderr)
 			}
@@ -148,7 +150,7 @@ func (c *Core) JumpToPane(sessionID, windowID, paneID string) bool {
 	colors.Debug(fmt.Sprintf("JumpToPane: selecting window %s", targetWindow))
 	_, stderr, err = c.client.Run("select-window", "-t", targetWindow)
 	if err != nil {
-		colors.Error(fmt.Sprintf("jump to pane: failed to select window %s: %v", targetWindow, err))
+		handler.Error(fmt.Sprintf("jump to pane: failed to select window %s: %v", targetWindow, err))
 		if stderr != "" {
 			colors.Debug("JumpToPane: stderr: " + stderr)
 		}
@@ -157,7 +159,7 @@ func (c *Core) JumpToPane(sessionID, windowID, paneID string) bool {
 
 	// If pane doesn't exist, show warning and fall back to window selection
 	if !paneExists {
-		colors.Warning("Pane " + paneID + " does not exist in window " + targetWindow + ", jumping to window instead")
+		handler.Warning("Pane " + paneID + " does not exist in window " + targetWindow + ", jumping to window instead")
 		colors.Debug(fmt.Sprintf("JumpToPane: falling back to window selection (pane %s not found)", paneID))
 		return true
 	}
@@ -169,7 +171,7 @@ func (c *Core) JumpToPane(sessionID, windowID, paneID string) bool {
 	_, stderr, err = c.client.Run("select-pane", "-t", targetPane)
 	if err != nil {
 		// Fail-fast: don't swallow errors, return false to indicate failure
-		colors.Error(fmt.Sprintf("jump to pane: failed to select pane %s: %v", targetPane, err))
+		handler.Error(fmt.Sprintf("jump to pane: failed to select pane %s: %v", targetPane, err))
 		if stderr != "" {
 			colors.Debug("JumpToPane: stderr: " + stderr)
 		}
@@ -180,9 +182,22 @@ func (c *Core) JumpToPane(sessionID, windowID, paneID string) bool {
 	return true
 }
 
+// JumpToPane jumps to a specific pane. It returns true if the jump succeeded
+// (either to the pane or fallback to window), false if the jump completely failed.
+// Preconditions: sessionID, windowID, and paneID must be non-empty.
+func (c *Core) JumpToPane(sessionID, windowID, paneID string) bool {
+	return c.jumpToPane(sessionID, windowID, paneID, defaultCLIHandler)
+}
+
 // JumpToPane jumps to a specific pane using the default client.
 func JumpToPane(sessionID, windowID, paneID string) bool {
 	return defaultCore.JumpToPane(sessionID, windowID, paneID)
+}
+
+// JumpToPaneWithHandler jumps to a specific pane using the default client with a custom error handler.
+// This allows TUI and other UIs to handle errors differently than the CLI.
+func JumpToPaneWithHandler(sessionID, windowID, paneID string, handler errors.ErrorHandler) bool {
+	return defaultCore.jumpToPane(sessionID, windowID, paneID, handler)
 }
 
 // GetTmuxVisibility returns the value of TMUX_INTRAY_VISIBLE global tmux variable.

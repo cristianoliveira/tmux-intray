@@ -3,6 +3,7 @@ package service
 import (
 	"testing"
 
+	"github.com/cristianoliveira/tmux-intray/internal/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -66,15 +67,17 @@ func (m *MockModelInterface) GetViewMode() string {
 
 func TestNewCommandService(t *testing.T) {
 	mockModel := new(MockModelInterface)
-	service := NewCommandService(mockModel)
+	errorHandler := errors.NewTUIHandler(nil)
+	service := NewCommandService(mockModel, errorHandler)
 
 	assert.NotNil(t, service)
 	assert.Equal(t, mockModel, service.(*DefaultCommandService).model)
+	assert.Equal(t, errorHandler, service.(*DefaultCommandService).errorHandler)
 }
 
 func TestParseCommand(t *testing.T) {
 	mockModel := new(MockModelInterface)
-	service := NewCommandService(mockModel)
+	service := NewCommandService(mockModel, errors.NewTUIHandler(nil))
 
 	tests := []struct {
 		name         string
@@ -137,7 +140,7 @@ func TestParseCommand(t *testing.T) {
 
 func TestGetAvailableCommands(t *testing.T) {
 	mockModel := new(MockModelInterface)
-	service := NewCommandService(mockModel)
+	service := NewCommandService(mockModel, errors.NewTUIHandler(nil))
 
 	commands := service.GetAvailableCommands()
 
@@ -158,7 +161,7 @@ func TestGetAvailableCommands(t *testing.T) {
 
 func TestGetCommandHelp(t *testing.T) {
 	mockModel := new(MockModelInterface)
-	service := NewCommandService(mockModel)
+	service := NewCommandService(mockModel, errors.NewTUIHandler(nil))
 
 	// Test valid command
 	help := service.GetCommandHelp("q")
@@ -173,7 +176,7 @@ func TestGetCommandHelp(t *testing.T) {
 
 func TestGetCommandSuggestions(t *testing.T) {
 	mockModel := new(MockModelInterface)
-	service := NewCommandService(mockModel)
+	service := NewCommandService(mockModel, errors.NewTUIHandler(nil))
 
 	// Test partial suggestions
 	suggestions := service.GetCommandSuggestions("g")
@@ -190,7 +193,7 @@ func TestGetCommandSuggestions(t *testing.T) {
 
 func TestValidateCommand(t *testing.T) {
 	mockModel := new(MockModelInterface)
-	service := NewCommandService(mockModel)
+	service := NewCommandService(mockModel, errors.NewTUIHandler(nil))
 
 	// Test valid command
 	err := service.ValidateCommand("q", []string{})
@@ -209,7 +212,7 @@ func TestValidateCommand(t *testing.T) {
 func TestExecuteCommand_Quit(t *testing.T) {
 	mockModel := new(MockModelInterface)
 	mockModel.On("SaveSettings").Return(nil)
-	service := NewCommandService(mockModel)
+	service := NewCommandService(mockModel, errors.NewTUIHandler(nil))
 
 	result, err := service.ExecuteCommand("q", []string{})
 
@@ -222,7 +225,7 @@ func TestExecuteCommand_Quit(t *testing.T) {
 func TestExecuteCommand_QuitWithError(t *testing.T) {
 	mockModel := new(MockModelInterface)
 	mockModel.On("SaveSettings").Return(assert.AnError)
-	service := NewCommandService(mockModel)
+	service := NewCommandService(mockModel, errors.NewTUIHandler(nil))
 
 	result, err := service.ExecuteCommand("q", []string{})
 
@@ -234,7 +237,7 @@ func TestExecuteCommand_QuitWithError(t *testing.T) {
 
 func TestExecuteCommand_InvalidCommand(t *testing.T) {
 	mockModel := new(MockModelInterface)
-	service := NewCommandService(mockModel)
+	service := NewCommandService(mockModel, errors.NewTUIHandler(nil))
 
 	result, err := service.ExecuteCommand("nonexistent", []string{})
 
@@ -246,7 +249,7 @@ func TestExecuteCommand_InvalidCommand(t *testing.T) {
 
 func TestExecuteCommand_InvalidArgs(t *testing.T) {
 	mockModel := new(MockModelInterface)
-	service := NewCommandService(mockModel)
+	service := NewCommandService(mockModel, errors.NewTUIHandler(nil))
 
 	result, err := service.ExecuteCommand("q", []string{"invalid"})
 
@@ -263,7 +266,7 @@ func TestExecuteCommand_GroupBy(t *testing.T) {
 	mockModel.On("ApplySearchFilter")
 	mockModel.On("ResetCursor")
 	mockModel.On("SaveSettings").Return(nil)
-	service := NewCommandService(mockModel)
+	service := NewCommandService(mockModel, errors.NewTUIHandler(nil))
 
 	result, err := service.ExecuteCommand("group-by", []string{"session"})
 
@@ -280,7 +283,7 @@ func TestExecuteCommand_ExpandLevel(t *testing.T) {
 	mockModel.On("SetExpandLevel", 2).Return(nil)
 	mockModel.On("IsGroupedView").Return(false) // Not grouped view
 	mockModel.On("SaveSettings").Return(nil)
-	service := NewCommandService(mockModel)
+	service := NewCommandService(mockModel, errors.NewTUIHandler(nil))
 
 	result, err := service.ExecuteCommand("expand-level", []string{"2"})
 
@@ -298,7 +301,7 @@ func TestExecuteCommand_ToggleView(t *testing.T) {
 	mockModel.On("ResetCursor")
 	mockModel.On("SaveSettings").Return(nil)
 	mockModel.On("GetViewMode").Return("grouped")
-	service := NewCommandService(mockModel)
+	service := NewCommandService(mockModel, errors.NewTUIHandler(nil))
 
 	result, err := service.ExecuteCommand("toggle-view", []string{})
 
@@ -311,7 +314,7 @@ func TestExecuteCommand_ToggleView(t *testing.T) {
 
 func TestExecuteCommand_Write(t *testing.T) {
 	mockModel := new(MockModelInterface)
-	service := NewCommandService(mockModel)
+	service := NewCommandService(mockModel, errors.NewTUIHandler(nil))
 
 	result, err := service.ExecuteCommand("w", []string{})
 
