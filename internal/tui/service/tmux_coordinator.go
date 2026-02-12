@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/cristianoliveira/tmux-intray/internal/core"
+	"github.com/cristianoliveira/tmux-intray/internal/errors"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
@@ -19,6 +20,9 @@ type DefaultRuntimeCoordinator struct {
 	// Function pointers for testability
 	ensureTmuxRunning func() bool
 	jumpToPane        func(sessionID, windowID, paneID string) bool
+
+	// errorHandler is used for jump operations. If nil, uses default CLI handler.
+	errorHandler errors.ErrorHandler
 }
 
 // NewRuntimeCoordinator creates a new DefaultRuntimeCoordinator.
@@ -50,12 +54,22 @@ func (c *DefaultRuntimeCoordinator) EnsureTmuxRunning() bool {
 	return c.ensureTmuxRunning()
 }
 
+// SetErrorHandler sets the error handler for jump operations.
+// If set, the error handler will be used instead of the default CLI handler.
+func (c *DefaultRuntimeCoordinator) SetErrorHandler(handler errors.ErrorHandler) {
+	c.errorHandler = handler
+}
+
 // JumpToPane jumps to a specific pane in tmux.
 func (c *DefaultRuntimeCoordinator) JumpToPane(sessionID, windowID, paneID string) bool {
-	if c.jumpToPane == nil {
-		return core.JumpToPane(sessionID, windowID, paneID)
+	if c.jumpToPane != nil {
+		return c.jumpToPane(sessionID, windowID, paneID)
 	}
-	return c.jumpToPane(sessionID, windowID, paneID)
+	// If an error handler is set, use JumpToPaneWithHandler
+	if c.errorHandler != nil {
+		return core.JumpToPaneWithHandler(sessionID, windowID, paneID, c.errorHandler)
+	}
+	return core.JumpToPane(sessionID, windowID, paneID)
 }
 
 // ValidatePaneExists checks if a pane exists in the specified session and window.

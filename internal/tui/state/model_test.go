@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"errors"
+	stderrors "errors"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
+	"github.com/cristianoliveira/tmux-intray/internal/errors"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
@@ -71,6 +72,7 @@ func newTestModel(t *testing.T, notifications []notification.Notification) *Mode
 		runtimeCoordinator:  runtimeCoordinator,
 		treeService:         treeService,
 		notificationService: notificationService,
+		errorHandler:        errors.NewTUIHandler(nil),
 		// Legacy fields kept for backward compatibility but now using services
 		client:            mockClient,
 		sessionNames:      runtimeCoordinator.GetSessionNames(),
@@ -82,7 +84,7 @@ func newTestModel(t *testing.T, notifications []notification.Notification) *Mode
 	m.syncNotificationMirrors()
 
 	// Initialize command service after model creation (needs ModelInterface)
-	m.commandService = service.NewCommandService(&m)
+	m.commandService = service.NewCommandService(&m, m.errorHandler)
 
 	return &m
 }
@@ -107,7 +109,7 @@ func stubSessionFetchers(t *testing.T) *tmux.MockClient {
 	mockClient.On("ListWindows").Return(map[string]string{}, nil)
 	// Mock ListPanes to return empty map
 	mockClient.On("ListPanes").Return(map[string]string{}, nil)
-	mockClient.On("GetSessionName", mock.Anything).Return("", errors.New("session not found"))
+	mockClient.On("GetSessionName", mock.Anything).Return("", stderrors.New("session not found"))
 
 	return mockClient
 }
@@ -934,6 +936,7 @@ func TestApplySearchFilterWithMockProvider(t *testing.T) {
 		runtimeCoordinator:  runtimeCoordinator,
 		treeService:         treeService,
 		notificationService: notificationService,
+		errorHandler:        errors.NewTUIHandler(nil),
 		client:              mockClient,
 		sessionNames:        runtimeCoordinator.GetSessionNames(),
 		windowNames:         runtimeCoordinator.GetWindowNames(),
@@ -943,7 +946,7 @@ func TestApplySearchFilterWithMockProvider(t *testing.T) {
 		notifications:       notifications,
 		filtered:            []notification.Notification{},
 	}
-	model.commandService = service.NewCommandService(&model)
+	model.commandService = service.NewCommandService(&model, model.errorHandler)
 
 	model.uiState.SetSearchQuery("test")
 	model.uiState.SetWidth(80)
@@ -1650,8 +1653,8 @@ func TestMarkSelectedUnread(t *testing.T) {
 func TestHandleDismissGroupedViewUsesVisibleNodes(t *testing.T) {
 	setupStorage(t)
 	mockClient := stubSessionFetchers(t)
-	mockClient.On("GetSessionName", "a").Return("", errors.New("session not found")).Once()
-	mockClient.On("GetSessionName", "b").Return("", errors.New("session not found")).Once()
+	mockClient.On("GetSessionName", "a").Return("", stderrors.New("session not found")).Once()
+	mockClient.On("GetSessionName", "b").Return("", stderrors.New("session not found")).Once()
 
 	_, err := storage.AddNotification("B msg", "2024-02-02T12:00:00Z", "b", "@1", "%1", "", "info")
 	require.NoError(t, err)
@@ -1715,6 +1718,9 @@ func TestHandleDismissWithEmptyList(t *testing.T) {
 func TestHandleJumpWithMissingContext(t *testing.T) {
 	model := &Model{
 		uiState: NewUIState(),
+		errorHandler: errors.NewTUIHandler(func(msg errors.Message) {
+			// No-op for test
+		}),
 		notifications: []notification.Notification{
 			{ID: 1, Message: "Test"},
 		},
@@ -1725,16 +1731,16 @@ func TestHandleJumpWithMissingContext(t *testing.T) {
 	model.uiState.SetCursor(0)
 
 	cmd := model.handleJump()
-	assert.Nil(t, cmd)
+	assert.NotNil(t, cmd)
 
 	model.filtered[0].Session = "$1"
 	cmd = model.handleJump()
-	assert.Nil(t, cmd)
+	assert.NotNil(t, cmd)
 
 	model.filtered[0].Window = "@2"
 	model.filtered[0].Pane = ""
 	cmd = model.handleJump()
-	assert.Nil(t, cmd)
+	assert.NotNil(t, cmd)
 }
 
 func TestHandleJumpMarksNotificationReadOnSuccess(t *testing.T) {
@@ -1780,7 +1786,7 @@ func TestHandleJumpDoesNotMarkReadWhenJumpFails(t *testing.T) {
 	}
 
 	cmd := model.handleJump()
-	assert.Nil(t, cmd)
+	assert.NotNil(t, cmd)
 
 	line, err := storage.GetNotificationByID(id)
 	require.NoError(t, err)

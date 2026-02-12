@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/errors"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
@@ -21,17 +21,19 @@ type saveSettingsFailedMsg struct {
 
 // DefaultCommandService implements the CommandService interface.
 type DefaultCommandService struct {
-	model    ModelInterface // Reference to the TUI model for state access
-	handlers map[string]model.CommandHandler
+	model        ModelInterface // Reference to the TUI model for state access
+	errorHandler errors.ErrorHandler
+	handlers     map[string]model.CommandHandler
 
 	help model.HelpProvider
 }
 
 // NewCommandService creates a new DefaultCommandService.
-func NewCommandService(modelInterface ModelInterface) model.CommandService {
+func NewCommandService(modelInterface ModelInterface, errorHandler errors.ErrorHandler) model.CommandService {
 	service := &DefaultCommandService{
-		model:    modelInterface,
-		handlers: make(map[string]model.CommandHandler),
+		model:        modelInterface,
+		errorHandler: errorHandler,
+		handlers:     make(map[string]model.CommandHandler),
 
 		help: NewDefaultHelpProvider(),
 	}
@@ -60,7 +62,7 @@ func (s *DefaultCommandService) ParseCommand(command string) (name string, args 
 func (s *DefaultCommandService) ExecuteCommand(name string, args []string) (*model.CommandResult, error) {
 	// Validate command first
 	if err := s.ValidateCommand(name, args); err != nil {
-		colors.Warning(fmt.Sprintf("Command validation failed: %v", err))
+		s.errorHandler.Warning(fmt.Sprintf("Command validation failed: %v", err))
 		return &model.CommandResult{Error: true, Message: err.Error()}, nil
 	}
 
@@ -68,14 +70,14 @@ func (s *DefaultCommandService) ExecuteCommand(name string, args []string) (*mod
 	handler, ok := s.handlers[name]
 	if !ok {
 		msg := fmt.Sprintf("Unknown command: %s", name)
-		colors.Warning(msg)
+		s.errorHandler.Warning(msg)
 		return &model.CommandResult{Error: true, Message: msg}, nil
 	}
 
 	// Execute command
 	result, err := handler.Execute(args)
 	if err != nil {
-		colors.Error(fmt.Sprintf("Command execution failed: %v", err))
+		s.errorHandler.Error(fmt.Sprintf("Command execution failed: %v", err))
 		return &model.CommandResult{Error: true, Message: err.Error()}, nil
 	}
 
@@ -139,24 +141,25 @@ func (s *DefaultCommandService) GetCommandSuggestions(partial string) []string {
 // registerDefaultHandlers registers the default command handlers.
 func (s *DefaultCommandService) registerDefaultHandlers() {
 	// Quit command
-	s.handlers["q"] = &QuitCommandHandler{model: s.model}
+	s.handlers["q"] = &QuitCommandHandler{model: s.model, errorHandler: s.errorHandler}
 
 	// Write/save settings command
-	s.handlers["w"] = &WriteCommandHandler{model: s.model}
+	s.handlers["w"] = &WriteCommandHandler{model: s.model, errorHandler: s.errorHandler}
 
 	// Group by command
-	s.handlers["group-by"] = &GroupByCommandHandler{model: s.model}
+	s.handlers["group-by"] = &GroupByCommandHandler{model: s.model, errorHandler: s.errorHandler}
 
 	// Expand level command
-	s.handlers["expand-level"] = &ExpandLevelCommandHandler{model: s.model}
+	s.handlers["expand-level"] = &ExpandLevelCommandHandler{model: s.model, errorHandler: s.errorHandler}
 
 	// Toggle view command
-	s.handlers["toggle-view"] = &ToggleViewCommandHandler{model: s.model}
+	s.handlers["toggle-view"] = &ToggleViewCommandHandler{model: s.model, errorHandler: s.errorHandler}
 }
 
 // QuitCommandHandler handles the quit command.
 type QuitCommandHandler struct {
-	model ModelInterface
+	model        ModelInterface
+	errorHandler errors.ErrorHandler
 }
 
 func (h *QuitCommandHandler) Execute(args []string) (*model.CommandResult, error) {
@@ -165,7 +168,7 @@ func (h *QuitCommandHandler) Execute(args []string) (*model.CommandResult, error
 	}
 
 	if err := h.model.SaveSettings(); err != nil {
-		colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+		h.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 		// Still proceed with quit
 	}
 
@@ -185,7 +188,8 @@ func (h *QuitCommandHandler) Complete(args []string) []string {
 
 // WriteCommandHandler handles the write/save settings command.
 type WriteCommandHandler struct {
-	model ModelInterface
+	model        ModelInterface
+	errorHandler errors.ErrorHandler
 }
 
 func (h *WriteCommandHandler) Execute(args []string) (*model.CommandResult, error) {
@@ -196,7 +200,7 @@ func (h *WriteCommandHandler) Execute(args []string) (*model.CommandResult, erro
 	return &model.CommandResult{
 		Cmd: func() tea.Msg {
 			if err := h.model.SaveSettings(); err != nil {
-				colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+				h.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 				return saveSettingsFailedMsg{err: err}
 			}
 			return saveSettingsSuccessMsg{}
@@ -217,7 +221,8 @@ func (h *WriteCommandHandler) Complete(args []string) []string {
 
 // GroupByCommandHandler handles the group-by command.
 type GroupByCommandHandler struct {
-	model ModelInterface
+	model        ModelInterface
+	errorHandler errors.ErrorHandler
 }
 
 func (h *GroupByCommandHandler) Execute(args []string) (*model.CommandResult, error) {
@@ -245,7 +250,7 @@ func (h *GroupByCommandHandler) Execute(args []string) (*model.CommandResult, er
 	h.model.ResetCursor()
 
 	if err := h.model.SaveSettings(); err != nil {
-		colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+		h.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 	}
 
 	return &model.CommandResult{Message: fmt.Sprintf("Group by: %s", groupBy)}, nil
@@ -273,7 +278,8 @@ func (h *GroupByCommandHandler) Complete(args []string) []string {
 
 // ExpandLevelCommandHandler handles the expand-level command.
 type ExpandLevelCommandHandler struct {
-	model ModelInterface
+	model        ModelInterface
+	errorHandler errors.ErrorHandler
 }
 
 func (h *ExpandLevelCommandHandler) Execute(args []string) (*model.CommandResult, error) {
@@ -302,7 +308,7 @@ func (h *ExpandLevelCommandHandler) Execute(args []string) (*model.CommandResult
 	}
 
 	if err := h.model.SaveSettings(); err != nil {
-		colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+		h.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 	}
 
 	return &model.CommandResult{Message: fmt.Sprintf("Default expand level: %d", level)}, nil
@@ -334,7 +340,8 @@ func (h *ExpandLevelCommandHandler) Complete(args []string) []string {
 
 // ToggleViewCommandHandler handles the toggle-view command.
 type ToggleViewCommandHandler struct {
-	model ModelInterface
+	model        ModelInterface
+	errorHandler errors.ErrorHandler
 }
 
 func (h *ToggleViewCommandHandler) Execute(args []string) (*model.CommandResult, error) {
@@ -351,7 +358,7 @@ func (h *ToggleViewCommandHandler) Execute(args []string) (*model.CommandResult,
 	h.model.ResetCursor()
 
 	if err := h.model.SaveSettings(); err != nil {
-		colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+		h.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 	}
 
 	return &model.CommandResult{Message: fmt.Sprintf("View mode: %s", h.model.GetViewMode())}, nil

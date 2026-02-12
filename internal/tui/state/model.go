@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
+	"github.com/cristianoliveira/tmux-intray/internal/errors"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
@@ -27,12 +28,25 @@ const (
 	headerFooterLines     = 2
 	defaultViewportWidth  = 80
 	defaultViewportHeight = 22
+	errorClearDuration    = 5 * time.Second
 )
+
+// errorMsg clears the error message in the TUI.
+type errorMsg struct{}
+
+// errorMsg returns a tea.Cmd that sends an errorMsg after the specified duration.
+func errorMsgAfter(d time.Duration) tea.Cmd {
+	return tea.Tick(d, func(t time.Time) tea.Msg {
+		return errorMsg{}
+	})
+}
 
 // Model represents the TUI model for bubbletea.
 type Model struct {
 	// Core state
-	uiState *UIState // Extracted UI state management
+	uiState      *UIState           // Extracted UI state management
+	errorHandler *errors.TUIHandler // Error handler for TUI messages
+	errorMessage string             // Current error message to display
 
 	// Legacy mirrors retained for backward-compatible tests.
 	notifications []notification.Notification
@@ -77,6 +91,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleSaveSettingsFailed(msg)
 	case tea.WindowSizeMsg:
 		return m.handleWindowSizeMsg(msg)
+	case errorMsg:
+		m.errorMessage = ""
+		return m, nil
 	}
 	return m, nil
 }
@@ -177,7 +194,8 @@ func (m *Model) handlePendingKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 func (m *Model) handleCtrlC() (tea.Model, tea.Cmd) {
 	// Save settings before exiting
 	if err := m.saveSettings(); err != nil {
-		colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+		m.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+		return m, tea.Batch(tea.Quit, errorMsgAfter(errorClearDuration))
 	}
 	// Exit
 	return m, tea.Quit
@@ -312,7 +330,8 @@ func (m *Model) handleExpandNode() {
 
 func (m *Model) handleQuit() (tea.Model, tea.Cmd) {
 	if err := m.saveSettings(); err != nil {
-		colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+		m.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+		return m, tea.Batch(tea.Quit, errorMsgAfter(errorClearDuration))
 	}
 	// Quit
 	return m, tea.Quit
@@ -372,6 +391,7 @@ func (m *Model) View() string {
 		Grouped:      m.isGroupedView(),
 		ViewMode:     string(m.uiState.GetViewMode()),
 		Width:        m.uiState.GetWidth(),
+		ErrorMessage: m.errorMessage,
 	}))
 
 	return s.String()
@@ -429,6 +449,7 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 
 	m := Model{
 		uiState:             uiState,
+		errorMessage:        "",
 		runtimeCoordinator:  runtimeCoordinator,
 		treeService:         treeService,
 		notificationService: notificationService,
@@ -442,8 +463,20 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 		jumpToPane:        core.JumpToPane,
 	}
 
+	// Initialize error handler with callback that sets error message
+	m.errorHandler = errors.NewTUIHandler(func(msg errors.Message) {
+		m.errorMessage = msg.Text
+		// Note: The tick command to clear the error is handled by the caller
+	})
+
+	// Set error handler on runtime coordinator if it's a DefaultRuntimeCoordinator
+	// This allows jump errors to be handled by the TUI error handler instead of the CLI handler
+	if coordinator, ok := runtimeCoordinator.(*service.DefaultRuntimeCoordinator); ok {
+		coordinator.SetErrorHandler(m.errorHandler)
+	}
+
 	// Initialize command service after model creation (needs ModelInterface)
-	m.commandService = service.NewCommandService(&m)
+	m.commandService = service.NewCommandService(&m, m.errorHandler)
 
 	// Load initial notifications
 	err := m.loadNotifications(false)
@@ -648,29 +681,29 @@ func (m *Model) executeCommandViaService() tea.Cmd {
 
 	cmd := strings.TrimSpace(m.uiState.GetCommandQuery())
 	if cmd == "" {
-		colors.Warning("Command is empty")
-		return nil
+		m.errorHandler.Warning("Command is empty")
+		return errorMsgAfter(errorClearDuration)
 	}
 
 	// Parse and execute command using CommandService
 	name, args, err := m.commandService.ParseCommand(cmd)
 	if err != nil {
-		colors.Warning(fmt.Sprintf("Failed to parse command: %v", err))
-		return nil
+		m.errorHandler.Warning(fmt.Sprintf("Failed to parse command: %v", err))
+		return errorMsgAfter(errorClearDuration)
 	}
 
 	result, err := m.commandService.ExecuteCommand(name, args)
 	if err != nil {
-		colors.Error(fmt.Sprintf("Failed to execute command: %v", err))
-		return nil
+		m.errorHandler.Error(fmt.Sprintf("Failed to execute command: %v", err))
+		return errorMsgAfter(errorClearDuration)
 	}
 
 	// Handle result
 	if result.Message != "" {
 		if result.Error {
-			colors.Warning(result.Message)
+			m.errorHandler.Warning(result.Message)
 		} else {
-			colors.Info(result.Message)
+			m.errorHandler.Info(result.Message)
 		}
 	}
 
@@ -686,8 +719,8 @@ func (m *Model) executeCommandViaService() tea.Cmd {
 func (m *Model) executeCommand() tea.Cmd {
 	cmd := strings.TrimSpace(m.uiState.GetCommandQuery())
 	if cmd == "" {
-		colors.Warning("Command is empty")
-		return nil
+		m.errorHandler.Warning("Command is empty")
+		return errorMsgAfter(errorClearDuration)
 	}
 
 	parts := strings.Fields(cmd)
@@ -697,17 +730,17 @@ func (m *Model) executeCommand() tea.Cmd {
 	switch command {
 	case "q":
 		if len(args) > 0 {
-			colors.Warning("Invalid usage: q")
-			return nil
+			m.errorHandler.Warning("Invalid usage: q")
+			return errorMsgAfter(errorClearDuration)
 		}
 		if err := m.saveSettings(); err != nil {
-			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+			m.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 		}
 		return tea.Quit
 	case "w":
 		if len(args) > 0 {
-			colors.Warning("Invalid usage: w")
-			return nil
+			m.errorHandler.Warning("Invalid usage: w")
+			return errorMsgAfter(errorClearDuration)
 		}
 		return func() tea.Msg {
 			if err := m.saveSettings(); err != nil {
@@ -717,14 +750,14 @@ func (m *Model) executeCommand() tea.Cmd {
 		}
 	case "group-by":
 		if len(args) != 1 {
-			colors.Warning("Invalid usage: group-by <none|session|window|pane>")
-			return nil
+			m.errorHandler.Warning("Invalid usage: group-by <none|session|window|pane>")
+			return errorMsgAfter(errorClearDuration)
 		}
 
 		groupBy := strings.ToLower(args[0])
 		if !settings.IsValidGroupBy(groupBy) {
-			colors.Warning(fmt.Sprintf("Invalid group-by value: %s (expected one of: none, session, window, pane)", args[0]))
-			return nil
+			m.errorHandler.Warning(fmt.Sprintf("Invalid group-by value: %s (expected one of: none, session, window, pane)", args[0]))
+			return errorMsgAfter(errorClearDuration)
 		}
 
 		if string(m.uiState.GetGroupBy()) == groupBy {
@@ -735,21 +768,21 @@ func (m *Model) executeCommand() tea.Cmd {
 		m.applySearchFilter()
 		m.resetCursor()
 		if err := m.saveSettings(); err != nil {
-			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
-			return nil
+			m.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+			return errorMsgAfter(errorClearDuration)
 		}
-		colors.Info(fmt.Sprintf("Group by: %s", groupBy))
+		m.errorHandler.Info(fmt.Sprintf("Group by: %s", groupBy))
 		return nil
 	case "expand-level":
 		if len(args) != 1 {
-			colors.Warning("Invalid usage: expand-level <0|1|2|3>")
-			return nil
+			m.errorHandler.Warning("Invalid usage: expand-level <0|1|2|3>")
+			return errorMsgAfter(errorClearDuration)
 		}
 
 		level, err := strconv.Atoi(args[0])
 		if err != nil || level < settings.MinExpandLevel || level > settings.MaxExpandLevel {
-			colors.Warning(fmt.Sprintf("Invalid expand-level value: %s (expected %d-%d)", args[0], settings.MinExpandLevel, settings.MaxExpandLevel))
-			return nil
+			m.errorHandler.Warning(fmt.Sprintf("Invalid expand-level value: %s (expected %d-%d)", args[0], settings.MinExpandLevel, settings.MaxExpandLevel))
+			return errorMsgAfter(errorClearDuration)
 		}
 
 		if m.uiState.GetExpandLevel() == level {
@@ -761,16 +794,16 @@ func (m *Model) executeCommand() tea.Cmd {
 			m.applyDefaultExpansion()
 		}
 		if err := m.saveSettings(); err != nil {
-			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
-			return nil
+			m.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+			return errorMsgAfter(errorClearDuration)
 		}
-		colors.Info(fmt.Sprintf("Default expand level: %d", m.uiState.GetExpandLevel()))
+		m.errorHandler.Info(fmt.Sprintf("Default expand level: %d", m.uiState.GetExpandLevel()))
 		return nil
 
 	case "toggle-view":
 		if len(args) > 0 {
-			colors.Warning("Invalid usage: toggle-view")
-			return nil
+			m.errorHandler.Warning("Invalid usage: toggle-view")
+			return errorMsgAfter(errorClearDuration)
 		}
 
 		if m.uiState.IsGroupedView() {
@@ -781,13 +814,13 @@ func (m *Model) executeCommand() tea.Cmd {
 		m.applySearchFilter()
 		m.resetCursor()
 		if err := m.saveSettings(); err != nil {
-			colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+			m.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 		}
-		colors.Info(fmt.Sprintf("View mode: %s", m.uiState.GetViewMode()))
+		m.errorHandler.Info(fmt.Sprintf("View mode: %s", m.uiState.GetViewMode()))
 		return nil
 	default:
-		colors.Warning(fmt.Sprintf("Unknown command: %s", command))
-		return nil
+		m.errorHandler.Warning(fmt.Sprintf("Unknown command: %s", command))
+		return errorMsgAfter(errorClearDuration)
 	}
 }
 
@@ -918,8 +951,8 @@ func (m *Model) handleDismiss() tea.Cmd {
 	// Dismiss the notification using storage
 	id := strconv.Itoa(selected.ID)
 	if err := storage.DismissNotification(id); err != nil {
-		colors.Error(fmt.Sprintf("Failed to dismiss notification: %v", err))
-		return nil
+		m.errorHandler.Error(fmt.Sprintf("Failed to dismiss notification: %v", err))
+		return errorMsgAfter(errorClearDuration)
 	}
 
 	// Save the current cursor position before reload
@@ -927,8 +960,8 @@ func (m *Model) handleDismiss() tea.Cmd {
 
 	// Reload notifications to get updated state (preserve cursor)
 	if err := m.loadNotifications(true); err != nil {
-		colors.Error(fmt.Sprintf("Failed to reload notifications: %v", err))
-		return nil
+		m.errorHandler.Error(fmt.Sprintf("Failed to reload notifications: %v", err))
+		return errorMsgAfter(errorClearDuration)
 	}
 
 	// Restore cursor to the saved position, adjusting for bounds
@@ -963,13 +996,13 @@ func (m *Model) markSelectedRead() tea.Cmd {
 
 	id := strconv.Itoa(selected.ID)
 	if err := storage.MarkNotificationRead(id); err != nil {
-		colors.Error(fmt.Sprintf("Failed to mark notification read: %v", err))
-		return nil
+		m.errorHandler.Error(fmt.Sprintf("Failed to mark notification read: %v", err))
+		return errorMsgAfter(errorClearDuration)
 	}
 
 	if err := m.loadNotifications(true); err != nil {
-		colors.Error(fmt.Sprintf("Failed to reload notifications: %v", err))
-		return nil
+		m.errorHandler.Error(fmt.Sprintf("Failed to reload notifications: %v", err))
+		return errorMsgAfter(errorClearDuration)
 	}
 
 	// Restore cursor to the selected notification
@@ -996,13 +1029,13 @@ func (m *Model) markSelectedUnread() tea.Cmd {
 
 	id := strconv.Itoa(selected.ID)
 	if err := storage.MarkNotificationUnread(id); err != nil {
-		colors.Error(fmt.Sprintf("tui: failed to mark notification unread: %v", err))
-		return nil
+		m.errorHandler.Error(fmt.Sprintf("tui: failed to mark notification unread: %v", err))
+		return errorMsgAfter(errorClearDuration)
 	}
 
 	if err := m.loadNotifications(true); err != nil {
-		colors.Error(fmt.Sprintf("tui: failed to reload notifications: %v", err))
-		return nil
+		m.errorHandler.Error(fmt.Sprintf("tui: failed to reload notifications: %v", err))
+		return errorMsgAfter(errorClearDuration)
 	}
 
 	// Restore cursor to the selected notification
@@ -1027,25 +1060,26 @@ func (m *Model) handleJump() tea.Cmd {
 
 	// Check if notification has valid session, window, pane
 	if selected.Session == "" || selected.Window == "" || selected.Pane == "" {
-		colors.Error("jump: notification missing session, window, or pane information")
-		return nil
+		m.errorHandler.Error("jump: notification missing session, window, or pane information")
+		return errorMsgAfter(errorClearDuration)
 	}
 
 	// Ensure tmux is running
 	if !m.runtimeCoordinator.EnsureTmuxRunning() {
-		colors.Error("tmux not running")
-		return nil
+		m.errorHandler.Error("tmux not running")
+		return errorMsgAfter(errorClearDuration)
 	}
 
 	// Jump to the pane using RuntimeCoordinator
+	// The error handler (set in NewModel) will capture and display errors in the TUI footer
 	if !m.runtimeCoordinator.JumpToPane(selected.Session, selected.Window, selected.Pane) {
-		colors.Error("jump: failed to jump to pane")
-		return nil
+		// Error was already handled by m.errorHandler, just return error clear command
+		return errorMsgAfter(errorClearDuration)
 	}
 
 	id := strconv.Itoa(selected.ID)
 	if err := storage.MarkNotificationRead(id); err != nil {
-		colors.Warning(fmt.Sprintf("jump: jumped, but failed to mark notification as read: %v", err))
+		m.errorHandler.Warning(fmt.Sprintf("jump: jumped, but failed to mark notification as read: %v", err))
 	}
 
 	// Exit TUI after successful jump
@@ -1144,7 +1178,7 @@ func (m *Model) cycleViewMode() {
 	m.resetCursor()
 
 	if err := m.saveSettings(); err != nil {
-		colors.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+		m.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 	}
 }
 

@@ -12,9 +12,29 @@ import (
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
+	"github.com/cristianoliveira/tmux-intray/internal/errors"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/spf13/cobra"
 )
+
+// colorAdapter adapts the colors package to implement the errors.ColorOutput interface.
+type colorAdapter struct{}
+
+func (a *colorAdapter) Error(msgs ...string) {
+	colors.Error(msgs...)
+}
+
+func (a *colorAdapter) Warning(msgs ...string) {
+	colors.Warning(msgs...)
+}
+
+func (a *colorAdapter) Info(msgs ...string) {
+	colors.Info(msgs...)
+}
+
+func (a *colorAdapter) Success(msgs ...string) {
+	colors.Success(msgs...)
+}
 
 // jumpCmd represents the jump command
 var jumpCmd = &cobra.Command{
@@ -177,8 +197,10 @@ func init() {
 }
 
 func runJump(cmd *cobra.Command, args []string) {
+	handler := errors.NewCLIHandler(&colorAdapter{})
+
 	if len(args) != 1 {
-		colors.Error("jump: requires a notification id")
+		handler.Error("jump: requires a notification id")
 		fmt.Fprintf(os.Stderr, "Usage: tmux-intray jump <id>\n")
 		return
 	}
@@ -186,28 +208,28 @@ func runJump(cmd *cobra.Command, args []string) {
 
 	// Ensure tmux is running (mirror bash script behavior)
 	if !core.EnsureTmuxRunning() {
-		colors.Error("tmux not running")
+		handler.Error("tmux not running")
 		return
 	}
 
 	// Jump to pane
 	result, err := JumpWithMarkRead(id, !jumpNoMarkRead)
 	if err != nil {
-		colors.Error(err.Error())
+		handler.Error(err.Error())
 		return
 	}
 
 	// Display result
 	if result.State == "dismissed" {
-		colors.Info(fmt.Sprintf("Notification %s is dismissed, but jumping anyway", id))
+		handler.Info(fmt.Sprintf("Notification %s is dismissed, but jumping anyway", id))
 	}
 
 	// Display appropriate message based on whether pane selection succeeded
 	if result.PaneExists {
 		// Pane exists and was selected
-		colors.Success(fmt.Sprintf("Jumped to session %s, window %s, pane %s", result.Session, result.Window, result.Pane))
+		handler.Success(fmt.Sprintf("Jumped to session %s, window %s, pane %s", result.Session, result.Window, result.Pane))
 	} else {
 		// Pane doesn't exist, fell back to window selection
-		colors.Warning(fmt.Sprintf("Pane %s no longer exists (jumped to window %s:%s instead)", result.Pane, result.Session, result.Window))
+		handler.Warning(fmt.Sprintf("Pane %s no longer exists (jumped to window %s:%s instead)", result.Pane, result.Session, result.Window))
 	}
 }

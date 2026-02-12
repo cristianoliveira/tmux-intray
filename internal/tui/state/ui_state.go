@@ -26,6 +26,9 @@ type UIState struct {
 	commandMode  bool
 	commandQuery string
 
+	// Error state
+	errorMessage string
+
 	// Input handling state
 	pendingKey string
 
@@ -192,6 +195,26 @@ func (u *UIState) SetPendingKey(key string) {
 // ClearPendingKey clears the pending key.
 func (u *UIState) ClearPendingKey() {
 	u.pendingKey = ""
+}
+
+// GetError returns the current error message.
+func (u *UIState) GetError() string {
+	return u.errorMessage
+}
+
+// SetError sets the error message.
+func (u *UIState) SetError(msg string) {
+	u.errorMessage = msg
+}
+
+// ClearError clears the error message.
+func (u *UIState) ClearError() {
+	u.errorMessage = ""
+}
+
+// HasError returns whether there is an active error.
+func (u *UIState) HasError() bool {
+	return u.errorMessage != ""
 }
 
 // MoveCursorUp moves the cursor up one position if possible.
