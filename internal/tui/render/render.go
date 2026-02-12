@@ -36,6 +36,7 @@ type FooterState struct {
 	Grouped      bool
 	ViewMode     string
 	Width        int
+	ErrorMessage string
 }
 
 // RowState defines the inputs needed to render a notification row.
@@ -207,6 +208,10 @@ func Footer(state FooterState) string {
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 
 	var help []string
+	if state.ErrorMessage != "" {
+		errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ansiColorNumber(colors.Red)))
+		help = append(help, errorStyle.Render("Error: "+state.ErrorMessage))
+	}
 	help = append(help, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
 	help = append(help, "j/k: move")
 	help = append(help, "gg/G: top/bottom")
