@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 )
 
@@ -163,4 +164,54 @@ func (c *Core) SetVisibility(visible bool) error {
 	}
 	_, err := c.SetTmuxVisibility(visibleStr)
 	return err
+}
+
+// ListNotifications lists notifications with filters.
+func (c *Core) ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error) {
+	return c.storage.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
+}
+
+// ListNotifications lists notifications with filters using the default core instance.
+func ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error) {
+	return defaultCore.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
+}
+
+// DismissNotification dismisses a single notification by ID.
+func (c *Core) DismissNotification(id string) error {
+	return c.storage.DismissNotification(id)
+}
+
+// DismissNotification dismisses a single notification by ID using the default core instance.
+func DismissNotification(id string) error {
+	return defaultCore.DismissNotification(id)
+}
+
+// DismissAll dismisses all active notifications.
+func (c *Core) DismissAll() error {
+	return c.storage.DismissAll()
+}
+
+// DismissAll dismisses all active notifications using the default core instance.
+func DismissAll() error {
+	return defaultCore.DismissAll()
+}
+
+// ResetSettings resets settings to defaults.
+func (c *Core) ResetSettings() (*settings.Settings, error) {
+	return settings.Reset()
+}
+
+// ResetSettings resets settings to defaults using the default core instance.
+func ResetSettings() (*settings.Settings, error) {
+	return defaultCore.ResetSettings()
+}
+
+// LoadSettings loads current settings.
+func (c *Core) LoadSettings() (*settings.Settings, error) {
+	return settings.Load()
+}
+
+// LoadSettings loads current settings using the default core instance.
+func LoadSettings() (*settings.Settings, error) {
+	return defaultCore.LoadSettings()
 }

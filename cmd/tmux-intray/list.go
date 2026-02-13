@@ -20,11 +20,33 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// listCmd represents the list command
-var listCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List notifications with filters and formats",
-	Long: `List notifications with filters and formats.
+type listClient interface {
+	ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error)
+}
+
+// NewListCmd creates the list command with explicit dependencies.
+func NewListCmd(client listClient) *cobra.Command {
+	if client == nil {
+		panic("NewListCmd: client dependency cannot be nil")
+	}
+
+	var listPane string
+	var listLevel string
+	var listSession string
+	var listWindow string
+	var listOlderThan int
+	var listNewerThan int
+	var listSearch string
+	var listRegex bool
+	var listGroupBy string
+	var listGroupCount bool
+	var listFormat string
+	var listFilter string
+
+	listCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List notifications with filters and formats",
+		Long: `List notifications with filters and formats.
 
 USAGE:
     tmux-intray list [OPTIONS]
@@ -50,36 +72,93 @@ ORDERING:
     Unread notifications are listed first, then read notifications.
     Relative order remains unchanged within each group.
     -h, --help           Show this help`,
-	Run: runList,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Determine state filter based on flags (default active)
+			state := "active"
+			if cmd.Flag("dismissed").Changed {
+				state = "dismissed"
+			}
+			if cmd.Flag("all").Changed {
+				state = "all"
+			}
+
+			// Compute cutoff timestamps
+			var olderCutoff, newerCutoff string
+			if listOlderThan > 0 {
+				t := time.Now().UTC().AddDate(0, 0, -listOlderThan)
+				olderCutoff = t.Format("2006-01-02T15:04:05Z")
+			}
+			if listNewerThan > 0 {
+				t := time.Now().UTC().AddDate(0, 0, -listNewerThan)
+				newerCutoff = t.Format("2006-01-02T15:04:05Z")
+			}
+
+			// Validate group-by field
+			if listGroupBy != "" && listGroupBy != "session" && listGroupBy != "window" && listGroupBy != "pane" && listGroupBy != "level" {
+				return fmt.Errorf("invalid group-by field: %s (must be session, window, pane, level)", listGroupBy)
+			}
+
+			// Validate read filter
+			if listFilter != "" && listFilter != "read" && listFilter != "unread" {
+				return fmt.Errorf("invalid filter value: %s (must be read or unread)", listFilter)
+			}
+
+			opts := FilterOptions{
+				Client:     client,
+				State:      state,
+				Level:      listLevel,
+				Session:    listSession,
+				Window:     listWindow,
+				Pane:       listPane,
+				OlderThan:  olderCutoff,
+				NewerThan:  newerCutoff,
+				Search:     listSearch,
+				Regex:      listRegex,
+				GroupBy:    listGroupBy,
+				GroupCount: listGroupCount,
+				Format:     listFormat,
+				ReadFilter: listFilter,
+			}
+			PrintList(opts)
+			return nil
+		},
+	}
+
+	// Flags
+	listCmd.Flags().Bool("active", false, "Show active notifications (default)")
+	listCmd.Flags().Bool("dismissed", false, "Show dismissed notifications")
+	listCmd.Flags().Bool("all", false, "Show all notifications")
+	listCmd.Flags().StringVar(&listPane, "pane", "", "Filter notifications by pane ID (e.g., %0)")
+	listCmd.Flags().StringVar(&listLevel, "level", "", "Filter notifications by level: info, warning, error, critical")
+	listCmd.Flags().StringVar(&listSession, "session", "", "Filter notifications by session ID")
+	listCmd.Flags().StringVar(&listWindow, "window", "", "Filter notifications by window ID")
+	listCmd.Flags().IntVar(&listOlderThan, "older-than", 0, "Show notifications older than N days")
+	listCmd.Flags().IntVar(&listNewerThan, "newer-than", 0, "Show notifications newer than N days")
+	listCmd.Flags().StringVar(&listSearch, "search", "", "Search messages (substring match)")
+	listCmd.Flags().BoolVar(&listRegex, "regex", false, "Use regex search with --search")
+	listCmd.Flags().StringVar(&listGroupBy, "group-by", "", "Group notifications by field (session, window, pane, level)")
+	listCmd.Flags().BoolVar(&listGroupCount, "group-count", false, "Show only group counts (requires --group-by)")
+	listCmd.Flags().StringVar(&listFormat, "format", "simple", "Output format: simple (default), legacy, table, compact, json")
+	listCmd.Flags().StringVar(&listFilter, "filter", "", "Filter notifications by read status: read, unread")
+
+	return listCmd
 }
 
-var (
-	listState      string
-	listPane       string
-	listLevel      string
-	listSession    string
-	listWindow     string
-	listOlderThan  int
-	listNewerThan  int
-	listSearch     string
-	listRegex      bool
-	listGroupBy    string
-	listGroupCount bool
-	listFormat     string
-	listFilter     string // read status filter: "read", "unread"
-)
+// listCmd represents the list command
+var listCmd = NewListCmd(coreClient)
 
 // listOutputWriter is the writer used by PrintList. Can be changed for testing.
 var listOutputWriter io.Writer = os.Stdout
 
 // listListFunc is the function used to retrieve notifications. Can be changed for testing.
 var listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
-	result, _ := fileStorage.ListNotifications(state, level, session, window, pane, olderThan, newerThan, readFilter)
+	result, _ := coreClient.ListNotifications(state, level, session, window, pane, olderThan, newerThan, readFilter)
 	return result
 }
 
 // FilterOptions holds all filter parameters for listing notifications.
 type FilterOptions struct {
+	Client         listClient
 	State          string
 	Level          string
 	Session        string
@@ -106,7 +185,17 @@ func PrintList(opts FilterOptions) {
 
 func printList(opts FilterOptions, w io.Writer) {
 	// Get filtered notifications from storage
-	lines := listListFunc(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, opts.OlderThan, opts.NewerThan, opts.ReadFilter)
+	var lines string
+	if opts.Client != nil {
+		var err error
+		lines, err = opts.Client.ListNotifications(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, opts.OlderThan, opts.NewerThan, opts.ReadFilter)
+		if err != nil {
+			fmt.Fprintf(w, "list: failed to list notifications: %v\n", err)
+			return
+		}
+	} else {
+		lines = listListFunc(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, opts.OlderThan, opts.NewerThan, opts.ReadFilter)
+	}
 	if lines == "" {
 		fmt.Fprintln(w, "No notifications found")
 		return
@@ -342,75 +431,4 @@ func printCompact(notifs []notification.Notification, w io.Writer) {
 
 func init() {
 	cmd.RootCmd.AddCommand(listCmd)
-
-	// State filters (mutually exclusive)
-	listCmd.Flags().Bool("active", false, "Show active notifications (default)")
-	listCmd.Flags().Bool("dismissed", false, "Show dismissed notifications")
-	listCmd.Flags().Bool("all", false, "Show all notifications")
-	// Other filters
-	listCmd.Flags().StringVar(&listPane, "pane", "", "Filter notifications by pane ID (e.g., %0)")
-	listCmd.Flags().StringVar(&listLevel, "level", "", "Filter notifications by level: info, warning, error, critical")
-	listCmd.Flags().StringVar(&listSession, "session", "", "Filter notifications by session ID")
-	listCmd.Flags().StringVar(&listWindow, "window", "", "Filter notifications by window ID")
-	listCmd.Flags().IntVar(&listOlderThan, "older-than", 0, "Show notifications older than N days")
-	listCmd.Flags().IntVar(&listNewerThan, "newer-than", 0, "Show notifications newer than N days")
-	listCmd.Flags().StringVar(&listSearch, "search", "", "Search messages (substring match)")
-	listCmd.Flags().BoolVar(&listRegex, "regex", false, "Use regex search with --search")
-	listCmd.Flags().StringVar(&listGroupBy, "group-by", "", "Group notifications by field (session, window, pane, level)")
-	listCmd.Flags().BoolVar(&listGroupCount, "group-count", false, "Show only group counts (requires --group-by)")
-	listCmd.Flags().StringVar(&listFormat, "format", "simple", "Output format: simple, legacy, table, compact, json")
-	listCmd.Flags().StringVar(&listFilter, "filter", "", "Filter notifications by read status: read, unread")
-}
-
-func runList(cmd *cobra.Command, args []string) {
-	// Determine state filter based on flags (default active)
-	state := "active"
-	if cmd.Flag("dismissed").Changed {
-		state = "dismissed"
-	}
-	if cmd.Flag("all").Changed {
-		state = "all"
-	}
-	// If both active and dismissed? active is default, we'll ignore active flag.
-
-	// Compute cutoff timestamps
-	var olderCutoff, newerCutoff string
-	if listOlderThan > 0 {
-		t := time.Now().UTC().AddDate(0, 0, -listOlderThan)
-		olderCutoff = t.Format("2006-01-02T15:04:05Z")
-	}
-	if listNewerThan > 0 {
-		t := time.Now().UTC().AddDate(0, 0, -listNewerThan)
-		newerCutoff = t.Format("2006-01-02T15:04:05Z")
-	}
-
-	// Validate group-by field
-	if listGroupBy != "" && listGroupBy != "session" && listGroupBy != "window" && listGroupBy != "pane" && listGroupBy != "level" {
-		cmd.Printf("Invalid group-by field: %s (must be session, window, pane, level)\n", listGroupBy)
-		return
-	}
-
-	// Validate read filter
-	if listFilter != "" && listFilter != "read" && listFilter != "unread" {
-		cmd.Printf("Invalid filter value: %s (must be read or unread)\n", listFilter)
-		return
-	}
-
-	opts := FilterOptions{
-		State:      state,
-		Level:      listLevel,
-		Session:    listSession,
-		Window:     listWindow,
-		Pane:       listPane,
-		OlderThan:  olderCutoff,
-		NewerThan:  newerCutoff,
-		Search:     listSearch,
-		Regex:      listRegex,
-		GroupBy:    listGroupBy,
-		GroupCount: listGroupCount,
-		Format:     listFormat,
-		ReadFilter: listFilter,
-	}
-
-	PrintList(opts)
 }
