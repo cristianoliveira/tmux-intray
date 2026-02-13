@@ -114,7 +114,6 @@ EXAMPLES:
 				}
 			}
 
-			// Display result
 			if state == "dismissed" {
 				colors.Info(fmt.Sprintf("Notification %s is dismissed, but jumping anyway", id))
 			}

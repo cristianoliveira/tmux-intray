@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/cristianoliveira/tmux-intray/cmd"
+	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -127,10 +128,10 @@ func countByLevel(client statusClient) (info, warning, error, critical int) {
 			continue
 		}
 		fields := strings.Split(line, "\t")
-		if len(fields) <= 8 {
+		if len(fields) <= storage.FieldLevel {
 			continue
 		}
-		level := fields[8]
+		level := fields[storage.FieldLevel]
 		switch level {
 		case "info":
 			info++
@@ -158,12 +159,12 @@ func paneCounts(client statusClient) map[string]int {
 			continue
 		}
 		fields := strings.Split(line, "\t")
-		if len(fields) <= 5 {
+		if len(fields) <= storage.FieldPane {
 			continue
 		}
-		session := fields[3]
-		window := fields[4]
-		pane := fields[5]
+		session := fields[storage.FieldSession]
+		window := fields[storage.FieldWindow]
+		pane := fields[storage.FieldPane]
 		key := fmt.Sprintf("%s:%s:%s", session, window, pane)
 		counts[key]++
 	}

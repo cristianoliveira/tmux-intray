@@ -43,8 +43,6 @@ func (c *Core) GetTrayItems(stateFilter string) (string, error) {
 			continue
 		}
 		message := fields[storage.FieldMessage]
-		// Unescape message
-		message = storage.UnescapeMessage(message)
 		messages = append(messages, message)
 	}
 	return strings.Join(messages, "\n"), nil
