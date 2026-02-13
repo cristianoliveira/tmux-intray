@@ -7,7 +7,7 @@
     [ "$status" -eq 0 ]
 
     # Run the Go binary directly
-    run ./tmux-intray version
+    run ./tmux-intray --version
     [ "$status" -eq 0 ]
 
     # Should show version information

@@ -308,7 +308,7 @@ main() {
     if [[ "$dry_run" != true ]]; then
         if [[ -x "$install_path" ]]; then
             # Test the installed binary
-            if "$install_path" version >/dev/null 2>&1; then
+            if "$install_path" --version >/dev/null 2>&1; then
                 log_info "tmux-intray installed successfully!"
                 log_info "Run 'tmux-intray --help' to get started."
             else

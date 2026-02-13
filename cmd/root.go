@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/cristianoliveira/tmux-intray/internal/hooks"
+	"github.com/cristianoliveira/tmux-intray/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -61,7 +62,7 @@ func ExecuteOriginal() error {
 
 func init() {
 	// Set version for use in help output
-	RootCmd.Version = Version
+	RootCmd.Version = version.String()
 
 	// Hide the completion command
 	RootCmd.CompletionOptions.HiddenDefaultCmd = true

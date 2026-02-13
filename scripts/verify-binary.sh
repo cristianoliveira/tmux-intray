@@ -18,7 +18,7 @@ if [ -n "${TMUX_INTRAY_BIN:-}" ]; then
     echo "✓ Binary exists and is executable"
 
     # Verify Go binary returns proper version
-    go_output=$("$TMUX_INTRAY_BIN" version 2>&1)
+    go_output=$("$TMUX_INTRAY_BIN" --version 2>&1)
     if [[ "$go_output" == *"tmux-intray v"* ]]; then
         echo "✓ Go binary reports valid version information: $go_output"
     else
@@ -35,7 +35,7 @@ else
     fi
 
     # Verify tmux-intray returns proper version
-    go_output=$(tmux-intray version 2>&1)
+    go_output=$(tmux-intray --version 2>&1)
     if [[ "$go_output" == *"tmux-intray v"* ]]; then
         echo "✓ tmux-intray reports valid version information: $go_output"
     else
