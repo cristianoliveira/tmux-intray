@@ -23,7 +23,7 @@ tmux-intray/
 │       └── version.go       # Version command
 ├── internal/                 # Private application code
 │   ├── core/               # Core tmux interaction & tray management
-│   ├── storage/            # File-based TSV storage with locking
+│   ├── storage/            # SQLite storage backend
 │   ├── colors/             # Color output utilities
 │   ├── config/             # Configuration management (TOML-only)
 │   ├── hooks/              # Hook subsystem for async operations
@@ -114,7 +114,7 @@ The CLI follows Go's standard project layout with Cobra framework:
 
 3. **Internal packages** (`internal/*`):
    - `core/` - Core tmux interaction (context detection, tray management)
-   - `storage/` - TSV file storage with locking
+   - `storage/` - SQLite storage backend
    - `colors/` - Terminal color output
    - `config/` - Configuration loading (TOML-only)
    - `hooks/` - Hook subsystem
@@ -122,7 +122,6 @@ The CLI follows Go's standard project layout with Cobra framework:
 
 4. **Shell libraries** (`scripts/lib/*.sh`):
     - Legacy libraries for tmux integration scripts only
-    - TSV storage helpers (used by tmux scripts)
     - Color utilities (used by tmux scripts)
 
 5. **Tests** (`tests/**/*.bats`):
@@ -177,8 +176,8 @@ var addCmd = &cobra.Command{
 ## Key Patterns
 
 ### Storage Layer (internal/storage)
-- TSV file format: `id\ttimestamp\tstate\tsession\twindow\tpane\tmessage\tpaneCreated\tlevel`
-- File locking for concurrent access
+- SQLite backend with sqlc-generated queries
+- Output format: TSV strings for CLI compatibility
 - State values: "active" or "dismissed"
 - Level values: "info", "warning", "error"
 - Field indices defined as package constants

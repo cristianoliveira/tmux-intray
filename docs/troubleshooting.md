@@ -136,9 +136,9 @@ This guide covers common issues and how to resolve them. If you encounter a prob
    ```
 
 4. **Inspect storage file**  
-   The storage file is at `$TMUX_INTRAY_STATE_DIR/notifications.tsv`. You can view its contents (but do not edit while tmux-intray is running):
+   The storage file is at `$TMUX_INTRAY_STATE_DIR/notifications.db`. You can query it with sqlite3:
    ```bash
-   head -20 "$TMUX_INTRAY_STATE_DIR/notifications.tsv"
+   sqlite3 "$TMUX_INTRAY_STATE_DIR/notifications.db" "SELECT * FROM notifications LIMIT 20"
    ```
 
 ### Storage permission problems
@@ -166,54 +166,53 @@ This guide covers common issues and how to resolve them. If you encounter a prob
    ```
    This will recreate the directory with proper permissions.
 
-3. **Remove stale lock files**  
-   The lock file is `$TMUX_INTRAY_STATE_DIR/notifications.tsv.lock`. If you’re sure no other tmux-intray process is running:
-   ```bash
-   rm -f "$TMUX_INTRAY_STATE_DIR/notifications.tsv.lock"
-   ```
+3. **Remove stale lock files**
+    If you're sure no other tmux-intray process is running, you can remove any stale SQLite lock files:
+    ```bash
+    rm -f "$TMUX_INTRAY_STATE_DIR/notifications.db-wal" "$TMUX_INTRAY_STATE_DIR/notifications.db-shm"
+    ```
 
 4. **Avoid running with sudo**  
    tmux-intray should run as your regular user, not root.
 
-### SQLite opt-in issues (beta)
+### SQLite database issues
 
 **Symptoms:**
-- You opted into `TMUX_INTRAY_STORAGE_BACKEND=sqlite` or `dual` and see warnings.
-- Behavior differs between TSV and SQLite reads.
-- Backend unexpectedly falls back to TSV.
+- Errors like "database is locked" or "unable to open database file".
+- Corruption warnings when reading notifications.
 
 **Causes:**
 - SQLite initialization failed (invalid/unwritable state directory).
-- Dual mode surfaced parity differences during early rollout.
+- Database file corrupted.
 - Local source changes to SQLite schema/queries without regenerated sqlc output.
 
 **Solutions:**
-1. **Verify backend configuration**
+1. **Verify database file exists and is accessible**
    ```bash
-   env | grep TMUX_INTRAY_STORAGE_BACKEND
-   env | grep TMUX_INTRAY_DUAL
+   ls -la "$TMUX_INTRAY_STATE_DIR/notifications.db"
    ```
 
-2. **Check fallback conditions**
-   If backend initialization fails, tmux-intray warns and falls back to TSV to keep commands working.
-
-3. **Roll back quickly when needed**
+2. **Check database integrity**
    ```bash
-   export TMUX_INTRAY_STORAGE_BACKEND=tsv
+   sqlite3 "$TMUX_INTRAY_STATE_DIR/notifications.db" "PRAGMA integrity_check;"
    ```
 
-4. **If developing from source, verify sqlc outputs**
+3. **If developing from source, verify sqlc outputs**
    ```bash
    make sqlc-generate
    make sqlc-check
    ```
 
-5. **Collect debug output for issue reports**
+4. **Collect debug output for issue reports**
    ```bash
    TMUX_INTRAY_DEBUG=1 tmux-intray list --all 2>&1
    ```
 
-Use the SQLite feedback template when filing issues: `.github/ISSUE_TEMPLATE/sqlite-opt-in-feedback.yml`.
+5. **Recreate the database (if corrupted)**
+   ```bash
+   rm -f "$TMUX_INTRAY_STATE_DIR/notifications.db"
+   tmux-intray add "test"
+   ```
 
 ### Debugging tips
 
@@ -230,9 +229,9 @@ Debug messages are printed to stderr and include:
 - Command‑line parsing
 
 **Check the storage file directly**  
-If you suspect data corruption, you can examine the TSV file:
+Examine the SQLite database:
 ```bash
-column -t -s $'\t' "$TMUX_INTRAY_STATE_DIR/notifications.tsv" | head -20
+sqlite3 "$TMUX_INTRAY_STATE_DIR/notifications.db" "SELECT * FROM notifications LIMIT 20"
 ```
 
 **Run the test suite**  

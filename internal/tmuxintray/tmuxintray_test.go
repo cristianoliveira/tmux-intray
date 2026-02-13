@@ -1,11 +1,12 @@
 package tmuxintray
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
-	"github.com/cristianoliveira/tmux-intray/internal/storage"
+	"github.com/cristianoliveira/tmux-intray/internal/storage/sqlite"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	"github.com/stretchr/testify/require"
 )
@@ -13,17 +14,22 @@ import (
 // TestGetVisibility tests the GetVisibility function and its delegation to core.
 func TestGetVisibility(t *testing.T) {
 	// Set up test environment
+	tmpDir := t.TempDir()
 	colors.SetDebug(true)
 
-	storage.Init()
-	fileStorage, err := storage.NewFileStorage()
+	// Create SQLite storage for tests
+	dbPath := filepath.Join(tmpDir, "notifications.db")
+	sqliteStorage, err := sqlite.NewSQLiteStorage(dbPath)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		sqliteStorage.Close()
+	})
 
 	// Mock tmux client
 	mockClient := new(tmux.MockClient)
 	mockClient.On("GetEnvironment", "TMUX_INTRAY_VISIBLE").Return("1", nil)
 
-	coreClient := core.NewCore(mockClient, fileStorage)
+	coreClient := core.NewCore(mockClient, sqliteStorage)
 	origGetVisibility := getVisibilityFunc
 	t.Cleanup(func() {
 		getVisibilityFunc = origGetVisibility

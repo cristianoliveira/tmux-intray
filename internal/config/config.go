@@ -162,7 +162,7 @@ func setDefaults() {
 	// Set defaults
 	setDefault("config_dir", configDir)
 	setDefault("state_dir", stateDir)
-	setDefault("storage_backend", "tsv")
+	setDefault("storage_backend", "sqlite")
 	setDefault("hooks_dir", hooksDir)
 	setDefault("max_notifications", "1000")
 	setDefault("auto_cleanup_days", "30")
@@ -184,9 +184,6 @@ func setDefaults() {
 	setDefault("hooks_enabled_post_dismiss", "true")
 	setDefault("hooks_enabled_cleanup", "true")
 	setDefault("hooks_enabled_post_cleanup", "true")
-	setDefault("dual_read_backend", "sqlite")
-	setDefault("dual_verify_only", "false")
-	setDefault("dual_verify_sample_size", "25")
 	setDefault("debug", "false")
 	setDefault("quiet", "false")
 }
@@ -316,22 +313,20 @@ func normalizeBool(val string) string {
 
 // initValidators registers all configuration validators.
 func initValidators() {
-	// Positive integer validators (5 keys)
+	// Positive integer validators (4 keys)
 	positiveIntValidator := PositiveIntValidator()
 	RegisterValidator("max_notifications", positiveIntValidator)
 	RegisterValidator("auto_cleanup_days", positiveIntValidator)
 	RegisterValidator("hooks_async_timeout", positiveIntValidator)
 	RegisterValidator("max_hooks", positiveIntValidator)
-	RegisterValidator("dual_verify_sample_size", positiveIntValidator)
 
-	// Enum validators (5 keys)
+	// Enum validators (3 keys)
 	RegisterValidator("table_format", EnumValidator(map[string]bool{"default": true, "minimal": true, "fancy": true}))
-	RegisterValidator("storage_backend", EnumValidator(map[string]bool{"tsv": true, "sqlite": true, "dual": true}))
+	RegisterValidator("storage_backend", EnumValidator(map[string]bool{"sqlite": true}))
 	RegisterValidator("status_format", EnumValidator(map[string]bool{"compact": true, "detailed": true, "count-only": true}))
 	RegisterValidator("hooks_failure_mode", EnumValidator(map[string]bool{"ignore": true, "warn": true, "abort": true}))
-	RegisterValidator("dual_read_backend", EnumValidator(map[string]bool{"tsv": true, "sqlite": true}))
 
-	// Boolean validators (13 keys) - shared instance
+	// Boolean validators (12 keys) - shared instance
 	boolValidator := BoolValidator()
 	RegisterValidator("status_enabled", boolValidator)
 	RegisterValidator("show_levels", boolValidator)
@@ -345,7 +340,6 @@ func initValidators() {
 	RegisterValidator("hooks_enabled_post_dismiss", boolValidator)
 	RegisterValidator("hooks_enabled_cleanup", boolValidator)
 	RegisterValidator("hooks_enabled_post_cleanup", boolValidator)
-	RegisterValidator("dual_verify_only", boolValidator)
 }
 
 // allowedValues returns a comma-separated string of allowed values.

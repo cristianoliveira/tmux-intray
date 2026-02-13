@@ -45,9 +45,10 @@ github.com/cristianoliveira/tmux-intray/
 │   ├── core/                  # Core tmux interaction & tray management
 │   │   ├── core.go
 │   │   └── tmux.go
-│   ├── storage/               # File-based TSV storage with locking
+│   ├── storage/               # SQLite storage backend
 │   │   ├── storage.go
-│   │   └── lock.go
+│   │   ├── lock.go
+│   │   └── sqlite/            # SQLite implementation
 │   ├── colors/                # Color output utilities
 │   │   └── colors.go
 │   ├── config/                # Configuration loading
@@ -80,11 +81,11 @@ Provides core tmux interaction and tray management:
 
 ### `internal/storage`
 
-File-based TSV storage with advisory locking:
-- Atomic operations using directory-based locks (`flock` equivalent)
-- TSV file format: `id\ttimestamp\tstate\tsession\twindow\tpane\tmessage\tpane_created\tlevel`
+SQLite storage backend:
+- SQLite database for persistent storage
+- sqlc-generated queries for type-safe database operations
+- Output format: TSV strings for CLI compatibility
 - Functions for add, list, dismiss, count, cleanup
-- Handles concurrent access from multiple tmux sessions
 
 ### `internal/colors`
 
