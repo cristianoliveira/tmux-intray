@@ -15,11 +15,23 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// dismissCmd represents the dismiss command
-var dismissCmd = &cobra.Command{
-	Use:   "dismiss [ID]",
-	Short: "Dismiss a notification",
-	Long: `Dismiss a specific notification by ID or all active notifications.
+type dismissClient interface {
+	DismissNotification(id string) error
+	DismissAll() error
+}
+
+// NewDismissCmd creates the dismiss command with explicit dependencies.
+func NewDismissCmd(client dismissClient) *cobra.Command {
+	if client == nil {
+		panic("NewDismissCmd: client dependency cannot be nil")
+	}
+
+	var dismissAll bool
+
+	dismissCmd := &cobra.Command{
+		Use:   "dismiss [ID]",
+		Short: "Dismiss a notification",
+		Long: `Dismiss a specific notification by ID or all active notifications.
 
 USAGE:
     tmux-intray dismiss <id>      Dismiss a specific notification
@@ -27,20 +39,65 @@ USAGE:
 
 OPTIONS:
     -h, --help           Show this help`,
-	Args: cobra.MaximumNArgs(1),
-	Run:  runDismiss,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Validate arguments
+			if dismissAll && len(args) > 0 {
+				return fmt.Errorf("dismiss: cannot specify both --all and id")
+			}
+			if !dismissAll && len(args) == 0 {
+				return fmt.Errorf("dismiss: either specify an id or use --all")
+			}
+			if len(args) > 1 {
+				return fmt.Errorf("dismiss: too many arguments")
+			}
+
+			if dismissAll {
+				// Skip confirmation if running in CI or test environment
+				if os.Getenv("CI") != "" || os.Getenv("BATS_TMPDIR") != "" {
+					colors.Debug("skipping confirmation due to CI/test environment")
+				}
+				if os.Getenv("CI") == "" && os.Getenv("BATS_TMPDIR") == "" {
+					// Ask for confirmation
+					if !confirmDismissAllFunc() {
+						colors.Info("Operation cancelled")
+						return nil
+					}
+				}
+				err := client.DismissAll()
+				if err != nil {
+					return fmt.Errorf("dismiss: failed to dismiss all: %w", err)
+				}
+				colors.Success("All active notifications dismissed")
+			} else {
+				id := args[0]
+				err := client.DismissNotification(id)
+				if err != nil {
+					return fmt.Errorf("dismiss: failed to dismiss notification: %w", err)
+				}
+				colors.Success("Notification " + id + " dismissed")
+			}
+			return nil
+		},
+	}
+
+	dismissCmd.Flags().BoolVar(&dismissAll, "all", false, "Dismiss all active notifications")
+	return dismissCmd
 }
 
-var (
-	dismissAll bool
-)
+// dismissCmd represents the dismiss command
+var dismissCmd = NewDismissCmd(coreClient)
 
 var dismissFunc = func(id string) error {
-	return fileStorage.DismissNotification(id)
+	return coreClient.DismissNotification(id)
 }
 
 var dismissAllFunc = func() error {
-	return fileStorage.DismissAll()
+	return coreClient.DismissAll()
+}
+
+var confirmDismissAllFunc = func() bool {
+	return confirmDismissAll()
 }
 
 func Dismiss(id string) error {
@@ -53,52 +110,6 @@ func DismissAll() error {
 
 func init() {
 	cmd.RootCmd.AddCommand(dismissCmd)
-
-	// Local flags
-	dismissCmd.Flags().BoolVar(&dismissAll, "all", false, "Dismiss all active notifications")
-}
-
-func runDismiss(cmd *cobra.Command, args []string) {
-	// Validate arguments
-	if dismissAll && len(args) > 0 {
-		colors.Error("dismiss: cannot specify both --all and id")
-		return
-	}
-	if !dismissAll && len(args) == 0 {
-		colors.Error("dismiss: either specify an id or use --all")
-		return
-	}
-	if len(args) > 1 {
-		colors.Error("dismiss: too many arguments")
-		return
-	}
-
-	// Initialize storage (done by storage package automatically, but ensure)
-	// storage.Init() called by Dismiss/DismissAll
-
-	if dismissAll {
-		// Ask for confirmation
-		if !confirmDismissAll() {
-			colors.Info("Operation cancelled")
-			return
-		}
-		err := DismissAll()
-		if err != nil {
-			colors.Error(err.Error())
-			return
-		}
-		colors.Success("All active notifications dismissed")
-	} else {
-		id := args[0]
-		// Validate ID is numeric (optional, storage will validate)
-		err := Dismiss(id)
-		if err != nil {
-			colors.Error(err.Error())
-			return
-		}
-		colors.Success("Notification " + id + " dismissed")
-	}
-	return
 }
 
 // confirmDismissAll asks the user for confirmation before dismissing all notifications.
