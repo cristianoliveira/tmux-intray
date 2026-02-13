@@ -11,17 +11,29 @@ import (
 	"strings"
 
 	"github.com/cristianoliveira/tmux-intray/cmd"
-
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/spf13/cobra"
 )
 
-// settingsCmd represents the settings command
-var settingsCmd = &cobra.Command{
-	Use:   "settings",
-	Short: "Manage TUI settings",
-	Long: `Manage TUI settings.
+type settingsClient interface {
+	ResetSettings() (*settings.Settings, error)
+	LoadSettings() (*settings.Settings, error)
+}
+
+// NewSettingsCmd creates the settings command with explicit dependencies.
+func NewSettingsCmd(client settingsClient) *cobra.Command {
+	if client == nil {
+		panic("NewSettingsCmd: client dependency cannot be nil")
+	}
+
+	var resetForce bool
+
+	// Parent command
+	settingsCmd := &cobra.Command{
+		Use:   "settings",
+		Short: "Manage TUI settings",
+		Long: `Manage TUI settings.
 
 USAGE:
     tmux-intray settings <subcommand>
@@ -39,13 +51,13 @@ EXAMPLES:
 
     # Show current settings
     tmux-intray settings show`,
-}
+	}
 
-// resetCmd represents the settings reset command
-var resetCmd = &cobra.Command{
-	Use:   "reset",
-	Short: "Reset TUI settings to defaults",
-	Long: `Reset TUI settings to defaults by deleting the settings file.
+	// Subcommand: reset
+	resetCmd := &cobra.Command{
+		Use:   "reset",
+		Short: "Reset TUI settings to defaults",
+		Long: `Reset TUI settings to defaults by deleting the settings file.
 
 USAGE:
     tmux-intray settings reset [OPTIONS]
@@ -60,16 +72,31 @@ EXAMPLES:
 
     # Reset settings without confirmation
     tmux-intray settings reset --force`,
-	Run: runSettingsReset,
-}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Skip confirmation if --force flag is set or running in CI/test environment
+			if !resetForce && os.Getenv("CI") == "" && os.Getenv("BATS_TMPDIR") == "" {
+				if !confirmReset() {
+					colors.Info("Operation cancelled")
+					return nil
+				}
+			}
 
-var resetForce bool
+			// Reset settings
+			_, err := client.ResetSettings()
+			if err != nil {
+				return fmt.Errorf("failed to reset settings: %w", err)
+			}
 
-// showCmd represents the settings show command
-var showCmd = &cobra.Command{
-	Use:   "show",
-	Short: "Display current settings",
-	Long: `Display current TUI settings in JSON format.
+			colors.Success("Settings reset to defaults")
+			return nil
+		},
+	}
+
+	// Subcommand: show
+	showCmd := &cobra.Command{
+		Use:   "show",
+		Short: "Display current settings",
+		Long: `Display current TUI settings in JSON format.
 
 USAGE:
     tmux-intray settings show
@@ -77,68 +104,40 @@ USAGE:
 EXAMPLES:
     # Show current settings
     tmux-intray settings show`,
-	Run: runSettingsShow,
-}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Load settings
+			currentSettings, err := client.LoadSettings()
+			if err != nil {
+				return fmt.Errorf("failed to load settings: %w", err)
+			}
 
-// resetSettingsFunc is the function used to reset settings. Can be changed for testing.
-var resetSettingsFunc = func() (*settings.Settings, error) {
-	return settings.Reset()
-}
+			// Marshal settings to JSON with indentation
+			data, err := json.MarshalIndent(currentSettings, "", "  ")
+			if err != nil {
+				return fmt.Errorf("failed to marshal settings: %w", err)
+			}
 
-// loadSettingsFunc is the function used to load settings. Can be changed for testing.
-var loadSettingsFunc = func() (*settings.Settings, error) {
-	return settings.Load()
-}
-
-func init() {
-	cmd.RootCmd.AddCommand(settingsCmd)
-
-	// Add subcommands
-	settingsCmd.AddCommand(resetCmd)
-	settingsCmd.AddCommand(showCmd)
+			// Display settings
+			colors.Info(string(data))
+			return nil
+		},
+	}
 
 	// Add flags
 	resetCmd.Flags().BoolVar(&resetForce, "force", false, "Reset without confirmation")
+
+	// Add subcommands to parent
+	settingsCmd.AddCommand(resetCmd)
+	settingsCmd.AddCommand(showCmd)
+
+	return settingsCmd
 }
 
-// runSettingsReset executes the settings reset command.
-func runSettingsReset(cmd *cobra.Command, args []string) {
-	// Skip confirmation if --force flag is set or running in CI/test environment
-	if !resetForce && os.Getenv("CI") == "" && os.Getenv("BATS_TMPDIR") == "" {
-		if !confirmReset() {
-			colors.Info("Operation cancelled")
-			return
-		}
-	}
+// settingsCmd represents the settings command
+var settingsCmd = NewSettingsCmd(coreClient)
 
-	// Reset settings
-	_, err := resetSettingsFunc()
-	if err != nil {
-		colors.Error(fmt.Sprintf("Failed to reset settings: %v", err))
-		os.Exit(1)
-	}
-
-	colors.Success("Settings reset to defaults")
-}
-
-// runSettingsShow executes the settings show command.
-func runSettingsShow(cmd *cobra.Command, args []string) {
-	// Load settings
-	currentSettings, err := loadSettingsFunc()
-	if err != nil {
-		colors.Error(fmt.Sprintf("Failed to load settings: %v", err))
-		os.Exit(1)
-	}
-
-	// Marshal settings to JSON with indentation
-	data, err := json.MarshalIndent(currentSettings, "", "  ")
-	if err != nil {
-		colors.Error(fmt.Sprintf("Failed to marshal settings: %v", err))
-		os.Exit(1)
-	}
-
-	// Display settings
-	colors.Info(string(data))
+func init() {
+	cmd.RootCmd.AddCommand(settingsCmd)
 }
 
 // confirmReset asks the user for confirmation before resetting settings.
