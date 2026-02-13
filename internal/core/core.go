@@ -44,8 +44,6 @@ func (c *Core) GetTrayItems(stateFilter string) (string, error) {
 			continue
 		}
 		message := fields[storage.FieldMessage]
-		// Unescape message
-		message = storage.UnescapeMessage(message)
 		messages = append(messages, message)
 	}
 	return strings.Join(messages, "\n"), nil
@@ -130,6 +128,26 @@ func MarkNotificationUnread(id string) error {
 // MarkNotificationUnread marks a notification as unread using this Core instance.
 func (c *Core) MarkNotificationUnread(id string) error {
 	return c.storage.MarkNotificationUnread(id)
+}
+
+// GetNotificationByID retrieves a notification by its ID.
+func GetNotificationByID(id string) (string, error) {
+	return defaultCore.GetNotificationByID(id)
+}
+
+// GetNotificationByID retrieves a notification by its ID using this Core instance.
+func (c *Core) GetNotificationByID(id string) (string, error) {
+	return c.storage.GetNotificationByID(id)
+}
+
+// GetActiveCount returns the number of active notifications.
+func GetActiveCount() int {
+	return defaultCore.GetActiveCount()
+}
+
+// GetActiveCount returns the number of active notifications using this Core instance.
+func (c *Core) GetActiveCount() int {
+	return c.storage.GetActiveCount()
 }
 
 // GetVisibility returns the visibility state as "0" or "1".
