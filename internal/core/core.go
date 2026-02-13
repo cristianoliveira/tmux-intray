@@ -7,12 +7,23 @@ import (
 
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
+	"github.com/cristianoliveira/tmux-intray/internal/version"
 )
 
 // GetTrayItems returns tray items for a given state filter.
 // Returns newline-separated messages (unescaped).
 func GetTrayItems(stateFilter string) (string, error) {
 	return defaultCore.GetTrayItems(stateFilter)
+}
+
+// Version returns the version string.
+func Version() string {
+	return defaultCore.Version()
+}
+
+// Version returns the version string using this Core instance.
+func (c *Core) Version() string {
+	return version.String()
 }
 
 // GetTrayItems returns tray items for a given state filter using this Core instance.
