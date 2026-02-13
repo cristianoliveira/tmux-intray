@@ -189,6 +189,12 @@ async function notify(status, message) {
         const windowID = await getTmuxWindowID();
         const paneID = await getTmuxPaneID();
         
+        // Normalize pane ID: ensure it starts with '%' if it's a number
+        let normalizedPaneID = paneID;
+        if (normalizedPaneID && !normalizedPaneID.startsWith('%')) {
+          normalizedPaneID = '%' + normalizedPaneID;
+        }
+        
         // Build command with context flags (if available)
         // Use array format instead of string to avoid shell interpolation
         const args = ['add', `--level=${level}`];
@@ -198,8 +204,8 @@ async function notify(status, message) {
         if (windowID) {
           args.push(`--window=${windowID}`);
         }
-        if (paneID) {
-          args.push(`--pane=${paneID}`);
+        if (normalizedPaneID) {
+          args.push(`--pane=${normalizedPaneID}`);
         }
         args.push(message);
         
@@ -214,7 +220,13 @@ async function notify(status, message) {
         await logDebug('notify', `success - notification created with message: "${message}"`);
       } catch (error) {
         // Log error but don't crash the plugin
-        console.error(`[opencode-tmux-intray] Failed to send notification: ${error.message}`);
+        let errorMsg = `Failed to send notification: ${error.message}`;
+        if (error.code === 'ENOENT') {
+          errorMsg = `tmux-intray command not found. Please ensure tmux-intray is installed and in PATH. Original error: ${error.message}`;
+        } else if (error.code) {
+          errorMsg += ` (exit code: ${error.code})`;
+        }
+        console.error(`[opencode-tmux-intray] ${errorMsg}`);
         await logError('notify', error);
       }
 }
