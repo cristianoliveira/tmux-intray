@@ -2,10 +2,9 @@
 
 ## Unreleased
 
-### SQLite gradual opt-in rollout
+### SQLite storage backend (stable)
 
-- SQLite storage is available as a beta opt-in path; default backend remains TSV.
-- Added phased rollout guidance for `tsv` -> `dual` -> `sqlite`, including rollback steps.
-- Documented safeguards: unknown/failed backend initialization falls back to TSV.
-- Added migration and troubleshooting documentation with sqlc workflow references.
-- Added a dedicated GitHub issue template for SQLite opt-in feedback.
+- SQLite is now the only storage backend. TSV backend has been removed.
+- All notification data is stored in `$TMUX_INTRAY_STATE_DIR/notifications.db`.
+- Automatic database migration on first run with existing data.
+- Improved data integrity with SQLite transactions.
