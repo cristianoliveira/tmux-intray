@@ -56,16 +56,6 @@ tmux-intray list | fzf | awk '{ print $1 }' | xargs -I {} tmux-intray jump {}
 
 tmux-intray uses SQLite for notification storage, providing transactional storage and better scalability. The SQLite backend uses sqlc-generated queries from `internal/storage/sqlite/queries.sql` (generated into `internal/storage/sqlite/sqlcgen/`).
 
-### Migrating from TSV
-
-If you have existing notifications in TSV format, use the migrate command:
-
-```bash
-tmux-intray migrate
-```
-
-See `tmux-intray migrate --help` for more options.
-
 ## Installation Options
 
 tmux-intray has two main components that can be installed separately or together:
@@ -224,7 +214,6 @@ Comprehensive documentation is available:
 
 - [CLI Reference](docs/cli/CLI_REFERENCE.md) - Complete command reference
 - [Configuration Guide](docs/configuration.md) - All environment variables and settings (including TUI settings persistence)
-- [Storage Migration Guide](docs/storage-migration.md) - Gradual SQLite opt-in plan, safeguards, and rollback
 - [Troubleshooting Guide](docs/troubleshooting.md) - Common issues and solutions
 - [Release Notes](RELEASE_NOTES.md) - Current rollout status and release communication
 - [Advanced Filtering Example](examples/advanced-filtering.sh) - Complex filter combinations
@@ -546,7 +535,7 @@ tmux-intray is built with a modular architecture that separates concerns:
 
 ### Core Components
 
-1. **Storage Layer**: File-based TSV storage with `flock` locking in `~/.local/state/tmux-intray/`
+1. **Storage Layer**: SQLite database with transactional storage in `~/.local/state/tmux-intray/notifications.db`
 2. **Command Layer**: Individual command implementations in `cmd/*.go`
 3. **Tmux Integration**: Plugin loader in `tmux-intray.tmux` and status panel command (`tmux-intray status-panel`)
 

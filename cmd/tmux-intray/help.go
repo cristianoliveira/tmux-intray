@@ -27,8 +27,6 @@ func PrintHelp(cmd *cobra.Command) {
 }
 
 func printHelp(cmd *cobra.Command, w io.Writer) {
-	// DEBUG: log which command we're helping
-	// fmt.Fprintf(os.Stderr, "DEBUG: cmd.Use=%s, parent=%v\n", cmd.Use, cmd.Parent())
 
 	// Order of commands as in bash help
 	commandOrder := []string{
@@ -37,7 +35,6 @@ func printHelp(cmd *cobra.Command, w io.Writer) {
 		"dismiss",
 		"clear",
 		"cleanup",
-		"migrate",
 		"toggle",
 		"jump",
 		"status",

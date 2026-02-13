@@ -401,12 +401,6 @@ func (s *SQLiteStorage) GetActiveCount() int {
 	return int(count)
 }
 
-// UpsertNotification inserts or updates a notification by ID.
-// This is used for migration from TSV to SQLite.
-func (s *SQLiteStorage) UpsertNotification(ctx context.Context, params sqlcgen.UpsertNotificationParams) error {
-	return s.queries.UpsertNotification(ctx, params)
-}
-
 func validateNotificationInputs(message, timestamp, session, window, pane, level string) error {
 	if strings.TrimSpace(message) == "" {
 		return fmt.Errorf("validation error: message cannot be empty")

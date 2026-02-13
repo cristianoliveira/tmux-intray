@@ -122,16 +122,6 @@ This is useful for temporary debugging or for per‑session customization.
 
 tmux-intray uses SQLite as its storage backend. Data is stored in `$TMUX_INTRAY_STATE_DIR/notifications.db`.
 
-### Migrating from TSV
-
-If you have existing notifications in TSV format, use the migrate command:
-
-```bash
-tmux-intray migrate
-```
-
-See `tmux-intray migrate --help` for more options.
-
 ### sqlc-backed query layer
 
 SQLite queries are defined in `internal/storage/sqlite/queries.sql` and generated with sqlc into `internal/storage/sqlite/sqlcgen/`.
