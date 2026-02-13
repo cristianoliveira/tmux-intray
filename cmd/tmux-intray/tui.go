@@ -16,11 +16,22 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// tuiCmd represents the tui command
-var tuiCmd = &cobra.Command{
-	Use:   "tui",
-	Short: "Interactive terminal UI for notifications",
-	Long: `Interactive terminal UI for notifications.
+type tuiClient interface {
+	LoadSettings() (*settings.Settings, error)
+	CreateModel() (*state.Model, error)
+	RunProgram(model *state.Model) error
+}
+
+// NewTUICmd creates the tui command with explicit dependencies.
+func NewTUICmd(client tuiClient) *cobra.Command {
+	if client == nil {
+		panic("NewTUICmd: client dependency cannot be nil")
+	}
+
+	return &cobra.Command{
+		Use:   "tui",
+		Short: "Interactive terminal UI for notifications",
+		Long: `Interactive terminal UI for notifications.
 
 USAGE:
     tmux-intray tui
@@ -37,44 +48,56 @@ KEY BINDINGS:
     Enter       Jump to pane (or execute command in command mode)
     :w          Save settings
     q           Quit TUI`,
-	Run: runTUI,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Load settings from disk (use defaults if missing/corrupted)
+			loadedSettings, err := client.LoadSettings()
+			if err != nil {
+				colors.Warning(fmt.Sprintf("Failed to load settings, using defaults: %v", err))
+				loadedSettings = settings.DefaultSettings()
+			}
+			colors.Debug("Loaded settings for TUI")
+
+			// Create TUI model
+			model, err := client.CreateModel()
+			if err != nil {
+				colors.Error(fmt.Sprintf("Failed to create TUI model: %v", err))
+				os.Exit(1)
+			}
+
+			// Store loaded settings reference
+			model.SetLoadedSettings(loadedSettings)
+
+			// Apply loaded settings to model
+			st := settings.FromSettings(loadedSettings)
+			if err := model.FromState(st); err != nil {
+				colors.Warning(fmt.Sprintf("Failed to apply settings to TUI model: %v", err))
+				// Continue with default settings
+			}
+			colors.Debug("Applied settings to TUI model")
+
+			// Run the program
+			return client.RunProgram(model)
+		},
+	}
 }
 
-func init() {
-	cmd.RootCmd.AddCommand(tuiCmd)
+// defaultTUIClient is the default implementation.
+type defaultTUIClient struct {
+	tmuxClient tmux.TmuxClient
 }
 
-func runTUI(cmd *cobra.Command, args []string) {
-	// Create TmuxClient
-	client := tmux.NewDefaultClient()
+func (d *defaultTUIClient) LoadSettings() (*settings.Settings, error) {
+	return settings.Load()
+}
 
-	// Load settings from disk (use defaults if missing/corrupted)
-	loadedSettings, err := settings.Load()
-	if err != nil {
-		colors.Warning(fmt.Sprintf("Failed to load settings, using defaults: %v", err))
-		loadedSettings = settings.DefaultSettings()
+func (d *defaultTUIClient) CreateModel() (*state.Model, error) {
+	if d.tmuxClient == nil {
+		d.tmuxClient = tmux.NewDefaultClient()
 	}
-	colors.Debug("Loaded settings for TUI")
+	return state.NewModel(d.tmuxClient)
+}
 
-	// Create TUI model
-	model, err := state.NewModel(client)
-	if err != nil {
-		colors.Error(fmt.Sprintf("Failed to create TUI model: %v", err))
-		os.Exit(1)
-	}
-
-	// Store loaded settings reference
-	model.SetLoadedSettings(loadedSettings)
-
-	// Apply loaded settings to model
-	state := settings.FromSettings(loadedSettings)
-	if err := model.FromState(state); err != nil {
-		colors.Warning(fmt.Sprintf("Failed to apply settings to TUI model: %v", err))
-		// Continue with default settings
-	}
-	colors.Debug("Applied settings to TUI model")
-
-	// Create and run the bubbletea program
+func (d *defaultTUIClient) RunProgram(model *state.Model) error {
 	p := tea.NewProgram(
 		model,
 		tea.WithAltScreen(),
@@ -82,8 +105,17 @@ func runTUI(cmd *cobra.Command, args []string) {
 	)
 
 	// Start the program
-	if _, err := p.Run(); err != nil {
+	_, err := p.Run()
+	if err != nil {
 		colors.Error(fmt.Sprintf("Error running TUI: %v", err))
 		os.Exit(1)
 	}
+	return nil
+}
+
+// tuiCmd represents the tui command
+var tuiCmd = NewTUICmd(&defaultTUIClient{})
+
+func init() {
+	cmd.RootCmd.AddCommand(tuiCmd)
 }

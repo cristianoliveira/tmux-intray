@@ -65,6 +65,49 @@ func TestVersionOutput(t *testing.T) {
 	}
 }
 
+func TestNewVersionCmdOutput(t *testing.T) {
+	tests := []struct {
+		name            string
+		version         string
+		expectedVersion string
+	}{
+		{
+			name:            "development version",
+			version:         "development",
+			expectedVersion: "tmux-intray version development\n",
+		},
+		{
+			name:            "release version",
+			version:         "1.0.0",
+			expectedVersion: "tmux-intray version 1.0.0\n",
+		},
+		{
+			name:            "version with commit",
+			version:         "0.5.0+abc1234",
+			expectedVersion: "tmux-intray version 0.5.0+abc1234\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &fakeVersionClient{version: tt.version}
+			cmd := NewVersionCmd(client)
+
+			var buf bytes.Buffer
+			cmd.SetOut(&buf)
+
+			err := cmd.RunE(cmd, nil)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if buf.String() != tt.expectedVersion {
+				t.Errorf("expected %q, got %q", tt.expectedVersion, buf.String())
+			}
+		})
+	}
+}
+
 type fakeVersionClient struct {
 	version string
 }
