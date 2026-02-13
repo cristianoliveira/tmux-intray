@@ -11,6 +11,33 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type versionClient interface {
+	GetVersion() string
+}
+
+type defaultVersionClient struct{}
+
+func (d *defaultVersionClient) GetVersion() string {
+	return version.String()
+}
+
+// NewVersionCmd creates the version command with explicit dependencies.
+func NewVersionCmd(client versionClient) *cobra.Command {
+	if client == nil {
+		panic("NewVersionCmd: client dependency cannot be nil")
+	}
+
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Show version information",
+		Long:  `Show the current version of tmux-intray.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Fprintf(cmd.OutOrStdout(), "tmux-intray version %s\n", client.GetVersion())
+			return nil
+		},
+	}
+}
+
 // versionOutputWriter is the writer used by PrintVersion. Can be changed for testing.
 var versionOutputWriter io.Writer = os.Stdout
 
@@ -20,14 +47,7 @@ func PrintVersion() {
 }
 
 // versionCmd represents the version command
-var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "Show version information",
-	Long:  `Show the current version of tmux-intray.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		PrintVersion()
-	},
-}
+var versionCmd = NewVersionCmd(&defaultVersionClient{})
 
 func init() {
 	cmd.RootCmd.AddCommand(versionCmd)

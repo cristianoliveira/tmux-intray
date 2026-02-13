@@ -8,6 +8,112 @@ import (
 	"time"
 )
 
+type fakeFollowClient struct {
+	calls []struct {
+		state      string
+		level      string
+		session    string
+		window     string
+		pane       string
+		olderThan  string
+		newerThan  string
+		readFilter string
+	}
+	result string
+}
+
+func (f *fakeFollowClient) ListNotifications(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
+	f.calls = append(f.calls, struct {
+		state      string
+		level      string
+		session    string
+		window     string
+		pane       string
+		olderThan  string
+		newerThan  string
+		readFilter string
+	}{
+		state: state, level: level, session: session, window: window,
+		pane: pane, olderThan: olderThan, newerThan: newerThan, readFilter: readFilter,
+	})
+	return f.result
+}
+
+func TestNewFollowCmdPanicsWhenClientIsNil(t *testing.T) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatalf("expected panic, got nil")
+		}
+
+		msg, ok := r.(string)
+		if !ok {
+			t.Fatalf("expected panic message as string, got %T", r)
+		}
+		if !strings.Contains(msg, "client dependency cannot be nil") {
+			t.Fatalf("expected panic message to mention nil dependency, got %q", msg)
+		}
+	}()
+
+	NewFollowCmd(nil)
+}
+
+func TestFollowCmdWithClient(t *testing.T) {
+	// Create tick channel we can control
+	tickChan := make(chan time.Time)
+	defer close(tickChan)
+
+	// Create fake client
+	client := &fakeFollowClient{
+		result: "1\t2025-01-01T12:00:00Z\tactive\t\t\tpane1\thello\t\tinfo",
+	}
+
+	// Capture output
+	var buf bytes.Buffer
+	opts := FollowOptions{
+		Client:   client,
+		State:    "active",
+		TickChan: tickChan,
+		Output:   &buf,
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Run follow in goroutine
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- Follow(ctx, opts)
+	}()
+
+	// Trigger first tick
+	tickChan <- time.Now()
+	time.Sleep(10 * time.Millisecond)
+	cancel()
+
+	// Wait for follow to exit
+	select {
+	case err := <-errChan:
+		if err != nil {
+			t.Fatalf("Follow returned error: %v", err)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Follow did not exit after cancellation")
+	}
+
+	// Verify client was called
+	if len(client.calls) != 1 {
+		t.Fatalf("expected 1 call to ListNotifications, got %d", len(client.calls))
+	}
+	if client.calls[0].state != "active" {
+		t.Errorf("expected state 'active', got %q", client.calls[0].state)
+	}
+
+	// Check output
+	if !strings.Contains(buf.String(), "hello") {
+		t.Error("Expected output to contain 'hello'")
+	}
+}
+
 func TestFollowNewNotifications(t *testing.T) {
 	// Mock listFunc to return different lines on each call
 	calls := 0

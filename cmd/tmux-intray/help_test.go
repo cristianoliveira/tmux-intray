@@ -35,8 +35,8 @@ func TestPrintHelp(t *testing.T) {
 
 	// Capture output
 	var buf bytes.Buffer
-	outputWriter = &buf
-	defer func() { outputWriter = nil }()
+	helpOutputWriter = &buf
+	defer func() { helpOutputWriter = nil }()
 
 	PrintHelp(rootCmd)
 	output := buf.String()

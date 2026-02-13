@@ -20,11 +20,28 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// followCmd represents the follow command
-var followCmd = &cobra.Command{
-	Use:   "follow",
-	Short: "Monitor notifications in real-time",
-	Long: `Monitor notifications in real-time.
+type followClient interface {
+	ListNotifications(state, level, session, window, pane, olderThan, newerThan, readFilter string) string
+}
+
+var (
+	followAll       bool
+	followDismissed bool
+	followLevel     string
+	followPane      string
+	followInterval  float64
+)
+
+// NewFollowCmd creates the follow command with explicit dependencies.
+func NewFollowCmd(client followClient) *cobra.Command {
+	if client == nil {
+		panic("NewFollowCmd: client dependency cannot be nil")
+	}
+
+	cmd := &cobra.Command{
+		Use:   "follow",
+		Short: "Monitor notifications in real-time",
+		Long: `Monitor notifications in real-time.
 
 USAGE:
     tmux-intray follow [OPTIONS]
@@ -36,19 +53,39 @@ OPTIONS:
     --pane <id>       Filter by pane ID
     --interval <secs>  Poll interval (default: 1)
     -h, --help         Show this help`,
-	Run: runFollow,
-}
+		RunE: func(c *cobra.Command, args []string) error {
+			// Determine state filter
+			state := "active"
+			if followAll {
+				state = "all"
+			} else if followDismissed {
+				state = "dismissed"
+			}
 
-var (
-	followAll       bool
-	followDismissed bool
-	followLevel     string
-	followPane      string
-	followInterval  float64
-)
+			opts := FollowOptions{
+				Client:   client,
+				State:    state,
+				Level:    followLevel,
+				Pane:     followPane,
+				Interval: time.Duration(followInterval * float64(time.Second)),
+			}
+			ctx := context.Background()
+			return Follow(ctx, opts)
+		},
+	}
+
+	cmd.Flags().BoolVar(&followAll, "all", false, "Show all notifications (not just active)")
+	cmd.Flags().BoolVar(&followDismissed, "dismissed", false, "Show only dismissed notifications")
+	cmd.Flags().StringVar(&followLevel, "level", "", "Filter by level (error, warning, info)")
+	cmd.Flags().StringVar(&followPane, "pane", "", "Filter by pane ID")
+	cmd.Flags().Float64Var(&followInterval, "interval", 1.0, "Poll interval in seconds (default: 1)")
+
+	return cmd
+}
 
 // FollowOptions holds all parameters for following notifications.
 type FollowOptions struct {
+	Client   followClient     // client for fetching notifications
 	State    string           // "active", "dismissed", "all"
 	Level    string           // "error", "warning", "info", ""
 	Pane     string           // pane ID filter
@@ -137,6 +174,14 @@ func Follow(ctx context.Context, opts FollowOptions) error {
 		defer ticker.Stop()
 	}
 
+	// Helper function to fetch notifications
+	fetchNotifications := func() string {
+		if opts.Client != nil {
+			return opts.Client.ListNotifications(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, "", "", "")
+		}
+		return listFunc(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, "", "", "")
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -146,7 +191,7 @@ func Follow(ctx context.Context, opts FollowOptions) error {
 			return nil
 		case <-tickChan:
 			// Fetch notifications with filters
-			lines := listFunc(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, "", "", "")
+			lines := fetchNotifications()
 			if lines == "" {
 				continue
 			}
@@ -173,34 +218,16 @@ func Follow(ctx context.Context, opts FollowOptions) error {
 	}
 }
 
-func init() {
-	cmd.RootCmd.AddCommand(followCmd)
+// defaultFollowClient is the default implementation using listFunc.
+type defaultFollowClient struct{}
 
-	followCmd.Flags().BoolVar(&followAll, "all", false, "Show all notifications (not just active)")
-	followCmd.Flags().BoolVar(&followDismissed, "dismissed", false, "Show only dismissed notifications")
-	followCmd.Flags().StringVar(&followLevel, "level", "", "Filter by level (error, warning, info)")
-	followCmd.Flags().StringVar(&followPane, "pane", "", "Filter by pane ID")
-	followCmd.Flags().Float64Var(&followInterval, "interval", 1.0, "Poll interval in seconds (default: 1)")
+func (d *defaultFollowClient) ListNotifications(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
+	return listFunc(state, level, session, window, pane, olderThan, newerThan, readFilter)
 }
 
-func runFollow(cmd *cobra.Command, args []string) {
-	// Determine state filter
-	state := "active"
-	if followAll {
-		state = "all"
-	} else if followDismissed {
-		state = "dismissed"
-	}
+// followCmd represents the follow command
+var followCmd = NewFollowCmd(&defaultFollowClient{})
 
-	opts := FollowOptions{
-		State:    state,
-		Level:    followLevel,
-		Pane:     followPane,
-		Interval: time.Duration(followInterval * float64(time.Second)),
-	}
-	ctx := context.Background()
-	if err := Follow(ctx, opts); err != nil {
-		// Follow only returns error on context cancellation or signal, which we handle gracefully
-		return
-	}
+func init() {
+	cmd.RootCmd.AddCommand(followCmd)
 }

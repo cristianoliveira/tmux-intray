@@ -14,22 +14,22 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// helpCmd represents the help command
-// outputWriter is the writer used by PrintHelp. Can be changed for testing.
-var outputWriter io.Writer = io.Writer(nil)
+type helpClient interface {
+	GetVersion() string
+}
+
+// helpOutputWriter is the writer used by PrintHelp. Can be changed for testing.
+var helpOutputWriter io.Writer = io.Writer(nil)
 
 // PrintHelp prints the help information for the given root command.
 func PrintHelp(cmd *cobra.Command) {
-	if outputWriter == nil {
-		outputWriter = cmd.OutOrStdout()
+	if helpOutputWriter == nil {
+		helpOutputWriter = cmd.OutOrStdout()
 	}
-	printHelp(cmd, outputWriter)
+	printHelp(cmd, helpOutputWriter)
 }
 
 func printHelp(cmd *cobra.Command, w io.Writer) {
-	// DEBUG: log which command we're helping
-	// fmt.Fprintf(os.Stderr, "DEBUG: cmd.Use=%s, parent=%v\n", cmd.Use, cmd.Parent())
-
 	// Order of commands as in bash help
 	commandOrder := []string{
 		"add",
@@ -73,9 +73,9 @@ func printHelp(cmd *cobra.Command, w io.Writer) {
 	reset := colors.Reset
 
 	// Get version from root command
-	version := cmd.Version
-	if version == "" {
-		version = "0.0.0"
+	versionStr := cmd.Version
+	if versionStr == "" {
+		versionStr = "0.0.0"
 	}
 
 	helpText := fmt.Sprintf(`%stmux-intray v%s%s
@@ -90,30 +90,36 @@ func printHelp(cmd *cobra.Command, w io.Writer) {
 
 %sOPTIONS:%s
     -h, --help      Show help message
-`, headerColor, version, reset, colors.Cyan, reset, headerColor, reset, headerColor, reset, strings.Join(cmdLines, "\n"), headerColor, reset)
+`, headerColor, versionStr, reset, colors.Cyan, reset, headerColor, reset, headerColor, reset, strings.Join(cmdLines, "\n"), headerColor, reset)
 	fmt.Fprint(w, helpText)
 }
 
-var helpCmd = &cobra.Command{
-	Use:   "help",
-	Short: "Show this help message",
-	Long:  `Show this help message.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) == 0 {
-			PrintHelp(cmd.Root())
-			return
-		}
-		// Find the subcommand
-		targetCmd, _, err := cmd.Root().Find(args)
-		if err != nil || targetCmd == nil {
-			// fallback to root help
-			PrintHelp(cmd.Root())
-			return
-		}
-		// Call help for that command (will show its Long description)
-		targetCmd.Help()
-	},
+// NewHelpCmd creates the help command with explicit dependencies.
+func NewHelpCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "help",
+		Short: "Show this help message",
+		Long:  `Show this help message.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				PrintHelp(cmd.Root())
+				return nil
+			}
+			// Find the subcommand
+			targetCmd, _, err := cmd.Root().Find(args)
+			if err != nil || targetCmd == nil {
+				// fallback to root help
+				PrintHelp(cmd.Root())
+				return nil
+			}
+			// Call help for that command (will show its Long description)
+			targetCmd.Help()
+			return nil
+		},
+	}
 }
+
+var helpCmd = NewHelpCmd()
 
 func init() {
 	cmd.RootCmd.SetHelpCommand(helpCmd)
