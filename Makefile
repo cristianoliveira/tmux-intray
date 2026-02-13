@@ -116,6 +116,8 @@ clean:
 	@echo "Cleaning..."
 	rm -rf bin/tmux-intray
 
+GOPATH := $(shell go env GOPATH)
+
 install:
 	@echo "Installing tmux-intray..."
 	@echo "  Version: $(VERSION)"
@@ -123,12 +125,15 @@ install:
 	@mkdir -p ~/.local/bin
 	go build $(LDFLAGS) -o ~/.local/bin/tmux-intray ./cmd/tmux-intray
 	@chmod +x ~/.local/bin/tmux-intray
+	@mkdir -p $(GOPATH)/bin
+	@cp ~/.local/bin/tmux-intray $(GOPATH)/bin/tmux-intray
 	@chmod +x scripts/lint.sh
 	@chmod +x scripts/security-check.sh
 	@chmod +x tmux-intray.tmux
 	@chmod +x install.sh
 	@echo "✓ Installation complete"
 	@echo "  - Go binary installed to: ~/.local/bin/tmux-intray"
+	@echo "  - Go binary installed to: $(GOPATH)/bin/tmux-intray"
 
 
 install-npm:
