@@ -50,7 +50,7 @@ body:
       label: Relevant configuration
       description: Include any relevant environment variables or config files
       placeholder: |
-        TMUX_INTRAY_STORAGE_BACKEND=tsv
+        TMUX_INTRAY_STORAGE_BACKEND=sqlite
         TMUX_INTRAY_DEBUG=1
         etc...
     validations:

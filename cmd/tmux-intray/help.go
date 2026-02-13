@@ -37,7 +37,6 @@ func printHelp(cmd *cobra.Command, w io.Writer) {
 		"dismiss",
 		"clear",
 		"cleanup",
-		"migrate",
 		"toggle",
 		"jump",
 		"status",

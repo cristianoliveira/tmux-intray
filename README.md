@@ -52,30 +52,9 @@ tmux-intray jump <id>
 tmux-intray list | fzf | awk '{ print $1 }' | xargs -I {} tmux-intray jump {}
 ```
 
-## Using SQLite Storage (Beta Opt-in)
+## SQLite Storage
 
-> [!WARNING]
-> SQLite storage is in a gradual opt-in rollout. The default backend remains TSV.
-
-SQLite support is available for users who want transactional storage and better scalability on larger inboxes. The SQLite backend uses sqlc-generated queries from `internal/storage/sqlite/queries.sql` (generated into `internal/storage/sqlite/sqlcgen/`).
-
-Quick opt-in:
-
-```bash
-# one session
-export TMUX_INTRAY_STORAGE_BACKEND=sqlite
-
-# or persist in ~/.config/tmux-intray/config.sh
-TMUX_INTRAY_STORAGE_BACKEND="sqlite"
-```
-
-Recommended rollout path:
-
-1. Start with `TMUX_INTRAY_STORAGE_BACKEND=dual` to keep TSV as source-of-truth while validating SQLite writes.
-2. Move to `TMUX_INTRAY_STORAGE_BACKEND=sqlite` after a stable period.
-3. Roll back quickly by setting `TMUX_INTRAY_STORAGE_BACKEND=tsv`.
-
-See the complete migration and rollback guide in [docs/storage-migration.md](docs/storage-migration.md).
+tmux-intray uses SQLite for notification storage, providing transactional storage and better scalability. The SQLite backend uses sqlc-generated queries from `internal/storage/sqlite/queries.sql` (generated into `internal/storage/sqlite/sqlcgen/`).
 
 ## Installation Options
 
@@ -235,7 +214,6 @@ Comprehensive documentation is available:
 
 - [CLI Reference](docs/cli/CLI_REFERENCE.md) - Complete command reference
 - [Configuration Guide](docs/configuration.md) - All environment variables and settings (including TUI settings persistence)
-- [Storage Migration Guide](docs/storage-migration.md) - Gradual SQLite opt-in plan, safeguards, and rollback
 - [Troubleshooting Guide](docs/troubleshooting.md) - Common issues and solutions
 - [Release Notes](RELEASE_NOTES.md) - Current rollout status and release communication
 - [Advanced Filtering Example](examples/advanced-filtering.sh) - Complex filter combinations
@@ -557,7 +535,7 @@ tmux-intray is built with a modular architecture that separates concerns:
 
 ### Core Components
 
-1. **Storage Layer**: File-based TSV storage with `flock` locking in `~/.local/state/tmux-intray/`
+1. **Storage Layer**: SQLite database with transactional storage in `~/.local/state/tmux-intray/notifications.db`
 2. **Command Layer**: Individual command implementations in `cmd/*.go`
 3. **Tmux Integration**: Plugin loader in `tmux-intray.tmux` and status panel command (`tmux-intray status-panel`)
 

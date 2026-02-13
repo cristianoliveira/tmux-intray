@@ -32,7 +32,7 @@ hooks_failure_mode = "abort"
 	// Set environment variables (should override config file)
 	t.Setenv("TMUX_INTRAY_CONFIG_PATH", configFile)
 	t.Setenv("TMUX_INTRAY_MAX_NOTIFICATIONS", "200")
-	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "tsv")
+	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "sqlite")
 	t.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "true")
 
 	reset()
@@ -40,7 +40,7 @@ hooks_failure_mode = "abort"
 
 	// Verify precedence: environment should win
 	require.Equal(t, "200", Get("max_notifications", ""), "Environment should override config file")
-	require.Equal(t, "tsv", Get("storage_backend", ""), "Environment should override config file")
+	require.Equal(t, "sqlite", Get("storage_backend", ""), "Environment should override config file")
 	require.Equal(t, "true", Get("hooks_enabled", ""), "Environment should override config file")
 
 	// Config file values (not overridden by env) should be used
@@ -115,9 +115,9 @@ func TestEnvironmentVariableConfigBashCompatibility(t *testing.T) {
 	require.NoError(t, os.MkdirAll(configDir, 0755))
 	configFile := filepath.Join(configDir, "config.toml")
 	configContent := `
-max_notifications = 1000
-hooks_enabled = true
-storage_backend = "tsv"
+	max_notifications = 1000
+	hooks_enabled = true
+	storage_backend = "sqlite"
 `
 	require.NoError(t, os.WriteFile(configFile, []byte(configContent), 0644))
 
@@ -167,22 +167,19 @@ func TestDefaultConfigBashCompatibility(t *testing.T) {
 
 	// Verify defaults match expected values from documentation
 	defaults := map[string]string{
-		"max_notifications":       "1000",
-		"storage_backend":         "tsv",
-		"table_format":            "default",
-		"status_format":           "compact",
-		"status_enabled":          "true",
-		"show_levels":             "false",
-		"hooks_enabled":           "true",
-		"hooks_failure_mode":      "warn",
-		"hooks_async":             "false",
-		"hooks_async_timeout":     "30",
-		"max_hooks":               "10",
-		"date_format":             "%Y-%m-%d %H:%M:%S",
-		"auto_cleanup_days":       "30",
-		"dual_read_backend":       "sqlite",
-		"dual_verify_only":        "false",
-		"dual_verify_sample_size": "25",
+		"max_notifications":   "1000",
+		"storage_backend":     "sqlite",
+		"table_format":        "default",
+		"status_format":       "compact",
+		"status_enabled":      "true",
+		"show_levels":         "false",
+		"hooks_enabled":       "true",
+		"hooks_failure_mode":  "warn",
+		"hooks_async":         "false",
+		"hooks_async_timeout": "30",
+		"max_hooks":           "10",
+		"date_format":         "%Y-%m-%d %H:%M:%S",
+		"auto_cleanup_days":   "30",
 	}
 
 	for key, expectedValue := range defaults {
@@ -355,7 +352,7 @@ func TestInvalidConfigValues(t *testing.T) {
 			name:          "invalid_storage_backend",
 			configKey:     "storage_backend",
 			invalidValue:  "unknown",
-			defaultValue:  "tsv",
+			defaultValue:  "sqlite",
 			configSnippet: `storage_backend = "unknown"`,
 		},
 		{
