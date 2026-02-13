@@ -412,34 +412,6 @@ teardown() {
 }
 
 # ========================================
-# Toggle Hooks Tests
-# ========================================
-
-@test "pre-toggle hook runs before toggle" {
-    _create_hook "pre-toggle" "01-test.sh" "echo \"pre-toggle-executed\" > \"$HOOK_OUTPUT_DIR/pre-toggle.log\""
-
-    [[ "${TMUX_AVAILABLE:-0}" -ne 1 ]] && skip "tmux not available"
-
-    run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/tmux-intray toggle"
-    [ "$status" -eq 0 ]
-
-    [ -f "$HOOK_OUTPUT_DIR/pre-toggle.log" ]
-    [[ "$(_read_hook_output "pre-toggle.log")" == *"pre-toggle-executed"* ]]
-}
-
-@test "post-toggle hook runs after toggle" {
-    _create_hook "post-toggle" "01-test.sh" "echo \"post-toggle-executed\" > \"$HOOK_OUTPUT_DIR/post-toggle.log\""
-
-    [[ "${TMUX_AVAILABLE:-0}" -ne 1 ]] && skip "tmux not available"
-
-    run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/tmux-intray toggle"
-    [ "$status" -eq 0 ]
-
-    [ -f "$HOOK_OUTPUT_DIR/post-toggle.log" ]
-    [[ "$(_read_hook_output "post-toggle.log")" == *"post-toggle-executed"* ]]
-}
-
-# ========================================
 # Async Hooks Tests
 # ========================================
 

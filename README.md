@@ -198,7 +198,6 @@ $ tmux-intray --help
 - `tmux-intray cleanup` - Clean up old dismissed notifications (configurable retention)
 
 #### Navigation Commands
-- `tmux-intray toggle` - Toggle the tray visibility
 - `tmux-intray jump <id>` - Jump to the pane of a notification
 - `tmux-intray status` - Show notification status summary
 - `tmux-intray follow` - Monitor notifications in real-time

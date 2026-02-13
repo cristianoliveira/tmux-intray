@@ -81,12 +81,3 @@ teardown() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"cleared"* ]]
 }
-
-@test "toggle tray visibility" {
-    if [[ -n "${CI:-}" ]] || [[ "${TMUX_AVAILABLE:-0}" -ne 1 ]]; then
-        run "$PWD/tmux-intray" toggle 2>&1
-    else
-        run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/tmux-intray toggle 2>&1"
-    fi
-    [ "$status" -eq 0 ]
-}

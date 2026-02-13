@@ -30,7 +30,6 @@ github.com/cristianoliveira/tmux-intray/
 │   ├── list.go                # List command
 │   ├── dismiss.go             # Dismiss command
 │   ├── clear.go               # Clear command
-│   ├── toggle.go              # Toggle command
 │   ├── jump.go                # Jump command
 │   ├── status.go              # Status command
 │   ├── status-panel.go        # Status-panel command

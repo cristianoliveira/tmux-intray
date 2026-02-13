@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Clear and toggle command tests
+# Clear command tests
 
 setup() {
     export TMUX_SOCKET_NAME="tmux-intray-test"
@@ -19,9 +19,4 @@ teardown() {
     run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/tmux-intray clear"
     [ "$status" -eq 0 ]
     [[ "$output" == *"cleared"* ]]
-}
-
-@test "toggle tray visibility" {
-    run tmux -L "$TMUX_SOCKET_NAME" run-shell "$PWD/tmux-intray toggle"
-    [ "$status" -eq 0 ]
 }

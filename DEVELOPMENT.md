@@ -16,7 +16,6 @@ tmux-intray/
 │       ├── list.go           # List command
 │       ├── dismiss.go        # Dismiss command
 │       ├── clear.go          # Clear command
-│       ├── toggle.go         # Toggle command
 │       ├── jump.go           # Jump command
 │       ├── status.go         # Status command
 │       ├── cleanup.go        # Cleanup command
