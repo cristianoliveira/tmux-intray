@@ -66,7 +66,8 @@ func init() {
 	// Hide the completion command
 	RootCmd.CompletionOptions.HiddenDefaultCmd = true
 
-	// Custom help is provided by the help command; default help template is used for --help
+	// Ensure default help command is enabled (since we removed custom help)
+	RootCmd.InitDefaultHelpCmd()
 
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags which, if defined here,
@@ -88,6 +89,9 @@ func Execute() error {
 	}
 
 	args := os.Args[1:]
+
+	// DEBUG: print commands
+	// fmt.Fprintf(os.Stderr, "DEBUG: commands: %v\n", RootCmd.Commands())
 
 	// No args? show help by routing through cobra help command
 	if len(args) == 0 {
