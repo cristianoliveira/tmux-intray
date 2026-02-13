@@ -262,8 +262,8 @@ Commands fail with “No tmux session running”.
 
 If none of the above solutions work, please collect the following information and open an issue:
 
-1. **tmux-intray version**  
-   `tmux-intray version`
+1. **tmux-intray --version**  
+   `tmux-intray --version`
 
 2. **Debug output**  
    `TMUX_INTRAY_DEBUG=1 tmux-intray <command> 2>&1`

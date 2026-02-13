@@ -22,7 +22,7 @@
         skip "tmux-intray binary not found (run 'make go-build' first)"
     fi
 
-    run ./tmux-intray version
+    run ./tmux-intray --version
     [ "$status" -eq 0 ]
     [[ "$output" == *"tmux-intray"* ]] || {
         echo "ERROR: Expected to find 'tmux-intray' in version output"

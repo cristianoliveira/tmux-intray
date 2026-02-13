@@ -30,7 +30,7 @@ body:
     id: version
     attributes:
       label: tmux-intray version
-      description: Run `tmux-intray version` to get the version
+      description: Run `tmux-intray --version` to get the version
       placeholder: v1.0.0
     validations:
       required: true

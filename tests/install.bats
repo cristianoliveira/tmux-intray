@@ -103,7 +103,7 @@ teardown() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"installed successfully"* ]]
     # Verify binary exists and works
-    "$TEST_DIR/install-prefix/bin/tmux-intray" version
+    "$TEST_DIR/install-prefix/bin/tmux-intray" --version
     # Clean up
     rm -rf "$TEST_DIR/install-prefix"
 }
