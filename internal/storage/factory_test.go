@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -70,5 +71,23 @@ func TestNewForBackendReturnsErrorForEmptyBackend(t *testing.T) {
 	stor, err := NewForBackend("")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "unknown storage backend")
+	require.Nil(t, stor)
+}
+
+func TestNewForBackendReturnsErrorWhenSQLiteInitFails(t *testing.T) {
+	Reset()
+	t.Cleanup(Reset)
+
+	// Create a file where the directory should be to cause mkdir to fail
+	tmpFile := filepath.Join(t.TempDir(), "blocked")
+	require.NoError(t, os.WriteFile(tmpFile, []byte("test"), 0644))
+
+	// Set state dir to a path that cannot be created as a directory
+	t.Setenv("TMUX_INTRAY_STATE_DIR", filepath.Join(tmpFile, "subdir", "notifications.db"))
+	t.Setenv("TMUX_INTRAY_CONFIG_PATH", filepath.Join(t.TempDir(), "config.toml"))
+
+	stor, err := NewForBackend(BackendSQLite)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to initialize sqlite backend")
 	require.Nil(t, stor)
 }
