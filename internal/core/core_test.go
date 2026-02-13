@@ -11,6 +11,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// containsID checks if a TSV lines string contains a notification with the given ID.
+func containsID(lines, id string) bool {
+	for _, line := range strings.Split(strings.TrimSpace(lines), "\n") {
+		if line == "" {
+			continue
+		}
+		fields := strings.Split(line, "\t")
+		if len(fields) > 0 && fields[0] == id {
+			return true
+		}
+	}
+	return false
+}
+
 func TestCore(t *testing.T) {
 	// Set up test environment
 	tmpDir := t.TempDir()
@@ -181,20 +195,20 @@ func TestCore(t *testing.T) {
 		// List all active
 		lines, err := c.ListNotifications("active", "", "", "", "", "", "", "")
 		require.NoError(t, err)
-		require.Contains(t, lines, id1)
-		require.Contains(t, lines, id2)
+		require.True(t, containsID(lines, id1))
+		require.True(t, containsID(lines, id2))
 
 		// Filter by level
 		lines, err = c.ListNotifications("active", "warning", "", "", "", "", "", "")
 		require.NoError(t, err)
-		require.Contains(t, lines, id2)
-		require.NotContains(t, lines, id1)
+		require.True(t, containsID(lines, id2))
+		require.False(t, containsID(lines, id1))
 
 		// Empty filter returns all
 		lines, err = c.ListNotifications("", "", "", "", "", "", "", "")
 		require.NoError(t, err)
-		require.Contains(t, lines, id1)
-		require.Contains(t, lines, id2)
+		require.True(t, containsID(lines, id1))
+		require.True(t, containsID(lines, id2))
 	})
 
 	t.Run("GetActiveCount", func(t *testing.T) {
@@ -296,7 +310,7 @@ func TestCore(t *testing.T) {
 		// ListNotifications
 		lines, err := ListNotifications("active", "", "", "", "", "", "", "")
 		require.NoError(t, err)
-		require.Contains(t, lines, id)
+		require.True(t, containsID(lines, id))
 
 		// GetTrayItems
 		items, err := GetTrayItems("active")
