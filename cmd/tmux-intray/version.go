@@ -1,33 +1,41 @@
+/*
+Copyright © 2026 Cristian Oliveira <license@cristianoliveira.dev>
+*/
 package main
 
 import (
 	"fmt"
-	"io"
-	"os"
 
 	"github.com/cristianoliveira/tmux-intray/cmd"
-	"github.com/cristianoliveira/tmux-intray/internal/version"
-
 	"github.com/spf13/cobra"
 )
 
-// versionOutputWriter is the writer used by PrintVersion. Can be changed for testing.
-var versionOutputWriter io.Writer = os.Stdout
+type versionClient interface {
+	Version() string
+}
 
-// PrintVersion prints the version information to stdout.
-func PrintVersion() {
-	fmt.Fprintf(versionOutputWriter, "tmux-intray version %s\n", version.String())
+// NewVersionCmd creates the version command with explicit dependencies.
+func NewVersionCmd(client versionClient) *cobra.Command {
+	if client == nil {
+		panic("NewVersionCmd: client dependency cannot be nil")
+	}
+
+	versionCmd := &cobra.Command{
+		Use:   "version",
+		Short: "Show version information",
+		Long:  `Show the current version of tmux-intray.`,
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Fprintf(cmd.OutOrStdout(), "tmux-intray version %s\n", client.Version())
+			return nil
+		},
+	}
+
+	return versionCmd
 }
 
 // versionCmd represents the version command
-var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "Show version information",
-	Long:  `Show the current version of tmux-intray.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		PrintVersion()
-	},
-}
+var versionCmd = NewVersionCmd(coreClient)
 
 func init() {
 	cmd.RootCmd.AddCommand(versionCmd)

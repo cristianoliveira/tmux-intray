@@ -2,58 +2,73 @@ package main
 
 import (
 	"bytes"
+	"strings"
 	"testing"
-
-	"github.com/cristianoliveira/tmux-intray/internal/version"
 )
 
-func TestPrintVersion(t *testing.T) {
-	// Save original writer and version variables
-	origWriter := versionOutputWriter
-	origVersion := version.Version
-	origCommit := version.Commit
+func TestNewVersionCmdPanicsWhenClientIsNil(t *testing.T) {
 	defer func() {
-		versionOutputWriter = origWriter
-		version.Version = origVersion
-		version.Commit = origCommit
+		r := recover()
+		if r == nil {
+			t.Fatalf("expected panic, got nil")
+		}
+
+		msg, ok := r.(string)
+		if !ok {
+			t.Fatalf("expected panic message as string, got %T", r)
+		}
+		if !strings.Contains(msg, "client dependency cannot be nil") {
+			t.Fatalf("expected panic message to mention nil dependency, got %q", msg)
+		}
 	}()
 
+	NewVersionCmd(nil)
+}
+
+func TestVersionOutput(t *testing.T) {
 	tests := []struct {
 		name     string
-		ver      string
-		commit   string
+		version  string
 		expected string
 	}{
 		{
-			name:     "development version without commit",
-			ver:      "development",
-			commit:   "unknown",
+			name:     "development version",
+			version:  "development",
 			expected: "tmux-intray version development\n",
 		},
 		{
-			name:     "release version with commit",
-			ver:      "1.0.0",
-			commit:   "abc1234",
-			expected: "tmux-intray version 1.0.0+abc1234\n",
+			name:     "release version",
+			version:  "1.0.0",
+			expected: "tmux-intray version 1.0.0\n",
 		},
 		{
-			name:     "version with commit hash",
-			ver:      "0.5.0",
-			commit:   "def5678",
-			expected: "tmux-intray version 0.5.0+def5678\n",
+			name:     "version with commit",
+			version:  "0.5.0+abc1234",
+			expected: "tmux-intray version 0.5.0+abc1234\n",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			client := &fakeVersionClient{version: tt.version}
+			cmd := NewVersionCmd(client)
 			var buf bytes.Buffer
-			versionOutputWriter = &buf
-			version.Version = tt.ver
-			version.Commit = tt.commit
-			PrintVersion()
+			cmd.SetOut(&buf)
+			err := cmd.RunE(cmd, []string{})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 			if buf.String() != tt.expected {
-				t.Errorf("PrintVersion() printed %q, want %q", buf.String(), tt.expected)
+				t.Errorf("version output %q, want %q", buf.String(), tt.expected)
 			}
 		})
 	}
+}
+
+type fakeVersionClient struct {
+	version string
+}
+
+func (f *fakeVersionClient) Version() string {
+	return f.version
 }
