@@ -211,6 +211,41 @@ func TestStatusRunEListNotificationsError(t *testing.T) {
 	assert.Len(t, client.listNotificationsCalls, 1) // called once (countByState returns 0, early exit)
 }
 
+func TestStatusHelperEdgeCases(t *testing.T) {
+	client := &fakeStatusClient{
+		ensureTmuxRunningResult: true,
+	}
+	// Test countByLevel with unknown level
+	client.listNotificationsResult = "1\t2025-01-01T10:00:00Z\tactive\tsess1\twin1\tpane1\tmessage one\t123\tunknown"
+	info, warning, err, critical := countByLevel(client)
+	require.Equal(t, 1, info) // default case increments info
+	require.Equal(t, 0, warning)
+	require.Equal(t, 0, err)
+	require.Equal(t, 0, critical)
+
+	// Test countByLevel with fields length <=8 (skip)
+	client.listNotificationsResult = "1\t2025-01-01T10:00:00Z\tactive\tsess1\twin1\tpane1\tmessage one"
+	info, warning, err, critical = countByLevel(client)
+	require.Equal(t, 0, info)
+	require.Equal(t, 0, warning)
+	require.Equal(t, 0, err)
+	require.Equal(t, 0, critical)
+
+	// Test paneCounts with fields length <=5 (skip)
+	client.listNotificationsResult = "1\t2025-01-01T10:00:00Z\tactive\tsess1"
+	panes := paneCounts(client)
+	require.Empty(t, panes)
+
+	// Test paneCounts with empty session/window/pane (still counts)
+	client.listNotificationsResult = "1\t2025-01-01T10:00:00Z\tactive\t\t\t\tmessage\t123\tinfo"
+	panes = paneCounts(client)
+	require.Len(t, panes, 1)
+	key := "::"
+	count, ok := panes[key]
+	require.True(t, ok)
+	require.Equal(t, 1, count)
+}
+
 func TestStatusRunEGetActiveCountError(t *testing.T) {
 	// GetActiveCount returns int, cannot error; ignore
 }

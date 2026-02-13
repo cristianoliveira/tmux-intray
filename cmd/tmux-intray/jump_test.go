@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"strings"
 	"testing"
@@ -278,4 +279,42 @@ func TestJumpRunEInvalidFieldData(t *testing.T) {
 	err = cmd.RunE(cmd, []string{"42"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing required fields")
+}
+
+func TestJumpRunEDismissedState(t *testing.T) {
+	client := &fakeJumpClient{
+		ensureTmuxRunningResult:   true,
+		getNotificationByIDResult: "42\t2025-02-04T10:00:00Z\tdismissed\t$0\t%0\t:0.0\thello\t1234567890\tinfo",
+		validatePaneExistsResult:  true,
+		jumpToPaneResult:          true,
+	}
+	cmd := NewJumpCmd(client)
+	var stdout bytes.Buffer
+	cmd.SetOut(&stdout)
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+
+	err := cmd.RunE(cmd, []string{"42"})
+	require.NoError(t, err)
+	// Should still jump and mark as read
+	assert.Equal(t, []string{"42"}, client.markNotificationReadCalls)
+	// Output should contain info about dismissed notification
+	// (colors.Info prints to stderr, but we can't easily capture colors)
+	// We'll just ensure no error.
+}
+
+func TestJumpRunEMarkNotificationReadError(t *testing.T) {
+	client := &fakeJumpClient{
+		ensureTmuxRunningResult:   true,
+		getNotificationByIDResult: "42\t2025-02-04T10:00:00Z\tactive\t$0\t%0\t:0.0\thello\t1234567890\tinfo",
+		validatePaneExistsResult:  true,
+		jumpToPaneResult:          true,
+		markNotificationReadErr:   errors.New("mark read failed"),
+	}
+	cmd := NewJumpCmd(client)
+	// Should still jump but return error because mark read failed
+	err := cmd.RunE(cmd, []string{"42"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to mark notification as read")
+	assert.Equal(t, []string{"42"}, client.markNotificationReadCalls)
 }
