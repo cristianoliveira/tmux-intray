@@ -141,16 +141,6 @@ func (c *Core) GetNotificationByID(id string) (string, error) {
 	return c.storage.GetNotificationByID(id)
 }
 
-// ListNotifications retrieves notifications with filters.
-func ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error) {
-	return defaultCore.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
-}
-
-// ListNotifications retrieves notifications with filters using this Core instance.
-func (c *Core) ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error) {
-	return c.storage.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
-}
-
 // GetActiveCount returns the number of active notifications.
 func GetActiveCount() int {
 	return defaultCore.GetActiveCount()
@@ -193,4 +183,14 @@ func (c *Core) SetVisibility(visible bool) error {
 	}
 	_, err := c.SetTmuxVisibility(visibleStr)
 	return err
+}
+
+// ListNotifications lists notifications with filters.
+func (c *Core) ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error) {
+	return c.storage.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
+}
+
+// ListNotifications lists notifications with filters using the default core instance.
+func ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error) {
+	return defaultCore.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
 }
