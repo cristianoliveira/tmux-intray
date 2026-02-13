@@ -9,8 +9,8 @@
 
     run ./tmux-intray help
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Usage:"* ]] || {
-        echo "ERROR: Expected to find 'Usage:' in help output"
+    [[ "$output" == *"USAGE:"* ]] || {
+        echo "ERROR: Expected to find 'USAGE:' in help output"
         echo "Output was: $output"
         exit 1
     }
