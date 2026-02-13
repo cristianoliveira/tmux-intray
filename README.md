@@ -204,7 +204,7 @@ $ tmux-intray --help
 
 #### Utility Commands
 - `tmux-intray help` - Show help message
-- `tmux-intray version` - Show version information
+- `tmux-intray --version` - Show version information
 - `tmux-intray status-panel` - Generate status bar output for tmux integration
 
 ## Documentation
