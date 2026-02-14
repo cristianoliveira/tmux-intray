@@ -1,5 +1,5 @@
 /*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
+Copyright © 2026 Cristian Oliveira <license@cristianoliveira.dev>
 */
 package cmd
 
