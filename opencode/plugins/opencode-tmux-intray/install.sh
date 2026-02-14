@@ -8,7 +8,6 @@ set -euo pipefail
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
 NC='\033[0m'
 
 log_info() {
@@ -22,8 +21,10 @@ log_error() {
 # Install plugin to global location
 install_plugin() {
     local dest_dir="${HOME}/.config/opencode/plugins"
-    local plugin_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    local src_dir="$(dirname "$plugin_dir")"
+    local plugin_dir
+    plugin_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local src_dir
+    src_dir="$(dirname "$plugin_dir")"
 
     log_info "Installing opencode-tmux-intray plugin..."
 
