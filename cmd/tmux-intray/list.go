@@ -25,6 +25,24 @@ type listClient interface {
 	ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error)
 }
 
+// notificationsToValues converts a slice of notification pointers to values.
+func notificationsToValues(notifs []*domain.Notification) []domain.Notification {
+	values := make([]domain.Notification, len(notifs))
+	for i, n := range notifs {
+		values[i] = *n
+	}
+	return values
+}
+
+// notificationsToPointers converts a slice of notification values to pointers.
+func notificationsToPointers(notifs []domain.Notification) []*domain.Notification {
+	ptrs := make([]*domain.Notification, len(notifs))
+	for i := range notifs {
+		ptrs[i] = &notifs[i]
+	}
+	return ptrs
+}
+
 // NewListCmd creates the list command with explicit dependencies.
 func NewListCmd(client listClient) *cobra.Command {
 	if client == nil {
@@ -269,11 +287,12 @@ func printList(opts FilterOptions, w io.Writer) {
 
 	// Apply grouping if requested
 	if opts.GroupBy != "" {
-		grouped := groupNotifications(notifications, opts.GroupBy)
+		notificationsValues := notificationsToValues(notifications)
+		groupResult := domain.GroupNotifications(notificationsValues, domain.GroupByMode(opts.GroupBy))
 		if opts.GroupCount {
-			printGroupCounts(grouped, w, opts.Format)
+			printGroupCounts(groupResult, w, opts.Format)
 		} else {
-			printGrouped(grouped, w, opts.Format)
+			printGrouped(groupResult, w, opts.Format)
 		}
 		return
 	}
@@ -317,62 +336,31 @@ func orderUnreadFirst(notifs []*domain.Notification) []*domain.Notification {
 	return ordered
 }
 
-// groupNotifications groups notifications by field.
-func groupNotifications(notifs []*domain.Notification, field string) map[string][]*domain.Notification {
-	groups := make(map[string][]*domain.Notification)
-	for _, n := range notifs {
-		var key string
-		switch field {
-		case "session":
-			key = n.Session
-		case "window":
-			key = n.Window
-		case "pane":
-			key = n.Pane
-		case "level":
-			key = string(n.Level)
-		default:
-			key = ""
-		}
-		groups[key] = append(groups[key], n)
-	}
-	return groups
-}
-
 // printGroupCounts prints only group counts.
-func printGroupCounts(groups map[string][]*domain.Notification, w io.Writer, format string) {
-	// Sort keys for consistent output
-	var keys []string
-	for k := range groups {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		fmt.Fprintf(w, "Group: %s (%d)\n", k, len(groups[k]))
+func printGroupCounts(groupResult domain.GroupResult, w io.Writer, format string) {
+	// Groups are already sorted by display name
+	for _, group := range groupResult.Groups {
+		fmt.Fprintf(w, "Group: %s (%d)\n", group.DisplayName, group.Count)
 	}
 }
 
 // printGrouped prints grouped notifications with headers.
-func printGrouped(groups map[string][]*domain.Notification, w io.Writer, format string) {
-	// Sort keys for consistent output
-	var keys []string
-	for k := range groups {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		fmt.Fprintf(w, "=== %s (%d) ===\n", k, len(groups[k]))
+func printGrouped(groupResult domain.GroupResult, w io.Writer, format string) {
+	// Groups are already sorted by display name
+	for _, group := range groupResult.Groups {
+		fmt.Fprintf(w, "=== %s (%d) ===\n", group.DisplayName, group.Count)
+		notifs := notificationsToPointers(group.Notifications)
 		switch format {
 		case "simple":
-			printSimple(groups[k], w)
+			printSimple(notifs, w)
 		case "legacy":
-			printLegacy(groups[k], w)
+			printLegacy(notifs, w)
 		case "table":
-			printTable(groups[k], w)
+			printTable(notifs, w)
 		case "compact":
-			printCompact(groups[k], w)
+			printCompact(notifs, w)
 		default:
-			printLegacy(groups[k], w)
+			printLegacy(notifs, w)
 		}
 	}
 }

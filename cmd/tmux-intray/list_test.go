@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/stretchr/testify/assert"
@@ -569,24 +570,53 @@ func TestGroupNotifications(t *testing.T) {
 		{ID: 3, Session: "sess2", Window: "win1", Pane: "pane1", Level: "info"},
 	}
 	domainNotifs := notification.ToDomainSliceUnsafe(notifs)
+	// Convert to values for domain.GroupNotifications
+	values := notificationsToValues(domainNotifs)
+
 	// Group by session
-	groups := groupNotifications(domainNotifs, "session")
-	assert.Equal(t, 2, len(groups))
-	assert.Equal(t, 2, len(groups["sess1"]))
-	assert.Equal(t, 1, len(groups["sess2"]))
+	result := domain.GroupNotifications(values, domain.GroupBySession)
+	assert.Equal(t, 2, len(result.Groups))
+	// Find groups by display name (should be sess1, sess2)
+	var sess1Group, sess2Group domain.Group
+	for _, g := range result.Groups {
+		if g.DisplayName == "sess1" {
+			sess1Group = g
+		} else if g.DisplayName == "sess2" {
+			sess2Group = g
+		}
+	}
+	assert.Equal(t, 2, sess1Group.Count)
+	assert.Equal(t, 1, sess2Group.Count)
+
 	// Group by window
-	groups = groupNotifications(domainNotifs, "window")
-	assert.Equal(t, 2, len(groups)) // win1 has two, win2 has one
+	result = domain.GroupNotifications(values, domain.GroupByWindow)
+	assert.Equal(t, 3, len(result.Groups)) // sess1/win1, sess1/win2, sess2/win1
+	// Check total count
+	assert.Equal(t, 3, result.TotalCount)
+
 	// Group by pane
-	groups = groupNotifications(domainNotifs, "pane")
-	assert.Equal(t, 2, len(groups)) // pane1 has two, pane2 has one
+	result = domain.GroupNotifications(values, domain.GroupByPane)
+	assert.Equal(t, 3, len(result.Groups)) // sess1/win1/pane1, sess1/win2/pane2, sess2/win1/pane1
+	assert.Equal(t, 3, result.TotalCount)
+
 	// Group by level
-	groups = groupNotifications(domainNotifs, "level")
-	assert.Equal(t, 2, len(groups)) // info has two, warning has one
-	// Unknown field defaults to empty key
-	groups = groupNotifications(domainNotifs, "unknown")
-	assert.Equal(t, 1, len(groups))
-	assert.Equal(t, 3, len(groups[""]))
+	result = domain.GroupNotifications(values, domain.GroupByLevel)
+	assert.Equal(t, 2, len(result.Groups)) // info, warning
+	var infoGroup, warningGroup domain.Group
+	for _, g := range result.Groups {
+		if g.DisplayName == "info" {
+			infoGroup = g
+		} else if g.DisplayName == "warning" {
+			warningGroup = g
+		}
+	}
+	assert.Equal(t, 2, infoGroup.Count)
+	assert.Equal(t, 1, warningGroup.Count)
+
+	// Unknown field defaults to GroupByNone (empty groups)
+	result = domain.GroupNotifications(values, domain.GroupByMode("unknown"))
+	assert.Equal(t, 0, len(result.Groups))
+	assert.Equal(t, 3, result.TotalCount)
 }
 
 func TestPrintFunctionsWithEmptySlice(t *testing.T) {
