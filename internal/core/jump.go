@@ -154,7 +154,7 @@ func (s *JumpService) JumpToContext(sessionID, windowID, paneID string) (*JumpRe
 	}
 
 	// 3. Validate pane exists (if paneID is provided)
-	var paneExists bool
+	paneExists := false
 	if paneID != "" {
 		paneExists, err = s.tmuxClient.ValidatePaneExists(sessionID, windowID, paneID)
 		if err != nil {
@@ -163,26 +163,36 @@ func (s *JumpService) JumpToContext(sessionID, windowID, paneID string) (*JumpRe
 	}
 
 	if paneExists && paneID != "" {
-		// 4a. Jump to pane
-		success, err := s.tmuxClient.JumpToPane(sessionID, windowID, paneID)
-		if err != nil {
-			return nil, fmt.Errorf("jump to pane: %w", err)
-		}
-		return &JumpResult{
-			Success:      success,
-			JumpedToPane: true,
-			Session:      sessionID,
-			Window:       windowID,
-			Pane:         paneID,
-			Message:      fmt.Sprintf("Jumped to %s:%s.%s", sessionID, windowID, paneID),
-		}, nil
+		return s.jumpToPane(sessionID, windowID, paneID, true)
 	}
 
-	// 4b. Fallback: jump to window only (or if no pane provided)
+	// Fallback: jump to window only (or if no pane provided)
+	return s.jumpToWindow(sessionID, windowID, paneID)
+}
+
+// jumpToPane jumps to a specific pane.
+func (s *JumpService) jumpToPane(sessionID, windowID, paneID string, jumpedToPane bool) (*JumpResult, error) {
+	success, err := s.tmuxClient.JumpToPane(sessionID, windowID, paneID)
+	if err != nil {
+		return nil, fmt.Errorf("jump to pane: %w", err)
+	}
+	return &JumpResult{
+		Success:      success,
+		JumpedToPane: jumpedToPane,
+		Session:      sessionID,
+		Window:       windowID,
+		Pane:         paneID,
+		Message:      fmt.Sprintf("Jumped to %s:%s.%s", sessionID, windowID, paneID),
+	}, nil
+}
+
+// jumpToWindow jumps to a specific window.
+func (s *JumpService) jumpToWindow(sessionID, windowID, paneID string) (*JumpResult, error) {
 	success, err := s.tmuxClient.JumpToPane(sessionID, windowID, "")
 	if err != nil {
 		return nil, fmt.Errorf("jump to window: %w", err)
 	}
+
 	if paneID != "" {
 		return &JumpResult{
 			Success:      success,
@@ -193,6 +203,7 @@ func (s *JumpService) JumpToContext(sessionID, windowID, paneID string) (*JumpRe
 			Message:      fmt.Sprintf("Jumped to %s:%s (pane not found)", sessionID, windowID),
 		}, nil
 	}
+
 	return &JumpResult{
 		Success:      success,
 		JumpedToPane: false,

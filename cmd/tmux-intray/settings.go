@@ -21,19 +21,8 @@ type settingsClient interface {
 	LoadSettings() (*settings.Settings, error)
 }
 
-// NewSettingsCmd creates the settings command with explicit dependencies.
-func NewSettingsCmd(client settingsClient) *cobra.Command {
-	if client == nil {
-		panic("NewSettingsCmd: client dependency cannot be nil")
-	}
-
-	var resetForce bool
-
-	// Parent command
-	settingsCmd := &cobra.Command{
-		Use:   "settings",
-		Short: "Manage TUI settings",
-		Long: `Manage TUI settings.
+const (
+	settingsCommandLong = `Manage TUI settings.
 
 USAGE:
     tmux-intray settings <subcommand>
@@ -50,14 +39,8 @@ EXAMPLES:
     tmux-intray settings reset --force
 
     # Show current settings
-    tmux-intray settings show`,
-	}
-
-	// Subcommand: reset
-	resetCmd := &cobra.Command{
-		Use:   "reset",
-		Short: "Reset TUI settings to defaults",
-		Long: `Reset TUI settings to defaults by deleting the settings file.
+    tmux-intray settings show`
+	resetCommandLong = `Reset TUI settings to defaults by deleting the settings file.
 
 USAGE:
     tmux-intray settings reset [OPTIONS]
@@ -71,66 +54,103 @@ EXAMPLES:
     tmux-intray settings reset
 
     # Reset settings without confirmation
-    tmux-intray settings reset --force`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			// Skip confirmation if --force flag is set or running in CI/test environment
-			if !resetForce && os.Getenv("CI") == "" && os.Getenv("BATS_TMPDIR") == "" {
-				if !confirmReset() {
-					colors.Info("Operation cancelled")
-					return nil
-				}
-			}
-
-			// Reset settings
-			_, err := client.ResetSettings()
-			if err != nil {
-				return fmt.Errorf("failed to reset settings: %w", err)
-			}
-
-			colors.Success("Settings reset to defaults")
-			return nil
-		},
-	}
-
-	// Subcommand: show
-	showCmd := &cobra.Command{
-		Use:   "show",
-		Short: "Display current settings",
-		Long: `Display current TUI settings in JSON format.
+    tmux-intray settings reset --force`
+	showCommandLong = `Display current TUI settings in JSON format.
 
 USAGE:
     tmux-intray settings show
 
 EXAMPLES:
     # Show current settings
-    tmux-intray settings show`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			// Load settings
-			currentSettings, err := client.LoadSettings()
-			if err != nil {
-				return fmt.Errorf("failed to load settings: %w", err)
-			}
+    tmux-intray settings show`
+)
 
-			// Marshal settings to JSON with indentation
-			data, err := json.MarshalIndent(currentSettings, "", "  ")
-			if err != nil {
-				return fmt.Errorf("failed to marshal settings: %w", err)
-			}
-
-			// Display settings
-			colors.Info(string(data))
-			return nil
-		},
+// NewSettingsCmd creates the settings command with explicit dependencies.
+func NewSettingsCmd(client settingsClient) *cobra.Command {
+	if client == nil {
+		panic("NewSettingsCmd: client dependency cannot be nil")
 	}
 
-	// Add flags
-	resetCmd.Flags().BoolVar(&resetForce, "force", false, "Reset without confirmation")
+	settingsCmd := &cobra.Command{
+		Use:   "settings",
+		Short: "Manage TUI settings",
+		Long:  settingsCommandLong,
+	}
+
+	resetCmd := newResetCmd(client)
+	showCmd := newShowCmd(client)
 
 	// Add subcommands to parent
 	settingsCmd.AddCommand(resetCmd)
 	settingsCmd.AddCommand(showCmd)
 
 	return settingsCmd
+}
+
+// newResetCmd creates the reset subcommand.
+func newResetCmd(client settingsClient) *cobra.Command {
+	var resetForce bool
+	resetCmd := &cobra.Command{
+		Use:   "reset",
+		Short: "Reset TUI settings to defaults",
+		Long:  resetCommandLong,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runResetCmd(client, resetForce)
+		},
+	}
+	resetCmd.Flags().BoolVar(&resetForce, "force", false, "Reset without confirmation")
+	return resetCmd
+}
+
+// newShowCmd creates the show subcommand.
+func newShowCmd(client settingsClient) *cobra.Command {
+	return &cobra.Command{
+		Use:   "show",
+		Short: "Display current settings",
+		Long:  showCommandLong,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runShowCmd(client)
+		},
+	}
+}
+
+// runResetCmd executes the reset subcommand.
+func runResetCmd(client settingsClient, force bool) error {
+	// Skip confirmation if --force flag is set or running in CI/test environment
+	if !force && os.Getenv("CI") == "" && os.Getenv("BATS_TMPDIR") == "" {
+		if !confirmReset() {
+			colors.Info("Operation cancelled")
+			return nil
+		}
+	}
+
+	// Reset settings
+	_, err := client.ResetSettings()
+	if err != nil {
+		return fmt.Errorf("failed to reset settings: %w", err)
+	}
+
+	colors.Success("Settings reset to defaults")
+	return nil
+}
+
+// runShowCmd executes the show subcommand.
+func runShowCmd(client settingsClient) error {
+	// Load settings
+	currentSettings, err := client.LoadSettings()
+	if err != nil {
+		return fmt.Errorf("failed to load settings: %w", err)
+	}
+
+	// Marshal settings to JSON with indentation
+	data, err := json.MarshalIndent(currentSettings, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal settings: %w", err)
+	}
+
+	// Display settings
+	colors.Info(string(data))
+	return nil
 }
 
 // settingsCmd represents the settings command

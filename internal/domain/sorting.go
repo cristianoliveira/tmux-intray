@@ -75,65 +75,91 @@ func SortNotifications(notifs []Notification, opts SortOptions) []Notification {
 		return notifs
 	}
 
-	if !opts.Field.IsValid() {
-		opts.Field = SortByTimestampField
-	}
-	if !opts.Order.IsValid() {
-		opts.Order = SortOrderDesc
-	}
+	opts = normalizeSortOptions(opts)
 
 	// Create a copy to avoid modifying the original
 	sorted := make([]Notification, len(notifs))
 	copy(sorted, notifs)
 
 	sort.SliceStable(sorted, func(i, j int) bool {
-		var less bool
-
-		switch opts.Field {
-		case SortByIDField:
-			less = sorted[i].ID < sorted[j].ID
-		case SortByTimestampField:
-			less = sorted[i].Timestamp < sorted[j].Timestamp
-		case SortByStateField:
-			less = sorted[i].State.String() < sorted[j].State.String()
-		case SortByLevelField:
-			less = sorted[i].Level.String() < sorted[j].Level.String()
-		case SortBySessionField:
-			less = sorted[i].Session < sorted[j].Session
-		case SortByMessageField:
-			msgI := sorted[i].Message
-			msgJ := sorted[j].Message
-			if opts.CaseInsensitive {
-				less = strings.ToLower(msgI) < strings.ToLower(msgJ)
-			} else {
-				less = msgI < msgJ
-			}
-		case SortByReadStatusField:
-			iRead := sorted[i].IsRead()
-			jRead := sorted[j].IsRead()
-			var cmp int
-			if iRead == jRead {
-				cmp = 0
-			} else if !iRead && jRead {
-				cmp = -1 // unread before read
-			} else {
-				cmp = 1
-			}
-			if opts.Order == SortOrderDesc {
-				cmp = -cmp
-			}
-			return cmp < 0
-		default:
-			less = sorted[i].Timestamp < sorted[j].Timestamp
-		}
-
-		if opts.Order == SortOrderDesc {
-			return !less
-		}
-		return less
+		return compareNotifications(sorted[i], sorted[j], opts) < 0
 	})
 
 	return sorted
+}
+
+// normalizeSortOptions normalizes sort options by setting defaults.
+func normalizeSortOptions(opts SortOptions) SortOptions {
+	if !opts.Field.IsValid() {
+		opts.Field = SortByTimestampField
+	}
+	if !opts.Order.IsValid() {
+		opts.Order = SortOrderDesc
+	}
+	return opts
+}
+
+// compareNotifications compares two notifications based on the sort options.
+// Returns -1 if i < j, 1 if i > j, 0 if equal.
+func compareNotifications(i, j Notification, opts SortOptions) int {
+	// Read status field handles order directly in compareByField
+	if opts.Field == SortByReadStatusField {
+		less := compareByField(i, j, opts)
+		if less {
+			return -1
+		}
+		return 1
+	}
+
+	less := compareByField(i, j, opts)
+
+	// Apply order (flip for descending)
+	if opts.Order == SortOrderDesc {
+		if less {
+			return 1
+		}
+		return -1
+	}
+
+	if less {
+		return -1
+	}
+	return 1
+}
+
+// compareByField compares two notifications by the specified field.
+func compareByField(i, j Notification, opts SortOptions) bool {
+	switch opts.Field {
+	case SortByIDField:
+		return i.ID < j.ID
+	case SortByTimestampField:
+		return i.Timestamp < j.Timestamp
+	case SortByStateField:
+		return i.State.String() < j.State.String()
+	case SortByLevelField:
+		return i.Level.String() < j.Level.String()
+	case SortBySessionField:
+		return i.Session < j.Session
+	case SortByMessageField:
+		msgI := i.Message
+		msgJ := j.Message
+		if opts.CaseInsensitive {
+			return strings.ToLower(msgI) < strings.ToLower(msgJ)
+		}
+		return msgI < msgJ
+	case SortByReadStatusField:
+		// For read status, handle order directly in the comparison
+		iRead := i.IsRead()
+		jRead := j.IsRead()
+		if opts.Order == SortOrderAsc {
+			// Ascending: unread first, then read
+			return !iRead && jRead
+		}
+		// Descending: read first, then unread
+		return iRead && !jRead
+	default:
+		return i.Timestamp < j.Timestamp
+	}
 }
 
 // SortByID sorts notifications by ID.

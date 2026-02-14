@@ -51,48 +51,62 @@ EXAMPLES:
 				return fmt.Errorf("tmux not running")
 			}
 
-			// Determine format: flag > environment variable > default
-			format := formatFlag
-			if !cmd.Flag("format").Changed {
-				if envFormat := os.Getenv("TMUX_INTRAY_STATUS_FORMAT"); envFormat != "" {
-					format = envFormat
-				}
-			}
-			if format == "" {
-				format = "summary"
+			format := determineStatusFormat(cmd, formatFlag)
+			if err := validateStatusFormat(format); err != nil {
+				return err
 			}
 
-			// Validate format
-			validFormats := map[string]bool{
-				"summary": true,
-				"levels":  true,
-				"panes":   true,
-				"json":    true,
-			}
-			if !validFormats[format] {
-				return fmt.Errorf("status: unknown format: %s", format)
-			}
-
-			// Output writer
 			w := cmd.OutOrStdout()
-
-			switch format {
-			case "summary":
-				return formatSummary(client, w)
-			case "levels":
-				return formatLevels(client, w)
-			case "panes":
-				return formatPanes(client, w)
-			case "json":
-				return formatJSON(client, w)
-			default:
-				return fmt.Errorf("status: unknown format: %s", format)
-			}
+			return runStatusCommand(client, format, w)
 		},
 	}
 
 	statusCmd.Flags().StringVar(&formatFlag, "format", "summary", "Output format: summary, levels, panes, json")
 	return statusCmd
+}
+
+// determineStatusFormat determines the output format.
+func determineStatusFormat(cmd *cobra.Command, formatFlag string) string {
+	format := formatFlag
+	if !cmd.Flag("format").Changed {
+		if envFormat := os.Getenv("TMUX_INTRAY_STATUS_FORMAT"); envFormat != "" {
+			format = envFormat
+		}
+	}
+	if format == "" {
+		format = "summary"
+	}
+	return format
+}
+
+// validateStatusFormat validates the status format.
+func validateStatusFormat(format string) error {
+	validFormats := map[string]bool{
+		"summary": true,
+		"levels":  true,
+		"panes":   true,
+		"json":    true,
+	}
+	if !validFormats[format] {
+		return fmt.Errorf("status: unknown format: %s", format)
+	}
+	return nil
+}
+
+// runStatusCommand executes the status command with the given format.
+func runStatusCommand(client statusClient, format string, w io.Writer) error {
+	switch format {
+	case "summary":
+		return formatSummary(client, w)
+	case "levels":
+		return formatLevels(client, w)
+	case "panes":
+		return formatPanes(client, w)
+	case "json":
+		return formatJSON(client, w)
+	default:
+		return fmt.Errorf("status: unknown format: %s", format)
+	}
 }
 
 // statusCmd represents the status command.

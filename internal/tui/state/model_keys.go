@@ -78,23 +78,16 @@ func (m *Model) handleKeyBinding(key string) (tea.Model, tea.Cmd) {
 		m.handleMoveUp()
 		return m, nil
 	case "G":
-		if m.canProcessBinding() {
-			m.handleMoveBottom()
-		}
-		return m, nil
+		return m.handleBindingWithCheck(m.handleMoveBottom)
 	case "g":
-		if m.canProcessBinding() {
+		return m.handleBindingWithCheck(func() {
 			m.uiState.SetPendingKey("g")
-		}
-		return m, nil
+		})
 	case "/":
 		m.handleSearchMode()
 		return m, nil
 	case ":":
-		if m.canProcessBinding() {
-			m.handleCommandMode()
-		}
-		return m, nil
+		return m.handleBindingWithCheck(m.handleCommandMode)
 	case "d":
 		return m, m.handleDismiss()
 	case "r":
@@ -102,10 +95,7 @@ func (m *Model) handleKeyBinding(key string) (tea.Model, tea.Cmd) {
 	case "u":
 		return m, m.markSelectedUnread()
 	case "v":
-		if m.canProcessBinding() {
-			m.cycleViewMode()
-		}
-		return m, nil
+		return m.handleBindingWithCheck(m.cycleViewMode)
 	case "h":
 		m.handleCollapseNode()
 		return m, nil
@@ -123,6 +113,14 @@ func (m *Model) handleKeyBinding(key string) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "q":
 		return m.handleQuit()
+	}
+	return m, nil
+}
+
+// handleBindingWithCheck executes a binding if it can be processed.
+func (m *Model) handleBindingWithCheck(fn func()) (tea.Model, tea.Cmd) {
+	if m.canProcessBinding() {
+		fn()
 	}
 	return m, nil
 }

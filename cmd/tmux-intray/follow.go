@@ -182,6 +182,11 @@ func Follow(ctx context.Context, opts FollowOptions) error {
 		return listFunc(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, "", "", "")
 	}
 
+	return followLoop(ctx, sigChan, tickChan, fetchNotifications, seen, opts)
+}
+
+// followLoop runs the main follow loop.
+func followLoop(ctx context.Context, sigChan chan os.Signal, tickChan <-chan time.Time, fetchNotifications func() string, seen map[int]bool, opts FollowOptions) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -190,30 +195,35 @@ func Follow(ctx context.Context, opts FollowOptions) error {
 			_, _ = fmt.Fprintf(opts.Output, "\nReceived signal %v, stopping...\n", sig)
 			return nil
 		case <-tickChan:
-			// Fetch notifications with filters
-			lines := fetchNotifications()
-			if lines == "" {
-				continue
-			}
-			// Parse lines
-			var notifications []notification.Notification
-			for _, line := range strings.Split(lines, "\n") {
-				if line == "" {
-					continue
-				}
-				notif, err := notification.ParseNotification(line)
-				if err != nil {
-					continue
-				}
-				notifications = append(notifications, notif)
-			}
-			// Print new notifications
-			for _, notif := range notifications {
-				if !seen[notif.ID] {
-					printNotification(notif, opts.Output)
-					seen[notif.ID] = true
-				}
-			}
+			processFollowTick(fetchNotifications, seen, opts)
+		}
+	}
+}
+
+// processFollowTick processes a single tick of the follow loop.
+func processFollowTick(fetchNotifications func() string, seen map[int]bool, opts FollowOptions) {
+	// Fetch notifications with filters
+	lines := fetchNotifications()
+	if lines == "" {
+		return
+	}
+	// Parse lines
+	var notifications []notification.Notification
+	for _, line := range strings.Split(lines, "\n") {
+		if line == "" {
+			continue
+		}
+		notif, err := notification.ParseNotification(line)
+		if err != nil {
+			continue
+		}
+		notifications = append(notifications, notif)
+	}
+	// Print new notifications
+	for _, notif := range notifications {
+		if !seen[notif.ID] {
+			printNotification(notif, opts.Output)
+			seen[notif.ID] = true
 		}
 	}
 }
