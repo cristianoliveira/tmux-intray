@@ -41,7 +41,7 @@ func NewRuntimeCoordinator(client tmux.TmuxClient) model.RuntimeCoordinator {
 	}
 
 	// Initialize name caches
-	coordinator.RefreshNames()
+	_ = coordinator.RefreshNames()
 
 	return coordinator
 }

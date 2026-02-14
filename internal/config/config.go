@@ -392,7 +392,7 @@ func createSampleConfig() {
 		return // file exists
 	}
 	// Ensure directory exists
-	os.MkdirAll(configDir, FileModeDir)
+	_ = os.MkdirAll(configDir, FileModeDir)
 
 	// Build typed map from configMap (defaults)
 	typed := make(map[string]interface{})

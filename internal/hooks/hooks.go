@@ -151,7 +151,7 @@ func runSyncHook(scriptPath, scriptName string, envMap map[string]string, failur
 	duration := time.Since(start)
 	// Print hook output to stderr (so it appears in logs)
 	if len(output) > 0 {
-		os.Stderr.Write(output)
+		_, _ = os.Stderr.Write(output)
 	}
 	if err != nil {
 		switch failureMode {
