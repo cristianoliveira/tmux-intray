@@ -14,6 +14,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/cmd"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
@@ -241,7 +242,7 @@ func printList(opts FilterOptions, w io.Writer) {
 	}
 
 	// Parse lines into notifications
-	var notifications []notification.Notification
+	var notifications []*domain.Notification
 	for _, line := range strings.Split(lines, "\n") {
 		if line == "" {
 			continue
@@ -256,7 +257,7 @@ func printList(opts FilterOptions, w io.Writer) {
 				continue
 			}
 		}
-		notifications = append(notifications, notif)
+		notifications = append(notifications, notification.ToDomainUnsafe(notif))
 	}
 
 	if len(notifications) == 0 {
@@ -296,12 +297,12 @@ func printList(opts FilterOptions, w io.Writer) {
 
 // orderUnreadFirst places unread notifications before read notifications.
 // It keeps the existing relative order within each bucket (stable).
-func orderUnreadFirst(notifs []notification.Notification) []notification.Notification {
+func orderUnreadFirst(notifs []*domain.Notification) []*domain.Notification {
 	if len(notifs) == 0 {
 		return notifs
 	}
 
-	ordered := make([]notification.Notification, len(notifs))
+	ordered := make([]*domain.Notification, len(notifs))
 	copy(ordered, notifs)
 
 	sort.SliceStable(ordered, func(i, j int) bool {
@@ -317,8 +318,8 @@ func orderUnreadFirst(notifs []notification.Notification) []notification.Notific
 }
 
 // groupNotifications groups notifications by field.
-func groupNotifications(notifs []notification.Notification, field string) map[string][]notification.Notification {
-	groups := make(map[string][]notification.Notification)
+func groupNotifications(notifs []*domain.Notification, field string) map[string][]*domain.Notification {
+	groups := make(map[string][]*domain.Notification)
 	for _, n := range notifs {
 		var key string
 		switch field {
@@ -329,7 +330,7 @@ func groupNotifications(notifs []notification.Notification, field string) map[st
 		case "pane":
 			key = n.Pane
 		case "level":
-			key = n.Level
+			key = string(n.Level)
 		default:
 			key = ""
 		}
@@ -339,7 +340,7 @@ func groupNotifications(notifs []notification.Notification, field string) map[st
 }
 
 // printGroupCounts prints only group counts.
-func printGroupCounts(groups map[string][]notification.Notification, w io.Writer, format string) {
+func printGroupCounts(groups map[string][]*domain.Notification, w io.Writer, format string) {
 	// Sort keys for consistent output
 	var keys []string
 	for k := range groups {
@@ -352,7 +353,7 @@ func printGroupCounts(groups map[string][]notification.Notification, w io.Writer
 }
 
 // printGrouped prints grouped notifications with headers.
-func printGrouped(groups map[string][]notification.Notification, w io.Writer, format string) {
+func printGrouped(groups map[string][]*domain.Notification, w io.Writer, format string) {
 	// Sort keys for consistent output
 	var keys []string
 	for k := range groups {
@@ -377,7 +378,7 @@ func printGrouped(groups map[string][]notification.Notification, w io.Writer, fo
 }
 
 // printLegacy prints only messages (one per line).
-func printLegacy(notifs []notification.Notification, w io.Writer) {
+func printLegacy(notifs []*domain.Notification, w io.Writer) {
 	for _, n := range notifs {
 		fmt.Fprintln(w, n.Message)
 	}
@@ -385,7 +386,7 @@ func printLegacy(notifs []notification.Notification, w io.Writer) {
 
 // printSimple prints a simple format: ID DATE - Message.
 // Optimized for quick scanning with ID, timestamp, and message on one line.
-func printSimple(notifs []notification.Notification, w io.Writer) {
+func printSimple(notifs []*domain.Notification, w io.Writer) {
 	for _, n := range notifs {
 		// Truncate message for display (50 chars max)
 		displayMsg := n.Message
@@ -399,7 +400,7 @@ func printSimple(notifs []notification.Notification, w io.Writer) {
 // printTable prints a formatted table with ID, Timestamp, Message, and optional context (Session Window Pane).
 // Format: ID DATE - Message (Session Window Pane)
 // Optimized for readability with ID first for easy copying.
-func printTable(notifs []notification.Notification, w io.Writer) {
+func printTable(notifs []*domain.Notification, w io.Writer) {
 	if len(notifs) == 0 {
 		return
 	}
@@ -418,7 +419,7 @@ func printTable(notifs []notification.Notification, w io.Writer) {
 }
 
 // printCompact prints a compact format with Message only.
-func printCompact(notifs []notification.Notification, w io.Writer) {
+func printCompact(notifs []*domain.Notification, w io.Writer) {
 	for _, n := range notifs {
 		// Truncate message for display
 		displayMsg := n.Message
