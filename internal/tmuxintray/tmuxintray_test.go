@@ -22,7 +22,7 @@ func TestGetVisibility(t *testing.T) {
 	sqliteStorage, err := sqlite.NewSQLiteStorage(dbPath)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		sqliteStorage.Close()
+		_ = sqliteStorage.Close()
 	})
 
 	// Mock tmux client

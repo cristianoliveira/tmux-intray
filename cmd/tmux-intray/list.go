@@ -190,14 +190,14 @@ func printList(opts FilterOptions, w io.Writer) {
 		var err error
 		lines, err = opts.Client.ListNotifications(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, opts.OlderThan, opts.NewerThan, opts.ReadFilter)
 		if err != nil {
-			fmt.Fprintf(w, "list: failed to list notifications: %v\n", err)
+			_, _ = fmt.Fprintf(w, "list: failed to list notifications: %v\n", err)
 			return
 		}
 	} else {
 		lines = listListFunc(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, opts.OlderThan, opts.NewerThan, opts.ReadFilter)
 	}
 	if lines == "" {
-		fmt.Fprintln(w, "No notifications found")
+		_, _ = fmt.Fprintln(w, "No notifications found")
 		return
 	}
 
@@ -260,7 +260,7 @@ func printList(opts FilterOptions, w io.Writer) {
 	}
 
 	if len(notifications) == 0 {
-		fmt.Fprintln(w, "No notifications found")
+		_, _ = fmt.Fprintln(w, "No notifications found")
 		return
 	}
 
@@ -288,9 +288,9 @@ func printList(opts FilterOptions, w io.Writer) {
 	case "compact":
 		printCompact(notifications, w)
 	case "json":
-		fmt.Fprintln(w, "JSON format not yet implemented")
+		_, _ = fmt.Fprintln(w, "JSON format not yet implemented")
 	default:
-		fmt.Fprintf(w, "list: unknown format: %s\n", opts.Format)
+		_, _ = fmt.Fprintf(w, "list: unknown format: %s\n", opts.Format)
 	}
 }
 
@@ -347,7 +347,7 @@ func printGroupCounts(groups map[string][]notification.Notification, w io.Writer
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		fmt.Fprintf(w, "Group: %s (%d)\n", k, len(groups[k]))
+		_, _ = fmt.Fprintf(w, "Group: %s (%d)\n", k, len(groups[k]))
 	}
 }
 
@@ -360,7 +360,7 @@ func printGrouped(groups map[string][]notification.Notification, w io.Writer, fo
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		fmt.Fprintf(w, "=== %s (%d) ===\n", k, len(groups[k]))
+		_, _ = fmt.Fprintf(w, "=== %s (%d) ===\n", k, len(groups[k]))
 		switch format {
 		case "simple":
 			printSimple(groups[k], w)
@@ -379,7 +379,7 @@ func printGrouped(groups map[string][]notification.Notification, w io.Writer, fo
 // printLegacy prints only messages (one per line).
 func printLegacy(notifs []notification.Notification, w io.Writer) {
 	for _, n := range notifs {
-		fmt.Fprintln(w, n.Message)
+		_, _ = fmt.Fprintln(w, n.Message)
 	}
 }
 
@@ -392,7 +392,7 @@ func printSimple(notifs []notification.Notification, w io.Writer) {
 		if len(displayMsg) > 50 {
 			displayMsg = displayMsg[:47] + "..."
 		}
-		fmt.Fprintf(w, "%-4d  %-25s  - %s\n", n.ID, n.Timestamp, displayMsg)
+		_, _ = fmt.Fprintf(w, "%-4d  %-25s  - %s\n", n.ID, n.Timestamp, displayMsg)
 	}
 }
 
@@ -405,15 +405,15 @@ func printTable(notifs []notification.Notification, w io.Writer) {
 	}
 	headerColor := colors.Blue
 	reset := colors.Reset
-	fmt.Fprintf(w, "%sID    DATE                   - Message%s\n", headerColor, reset)
-	fmt.Fprintf(w, "%s----  ---------------------  - --------------------------------%s\n", headerColor, reset)
+	_, _ = fmt.Fprintf(w, "%sID    DATE                   - Message%s\n", headerColor, reset)
+	_, _ = fmt.Fprintf(w, "%s----  ---------------------  - --------------------------------%s\n", headerColor, reset)
 	for _, n := range notifs {
 		// Truncate message for display (32 chars max)
 		displayMsg := n.Message
 		if len(displayMsg) > 32 {
 			displayMsg = displayMsg[:29] + "..."
 		}
-		fmt.Fprintf(w, "%-4d  %-23s  - %s\n", n.ID, n.Timestamp, displayMsg)
+		_, _ = fmt.Fprintf(w, "%-4d  %-23s  - %s\n", n.ID, n.Timestamp, displayMsg)
 	}
 }
 
@@ -425,7 +425,7 @@ func printCompact(notifs []notification.Notification, w io.Writer) {
 		if len(displayMsg) > 60 {
 			displayMsg = displayMsg[:57] + "..."
 		}
-		fmt.Fprintln(w, displayMsg)
+		_, _ = fmt.Fprintln(w, displayMsg)
 	}
 }
 

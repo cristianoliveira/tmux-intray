@@ -15,7 +15,7 @@ func TestInitAndRunNoPanic(t *testing.T) {
 	require.NotPanics(t, func() {
 		err := Init()
 		require.NoError(t, err)
-		Run("pre-add", "FOO=bar")
+		_ = Run("pre-add", "FOO=bar")
 	})
 }
 
@@ -27,10 +27,10 @@ func TestRunSyncHookSuccess(t *testing.T) {
 	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\necho hello"), 0755))
 
 	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
-	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
-	os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
-	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
-	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
+	t.Cleanup(func() { _ = os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir) })
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore"))
 
 	require.NoError(t, Run("pre-add", "FOO=bar"))
 }
@@ -43,23 +43,23 @@ func TestRunSyncHookFailureModes(t *testing.T) {
 	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nexit 1"), 0755))
 
 	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
-	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
-	os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
-	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
+	t.Cleanup(func() { _ = os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir) })
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1"))
 
 	// abort mode should return error
-	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "abort")
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "abort"))
 	err := Run("pre-add")
 	require.Error(t, err)
 	// Error should mention the hook name and that it failed
 	require.Contains(t, err.Error(), "hook 'fail.sh' failed")
 
 	// warn mode should not error but print warning (we can't capture stderr easily)
-	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "warn")
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "warn"))
 	require.NoError(t, Run("pre-add"))
 
 	// ignore mode should not error
-	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore"))
 	require.NoError(t, Run("pre-add"))
 }
 
@@ -75,10 +75,10 @@ echo "FOO=$FOO"
 `), 0755))
 
 	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
-	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
-	os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
-	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
-	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
+	t.Cleanup(func() { _ = os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir) })
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore"))
 
 	// Capture output? We'll just ensure no error.
 	require.NoError(t, Run("pre-add", "FOO=bar"))
@@ -97,10 +97,10 @@ func TestRunSyncHookOrdering(t *testing.T) {
 	require.NoError(t, os.WriteFile(script3, []byte("#!/bin/sh\necho third"), 0755))
 
 	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
-	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
-	os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
-	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
-	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
+	t.Cleanup(func() { _ = os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir) })
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore"))
 
 	// No easy way to verify order, but we can at least ensure they all run
 	require.NoError(t, Run("pre-add"))
@@ -115,11 +115,11 @@ func TestRunAsyncHook(t *testing.T) {
 	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nsleep 0.1\necho done"), 0755))
 
 	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
-	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
-	os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
-	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
-	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1")
-	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
+	t.Cleanup(func() { _ = os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir) })
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore"))
 
 	start := time.Now()
 	require.NoError(t, Run("pre-add"))
@@ -141,12 +141,12 @@ func TestRunAsyncHookMaxLimit(t *testing.T) {
 	}
 
 	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
-	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
-	os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
-	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
-	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1")
-	os.Setenv("TMUX_INTRAY_MAX_HOOKS", "2")
-	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
+	t.Cleanup(func() { _ = os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir) })
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_MAX_HOOKS", "2"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore"))
 
 	// Should skip the third hook due to max limit (warning printed)
 	require.NoError(t, Run("pre-add"))
@@ -165,15 +165,15 @@ func TestAsyncHookPanicRecovery(t *testing.T) {
 	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nexit 0"), 0755))
 
 	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
-	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
-	os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
-	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
-	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1")
-	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
+	t.Cleanup(func() { _ = os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir) })
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore"))
 
 	// This should not panic the test even if internal goroutine panics
 	require.NotPanics(t, func() {
-		Run("pre-add")
+		_ = Run("pre-add")
 	})
 
 	// Ensure all hooks complete and cleanup happens
@@ -191,12 +191,12 @@ func TestAsyncHookTimeoutDetection(t *testing.T) {
 	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nsleep 5\necho done"), 0755))
 
 	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
-	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
-	os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
-	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
-	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1")
-	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
-	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "0.5")
+	t.Cleanup(func() { _ = os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir) })
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "0.5"))
 
 	start := time.Now()
 	err := Run("pre-add")
@@ -221,11 +221,11 @@ func TestAsyncHookNoLeakOnFailure(t *testing.T) {
 	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nexit 1"), 0755))
 
 	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
-	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
-	os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
-	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
-	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1")
-	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "warn")
+	t.Cleanup(func() { _ = os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir) })
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "warn"))
 
 	err := Run("pre-add")
 	require.NoError(t, err)
@@ -260,12 +260,12 @@ func TestAsyncHookCleanupAlwaysCalled(t *testing.T) {
 	}
 
 	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
-	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
-	os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
-	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
-	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1")
-	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "warn")
-	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "0.5")
+	t.Cleanup(func() { _ = os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir) })
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "warn"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "0.5"))
 
 	err := Run("pre-add")
 	require.NoError(t, err)
@@ -287,12 +287,12 @@ func TestAsyncHookContextCancellation(t *testing.T) {
 	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\ntrap '' TERM\nsleep 10\necho done"), 0755))
 
 	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
-	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
-	os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir)
-	os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1")
-	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1")
-	os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
-	os.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "0.5")
+	t.Cleanup(func() { _ = os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir) })
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "0.5"))
 
 	start := time.Now()
 	err := Run("pre-add")
@@ -317,13 +317,13 @@ func TestInitDirectoryCreationFailure(t *testing.T) {
 	require.NoError(t, os.MkdirAll(roDir, 0755))
 	// Make the directory read-only
 	require.NoError(t, os.Chmod(roDir, 0444))
-	defer os.Chmod(roDir, 0755) // Restore permissions for cleanup
+	t.Cleanup(func() { _ = os.Chmod(roDir, 0755) }) // Restore permissions for cleanup
 
 	// Set hooks directory to be inside the read-only directory
 	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
-	defer os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
+	t.Cleanup(func() { _ = os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir) })
 	hooksDir := filepath.Join(roDir, "hooks")
-	os.Setenv("TMUX_INTRAY_HOOKS_DIR", hooksDir)
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_DIR", hooksDir))
 
 	// Attempt to initialize hooks - should fail
 	err := Init()
