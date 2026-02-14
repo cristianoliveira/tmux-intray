@@ -16,6 +16,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/cmd"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/spf13/cobra"
 )
@@ -125,10 +126,10 @@ func colorForLevel(level string) string {
 }
 
 // printNotification prints a single notification to the writer with formatting.
-func printNotification(n notification.Notification, w io.Writer) {
+func printNotification(n domain.Notification, w io.Writer) {
 	timeStr := formatTimestamp(n.Timestamp)
-	msg := fmt.Sprintf("[%s] [%s] %s", timeStr, n.Level, n.Message)
-	color := colorForLevel(n.Level)
+	msg := fmt.Sprintf("[%s] [%s] %s", timeStr, n.Level.String(), n.Message)
+	color := colorForLevel(n.Level.String())
 	reset := colors.Reset
 	if color != "" {
 		_, _ = fmt.Fprintf(w, "%s%s%s\n", color, msg, reset)
@@ -210,7 +211,8 @@ func Follow(ctx context.Context, opts FollowOptions) error {
 			// Print new notifications
 			for _, notif := range notifications {
 				if !seen[notif.ID] {
-					printNotification(notif, opts.Output)
+					domainNotif := notification.ToDomainUnsafe(notif)
+					printNotification(*domainNotif, opts.Output)
 					seen[notif.ID] = true
 				}
 			}
