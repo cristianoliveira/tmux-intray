@@ -16,7 +16,7 @@ var versionOutputWriter io.Writer = os.Stdout
 
 // PrintVersion prints the version information to stdout.
 func PrintVersion() {
-	fmt.Fprintf(versionOutputWriter, "tmux-intray version %s\n", version.String())
+	_, _ = fmt.Fprintf(versionOutputWriter, "tmux-intray version %s\n", version.String())
 }
 
 // versionCmd represents the version command
