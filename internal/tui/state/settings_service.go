@@ -74,29 +74,28 @@ func (s *settingsService) fromState(state settings.TUIState, uiState *UIState, c
 		return err
 	}
 
-	if state.Filters.Level != "" ||
-		state.Filters.State != "" ||
-		state.Filters.Session != "" ||
-		state.Filters.Window != "" ||
-		state.Filters.Pane != "" {
-		if state.Filters.Level != "" {
-			filters.Level = state.Filters.Level
-		}
-		if state.Filters.State != "" {
-			filters.State = state.Filters.State
-		}
-		if state.Filters.Session != "" {
-			filters.Session = state.Filters.Session
-		}
-		if state.Filters.Window != "" {
-			filters.Window = state.Filters.Window
-		}
-		if state.Filters.Pane != "" {
-			filters.Pane = state.Filters.Pane
-		}
-	}
+	applyNonEmptyFilters(state.Filters, filters)
 
 	return nil
+}
+
+// applyNonEmptyFilters copies non-empty filter values from source to dest.
+func applyNonEmptyFilters(src settings.Filter, dest *settings.Filter) {
+	if src.Level != "" {
+		dest.Level = src.Level
+	}
+	if src.State != "" {
+		dest.State = src.State
+	}
+	if src.Session != "" {
+		dest.Session = src.Session
+	}
+	if src.Window != "" {
+		dest.Window = src.Window
+	}
+	if src.Pane != "" {
+		dest.Pane = src.Pane
+	}
 }
 
 func (s *settingsService) save(state settings.TUIState) error {

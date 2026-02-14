@@ -246,25 +246,33 @@ func (s *DefaultNotificationService) simpleMatch(notif notification.Notification
 		return true
 	}
 
-	if s.nameResolver != nil {
-		if name := s.nameResolver.ResolveSessionName(notif.Session); name != "" {
-			if strings.Contains(strings.ToLower(name), lowerQuery) {
-				return true
-			}
-		}
-		if name := s.nameResolver.ResolveWindowName(notif.Window); name != "" {
-			if strings.Contains(strings.ToLower(name), lowerQuery) {
-				return true
-			}
-		}
-		if name := s.nameResolver.ResolvePaneName(notif.Pane); name != "" {
-			if strings.Contains(strings.ToLower(name), lowerQuery) {
-				return true
-			}
-		}
+	return s.matchResolvedNames(notif, lowerQuery)
+}
+
+// matchResolvedNames checks if the query matches any resolved name.
+func (s *DefaultNotificationService) matchResolvedNames(notif notification.Notification, lowerQuery string) bool {
+	if s.nameResolver == nil {
+		return false
 	}
 
+	if s.matchesName(s.nameResolver.ResolveSessionName(notif.Session), lowerQuery) {
+		return true
+	}
+	if s.matchesName(s.nameResolver.ResolveWindowName(notif.Window), lowerQuery) {
+		return true
+	}
+	if s.matchesName(s.nameResolver.ResolvePaneName(notif.Pane), lowerQuery) {
+		return true
+	}
 	return false
+}
+
+// matchesName checks if the resolved name contains the query (case-insensitive).
+func (s *DefaultNotificationService) matchesName(name, lowerQuery string) bool {
+	if name == "" {
+		return false
+	}
+	return strings.Contains(strings.ToLower(name), lowerQuery)
 }
 
 // SetNotifications updates the underlying notification dataset.
