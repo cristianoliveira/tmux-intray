@@ -163,6 +163,21 @@ async function getTmuxPaneID() {
 }
 
 /**
+ * Escape args for safe copy-paste logging.
+ * @param {string} arg - Raw argument
+ * @returns {string} Shell-escaped argument
+ */
+function shellEscapeArg(arg) {
+  if (arg === '') {
+    return "''";
+  }
+  if (!/[\s'"\\$`]/.test(arg)) {
+    return arg;
+  }
+  return `'${String(arg).replace(/'/g, `'\\''`)}'`;
+}
+
+/**
  * Call tmux-intray with given status and message.
  * Captures tmux context (session/window/pane IDs) and passes them as flags
  * to the CLI. The CLI uses these values as primary context, with auto-detection
@@ -207,9 +222,10 @@ async function notify(status, message) {
         if (normalizedPaneID) {
           args.push(`--pane=${normalizedPaneID}`);
         }
-        args.push(message);
+        // Use "--" to ensure the message is not parsed as flags
+        args.push('--', message);
         
-         const commandStr = `${tmuxIntrayCmd} ${args.join(' ')}`;
+         const commandStr = [tmuxIntrayCmd, ...args].map(shellEscapeArg).join(' ');
          await logDebug('notify', `executing command: ${commandStr}`);
          
          // Call tmux-intray with context flags using execFile (no shell)
