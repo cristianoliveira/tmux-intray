@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/stretchr/testify/assert"
@@ -532,6 +533,17 @@ func (f *fakeListClient) ListNotifications(stateFilter, levelFilter, sessionFilt
 }
 
 func TestOrderUnreadFirstEdgeCases(t *testing.T) {
+	// Helper to replace the removed orderUnreadFirst function
+	orderUnreadFirst := func(notifs []notification.Notification) []notification.Notification {
+		if len(notifs) == 0 {
+			return notifs
+		}
+		domainNotifs := notification.ToDomainSliceUnsafe(notifs)
+		values := notificationsToValues(domainNotifs)
+		sorted := domain.SortByReadStatus(values, domain.SortOrderAsc)
+		return notification.FromDomainSlice(notificationsToPointers(sorted))
+	}
+
 	// Empty slice
 	empty := []notification.Notification{}
 	result := orderUnreadFirst(empty)
