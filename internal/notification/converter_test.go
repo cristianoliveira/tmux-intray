@@ -99,6 +99,38 @@ func TestToDomain_RoundTrip(t *testing.T) {
 	assert.Equal(t, old, old2)
 }
 
+func TestToDomainUnsafe_ValidNotification(t *testing.T) {
+	old := validOldNotification()
+
+	domainNotif := ToDomainUnsafe(old)
+	require.NotNil(t, domainNotif)
+
+	assert.Equal(t, old.ID, domainNotif.ID)
+	assert.Equal(t, old.Timestamp, domainNotif.Timestamp)
+	assert.Equal(t, old.State, domainNotif.State.String())
+	assert.Equal(t, old.Session, domainNotif.Session)
+	assert.Equal(t, old.Window, domainNotif.Window)
+	assert.Equal(t, old.Pane, domainNotif.Pane)
+	assert.Equal(t, old.Message, domainNotif.Message)
+	assert.Equal(t, old.PaneCreated, domainNotif.PaneCreated)
+	assert.Equal(t, old.Level, domainNotif.Level.String())
+	assert.Equal(t, old.ReadTimestamp, domainNotif.ReadTimestamp)
+}
+
+func TestToDomainSliceUnsafe_ValidNotifications(t *testing.T) {
+	olds := []Notification{
+		validOldNotification(),
+		validOldNotification(),
+	}
+
+	domainNotifs := ToDomainSliceUnsafe(olds)
+	require.Len(t, domainNotifs, 2)
+
+	for i, d := range domainNotifs {
+		assert.Equal(t, olds[i].ID, d.ID)
+	}
+}
+
 func TestFromDomain(t *testing.T) {
 	domainNotif := validDomainNotification()
 
