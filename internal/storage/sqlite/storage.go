@@ -215,6 +215,15 @@ func (s *SQLiteStorage) DismissNotification(id string) error {
 	if notification.state == "dismissed" {
 		return fmt.Errorf("sqlite storage: dismiss notification: %w: id %s", ErrNotificationAlreadyDismissed, id)
 	}
+	if err := s.dismissSingleNotification(notification); err != nil {
+		return err
+	}
+	s.syncTmuxStatusOption()
+	return nil
+}
+
+// dismissSingleNotification dismisses a single notification with hooks.
+func (s *SQLiteStorage) dismissSingleNotification(notification hookNotification) error {
 	envVars := buildNotificationHookEnv(
 		notification.id,
 		notification.level,
@@ -229,18 +238,15 @@ func (s *SQLiteStorage) DismissNotification(id string) error {
 	if err := hooks.Run("pre-dismiss", envVars...); err != nil {
 		return err
 	}
-
 	if _, err := s.queries.DismissNotificationByID(context.Background(), sqlcgen.DismissNotificationByIDParams{
 		UpdatedAt: utcNow(),
-		ID:        idInt,
+		ID:        notification.id,
 	}); err != nil {
-		return fmt.Errorf("sqlite storage: update dismissed state: %w", err)
+		return fmt.Errorf("sqlite storage: dismiss notification: %w", err)
 	}
 	if err := hooks.Run("post-dismiss", envVars...); err != nil {
 		return err
 	}
-	s.syncTmuxStatusOption()
-
 	return nil
 }
 
@@ -254,27 +260,7 @@ func (s *SQLiteStorage) DismissAll() error {
 		return err
 	}
 	for _, notification := range activeNotifications {
-		envVars := buildNotificationHookEnv(
-			notification.id,
-			notification.level,
-			notification.message,
-			escapeMessage(notification.message),
-			notification.timestamp,
-			notification.session,
-			notification.window,
-			notification.pane,
-			notification.paneCreated,
-		)
-		if err := hooks.Run("pre-dismiss", envVars...); err != nil {
-			return err
-		}
-		if _, err := s.queries.DismissNotificationByID(context.Background(), sqlcgen.DismissNotificationByIDParams{
-			UpdatedAt: utcNow(),
-			ID:        notification.id,
-		}); err != nil {
-			return fmt.Errorf("sqlite storage: dismiss all notifications: %w", err)
-		}
-		if err := hooks.Run("post-dismiss", envVars...); err != nil {
+		if err := s.dismissSingleNotification(notification); err != nil {
 			return err
 		}
 	}
