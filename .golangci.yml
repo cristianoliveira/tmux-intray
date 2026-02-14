@@ -66,7 +66,14 @@ issues:
     - path: _test\.go
       linters:
         - errcheck
-    # Exclude gocyclo for generated files
+    # Exclude complexity checks for test files
+    # Test files have different requirements (setup, assertions, test cases)
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - gocognit
+        - nestif
+    # Exclude gocyclo and gocognit for generated files
     - path: _gen\.go
       linters:
         - gocyclo
