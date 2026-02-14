@@ -245,12 +245,12 @@ func (u *UIState) EnsureCursorVisible(listLen int) {
 
 	// If cursor is above viewport, scroll up
 	if u.cursor < lineOffset {
-		u.viewport.LineUp(lineOffset - u.cursor)
+		u.viewport.ScrollUp(lineOffset - u.cursor)
 	}
 
 	// If cursor is below viewport, scroll down
 	if u.cursor >= lineOffset+viewportHeight {
-		u.viewport.LineDown(u.cursor - (lineOffset + viewportHeight) + 1)
+		u.viewport.ScrollDown(u.cursor - (lineOffset + viewportHeight) + 1)
 	}
 }
 

@@ -50,7 +50,7 @@ func TestNewDismissCmdPanicsWhenClientIsNil(t *testing.T) {
 	NewDismissCmd(nil)
 }
 
-func runDismissCmd(t *testing.T, client dismissClient, args []string, setAllFlag bool) (error, string, string) {
+func runDismissCmd(t *testing.T, client dismissClient, args []string, setAllFlag bool) (string, string, error) {
 	t.Helper()
 	cmd := NewDismissCmd(client)
 	if setAllFlag {
@@ -62,7 +62,7 @@ func runDismissCmd(t *testing.T, client dismissClient, args []string, setAllFlag
 	cmd.SetOut(&outBuf)
 	cmd.SetErr(&errBuf)
 	err := cmd.RunE(cmd, args)
-	return err, outBuf.String(), errBuf.String()
+	return outBuf.String(), errBuf.String(), err
 }
 
 func TestDismissCmdValidation(t *testing.T) {
@@ -111,7 +111,7 @@ func TestDismissCmdValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := &fakeDismissClient{}
-			err, _, _ := runDismissCmd(t, client, tt.args, tt.setAllFlag)
+			_, _, err := runDismissCmd(t, client, tt.args, tt.setAllFlag)
 			if tt.wantErr && err == nil {
 				t.Fatalf("expected error, got nil")
 			}
@@ -179,7 +179,7 @@ func TestDismissCmdSuccess(t *testing.T) {
 			// Set CI env to skip confirmation for dismiss all
 			t.Setenv("CI", "true")
 			client := &fakeDismissClient{}
-			err, _, _ := runDismissCmd(t, client, tt.args, tt.setAllFlag)
+			_, _, err := runDismissCmd(t, client, tt.args, tt.setAllFlag)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -257,7 +257,7 @@ func TestDismissCmdError(t *testing.T) {
 			} else {
 				client.dismissNotificationError = tt.clientError
 			}
-			err, _, _ := runDismissCmd(t, client, tt.args, tt.setAllFlag)
+			_, _, err := runDismissCmd(t, client, tt.args, tt.setAllFlag)
 			if err == nil {
 				t.Fatal("expected error, got nil")
 			}
@@ -281,7 +281,7 @@ func TestDismissCmdConfirmation(t *testing.T) {
 		// Do not set CI/BATS_TMPDIR, so confirmation will be attempted
 		t.Setenv("CI", "")
 		t.Setenv("BATS_TMPDIR", "")
-		err, _, _ := runDismissCmd(t, client, []string{}, true)
+		_, _, err := runDismissCmd(t, client, []string{}, true)
 		if err != nil {
 			t.Errorf("expected no error on cancellation, got %v", err)
 		}
@@ -296,7 +296,7 @@ func TestDismissCmdConfirmation(t *testing.T) {
 		client := &fakeDismissClient{}
 		t.Setenv("CI", "")
 		t.Setenv("BATS_TMPDIR", "")
-		err, _, _ := runDismissCmd(t, client, []string{}, true)
+		_, _, err := runDismissCmd(t, client, []string{}, true)
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
 		}

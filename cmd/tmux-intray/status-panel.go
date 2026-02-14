@@ -74,11 +74,12 @@ DESCRIPTION:
 			enabled := true // default
 			if statusPanelEnabled != "" {
 				val := strings.ToLower(statusPanelEnabled)
-				if val == "0" || val == "false" || val == "no" || val == "off" {
+				switch val {
+				case "0", "false", "no", "off":
 					enabled = false
-				} else if val == "1" || val == "true" || val == "yes" || val == "on" {
+				case "1", "true", "yes", "on":
 					enabled = true
-				} else {
+				default:
 					colors.Error("invalid value for --enabled, must be 0 or 1")
 					os.Exit(1)
 				}

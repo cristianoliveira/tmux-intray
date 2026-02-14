@@ -227,18 +227,18 @@ func PrintList(opts FilterOptions) {
 func printList(opts FilterOptions, w io.Writer) {
 	lines, err := fetchNotifications(opts)
 	if err != nil {
-		fmt.Fprintf(w, "list: failed to list notifications: %v\n", err)
+		_, _ = fmt.Fprintf(w, "list: failed to list notifications: %v\n", err)
 		return
 	}
 	if lines == "" {
-		fmt.Fprintln(w, "No notifications found")
+		_, _ = fmt.Fprintln(w, "No notifications found")
 		return
 	}
 
 	searchProvider := getSearchProvider(opts)
 	notifications := parseAndFilterNotifications(lines, searchProvider, opts.Search)
 	if len(notifications) == 0 {
-		fmt.Fprintln(w, "No notifications found")
+		_, _ = fmt.Fprintln(w, "No notifications found")
 		return
 	}
 
@@ -342,9 +342,9 @@ func printNotifications(notifications []*domain.Notification, opts FilterOptions
 	case "compact":
 		printCompact(notifications, w)
 	case "json":
-		fmt.Fprintln(w, "JSON format not yet implemented")
+		_, _ = fmt.Fprintln(w, "JSON format not yet implemented")
 	default:
-		fmt.Fprintf(w, "list: unknown format: %s\n", opts.Format)
+		_, _ = fmt.Fprintf(w, "list: unknown format: %s\n", opts.Format)
 	}
 }
 
@@ -374,7 +374,7 @@ func orderUnreadFirst(notifs []*domain.Notification) []*domain.Notification {
 func printGroupCounts(groupResult domain.GroupResult, w io.Writer, format string) {
 	// Groups are already sorted by display name
 	for _, group := range groupResult.Groups {
-		fmt.Fprintf(w, "Group: %s (%d)\n", group.DisplayName, group.Count)
+		_, _ = fmt.Fprintf(w, "Group: %s (%d)\n", group.DisplayName, group.Count)
 	}
 }
 
@@ -382,7 +382,7 @@ func printGroupCounts(groupResult domain.GroupResult, w io.Writer, format string
 func printGrouped(groupResult domain.GroupResult, w io.Writer, format string) {
 	// Groups are already sorted by display name
 	for _, group := range groupResult.Groups {
-		fmt.Fprintf(w, "=== %s (%d) ===\n", group.DisplayName, group.Count)
+		_, _ = fmt.Fprintf(w, "=== %s (%d) ===\n", group.DisplayName, group.Count)
 		notifs := notificationsToPointers(group.Notifications)
 		switch format {
 		case "simple":
@@ -402,7 +402,7 @@ func printGrouped(groupResult domain.GroupResult, w io.Writer, format string) {
 // printLegacy prints only messages (one per line).
 func printLegacy(notifs []*domain.Notification, w io.Writer) {
 	for _, n := range notifs {
-		fmt.Fprintln(w, n.Message)
+		_, _ = fmt.Fprintln(w, n.Message)
 	}
 }
 
@@ -415,7 +415,7 @@ func printSimple(notifs []*domain.Notification, w io.Writer) {
 		if len(displayMsg) > 50 {
 			displayMsg = displayMsg[:47] + "..."
 		}
-		fmt.Fprintf(w, "%-4d  %-25s  - %s\n", n.ID, n.Timestamp, displayMsg)
+		_, _ = fmt.Fprintf(w, "%-4d  %-25s  - %s\n", n.ID, n.Timestamp, displayMsg)
 	}
 }
 
@@ -428,15 +428,15 @@ func printTable(notifs []*domain.Notification, w io.Writer) {
 	}
 	headerColor := colors.Blue
 	reset := colors.Reset
-	fmt.Fprintf(w, "%sID    DATE                   - Message%s\n", headerColor, reset)
-	fmt.Fprintf(w, "%s----  ---------------------  - --------------------------------%s\n", headerColor, reset)
+	_, _ = fmt.Fprintf(w, "%sID    DATE                   - Message%s\n", headerColor, reset)
+	_, _ = fmt.Fprintf(w, "%s----  ---------------------  - --------------------------------%s\n", headerColor, reset)
 	for _, n := range notifs {
 		// Truncate message for display (32 chars max)
 		displayMsg := n.Message
 		if len(displayMsg) > 32 {
 			displayMsg = displayMsg[:29] + "..."
 		}
-		fmt.Fprintf(w, "%-4d  %-23s  - %s\n", n.ID, n.Timestamp, displayMsg)
+		_, _ = fmt.Fprintf(w, "%-4d  %-23s  - %s\n", n.ID, n.Timestamp, displayMsg)
 	}
 }
 
@@ -448,7 +448,7 @@ func printCompact(notifs []*domain.Notification, w io.Writer) {
 		if len(displayMsg) > 60 {
 			displayMsg = displayMsg[:57] + "..."
 		}
-		fmt.Fprintln(w, displayMsg)
+		_, _ = fmt.Fprintln(w, displayMsg)
 	}
 }
 

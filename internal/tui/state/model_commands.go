@@ -67,97 +67,117 @@ func (m *Model) executeCommand() tea.Cmd {
 
 	switch command {
 	case "q":
-		if len(args) > 0 {
-			m.errorHandler.Warning("Invalid usage: q")
-			return errorMsgAfter(errorClearDuration)
-		}
-		if err := m.saveSettings(); err != nil {
-			m.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
-		}
-		return tea.Quit
+		return m.handleQuitCommand(args)
 	case "w":
-		if len(args) > 0 {
-			m.errorHandler.Warning("Invalid usage: w")
-			return errorMsgAfter(errorClearDuration)
-		}
-		return func() tea.Msg {
-			if err := m.saveSettings(); err != nil {
-				return saveSettingsFailedMsg{err: err}
-			}
-			return saveSettingsSuccessMsg{}
-		}
+		return m.handleWriteCommand(args)
 	case "group-by":
-		if len(args) != 1 {
-			m.errorHandler.Warning("Invalid usage: group-by <none|session|window|pane>")
-			return errorMsgAfter(errorClearDuration)
-		}
-
-		groupBy := strings.ToLower(args[0])
-		if !settings.IsValidGroupBy(groupBy) {
-			m.errorHandler.Warning(fmt.Sprintf("Invalid group-by value: %s (expected one of: none, session, window, pane)", args[0]))
-			return errorMsgAfter(errorClearDuration)
-		}
-
-		if string(m.uiState.GetGroupBy()) == groupBy {
-			return nil
-		}
-
-		m.uiState.SetGroupBy(model.GroupBy(groupBy))
-		m.applySearchFilter()
-		m.resetCursor()
-		if err := m.saveSettings(); err != nil {
-			m.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
-			return errorMsgAfter(errorClearDuration)
-		}
-		m.errorHandler.Info(fmt.Sprintf("Group by: %s", groupBy))
-		return nil
+		return m.handleGroupByCommand(args)
 	case "expand-level":
-		if len(args) != 1 {
-			m.errorHandler.Warning("Invalid usage: expand-level <0|1|2|3>")
-			return errorMsgAfter(errorClearDuration)
-		}
-
-		level, err := strconv.Atoi(args[0])
-		if err != nil || level < settings.MinExpandLevel || level > settings.MaxExpandLevel {
-			m.errorHandler.Warning(fmt.Sprintf("Invalid expand-level value: %s (expected %d-%d)", args[0], settings.MinExpandLevel, settings.MaxExpandLevel))
-			return errorMsgAfter(errorClearDuration)
-		}
-
-		if m.uiState.GetExpandLevel() == level {
-			return nil
-		}
-
-		m.uiState.SetExpandLevel(level)
-		if m.isGroupedView() {
-			m.applyDefaultExpansion()
-		}
-		if err := m.saveSettings(); err != nil {
-			m.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
-			return errorMsgAfter(errorClearDuration)
-		}
-		m.errorHandler.Info(fmt.Sprintf("Default expand level: %d", m.uiState.GetExpandLevel()))
-		return nil
+		return m.handleExpandLevelCommand(args)
 
 	case "toggle-view":
-		if len(args) > 0 {
-			m.errorHandler.Warning("Invalid usage: toggle-view")
-			return errorMsgAfter(errorClearDuration)
-		}
-
-		if m.uiState.IsGroupedView() {
-			m.uiState.SetViewMode(model.ViewModeDetailed)
-		} else {
-			m.uiState.SetViewMode(model.ViewModeGrouped)
-		}
-		m.applySearchFilter()
-		m.resetCursor()
-		if err := m.saveSettings(); err != nil {
-			m.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
-		}
-		m.errorHandler.Info(fmt.Sprintf("View mode: %s", m.uiState.GetViewMode()))
-		return nil
+		return m.handleToggleViewCommand(args)
 	default:
 		m.errorHandler.Warning(fmt.Sprintf("Unknown command: %s", command))
 		return errorMsgAfter(errorClearDuration)
 	}
+}
+
+func (m *Model) handleQuitCommand(args []string) tea.Cmd {
+	if len(args) > 0 {
+		m.errorHandler.Warning("Invalid usage: q")
+		return errorMsgAfter(errorClearDuration)
+	}
+	if err := m.saveSettings(); err != nil {
+		m.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+	}
+	return tea.Quit
+}
+
+func (m *Model) handleWriteCommand(args []string) tea.Cmd {
+	if len(args) > 0 {
+		m.errorHandler.Warning("Invalid usage: w")
+		return errorMsgAfter(errorClearDuration)
+	}
+	return func() tea.Msg {
+		if err := m.saveSettings(); err != nil {
+			return saveSettingsFailedMsg{err: err}
+		}
+		return saveSettingsSuccessMsg{}
+	}
+}
+
+func (m *Model) handleGroupByCommand(args []string) tea.Cmd {
+	if len(args) != 1 {
+		m.errorHandler.Warning("Invalid usage: group-by <none|session|window|pane>")
+		return errorMsgAfter(errorClearDuration)
+	}
+
+	groupBy := strings.ToLower(args[0])
+	if !settings.IsValidGroupBy(groupBy) {
+		m.errorHandler.Warning(fmt.Sprintf("Invalid group-by value: %s (expected one of: none, session, window, pane)", args[0]))
+		return errorMsgAfter(errorClearDuration)
+	}
+
+	if string(m.uiState.GetGroupBy()) == groupBy {
+		return nil
+	}
+
+	m.uiState.SetGroupBy(model.GroupBy(groupBy))
+	m.applySearchFilter()
+	m.resetCursor()
+	if err := m.saveSettings(); err != nil {
+		m.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+		return errorMsgAfter(errorClearDuration)
+	}
+	m.errorHandler.Info(fmt.Sprintf("Group by: %s", groupBy))
+	return nil
+}
+
+func (m *Model) handleExpandLevelCommand(args []string) tea.Cmd {
+	if len(args) != 1 {
+		m.errorHandler.Warning("Invalid usage: expand-level <0|1|2|3>")
+		return errorMsgAfter(errorClearDuration)
+	}
+
+	level, err := strconv.Atoi(args[0])
+	if err != nil || level < settings.MinExpandLevel || level > settings.MaxExpandLevel {
+		m.errorHandler.Warning(fmt.Sprintf("Invalid expand-level value: %s (expected %d-%d)", args[0], settings.MinExpandLevel, settings.MaxExpandLevel))
+		return errorMsgAfter(errorClearDuration)
+	}
+
+	if m.uiState.GetExpandLevel() == level {
+		return nil
+	}
+
+	m.uiState.SetExpandLevel(level)
+	if m.isGroupedView() {
+		m.applyDefaultExpansion()
+	}
+	if err := m.saveSettings(); err != nil {
+		m.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+		return errorMsgAfter(errorClearDuration)
+	}
+	m.errorHandler.Info(fmt.Sprintf("Default expand level: %d", m.uiState.GetExpandLevel()))
+	return nil
+}
+
+func (m *Model) handleToggleViewCommand(args []string) tea.Cmd {
+	if len(args) > 0 {
+		m.errorHandler.Warning("Invalid usage: toggle-view")
+		return errorMsgAfter(errorClearDuration)
+	}
+
+	if m.uiState.IsGroupedView() {
+		m.uiState.SetViewMode(model.ViewModeDetailed)
+	} else {
+		m.uiState.SetViewMode(model.ViewModeGrouped)
+	}
+	m.applySearchFilter()
+	m.resetCursor()
+	if err := m.saveSettings(); err != nil {
+		m.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+	}
+	m.errorHandler.Info(fmt.Sprintf("View mode: %s", m.uiState.GetViewMode()))
+	return nil
 }
