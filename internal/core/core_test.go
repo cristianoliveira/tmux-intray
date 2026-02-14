@@ -30,8 +30,8 @@ func containsID(lines, id string) bool {
 func TestCore(t *testing.T) {
 	// Set up test environment
 	tmpDir := t.TempDir()
-	os.Setenv("TMUX_INTRAY_STATE_DIR", tmpDir)
-	os.Setenv("TMUX_INTRAY_DEBUG", "true")
+	require.NoError(t, os.Setenv("TMUX_INTRAY_STATE_DIR", tmpDir))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_DEBUG", "true"))
 	colors.SetDebug(true)
 	// Reset storage state
 	storage.Reset()
@@ -41,7 +41,7 @@ func TestCore(t *testing.T) {
 	sqliteStorage, err := sqlite.NewSQLiteStorage(dbPath)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		sqliteStorage.Close()
+		_ = sqliteStorage.Close()
 	})
 
 	// Helper to clear all notifications before each subtest

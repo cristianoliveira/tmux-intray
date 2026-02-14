@@ -40,8 +40,8 @@ func NewRuntimeCoordinator(client tmux.TmuxClient) model.RuntimeCoordinator {
 		jumpToPane:        core.JumpToPane,
 	}
 
-	// Initialize name caches
-	coordinator.RefreshNames()
+	// Initialize name caches (ignore error - will use empty maps if it fails)
+	_ = coordinator.RefreshNames()
 
 	return coordinator
 }

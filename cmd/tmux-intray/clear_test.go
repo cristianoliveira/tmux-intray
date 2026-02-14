@@ -140,8 +140,8 @@ func TestClearCmdRunEWithConfirmationYes(t *testing.T) {
 	defer func() { os.Stdin = oldStdin }()
 	os.Stdin = r
 	go func() {
-		w.Write([]byte("y\n"))
-		w.Close()
+		_, _ = w.Write([]byte("y\n"))
+		_ = w.Close()
 	}()
 
 	client := &fakeClearClient{}
@@ -171,8 +171,8 @@ func TestClearCmdRunEWithConfirmationNo(t *testing.T) {
 	defer func() { os.Stdin = oldStdin }()
 	os.Stdin = r
 	go func() {
-		w.Write([]byte("n\n"))
-		w.Close()
+		_, _ = w.Write([]byte("n\n"))
+		_ = w.Close()
 	}()
 
 	client := &fakeClearClient{}
@@ -197,8 +197,8 @@ func TestConfirmClearAllYes(t *testing.T) {
 	defer func() { os.Stdin = oldStdin }()
 	os.Stdin = r
 	go func() {
-		w.Write([]byte("y\n"))
-		w.Close()
+		_, _ = w.Write([]byte("y\n"))
+		_ = w.Close()
 	}()
 
 	result := confirmClearAll()
@@ -213,8 +213,8 @@ func TestConfirmClearAllNo(t *testing.T) {
 	defer func() { os.Stdin = oldStdin }()
 	os.Stdin = r
 	go func() {
-		w.Write([]byte("n\n"))
-		w.Close()
+		_, _ = w.Write([]byte("n\n"))
+		_ = w.Close()
 	}()
 
 	result := confirmClearAll()
@@ -229,8 +229,8 @@ func TestConfirmClearAllEmptyInput(t *testing.T) {
 	defer func() { os.Stdin = oldStdin }()
 	os.Stdin = r
 	go func() {
-		w.Write([]byte("\n"))
-		w.Close()
+		_, _ = w.Write([]byte("\n"))
+		_ = w.Close()
 	}()
 
 	result := confirmClearAll()
@@ -243,7 +243,7 @@ func TestConfirmClearAllReadError(t *testing.T) {
 	oldStdin := os.Stdin
 	r, w, _ := os.Pipe()
 	os.Stdin = r
-	w.Close() // Close write side to cause read error
+	_ = w.Close() // Close write side to cause read error
 	defer func() { os.Stdin = oldStdin }()
 
 	result := confirmClearAll()

@@ -421,8 +421,8 @@ func TestConfirmDismissAll(t *testing.T) {
 	t.Run("yes", func(t *testing.T) {
 		r, w, _ := os.Pipe()
 		os.Stdin = r
-		w.Write([]byte("y\n"))
-		w.Close()
+		_, _ = w.Write([]byte("y\n"))
+		_ = w.Close()
 		if !confirmDismissAll() {
 			t.Error("expected true for 'y'")
 		}
@@ -431,8 +431,8 @@ func TestConfirmDismissAll(t *testing.T) {
 	t.Run("yes uppercase", func(t *testing.T) {
 		r, w, _ := os.Pipe()
 		os.Stdin = r
-		w.Write([]byte("Y\n"))
-		w.Close()
+		_, _ = w.Write([]byte("Y\n"))
+		_ = w.Close()
 		if !confirmDismissAll() {
 			t.Error("expected true for 'Y'")
 		}
@@ -441,8 +441,8 @@ func TestConfirmDismissAll(t *testing.T) {
 	t.Run("yes full", func(t *testing.T) {
 		r, w, _ := os.Pipe()
 		os.Stdin = r
-		w.Write([]byte("yes\n"))
-		w.Close()
+		_, _ = w.Write([]byte("yes\n"))
+		_ = w.Close()
 		if !confirmDismissAll() {
 			t.Error("expected true for 'yes'")
 		}
@@ -451,8 +451,8 @@ func TestConfirmDismissAll(t *testing.T) {
 	t.Run("no", func(t *testing.T) {
 		r, w, _ := os.Pipe()
 		os.Stdin = r
-		w.Write([]byte("n\n"))
-		w.Close()
+		_, _ = w.Write([]byte("n\n"))
+		_ = w.Close()
 		if confirmDismissAll() {
 			t.Error("expected false for 'n'")
 		}
@@ -461,8 +461,8 @@ func TestConfirmDismissAll(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		r, w, _ := os.Pipe()
 		os.Stdin = r
-		w.Write([]byte("\n"))
-		w.Close()
+		_, _ = w.Write([]byte("\n"))
+		_ = w.Close()
 		if confirmDismissAll() {
 			t.Error("expected false for empty line")
 		}
@@ -472,7 +472,7 @@ func TestConfirmDismissAll(t *testing.T) {
 		// Simulate read error by closing pipe early
 		r, w, _ := os.Pipe()
 		os.Stdin = r
-		w.Close()
+		_ = w.Close()
 		if confirmDismissAll() {
 			t.Error("expected false on read error")
 		}

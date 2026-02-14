@@ -88,7 +88,7 @@ func TestLoadFromExistingFile(t *testing.T) {
 	data, err := toml.Marshal(customSettings)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(settingsPath, data, 0644))
-	defer os.Remove(settingsPath)
+	t.Cleanup(func() { _ = os.Remove(settingsPath) })
 
 	// Load settings
 	settings, err := Load()
@@ -122,7 +122,7 @@ func TestLoadPartialSettings(t *testing.T) {
 viewMode = "detailed"
 `
 	require.NoError(t, os.WriteFile(settingsPath, []byte(partialTOML), 0644))
-	defer os.Remove(settingsPath)
+	t.Cleanup(func() { _ = os.Remove(settingsPath) })
 
 	// Load settings
 	settings, err := Load()
@@ -153,7 +153,7 @@ func TestLoadInvalidTOML(t *testing.T) {
 
 	settingsPath := filepath.Join(configDir, "settings.toml")
 	require.NoError(t, os.WriteFile(settingsPath, []byte("invalid toml [unclosed"), 0644))
-	defer os.Remove(settingsPath)
+	t.Cleanup(func() { _ = os.Remove(settingsPath) })
 
 	// Load should succeed with defaults (not error) - corrupted TOML is handled gracefully
 	settings, err := Load()
@@ -187,7 +187,7 @@ groupBy = "window"
 "window:$1:@1" = "collapsed"
 `
 	require.NoError(t, os.WriteFile(settingsPath, []byte(invalidTOML), 0644))
-	defer os.Remove(settingsPath)
+	t.Cleanup(func() { _ = os.Remove(settingsPath) })
 
 	settings, err := Load()
 	require.NoError(t, err)
@@ -212,7 +212,7 @@ func TestLoadInvalidColumn(t *testing.T) {
 	invalidTOML := `columns = ["id", "invalid_column"]
 `
 	require.NoError(t, os.WriteFile(settingsPath, []byte(invalidTOML), 0644))
-	defer os.Remove(settingsPath)
+	t.Cleanup(func() { _ = os.Remove(settingsPath) })
 
 	// Load should fail
 	_, err := Load()

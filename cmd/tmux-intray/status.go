@@ -174,30 +174,30 @@ func paneCounts(client statusClient) map[string]int {
 func formatSummary(client statusClient, w io.Writer) error {
 	active := countByState(client, "active")
 	if active == 0 {
-		fmt.Fprintf(w, "No active notifications\n")
+		_, _ = fmt.Fprintf(w, "No active notifications\n")
 		return nil
 	}
-	fmt.Fprintf(w, "Active notifications: %d\n", active)
+	_, _ = fmt.Fprintf(w, "Active notifications: %d\n", active)
 	info, warning, error, critical := countByLevel(client)
-	fmt.Fprintf(w, "  info: %d, warning: %d, error: %d, critical: %d\n", info, warning, error, critical)
+	_, _ = fmt.Fprintf(w, "  info: %d, warning: %d, error: %d, critical: %d\n", info, warning, error, critical)
 	return nil
 }
 
 func formatLevels(client statusClient, w io.Writer) error {
 	info, warning, error, critical := countByLevel(client)
-	fmt.Fprintf(w, "info:%d\nwarning:%d\nerror:%d\ncritical:%d\n", info, warning, error, critical)
+	_, _ = fmt.Fprintf(w, "info:%d\nwarning:%d\nerror:%d\ncritical:%d\n", info, warning, error, critical)
 	return nil
 }
 
 func formatPanes(client statusClient, w io.Writer) error {
 	counts := paneCounts(client)
 	for pane, count := range counts {
-		fmt.Fprintf(w, "%s:%d\n", pane, count)
+		_, _ = fmt.Fprintf(w, "%s:%d\n", pane, count)
 	}
 	return nil
 }
 
 func formatJSON(client statusClient, w io.Writer) error {
-	fmt.Fprintln(w, "JSON format not yet implemented")
+	_, _ = fmt.Fprintln(w, "JSON format not yet implemented")
 	return nil
 }

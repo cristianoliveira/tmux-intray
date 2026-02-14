@@ -43,12 +43,12 @@ func captureStdout(t *testing.T, fn func()) string {
 
 	defer func() {
 		os.Stdout = old
-		w.Close()
+		_ = w.Close()
 	}()
 
 	fn()
 
-	w.Close()
+	_ = w.Close()
 	var buf bytes.Buffer
 	_, err = buf.ReadFrom(r)
 	require.NoError(t, err)

@@ -131,12 +131,12 @@ func printNotification(n notification.Notification, w io.Writer) {
 	color := colorForLevel(n.Level)
 	reset := colors.Reset
 	if color != "" {
-		fmt.Fprintf(w, "%s%s%s\n", color, msg, reset)
+		_, _ = fmt.Fprintf(w, "%s%s%s\n", color, msg, reset)
 	} else {
-		fmt.Fprintln(w, msg)
+		_, _ = fmt.Fprintln(w, msg)
 	}
 	if n.Pane != "" {
-		fmt.Fprintf(w, "  └─ From pane: %s\n", n.Pane)
+		_, _ = fmt.Fprintf(w, "  └─ From pane: %s\n", n.Pane)
 	}
 }
 
@@ -156,9 +156,9 @@ func Follow(ctx context.Context, opts FollowOptions) error {
 	defer signal.Stop(sigChan)
 
 	// Clear screen (optional) but we can just print header
-	fmt.Fprint(opts.Output, "\033[2J\033[H") // ANSI clear screen and home cursor
+	_, _ = fmt.Fprint(opts.Output, "\033[2J\033[H") // ANSI clear screen and home cursor
 	colors.Info("Monitoring notifications (Ctrl+C to stop)...")
-	fmt.Fprintln(opts.Output)
+	_, _ = fmt.Fprintln(opts.Output)
 
 	// Map from notification ID to whether we've seen it
 	seen := make(map[int]bool)
@@ -187,7 +187,7 @@ func Follow(ctx context.Context, opts FollowOptions) error {
 		case <-ctx.Done():
 			return nil
 		case sig := <-sigChan:
-			fmt.Fprintf(opts.Output, "\nReceived signal %v, stopping...\n", sig)
+			_, _ = fmt.Fprintf(opts.Output, "\nReceived signal %v, stopping...\n", sig)
 			return nil
 		case <-tickChan:
 			// Fetch notifications with filters

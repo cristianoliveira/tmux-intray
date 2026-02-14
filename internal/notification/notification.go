@@ -33,7 +33,7 @@ func ParseNotification(line string) (Notification, error) {
 	}
 	id := 0
 	if fields[0] != "" {
-		fmt.Sscanf(fields[0], "%d", &id)
+		_, _ = fmt.Sscanf(fields[0], "%d", &id)
 	}
 	return Notification{
 		ID:            id,

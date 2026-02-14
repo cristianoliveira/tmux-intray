@@ -273,11 +273,11 @@ func TestConfigFileNotFound(t *testing.T) {
 	Load()
 
 	// Close writer and restore stderr.
-	w.Close()
+	_ = w.Close()
 	os.Stderr = oldStderr
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	// Should contain debug message about file not found.
@@ -309,11 +309,11 @@ func TestConfigFileMalformed(t *testing.T) {
 	Load()
 
 	// Close writer and restore stderr.
-	w.Close()
+	_ = w.Close()
 	os.Stderr = oldStderr
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	// Should contain warning message about parse error.
@@ -348,11 +348,11 @@ func TestConfigFileReadError(t *testing.T) {
 	Load()
 
 	// Close writer and restore stderr.
-	w.Close()
+	_ = w.Close()
 	os.Stderr = oldStderr
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	// Should contain debug message about read error.
@@ -382,11 +382,11 @@ func TestConfigFileNotFoundNoDebug(t *testing.T) {
 	Load()
 
 	// Close writer and restore stderr.
-	w.Close()
+	_ = w.Close()
 	os.Stderr = oldStderr
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	// Should NOT contain debug message.
