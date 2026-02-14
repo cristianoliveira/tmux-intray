@@ -53,36 +53,48 @@ OPTIONS:
 			}
 
 			if dismissAll {
-				// Skip confirmation if running in CI or test environment
-				if os.Getenv("CI") != "" || os.Getenv("BATS_TMPDIR") != "" {
-					colors.Debug("skipping confirmation due to CI/test environment")
-				}
-				if os.Getenv("CI") == "" && os.Getenv("BATS_TMPDIR") == "" {
-					// Ask for confirmation
-					if !confirmDismissAllFunc() {
-						colors.Info("Operation cancelled")
-						return nil
-					}
-				}
-				err := client.DismissAll()
-				if err != nil {
-					return fmt.Errorf("dismiss: failed to dismiss all: %w", err)
-				}
-				colors.Success("All active notifications dismissed")
-			} else {
-				id := args[0]
-				err := client.DismissNotification(id)
-				if err != nil {
-					return fmt.Errorf("dismiss: failed to dismiss notification: %w", err)
-				}
-				colors.Success("Notification " + id + " dismissed")
+				return dismissAllWithConfirmation(client)
 			}
-			return nil
+			return dismissSingleNotification(client, args[0])
 		},
 	}
 
 	dismissCmd.Flags().BoolVar(&dismissAll, "all", false, "Dismiss all active notifications")
 	return dismissCmd
+}
+
+// dismissAllWithConfirmation handles dismissing all notifications with confirmation if needed.
+func dismissAllWithConfirmation(client dismissClient) error {
+	if !isCIOrTestEnv() {
+		if !confirmDismissAllFunc() {
+			colors.Info("Operation cancelled")
+			return nil
+		}
+	} else {
+		colors.Debug("skipping confirmation due to CI/test environment")
+	}
+
+	err := client.DismissAll()
+	if err != nil {
+		return fmt.Errorf("dismiss: failed to dismiss all: %w", err)
+	}
+	colors.Success("All active notifications dismissed")
+	return nil
+}
+
+// isCIOrTestEnv checks if running in CI or test environment.
+func isCIOrTestEnv() bool {
+	return os.Getenv("CI") != "" || os.Getenv("BATS_TMPDIR") != ""
+}
+
+// dismissSingleNotification handles dismissing a single notification.
+func dismissSingleNotification(client dismissClient, id string) error {
+	err := client.DismissNotification(id)
+	if err != nil {
+		return fmt.Errorf("dismiss: failed to dismiss notification: %w", err)
+	}
+	colors.Success("Notification " + id + " dismissed")
+	return nil
 }
 
 // dismissCmd represents the dismiss command

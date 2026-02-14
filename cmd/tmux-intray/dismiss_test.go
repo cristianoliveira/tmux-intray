@@ -183,27 +183,43 @@ func TestDismissCmdSuccess(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if tt.wantAll {
-				if !client.dismissAllCalled {
-					t.Error("DismissAll not called")
-				}
-				if client.dismissNotificationCalled {
-					t.Error("DismissNotification should not be called")
-				}
-
-			} else {
-				if !client.dismissNotificationCalled {
-					t.Error("DismissNotification not called")
-				}
-				if client.dismissAllCalled {
-					t.Error("DismissAll should not be called")
-				}
-				if client.dismissNotificationID != tt.wantID {
-					t.Errorf("want ID %q, got %q", tt.wantID, client.dismissNotificationID)
-				}
-
-			}
+			verifyDismissResult(t, client, tt.wantAll, tt.wantID)
 		})
+	}
+}
+
+// verifyDismissResult checks that the expected dismiss method was called.
+func verifyDismissResult(t *testing.T, client *fakeDismissClient, wantAll bool, wantID string) {
+	t.Helper()
+	if wantAll {
+		verifyDismissAllCalled(t, client)
+	} else {
+		verifyDismissSingleCalled(t, client, wantID)
+	}
+}
+
+// verifyDismissAllCalled verifies dismiss all was called correctly.
+func verifyDismissAllCalled(t *testing.T, client *fakeDismissClient) {
+	t.Helper()
+	if !client.dismissAllCalled {
+		t.Error("DismissAll not called")
+	}
+	if client.dismissNotificationCalled {
+		t.Error("DismissNotification should not be called")
+	}
+}
+
+// verifyDismissSingleCalled verifies dismiss single was called correctly.
+func verifyDismissSingleCalled(t *testing.T, client *fakeDismissClient, wantID string) {
+	t.Helper()
+	if !client.dismissNotificationCalled {
+		t.Error("DismissNotification not called")
+	}
+	if client.dismissAllCalled {
+		t.Error("DismissAll should not be called")
+	}
+	if client.dismissNotificationID != wantID {
+		t.Errorf("want ID %q, got %q", wantID, client.dismissNotificationID)
 	}
 }
 

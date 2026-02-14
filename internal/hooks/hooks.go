@@ -290,11 +290,7 @@ func Run(hookPoint string, envVars ...string) error {
 	}
 
 	// Collect executable hook scripts
-	type scriptInfo struct {
-		path string
-		name string
-	}
-	scripts := []scriptInfo{}
+	scripts := []hookScript{}
 	for _, f := range files {
 		if f.IsDir() {
 			continue
@@ -306,7 +302,7 @@ func Run(hookPoint string, envVars ...string) error {
 			// Not executable
 			continue
 		}
-		scripts = append(scripts, scriptInfo{path: scriptPath, name: f.Name()})
+		scripts = append(scripts, hookScript{path: scriptPath, name: f.Name()})
 	}
 	// Sort by name (ascending)
 	sort.Slice(scripts, func(i, j int) bool {
@@ -327,31 +323,50 @@ func Run(hookPoint string, envVars ...string) error {
 	for _, script := range scripts {
 		fmt.Fprintf(os.Stderr, "  Executing hook: %s\n", script.name)
 		if asyncEnabled {
-			// Check if we can start another async hook
-			pendingHooksMu.Lock()
-			if pendingHookCount >= maxAsync {
-				pendingHooksMu.Unlock()
-				fmt.Fprintf(os.Stderr, "warning: Too many async hooks pending (max: %d), skipping %s\n", maxAsync, script.name)
-				continue
-			}
-			pendingHookCount++
-			pendingHooks.Add(1)
-			pendingHooksMu.Unlock()
-			// Start async hook
-			fmt.Fprintf(os.Stderr, "  Starting hook asynchronously: %s\n", script.name)
-			go runAsyncHook(script.path, script.name, envMap, failureMode)
+			tryStartAsyncHook(script, envMap, failureMode, maxAsync)
 		} else {
 			// Synchronous execution
-			if err := runSyncHook(script.path, script.name, envMap, failureMode); err != nil {
-				if failureMode == "abort" {
-					return err
-				}
-
-				// warn or ignore: continue
+			if err := runSyncHookAndCheckAbort(script, envMap, failureMode); err != nil {
+				return err
 			}
 		}
 	}
 	return nil
+}
+
+// runSyncHookAndCheckAbort runs a sync hook and returns error only if abort mode.
+func runSyncHookAndCheckAbort(script hookScript, envMap map[string]string, failureMode string) error {
+	if err := runSyncHook(script.path, script.name, envMap, failureMode); err != nil {
+		if failureMode == "abort" {
+			return err
+		}
+		// warn or ignore: continue
+	}
+	return nil
+}
+
+// hookScript holds information about a hook script
+type hookScript struct {
+	path string
+	name string
+}
+
+// tryStartAsyncHook attempts to start an async hook, returns false if limit reached.
+func tryStartAsyncHook(script hookScript, envMap map[string]string, failureMode string, maxAsync int) bool {
+	// Check if we can start another async hook
+	pendingHooksMu.Lock()
+	defer pendingHooksMu.Unlock()
+
+	if pendingHookCount >= maxAsync {
+		fmt.Fprintf(os.Stderr, "warning: Too many async hooks pending (max: %d), skipping %s\n", maxAsync, script.name)
+		return false
+	}
+	pendingHookCount++
+	pendingHooks.Add(1)
+	// Start async hook
+	fmt.Fprintf(os.Stderr, "  Starting hook asynchronously: %s\n", script.name)
+	go runAsyncHook(script.path, script.name, envMap, failureMode)
+	return true
 }
 
 // ResetForTesting resets internal state for testing.

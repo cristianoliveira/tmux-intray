@@ -202,31 +202,38 @@ func (c *DefaultClient) jumpToPane(sessionID, windowID, paneID string, handler e
 
 	// paneID is optional - if empty, jump to window only
 	if paneID == "" {
-		// Switch client to target session before selecting window
-		colors.Debug(fmt.Sprintf("JumpToPane: switching client to session %s (window-only jump)", sessionID))
-		_, stderr, err := c.Run("switch-client", "-t", sessionID)
-		if err != nil {
-			if stderr != "" {
-				colors.Debug("stderr: " + stderr)
-			}
-			return false, fmt.Errorf("switch client to session %s: %w", sessionID, err)
-		}
-
-		// Window-only jump: select-window
-		targetWindow := sessionID + ":" + windowID
-		colors.Debug(fmt.Sprintf("JumpToPane: selecting window %s (window-only jump)", targetWindow))
-		_, stderr, err = c.Run("select-window", "-t", targetWindow)
-		if err != nil {
-			if stderr != "" {
-				colors.Debug("JumpToPane: stderr: " + stderr)
-			}
-			return false, fmt.Errorf("window %s does not exist: %w", targetWindow, err)
-		}
-		colors.Debug(fmt.Sprintf("JumpToPane: successfully selected window %s", targetWindow))
-		return true, nil
+		return c.jumpToWindowOnly(sessionID, windowID)
 	}
 
-	// Validate if the pane exists
+	return c.jumpToPaneWithValidation(sessionID, windowID, paneID, handler)
+}
+
+// jumpToWindowOnly switches to the specified session and selects the window.
+func (c *DefaultClient) jumpToWindowOnly(sessionID, windowID string) (bool, error) {
+	colors.Debug(fmt.Sprintf("JumpToPane: switching client to session %s (window-only jump)", sessionID))
+	_, stderr, err := c.Run("switch-client", "-t", sessionID)
+	if err != nil {
+		if stderr != "" {
+			colors.Debug("stderr: " + stderr)
+		}
+		return false, fmt.Errorf("switch client to session %s: %w", sessionID, err)
+	}
+
+	targetWindow := sessionID + ":" + windowID
+	colors.Debug(fmt.Sprintf("JumpToPane: selecting window %s (window-only jump)", targetWindow))
+	_, stderr, err = c.Run("select-window", "-t", targetWindow)
+	if err != nil {
+		if stderr != "" {
+			colors.Debug("JumpToPane: stderr: " + stderr)
+		}
+		return false, fmt.Errorf("window %s does not exist: %w", targetWindow, err)
+	}
+	colors.Debug(fmt.Sprintf("JumpToPane: successfully selected window %s", targetWindow))
+	return true, nil
+}
+
+// jumpToPaneWithValidation switches to the specified session, window, and pane after validation.
+func (c *DefaultClient) jumpToPaneWithValidation(sessionID, windowID, paneID string, handler errors.ErrorHandler) (bool, error) {
 	paneExists, err := c.ValidatePaneExists(sessionID, windowID, paneID)
 	if err != nil {
 		return false, fmt.Errorf("pane validation failed: %w", err)

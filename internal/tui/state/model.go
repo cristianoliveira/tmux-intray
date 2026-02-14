@@ -885,82 +885,101 @@ func (m *Model) updateViewportContent() {
 	cursor := m.uiState.GetCursor()
 
 	if m.isGroupedView() {
-		visibleNodes := m.treeService.GetVisibleNodes()
-		if len(visibleNodes) == 0 {
-			content.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("No notifications found"))
-		} else {
-			now := time.Now()
-			for rowIndex, node := range visibleNodes {
-				if node == nil {
-					continue
-				}
-				if rowIndex > 0 {
-					content.WriteString("\n")
-				}
-				if m.isGroupNode(node) {
-					display := node.Display
-					switch node.Kind {
-					case model.NodeKindSession:
-						display = m.getSessionName(node.Title)
-					case model.NodeKindWindow:
-						display = m.getWindowName(node.Title)
-					case model.NodeKindPane:
-						display = m.getPaneName(node.Title)
-					}
-					content.WriteString(render.RenderGroupRow(render.GroupRow{
-						Node: &render.GroupNode{
-							Title:    node.Title,
-							Display:  display,
-							Expanded: node.Expanded,
-							Count:    node.Count,
-						},
-						Selected: rowIndex == cursor,
-						Level:    m.treeService.GetTreeLevel(node),
-						Width:    width,
-					}))
-					continue
-				}
-				if node.Notification == nil {
-					continue
-				}
-				notif := *node.Notification
-				notif.Pane = m.getPaneName(notif.Pane)
-				content.WriteString(render.Row(render.RowState{
-					Notification: notif,
-					SessionName:  m.getSessionName(notif.Session),
-					Width:        width,
-					Selected:     rowIndex == cursor,
-					Now:          now,
-				}))
-			}
-		}
-
+		m.renderGroupedView(&content, width, cursor)
 		(*m.uiState.GetViewport()).SetContent(content.String())
 		return
 	}
 
+	m.renderFlatView(&content, width, cursor)
+	(*m.uiState.GetViewport()).SetContent(content.String())
+}
+
+// renderGroupedView renders the grouped notification tree view.
+func (m *Model) renderGroupedView(content *strings.Builder, width, cursor int) {
+	visibleNodes := m.treeService.GetVisibleNodes()
+	if len(visibleNodes) == 0 {
+		content.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("No notifications found"))
+		return
+	}
+
+	now := time.Now()
+	for rowIndex, node := range visibleNodes {
+		if node == nil {
+			continue
+		}
+		if rowIndex > 0 {
+			content.WriteString("\n")
+		}
+		if m.isGroupNode(node) {
+			m.renderGroupNodeRow(content, node, rowIndex, cursor, width)
+			continue
+		}
+		if node.Notification == nil {
+			continue
+		}
+		m.renderNotificationRow(content, *node.Notification, rowIndex, cursor, width, now)
+	}
+}
+
+// renderGroupNodeRow renders a single group node row.
+func (m *Model) renderGroupNodeRow(content *strings.Builder, node *model.TreeNode, rowIndex, cursor, width int) {
+	display := node.Display
+	switch node.Kind {
+	case model.NodeKindSession:
+		display = m.getSessionName(node.Title)
+	case model.NodeKindWindow:
+		display = m.getWindowName(node.Title)
+	case model.NodeKindPane:
+		display = m.getPaneName(node.Title)
+	}
+	content.WriteString(render.RenderGroupRow(render.GroupRow{
+		Node: &render.GroupNode{
+			Title:    node.Title,
+			Display:  display,
+			Expanded: node.Expanded,
+			Count:    node.Count,
+		},
+		Selected: rowIndex == cursor,
+		Level:    m.treeService.GetTreeLevel(node),
+		Width:    width,
+	}))
+}
+
+// renderNotificationRow renders a single notification row.
+func (m *Model) renderNotificationRow(content *strings.Builder, notif notification.Notification, rowIndex, cursor, width int, now time.Time) {
+	notif.Pane = m.getPaneName(notif.Pane)
+	content.WriteString(render.Row(render.RowState{
+		Notification: notif,
+		SessionName:  m.getSessionName(notif.Session),
+		Width:        width,
+		Selected:     rowIndex == cursor,
+		Now:          now,
+	}))
+}
+
+// renderFlatView renders the flat notification list view.
+func (m *Model) renderFlatView(content *strings.Builder, width, cursor int) {
 	filtered := m.filtered
 	if len(filtered) == 0 {
 		content.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("No notifications found"))
-	} else {
-		now := time.Now()
-		for i, notif := range filtered {
-			notifCopy := notif
-			notifCopy.Pane = m.getPaneName(notifCopy.Pane)
-			if i > 0 {
-				content.WriteString("\n")
-			}
-			content.WriteString(render.Row(render.RowState{
-				Notification: notifCopy,
-				SessionName:  m.getSessionName(notifCopy.Session),
-				Width:        width,
-				Selected:     i == cursor,
-				Now:          now,
-			}))
-		}
+		return
 	}
 
-	(*m.uiState.GetViewport()).SetContent(content.String())
+	now := time.Now()
+	for i, notif := range filtered {
+		notifCopy := notif
+		notifCopy.Pane = m.getPaneName(notifCopy.Pane)
+		if i > 0 {
+			content.WriteString("\n")
+		}
+		content.WriteString(render.Row(render.RowState{
+			Notification: notifCopy,
+			SessionName:  m.getSessionName(notifCopy.Session),
+			Width:        width,
+			Selected:     i == cursor,
+			Now:          now,
+		}))
+	}
 }
 
 // ensureCursorVisible ensures the cursor is visible in the viewport.
@@ -1479,31 +1498,49 @@ func (m *Model) collapseNode(node *model.TreeNode) {
 	visibleNodes := m.treeService.GetVisibleNodes()
 
 	// If selected node was inside the collapsed node, move cursor to the collapsed node
-	if selectedID != "" {
-		// Check if the selected node is contained within the collapsed node
-		// by comparing paths
-		treeRoot := m.treeService.GetTreeRoot()
-		if selectedNode := m.treeService.FindNodeByID(treeRoot, selectedID); selectedNode != nil {
-			if collapsedNode := m.treeService.FindNodeByID(treeRoot, nodeID); collapsedNode != nil {
-				if m.nodeContains(collapsedNode, selectedNode) {
-					// Move cursor to the collapsed node
-					if index := indexOfTreeNode(visibleNodes, collapsedNode); index >= 0 {
-						m.uiState.SetCursor(index)
-					}
-				}
-			}
-		}
-	}
+	m.moveCursorToCollapsedNodeIfNeeded(selectedID, nodeID, visibleNodes)
 
 	// Ensure cursor is within bounds
-	if m.uiState.GetCursor() >= len(visibleNodes) {
-		m.uiState.SetCursor(len(visibleNodes) - 1)
+	m.clampCursorToBounds(len(visibleNodes))
+	m.updateViewportContent()
+	m.ensureCursorVisible()
+}
+
+// moveCursorToCollapsedNodeIfNeeded moves cursor to collapsed node if selected was inside it.
+func (m *Model) moveCursorToCollapsedNodeIfNeeded(selectedID, nodeID string, visibleNodes []*model.TreeNode) {
+	if selectedID == "" {
+		return
+	}
+
+	treeRoot := m.treeService.GetTreeRoot()
+	selectedNode := m.treeService.FindNodeByID(treeRoot, selectedID)
+	if selectedNode == nil {
+		return
+	}
+
+	collapsedNode := m.treeService.FindNodeByID(treeRoot, nodeID)
+	if collapsedNode == nil {
+		return
+	}
+
+	if !m.nodeContains(collapsedNode, selectedNode) {
+		return
+	}
+
+	// Move cursor to the collapsed node
+	if index := indexOfTreeNode(visibleNodes, collapsedNode); index >= 0 {
+		m.uiState.SetCursor(index)
+	}
+}
+
+// clampCursorToBounds ensures cursor is within valid bounds.
+func (m *Model) clampCursorToBounds(listLen int) {
+	if m.uiState.GetCursor() >= listLen {
+		m.uiState.SetCursor(listLen - 1)
 	}
 	if m.uiState.GetCursor() < 0 {
 		m.uiState.SetCursor(0)
 	}
-	m.updateViewportContent()
-	m.ensureCursorVisible()
 }
 
 // nodeContains checks if targetNode is contained within root node.
