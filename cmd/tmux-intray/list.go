@@ -116,8 +116,7 @@ func NewListCmd(client listClient) *cobra.Command {
 				Format:     listFormat,
 				ReadFilter: listFilter,
 			}
-			PrintList(opts)
-			return nil
+			return PrintList(opts)
 		},
 	}
 
@@ -217,33 +216,39 @@ type FilterOptions struct {
 }
 
 // PrintList prints notifications according to the provided filter options.
-func PrintList(opts FilterOptions) {
+func PrintList(opts FilterOptions) error {
 	if listOutputWriter == nil {
 		listOutputWriter = os.Stdout
 	}
-	printList(opts, listOutputWriter)
+	return printList(opts, listOutputWriter)
 }
 
-func printList(opts FilterOptions, w io.Writer) {
+func printList(opts FilterOptions, w io.Writer) error {
 	lines, err := fetchNotifications(opts)
 	if err != nil {
-		fmt.Fprintf(w, "list: failed to list notifications: %v\n", err)
-		return
+		if _, err := fmt.Fprintf(w, "list: failed to list notifications: %v\n", err); err != nil {
+			return err
+		}
+		return nil
 	}
 	if lines == "" {
-		fmt.Fprintln(w, "No notifications found")
-		return
+		if _, err := fmt.Fprintln(w, "No notifications found"); err != nil {
+			return err
+		}
+		return nil
 	}
 
 	searchProvider := getSearchProvider(opts)
 	notifications := parseAndFilterNotifications(lines, searchProvider, opts.Search)
 	if len(notifications) == 0 {
-		fmt.Fprintln(w, "No notifications found")
-		return
+		if _, err := fmt.Fprintln(w, "No notifications found"); err != nil {
+			return err
+		}
+		return nil
 	}
 
 	notifications = orderUnreadFirst(notifications)
-	printNotifications(notifications, opts, w)
+	return printNotifications(notifications, opts, w)
 }
 
 // fetchNotifications retrieves notifications from storage.
@@ -318,33 +323,38 @@ func parseAndFilterNotifications(lines string, searchProvider search.Provider, s
 }
 
 // printNotifications prints notifications based on options.
-func printNotifications(notifications []*domain.Notification, opts FilterOptions, w io.Writer) {
+func printNotifications(notifications []*domain.Notification, opts FilterOptions, w io.Writer) error {
 	// Apply grouping if requested
 	if opts.GroupBy != "" {
 		notificationsValues := notificationsToValues(notifications)
 		groupResult := domain.GroupNotifications(notificationsValues, domain.GroupByMode(opts.GroupBy))
 		if opts.GroupCount {
-			printGroupCounts(groupResult, w, opts.Format)
+			return printGroupCounts(groupResult, w, opts.Format)
 		} else {
-			printGrouped(groupResult, w, opts.Format)
+			return printGrouped(groupResult, w, opts.Format)
 		}
-		return
 	}
 
 	// Print based on format
 	switch opts.Format {
 	case "simple":
-		printSimple(notifications, w)
+		return printSimple(notifications, w)
 	case "legacy":
-		printLegacy(notifications, w)
+		return printLegacy(notifications, w)
 	case "table":
-		printTable(notifications, w)
+		return printTable(notifications, w)
 	case "compact":
-		printCompact(notifications, w)
+		return printCompact(notifications, w)
 	case "json":
-		fmt.Fprintln(w, "JSON format not yet implemented")
+		if _, err := fmt.Fprintln(w, "JSON format not yet implemented"); err != nil {
+			return err
+		}
+		return nil
 	default:
-		fmt.Fprintf(w, "list: unknown format: %s\n", opts.Format)
+		if _, err := fmt.Fprintf(w, "list: unknown format: %s\n", opts.Format); err != nil {
+			return err
+		}
+		return nil
 	}
 }
 
@@ -371,85 +381,117 @@ func orderUnreadFirst(notifs []*domain.Notification) []*domain.Notification {
 }
 
 // printGroupCounts prints only group counts.
-func printGroupCounts(groupResult domain.GroupResult, w io.Writer, format string) {
+func printGroupCounts(groupResult domain.GroupResult, w io.Writer, format string) error {
 	// Groups are already sorted by display name
 	for _, group := range groupResult.Groups {
-		fmt.Fprintf(w, "Group: %s (%d)\n", group.DisplayName, group.Count)
+		if _, err := fmt.Fprintf(w, "Group: %s (%d)\n", group.DisplayName, group.Count); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // printGrouped prints grouped notifications with headers.
-func printGrouped(groupResult domain.GroupResult, w io.Writer, format string) {
+func printGrouped(groupResult domain.GroupResult, w io.Writer, format string) error {
 	// Groups are already sorted by display name
 	for _, group := range groupResult.Groups {
-		fmt.Fprintf(w, "=== %s (%d) ===\n", group.DisplayName, group.Count)
+		if _, err := fmt.Fprintf(w, "=== %s (%d) ===\n", group.DisplayName, group.Count); err != nil {
+			return err
+		}
 		notifs := notificationsToPointers(group.Notifications)
 		switch format {
 		case "simple":
-			printSimple(notifs, w)
+			if err := printSimple(notifs, w); err != nil {
+				return err
+			}
 		case "legacy":
-			printLegacy(notifs, w)
+			if err := printLegacy(notifs, w); err != nil {
+				return err
+			}
 		case "table":
-			printTable(notifs, w)
+			if err := printTable(notifs, w); err != nil {
+				return err
+			}
 		case "compact":
-			printCompact(notifs, w)
+			if err := printCompact(notifs, w); err != nil {
+				return err
+			}
 		default:
-			printLegacy(notifs, w)
+			if err := printLegacy(notifs, w); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 // printLegacy prints only messages (one per line).
-func printLegacy(notifs []*domain.Notification, w io.Writer) {
+func printLegacy(notifs []*domain.Notification, w io.Writer) error {
 	for _, n := range notifs {
-		fmt.Fprintln(w, n.Message)
+		if _, err := fmt.Fprintln(w, n.Message); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // printSimple prints a simple format: ID DATE - Message.
 // Optimized for quick scanning with ID, timestamp, and message on one line.
-func printSimple(notifs []*domain.Notification, w io.Writer) {
+func printSimple(notifs []*domain.Notification, w io.Writer) error {
 	for _, n := range notifs {
 		// Truncate message for display (50 chars max)
 		displayMsg := n.Message
 		if len(displayMsg) > 50 {
 			displayMsg = displayMsg[:47] + "..."
 		}
-		fmt.Fprintf(w, "%-4d  %-25s  - %s\n", n.ID, n.Timestamp, displayMsg)
+		if _, err := fmt.Fprintf(w, "%-4d  %-25s  - %s\n", n.ID, n.Timestamp, displayMsg); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // printTable prints a formatted table with ID, Timestamp, Message, and optional context (Session Window Pane).
 // Format: ID DATE - Message (Session Window Pane)
 // Optimized for readability with ID first for easy copying.
-func printTable(notifs []*domain.Notification, w io.Writer) {
+func printTable(notifs []*domain.Notification, w io.Writer) error {
 	if len(notifs) == 0 {
-		return
+		return nil
 	}
 	headerColor := colors.Blue
 	reset := colors.Reset
-	fmt.Fprintf(w, "%sID    DATE                   - Message%s\n", headerColor, reset)
-	fmt.Fprintf(w, "%s----  ---------------------  - --------------------------------%s\n", headerColor, reset)
+	if _, err := fmt.Fprintf(w, "%sID    DATE                   - Message%s\n", headerColor, reset); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "%s----  ---------------------  - --------------------------------%s\n", headerColor, reset); err != nil {
+		return err
+	}
 	for _, n := range notifs {
 		// Truncate message for display (32 chars max)
 		displayMsg := n.Message
 		if len(displayMsg) > 32 {
 			displayMsg = displayMsg[:29] + "..."
 		}
-		fmt.Fprintf(w, "%-4d  %-23s  - %s\n", n.ID, n.Timestamp, displayMsg)
+		if _, err := fmt.Fprintf(w, "%-4d  %-23s  - %s\n", n.ID, n.Timestamp, displayMsg); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // printCompact prints a compact format with Message only.
-func printCompact(notifs []*domain.Notification, w io.Writer) {
+func printCompact(notifs []*domain.Notification, w io.Writer) error {
 	for _, n := range notifs {
 		// Truncate message for display
 		displayMsg := n.Message
 		if len(displayMsg) > 60 {
 			displayMsg = displayMsg[:57] + "..."
 		}
-		fmt.Fprintln(w, displayMsg)
+		if _, err := fmt.Fprintln(w, displayMsg); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func init() {

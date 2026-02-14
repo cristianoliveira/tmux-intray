@@ -47,7 +47,10 @@ func TestPrintListEmpty(t *testing.T) {
 	listOutputWriter = &buf
 	defer func() { listOutputWriter = nil }()
 
-	PrintList(FilterOptions{})
+	err := PrintList(FilterOptions{})
+	if err != nil {
+		t.Fatalf("PrintList failed: %v", err)
+	}
 	output := buf.String()
 	if output != "No notifications found\n" {
 		t.Errorf("Expected 'No notifications found', got %q", output)
@@ -64,7 +67,10 @@ func TestPrintListLegacyFormat(t *testing.T) {
 	listOutputWriter = &buf
 	defer func() { listOutputWriter = nil }()
 
-	PrintList(FilterOptions{Format: "legacy"})
+	err := PrintList(FilterOptions{Format: "legacy"})
+	if err != nil {
+		t.Fatalf("PrintList failed: %v", err)
+	}
 	output := buf.String()
 	// Should contain only messages, one per line
 	if !strings.Contains(output, "message one") {
@@ -89,7 +95,10 @@ func TestPrintListSimpleFormat(t *testing.T) {
 	listOutputWriter = &buf
 	defer func() { listOutputWriter = nil }()
 
-	PrintList(FilterOptions{Format: "simple"})
+	err := PrintList(FilterOptions{Format: "simple"})
+	if err != nil {
+		t.Fatalf("PrintList failed: %v", err)
+	}
 	output := buf.String()
 	// Should contain ID, DATE, and message separator dash
 	if !strings.Contains(output, "1") || !strings.Contains(output, "2025-01-01") {
@@ -120,7 +129,10 @@ func TestPrintListUnreadFirstOrdering(t *testing.T) {
 	listOutputWriter = &buf
 	defer func() { listOutputWriter = nil }()
 
-	PrintList(FilterOptions{Format: "simple"})
+	err := PrintList(FilterOptions{Format: "simple"})
+	if err != nil {
+		t.Fatalf("PrintList failed: %v", err)
+	}
 	output := strings.TrimSpace(buf.String())
 
 	var ids []int
@@ -149,7 +161,10 @@ func TestPrintListTableFormat(t *testing.T) {
 	listOutputWriter = &buf
 	defer func() { listOutputWriter = nil }()
 
-	PrintList(FilterOptions{Format: "table"})
+	err := PrintList(FilterOptions{Format: "table"})
+	if err != nil {
+		t.Fatalf("PrintList failed: %v", err)
+	}
 	output := buf.String()
 	// Should contain header with ID and DATE
 	if !strings.Contains(output, "ID") || !strings.Contains(output, "DATE") {
@@ -180,7 +195,10 @@ func TestPrintListCompactFormat(t *testing.T) {
 	listOutputWriter = &buf
 	defer func() { listOutputWriter = nil }()
 
-	PrintList(FilterOptions{Format: "compact"})
+	err := PrintList(FilterOptions{Format: "compact"})
+	if err != nil {
+		t.Fatalf("PrintList failed: %v", err)
+	}
 	output := buf.String()
 	// Should contain messages only, no extra whitespace
 	lines := strings.Split(strings.TrimSpace(output), "\n")
@@ -205,7 +223,10 @@ func TestPrintListSearchFilter(t *testing.T) {
 	defer func() { listOutputWriter = nil }()
 
 	// Substring search
-	PrintList(FilterOptions{Search: "three", Format: "legacy"})
+	err := PrintList(FilterOptions{Search: "three", Format: "legacy"})
+	if err != nil {
+		t.Fatalf("PrintList failed: %v", err)
+	}
 	output := buf.String()
 	if !strings.Contains(output, "message three") {
 		t.Error("Search filter didn't find 'message three'")
@@ -226,7 +247,10 @@ func TestPrintListRegexSearch(t *testing.T) {
 	defer func() { listOutputWriter = nil }()
 
 	// Regex search for messages ending with 'e'
-	PrintList(FilterOptions{Search: "e$", Regex: true, Format: "legacy"})
+	err := PrintList(FilterOptions{Search: "e$", Regex: true, Format: "legacy"})
+	if err != nil {
+		t.Fatalf("PrintList failed: %v", err)
+	}
 	output := buf.String()
 	// message one, three, five end with 'e'
 	if !strings.Contains(output, "message one") {
@@ -253,7 +277,10 @@ func TestPrintListGroupByLevelSimple(t *testing.T) {
 	listOutputWriter = &buf
 	defer func() { listOutputWriter = nil }()
 
-	PrintList(FilterOptions{GroupBy: "level", Format: "simple"})
+	err := PrintList(FilterOptions{GroupBy: "level", Format: "simple"})
+	if err != nil {
+		t.Fatalf("PrintList failed: %v", err)
+	}
 	output := buf.String()
 	// Should contain group headers
 	if !strings.Contains(output, "=== info (3) ===") {
@@ -281,7 +308,10 @@ func TestPrintListGroupByLevel(t *testing.T) {
 	listOutputWriter = &buf
 	defer func() { listOutputWriter = nil }()
 
-	PrintList(FilterOptions{GroupBy: "level", Format: "legacy"})
+	err := PrintList(FilterOptions{GroupBy: "level", Format: "legacy"})
+	if err != nil {
+		t.Fatalf("PrintList failed: %v", err)
+	}
 	output := buf.String()
 	// Should contain group headers
 	if !strings.Contains(output, "=== info (3) ===") {
@@ -305,7 +335,10 @@ func TestPrintListGroupCount(t *testing.T) {
 	listOutputWriter = &buf
 	defer func() { listOutputWriter = nil }()
 
-	PrintList(FilterOptions{GroupBy: "level", GroupCount: true})
+	err := PrintList(FilterOptions{GroupBy: "level", GroupCount: true})
+	if err != nil {
+		t.Fatalf("PrintList failed: %v", err)
+	}
 	output := buf.String()
 	// Should contain group counts only
 	if !strings.Contains(output, "Group: info (3)") {
@@ -342,7 +375,10 @@ func TestPrintListWithCustomSearchProvider(t *testing.T) {
 		SearchProvider: mockProvider,
 		Format:         "legacy",
 	}
-	PrintList(opts)
+	err := PrintList(opts)
+	if err != nil {
+		t.Fatalf("PrintList failed: %v", err)
+	}
 	output := buf.String()
 
 	// Should only match the first notification (has error in level)
@@ -357,7 +393,10 @@ func TestPrintListWithCustomSearchProvider(t *testing.T) {
 
 	// Test with provider that matches warning
 	opts.Search = "warning"
-	PrintList(opts)
+	err = PrintList(opts)
+	if err != nil {
+		t.Fatalf("PrintList failed: %v", err)
+	}
 	output = buf.String()
 	if strings.Contains(output, "error message") {
 		t.Error("Should not include error message")
@@ -385,7 +424,10 @@ func TestPrintListBackwardCompatibility(t *testing.T) {
 		Regex:  false,
 		Format: "legacy",
 	}
-	PrintList(opts)
+	err := PrintList(opts)
+	if err != nil {
+		t.Fatalf("PrintList failed: %v", err)
+	}
 	if !strings.Contains(buf.String(), "Hello World") {
 		t.Error("Substring search should find Hello World")
 	}
@@ -394,7 +436,10 @@ func TestPrintListBackwardCompatibility(t *testing.T) {
 
 	// Test regex search (with regex flag)
 	opts.Regex = true
-	PrintList(opts)
+	err = PrintList(opts)
+	if err != nil {
+		t.Fatalf("PrintList failed: %v", err)
+	}
 	if !strings.Contains(buf.String(), "Hello World") {
 		t.Error("Regex search should find Hello World")
 	}
@@ -403,7 +448,10 @@ func TestPrintListBackwardCompatibility(t *testing.T) {
 
 	// Test no search (should show all)
 	opts.Search = ""
-	PrintList(opts)
+	err = PrintList(opts)
+	if err != nil {
+		t.Fatalf("PrintList failed: %v", err)
+	}
 	if !strings.Contains(buf.String(), "Hello World") {
 		t.Error("Empty search should show all notifications")
 	}
@@ -428,7 +476,10 @@ func TestPrintListFilterRead(t *testing.T) {
 	defer func() { listOutputWriter = nil }()
 
 	// Test --filter read
-	PrintList(FilterOptions{ReadFilter: "read", Format: "simple"})
+	err := PrintList(FilterOptions{ReadFilter: "read", Format: "simple"})
+	if err != nil {
+		t.Fatalf("PrintList failed: %v", err)
+	}
 	output := buf.String()
 
 	// Should contain read notifications
@@ -469,7 +520,10 @@ func TestPrintListFilterUnread(t *testing.T) {
 	defer func() { listOutputWriter = nil }()
 
 	// Test --filter unread
-	PrintList(FilterOptions{ReadFilter: "unread", Format: "simple"})
+	err := PrintList(FilterOptions{ReadFilter: "unread", Format: "simple"})
+	if err != nil {
+		t.Fatalf("PrintList failed: %v", err)
+	}
 	output := buf.String()
 
 	// Should contain unread notifications
@@ -617,19 +671,23 @@ func TestGroupNotifications(t *testing.T) {
 func TestPrintFunctionsWithEmptySlice(t *testing.T) {
 	var buf bytes.Buffer
 	// printSimple
-	printSimple([]*domain.Notification{}, &buf)
+	err := printSimple([]*domain.Notification{}, &buf)
+	assert.NoError(t, err)
 	assert.Equal(t, "", buf.String())
 	buf.Reset()
 	// printTable
-	printTable([]*domain.Notification{}, &buf)
+	err = printTable([]*domain.Notification{}, &buf)
+	assert.NoError(t, err)
 	assert.Equal(t, "", buf.String())
 	buf.Reset()
 	// printCompact
-	printCompact([]*domain.Notification{}, &buf)
+	err = printCompact([]*domain.Notification{}, &buf)
+	assert.NoError(t, err)
 	assert.Equal(t, "", buf.String())
 	buf.Reset()
 	// printLegacy
-	printLegacy([]*domain.Notification{}, &buf)
+	err = printLegacy([]*domain.Notification{}, &buf)
+	assert.NoError(t, err)
 	assert.Equal(t, "", buf.String())
 }
 
@@ -642,17 +700,21 @@ func TestPrintFunctionsWithSingleNotification(t *testing.T) {
 		Level:     domain.LevelInfo,
 	}
 	var buf bytes.Buffer
-	printSimple([]*domain.Notification{notif}, &buf)
+	err := printSimple([]*domain.Notification{notif}, &buf)
+	assert.NoError(t, err)
 	assert.Contains(t, buf.String(), "42")
 	assert.Contains(t, buf.String(), "test message")
 	buf.Reset()
-	printTable([]*domain.Notification{notif}, &buf)
+	err = printTable([]*domain.Notification{notif}, &buf)
+	assert.NoError(t, err)
 	assert.Contains(t, buf.String(), "42")
 	buf.Reset()
-	printCompact([]*domain.Notification{notif}, &buf)
+	err = printCompact([]*domain.Notification{notif}, &buf)
+	assert.NoError(t, err)
 	assert.Contains(t, buf.String(), "test message")
 	buf.Reset()
-	printLegacy([]*domain.Notification{notif}, &buf)
+	err = printLegacy([]*domain.Notification{notif}, &buf)
+	assert.NoError(t, err)
 	assert.Equal(t, "test message\n", buf.String())
 }
 
@@ -666,7 +728,10 @@ func TestPrintListJSONFormat(t *testing.T) {
 	listOutputWriter = &buf
 	defer func() { listOutputWriter = nil }()
 
-	PrintList(FilterOptions{Format: "json"})
+	err := PrintList(FilterOptions{Format: "json"})
+	if err != nil {
+		t.Fatalf("PrintList failed: %v", err)
+	}
 	output := buf.String()
 	if !strings.Contains(output, "JSON format not yet implemented") {
 		t.Errorf("Expected JSON not implemented message, got %q", output)
@@ -683,7 +748,10 @@ func TestPrintListUnknownFormat(t *testing.T) {
 	listOutputWriter = &buf
 	defer func() { listOutputWriter = nil }()
 
-	PrintList(FilterOptions{Format: "unknown"})
+	err := PrintList(FilterOptions{Format: "unknown"})
+	if err != nil {
+		t.Fatalf("PrintList failed: %v", err)
+	}
 	output := buf.String()
 	if !strings.Contains(output, "list: unknown format") {
 		t.Errorf("Expected unknown format error, got %q", output)
@@ -864,7 +932,7 @@ func TestListCmdRunEClientError(t *testing.T) {
 	defer func() { listOutputWriter = nil }()
 
 	err := cmd.RunE(cmd, []string{})
-	// RunE returns nil because PrintList prints error to writer
+	// RunE returns nil because PrintList returns nil when printing error to writer
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
