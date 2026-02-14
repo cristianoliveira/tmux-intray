@@ -1,5 +1,5 @@
 /*
-Copyright © 2026 Cristian Oliveira <license@cristianoliveira.dev>
+Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 */
 package main
 
@@ -29,9 +29,7 @@ type listClient interface {
 func notificationsToValues(notifs []*domain.Notification) []domain.Notification {
 	values := make([]domain.Notification, len(notifs))
 	for i, n := range notifs {
-		if n != nil {
-			values[i] = *n
-		}
+		values[i] = *n
 	}
 	return values
 }
@@ -211,14 +209,14 @@ func printList(opts FilterOptions, w io.Writer) {
 		var err error
 		lines, err = opts.Client.ListNotifications(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, opts.OlderThan, opts.NewerThan, opts.ReadFilter)
 		if err != nil {
-			_, _ = fmt.Fprintf(w, "list: failed to list notifications: %v\n", err)
+			fmt.Fprintf(w, "list: failed to list notifications: %v\n", err)
 			return
 		}
 	} else {
 		lines = listListFunc(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, opts.OlderThan, opts.NewerThan, opts.ReadFilter)
 	}
 	if lines == "" {
-		_, _ = fmt.Fprintln(w, "No notifications found")
+		fmt.Fprintln(w, "No notifications found")
 		return
 	}
 
@@ -262,7 +260,7 @@ func printList(opts FilterOptions, w io.Writer) {
 	}
 
 	// Parse lines into notifications
-	var notifications []notification.Notification
+	var notifications []*domain.Notification
 	for _, line := range strings.Split(lines, "\n") {
 		if line == "" {
 			continue
@@ -277,26 +275,24 @@ func printList(opts FilterOptions, w io.Writer) {
 				continue
 			}
 		}
-		notifications = append(notifications, notif)
+		notifications = append(notifications, notification.ToDomainUnsafe(notif))
 	}
 
 	if len(notifications) == 0 {
-		_, _ = fmt.Fprintln(w, "No notifications found")
+		fmt.Fprintln(w, "No notifications found")
 		return
 	}
 
-	domainNotifs := notification.ToDomainSliceUnsafe(notifications)
-	values := notificationsToValues(domainNotifs)
-	sortedValues := domain.SortByReadStatus(values, domain.SortOrderAsc)
-	notifications = notification.FromDomainSlice(notificationsToPointers(sortedValues))
+	notifications = orderUnreadFirst(notifications)
 
 	// Apply grouping if requested
 	if opts.GroupBy != "" {
-		grouped := groupNotifications(notifications, opts.GroupBy)
+		notificationsValues := notificationsToValues(notifications)
+		groupResult := domain.GroupNotifications(notificationsValues, domain.GroupByMode(opts.GroupBy))
 		if opts.GroupCount {
-			printGroupCounts(grouped, w, opts.Format)
+			printGroupCounts(groupResult, w, opts.Format)
 		} else {
-			printGrouped(grouped, w, opts.Format)
+			printGrouped(groupResult, w, opts.Format)
 		}
 		return
 	}
@@ -312,122 +308,113 @@ func printList(opts FilterOptions, w io.Writer) {
 	case "compact":
 		printCompact(notifications, w)
 	case "json":
-		_, _ = fmt.Fprintln(w, "JSON format not yet implemented")
+		fmt.Fprintln(w, "JSON format not yet implemented")
 	default:
-		_, _ = fmt.Fprintf(w, "list: unknown format: %s\n", opts.Format)
+		fmt.Fprintf(w, "list: unknown format: %s\n", opts.Format)
 	}
 }
 
-// groupNotifications groups notifications by field.
-func groupNotifications(notifs []notification.Notification, field string) map[string][]notification.Notification {
-	groups := make(map[string][]notification.Notification)
-	for _, n := range notifs {
-		var key string
-		switch field {
-		case "session":
-			key = n.Session
-		case "window":
-			key = n.Window
-		case "pane":
-			key = n.Pane
-		case "level":
-			key = n.Level
-		default:
-			key = ""
-		}
-		groups[key] = append(groups[key], n)
+// orderUnreadFirst places unread notifications before read notifications.
+// It keeps the existing relative order within each bucket (stable).
+func orderUnreadFirst(notifs []*domain.Notification) []*domain.Notification {
+	if len(notifs) == 0 {
+		return notifs
 	}
-	return groups
+
+	ordered := make([]*domain.Notification, len(notifs))
+	copy(ordered, notifs)
+
+	sort.SliceStable(ordered, func(i, j int) bool {
+		iUnread := !ordered[i].IsRead()
+		jUnread := !ordered[j].IsRead()
+		if iUnread == jUnread {
+			return false
+		}
+		return iUnread && !jUnread
+	})
+
+	return ordered
 }
 
 // printGroupCounts prints only group counts.
-func printGroupCounts(groups map[string][]notification.Notification, w io.Writer, format string) {
-	// Sort keys for consistent output
-	var keys []string
-	for k := range groups {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		_, _ = fmt.Fprintf(w, "Group: %s (%d)\n", k, len(groups[k]))
+func printGroupCounts(groupResult domain.GroupResult, w io.Writer, format string) {
+	// Groups are already sorted by display name
+	for _, group := range groupResult.Groups {
+		fmt.Fprintf(w, "Group: %s (%d)\n", group.DisplayName, group.Count)
 	}
 }
 
 // printGrouped prints grouped notifications with headers.
-func printGrouped(groups map[string][]notification.Notification, w io.Writer, format string) {
-	// Sort keys for consistent output
-	var keys []string
-	for k := range groups {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		_, _ = fmt.Fprintf(w, "=== %s (%d) ===\n", k, len(groups[k]))
+func printGrouped(groupResult domain.GroupResult, w io.Writer, format string) {
+	// Groups are already sorted by display name
+	for _, group := range groupResult.Groups {
+		fmt.Fprintf(w, "=== %s (%d) ===\n", group.DisplayName, group.Count)
+		notifs := notificationsToPointers(group.Notifications)
 		switch format {
 		case "simple":
-			printSimple(groups[k], w)
+			printSimple(notifs, w)
 		case "legacy":
-			printLegacy(groups[k], w)
+			printLegacy(notifs, w)
 		case "table":
-			printTable(groups[k], w)
+			printTable(notifs, w)
 		case "compact":
-			printCompact(groups[k], w)
+			printCompact(notifs, w)
 		default:
-			printLegacy(groups[k], w)
+			printLegacy(notifs, w)
 		}
 	}
 }
 
 // printLegacy prints only messages (one per line).
-func printLegacy(notifs []notification.Notification, w io.Writer) {
+func printLegacy(notifs []*domain.Notification, w io.Writer) {
 	for _, n := range notifs {
-		_, _ = fmt.Fprintln(w, n.Message)
+		fmt.Fprintln(w, n.Message)
 	}
 }
 
 // printSimple prints a simple format: ID DATE - Message.
 // Optimized for quick scanning with ID, timestamp, and message on one line.
-func printSimple(notifs []notification.Notification, w io.Writer) {
+func printSimple(notifs []*domain.Notification, w io.Writer) {
 	for _, n := range notifs {
 		// Truncate message for display (50 chars max)
 		displayMsg := n.Message
 		if len(displayMsg) > 50 {
 			displayMsg = displayMsg[:47] + "..."
 		}
-		_, _ = fmt.Fprintf(w, "%-4d  %-25s  - %s\n", n.ID, n.Timestamp, displayMsg)
+		fmt.Fprintf(w, "%-4d  %-25s  - %s\n", n.ID, n.Timestamp, displayMsg)
 	}
 }
 
 // printTable prints a formatted table with ID, Timestamp, Message, and optional context (Session Window Pane).
 // Format: ID DATE - Message (Session Window Pane)
 // Optimized for readability with ID first for easy copying.
-func printTable(notifs []notification.Notification, w io.Writer) {
+func printTable(notifs []*domain.Notification, w io.Writer) {
 	if len(notifs) == 0 {
 		return
 	}
 	headerColor := colors.Blue
 	reset := colors.Reset
-	_, _ = fmt.Fprintf(w, "%sID    DATE                   - Message%s\n", headerColor, reset)
-	_, _ = fmt.Fprintf(w, "%s----  ---------------------  - --------------------------------%s\n", headerColor, reset)
+	fmt.Fprintf(w, "%sID    DATE                   - Message%s\n", headerColor, reset)
+	fmt.Fprintf(w, "%s----  ---------------------  - --------------------------------%s\n", headerColor, reset)
 	for _, n := range notifs {
 		// Truncate message for display (32 chars max)
 		displayMsg := n.Message
 		if len(displayMsg) > 32 {
 			displayMsg = displayMsg[:29] + "..."
 		}
-		_, _ = fmt.Fprintf(w, "%-4d  %-23s  - %s\n", n.ID, n.Timestamp, displayMsg)
+		fmt.Fprintf(w, "%-4d  %-23s  - %s\n", n.ID, n.Timestamp, displayMsg)
 	}
 }
 
 // printCompact prints a compact format with Message only.
-func printCompact(notifs []notification.Notification, w io.Writer) {
+func printCompact(notifs []*domain.Notification, w io.Writer) {
 	for _, n := range notifs {
 		// Truncate message for display
 		displayMsg := n.Message
 		if len(displayMsg) > 60 {
 			displayMsg = displayMsg[:57] + "..."
 		}
-		_, _ = fmt.Fprintln(w, displayMsg)
+		fmt.Fprintln(w, displayMsg)
 	}
 }
 
