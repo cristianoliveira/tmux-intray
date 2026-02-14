@@ -1,5 +1,5 @@
 /*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
+Copyright © 2026 Cristian Oliveira <license@cristianoliveira.dev>
 */
 package main
 
@@ -14,6 +14,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/cmd"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
@@ -22,6 +23,26 @@ import (
 
 type listClient interface {
 	ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error)
+}
+
+// notificationsToValues converts a slice of notification pointers to values.
+func notificationsToValues(notifs []*domain.Notification) []domain.Notification {
+	values := make([]domain.Notification, len(notifs))
+	for i, n := range notifs {
+		if n != nil {
+			values[i] = *n
+		}
+	}
+	return values
+}
+
+// notificationsToPointers converts a slice of notification values to pointers.
+func notificationsToPointers(notifs []domain.Notification) []*domain.Notification {
+	ptrs := make([]*domain.Notification, len(notifs))
+	for i := range notifs {
+		ptrs[i] = &notifs[i]
+	}
+	return ptrs
 }
 
 // NewListCmd creates the list command with explicit dependencies.
@@ -202,7 +223,43 @@ func printList(opts FilterOptions, w io.Writer) {
 	}
 
 	// Determine search provider
-	searchProvider := resolveSearchProvider(opts)
+	var searchProvider search.Provider
+	if opts.SearchProvider != nil {
+		// Use custom provider if provided
+		searchProvider = opts.SearchProvider
+	} else if opts.Search != "" {
+		// Fetch name maps for transparent name-based search
+		client := tmux.NewDefaultClient()
+		sessionNames, err := client.ListSessions()
+		if err != nil {
+			sessionNames = make(map[string]string)
+		}
+		windowNames, err := client.ListWindows()
+		if err != nil {
+			windowNames = make(map[string]string)
+		}
+		paneNames, err := client.ListPanes()
+		if err != nil {
+			paneNames = make(map[string]string)
+		}
+
+		// Create default provider based on Regex flag
+		if opts.Regex {
+			searchProvider = search.NewRegexProvider(
+				search.WithCaseInsensitive(false),
+				search.WithSessionNames(sessionNames),
+				search.WithWindowNames(windowNames),
+				search.WithPaneNames(paneNames),
+			)
+		} else {
+			searchProvider = search.NewSubstringProvider(
+				search.WithCaseInsensitive(false),
+				search.WithSessionNames(sessionNames),
+				search.WithWindowNames(windowNames),
+				search.WithPaneNames(paneNames),
+			)
+		}
+	}
 
 	// Parse lines into notifications
 	var notifications []notification.Notification
@@ -228,7 +285,10 @@ func printList(opts FilterOptions, w io.Writer) {
 		return
 	}
 
-	notifications = orderUnreadFirst(notifications)
+	domainNotifs := notification.ToDomainSliceUnsafe(notifications)
+	values := notificationsToValues(domainNotifs)
+	sortedValues := domain.SortByReadStatus(values, domain.SortOrderAsc)
+	notifications = notification.FromDomainSlice(notificationsToPointers(sortedValues))
 
 	// Apply grouping if requested
 	if opts.GroupBy != "" {
@@ -256,70 +316,6 @@ func printList(opts FilterOptions, w io.Writer) {
 	default:
 		fmt.Fprintf(w, "list: unknown format: %s\n", opts.Format)
 	}
-}
-
-// orderUnreadFirst places unread notifications before read notifications.
-// It keeps the existing relative order within each bucket (stable).
-func orderUnreadFirst(notifs []notification.Notification) []notification.Notification {
-	if len(notifs) == 0 {
-		return notifs
-	}
-
-	ordered := make([]notification.Notification, len(notifs))
-	copy(ordered, notifs)
-
-	sort.SliceStable(ordered, func(i, j int) bool {
-		iUnread := !ordered[i].IsRead()
-		jUnread := !ordered[j].IsRead()
-		if iUnread == jUnread {
-			return false
-		}
-		return iUnread && !jUnread
-	})
-
-	return ordered
-}
-
-// resolveSearchProvider determines the appropriate search provider based on options.
-func resolveSearchProvider(opts FilterOptions) search.Provider {
-	if opts.SearchProvider != nil {
-		return opts.SearchProvider
-	}
-
-	if opts.Search == "" {
-		return nil
-	}
-
-	// Fetch name maps for transparent name-based search
-	client := tmux.NewDefaultClient()
-	sessionNames, _ := client.ListSessions()
-	if sessionNames == nil {
-		sessionNames = make(map[string]string)
-	}
-	windowNames, _ := client.ListWindows()
-	if windowNames == nil {
-		windowNames = make(map[string]string)
-	}
-	paneNames, _ := client.ListPanes()
-	if paneNames == nil {
-		paneNames = make(map[string]string)
-	}
-
-	// Create default provider based on Regex flag
-	if opts.Regex {
-		return search.NewRegexProvider(
-			search.WithCaseInsensitive(false),
-			search.WithSessionNames(sessionNames),
-			search.WithWindowNames(windowNames),
-			search.WithPaneNames(paneNames),
-		)
-	}
-	return search.NewSubstringProvider(
-		search.WithCaseInsensitive(false),
-		search.WithSessionNames(sessionNames),
-		search.WithWindowNames(windowNames),
-		search.WithPaneNames(paneNames),
-	)
 }
 
 // groupNotifications groups notifications by field.
