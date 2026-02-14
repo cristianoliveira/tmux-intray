@@ -424,6 +424,68 @@ func TestToggleFoldWorksAtPaneDepth(t *testing.T) {
 	assert.True(t, paneNode.Expanded)
 }
 
+func TestModelUpdateHandlesCollapseExpandKeys(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByPane)
+
+	model.applySearchFilter()
+	model.resetCursor()
+
+	var paneNode *uimodel.TreeNode
+	paneIndex := -1
+	for idx, node := range model.getVisibleNodesForTest() {
+		if node != nil && node.Kind == uimodel.NodeKindPane {
+			paneNode = node
+			paneIndex = idx
+			break
+		}
+	}
+	require.NotNil(t, paneNode)
+	require.NotEqual(t, -1, paneIndex)
+	model.uiState.SetCursor(paneIndex)
+
+	require.True(t, paneNode.Expanded)
+
+	// Press 'h' to collapse node
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	assert.False(t, paneNode.Expanded)
+
+	// Press 'l' to expand node
+	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.True(t, paneNode.Expanded)
+}
+
+func TestModelUpdateHandlesCollapseExpandKeysNonGroupedView(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(settings.ViewModeDetailed) // not grouped
+	model.applySearchFilter()
+	model.resetCursor()
+	model.uiState.SetCursor(0)
+
+	// 'h' and 'l' should be ignored (no panic)
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	// Nothing should change
+	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	// No assertion needed, just ensure no panic
+}
+
 func TestCollapseNodeMovesCursorToParent(t *testing.T) {
 	model := newTestModel(t, []notification.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
@@ -639,6 +701,25 @@ func TestModelInitReturnsNil(t *testing.T) {
 	assert.Nil(t, cmd)
 }
 
+func TestCanProcessBinding(t *testing.T) {
+	model := &Model{
+		uiState: NewUIState(),
+	}
+	// Default state: not in search or command mode
+	assert.True(t, model.canProcessBinding())
+
+	model.uiState.SetSearchMode(true)
+	assert.False(t, model.canProcessBinding())
+
+	model.uiState.SetSearchMode(false)
+	model.uiState.SetCommandMode(true)
+	assert.False(t, model.canProcessBinding())
+
+	model.uiState.SetSearchMode(true)
+	model.uiState.SetCommandMode(true)
+	assert.False(t, model.canProcessBinding())
+}
+
 func TestModelUpdateHandlesNavigation(t *testing.T) {
 	stubSessionFetchers(t)
 
@@ -679,6 +760,34 @@ func TestModelUpdateHandlesNavigation(t *testing.T) {
 	updated, _ = model.Update(msg)
 	model = updated.(*Model)
 
+	assert.Equal(t, 1, model.uiState.GetCursor())
+}
+
+func TestModelUpdateHandlesKeyUpKeyDown(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+		{ID: 2, Message: "Second"},
+	})
+	model.uiState.SetCursor(1)
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+
+	// KeyUp should not change cursor (navigation handled by key bindings)
+	msg := tea.KeyMsg{Type: tea.KeyUp}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 1, model.uiState.GetCursor())
+
+	// KeyDown should not change cursor
+	msg = tea.KeyMsg{Type: tea.KeyDown}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 1, model.uiState.GetCursor())
+
+	// Unknown key type should be ignored (default case)
+	msg = tea.KeyMsg{Type: tea.KeyTab}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
 	assert.Equal(t, 1, model.uiState.GetCursor())
 }
 
@@ -873,6 +982,170 @@ func TestModelUpdateIgnoresViewModeCycleInSearchAndCommandModes(t *testing.T) {
 	model = updated.(*Model)
 	assert.Equal(t, settings.ViewModeCompact, string(model.uiState.GetViewMode()))
 	assert.Equal(t, "v", model.uiState.GetCommandQuery())
+}
+
+func TestModelUpdateHandlesKeyBindingsInSearchAndCommandModes(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetCursor(0)
+
+	// Test search mode (canProcessBinding returns false)
+	model.uiState.SetSearchMode(true)
+	// Reset search query before each key to avoid accumulation
+	model.uiState.SetSearchQuery("")
+	// 'G' should not move cursor
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+	assert.Equal(t, "G", model.uiState.GetSearchQuery())
+	// 'g' should not set pending key
+	model.uiState.SetSearchQuery("")
+	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, "", model.uiState.GetPendingKey())
+	assert.Equal(t, "g", model.uiState.GetSearchQuery())
+	// ':' should not enter command mode
+	model.uiState.SetSearchQuery("")
+	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.False(t, model.uiState.IsCommandMode())
+	assert.Equal(t, ":", model.uiState.GetSearchQuery())
+	// 'v' should not cycle view mode (already covered)
+	// 'z' should not set pending key
+	model.uiState.SetSearchQuery("")
+	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'z'}}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, "", model.uiState.GetPendingKey())
+	assert.Equal(t, "z", model.uiState.GetSearchQuery())
+	// 'i' should be no-op (adds to search query)
+	model.uiState.SetSearchQuery("")
+	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, "i", model.uiState.GetSearchQuery())
+
+	// Test command mode (canProcessBinding returns false)
+	model.uiState.SetSearchMode(false)
+	model.uiState.SetCommandMode(true)
+	model.uiState.SetCommandQuery("")
+	// 'G' should not move cursor
+	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+	assert.Equal(t, "G", model.uiState.GetCommandQuery())
+	// 'g' should not set pending key
+	model.uiState.SetCommandQuery("")
+	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, "", model.uiState.GetPendingKey())
+	assert.Equal(t, "g", model.uiState.GetCommandQuery())
+	// ':' should not enter command mode (already in command mode)
+	model.uiState.SetCommandQuery("")
+	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.True(t, model.uiState.IsCommandMode())
+	assert.Equal(t, ":", model.uiState.GetCommandQuery())
+	// 'z' should not set pending key
+	model.uiState.SetCommandQuery("")
+	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'z'}}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, "", model.uiState.GetPendingKey())
+	assert.Equal(t, "z", model.uiState.GetCommandQuery())
+	// 'i' should be no-op (adds to command query)
+	model.uiState.SetCommandQuery("")
+	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, "i", model.uiState.GetCommandQuery())
+
+	// Test normal mode (canProcessBinding returns true) but not grouped view
+	model.uiState.SetCommandMode(false)
+	model.uiState.SetViewMode(settings.ViewModeCompact) // not grouped
+	// 'z' should not set pending key because not grouped view
+	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'z'}}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, "", model.uiState.GetPendingKey())
+	// 'i' should be no-op (does nothing)
+	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	// Should not affect search or command query
+	assert.Equal(t, "", model.uiState.GetSearchQuery())
+	assert.Equal(t, "", model.uiState.GetCommandQuery())
+	// 'h', 'l', 'r', 'u' keys should work (already covered by other tests)
+}
+
+func TestModelUpdateHandlesUnknownKeyBinding(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetCursor(0)
+
+	// Unknown key should be ignored (default case)
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+}
+
+func TestModelUpdateHandlesReadUnreadKeys(t *testing.T) {
+	setupStorage(t)
+	mockClient := stubSessionFetchers(t)
+
+	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "", "", "", "", "info")
+	require.NoError(t, err)
+	require.NotEmpty(t, id)
+
+	model, err := NewModel(mockClient)
+	require.NoError(t, err)
+	require.Len(t, model.filtered, 1)
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetCursor(0)
+
+	// Press 'r' to mark read
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}}
+	updated, cmd := model.Update(msg)
+	model = updated.(*Model)
+	assert.Nil(t, cmd) // command may be nil
+	// Verify notification is read
+	lines, err := storage.ListNotifications("active", "", "", "", "", "", "", "")
+	require.NoError(t, err)
+	parts := strings.Split(lines, "\n")
+	require.Len(t, parts, 1)
+	loaded, err := notification.ParseNotification(parts[0])
+	require.NoError(t, err)
+	assert.True(t, loaded.IsRead())
+	// Also filtered notification should be read
+	assert.True(t, model.filtered[0].IsRead())
+
+	// Press 'u' to mark unread
+	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'u'}}
+	updated, cmd = model.Update(msg)
+	model = updated.(*Model)
+	assert.Nil(t, cmd)
+	lines, err = storage.ListNotifications("active", "", "", "", "", "", "", "")
+	require.NoError(t, err)
+	parts = strings.Split(lines, "\n")
+	require.Len(t, parts, 1)
+	loaded, err = notification.ParseNotification(parts[0])
+	require.NoError(t, err)
+	assert.False(t, loaded.IsRead())
+	assert.False(t, model.filtered[0].IsRead())
 }
 
 func TestApplySearchFilterReadStatus(t *testing.T) {
