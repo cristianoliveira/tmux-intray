@@ -35,7 +35,8 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return nextModel, cmd
 	}
 
-	if m.uiState.IsCommandMode() {
+	if !m.canProcessBinding() {
+		// In search/command modes, only text input is handled; bindings are ignored.
 		return m, nil
 	}
 
@@ -126,7 +127,7 @@ func (m *Model) handleBindingWithCheck(fn func()) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) handlePendingKey(msg tea.KeyMsg) (bool, tea.Cmd) {
-	if m.uiState.IsSearchMode() || m.uiState.IsCommandMode() {
+	if !m.canProcessBinding() {
 		m.uiState.ClearPendingKey()
 	} else if m.uiState.GetPendingKey() != "" {
 		if msg.String() == "a" && m.uiState.GetPendingKey() == "z" && m.isGroupedView() {
@@ -139,7 +140,7 @@ func (m *Model) handlePendingKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 			m.handleMoveTop()
 			return true, nil
 		}
-		if !(m.uiState.GetPendingKey() == "z" && msg.String() == "z") {
+		if m.uiState.GetPendingKey() != "z" || msg.String() != "z" {
 			m.uiState.ClearPendingKey()
 		}
 	}
@@ -254,7 +255,7 @@ func (m *Model) handleSearchMode() {
 }
 
 func (m *Model) handleCommandMode() {
-	if !m.uiState.IsSearchMode() && !m.uiState.IsCommandMode() {
+	if m.canProcessBinding() {
 		m.uiState.SetCommandMode(true)
 	}
 }

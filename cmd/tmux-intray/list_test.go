@@ -574,9 +574,10 @@ func TestGroupNotifications(t *testing.T) {
 	// Find groups by display name (should be sess1, sess2)
 	var sess1Group, sess2Group domain.Group
 	for _, g := range result.Groups {
-		if g.DisplayName == "sess1" {
+		switch g.DisplayName {
+		case "sess1":
 			sess1Group = g
-		} else if g.DisplayName == "sess2" {
+		case "sess2":
 			sess2Group = g
 		}
 	}
@@ -599,9 +600,10 @@ func TestGroupNotifications(t *testing.T) {
 	assert.Equal(t, 2, len(result.Groups)) // info, warning
 	var infoGroup, warningGroup domain.Group
 	for _, g := range result.Groups {
-		if g.DisplayName == "info" {
+		switch g.DisplayName {
+		case "info":
 			infoGroup = g
-		} else if g.DisplayName == "warning" {
+		case "warning":
 			warningGroup = g
 		}
 	}

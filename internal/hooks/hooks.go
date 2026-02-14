@@ -239,49 +239,30 @@ func Run(hookPoint string, envVars ...string) error {
 		// Directory doesn't exist -> no hooks
 		return nil
 	}
-	// Build environment map
+
+	envMap := buildHookEnv(hookPoint, envVars)
+	scripts := collectHookScripts(hookDir, files)
+	if len(scripts) == 0 {
+		return nil
+	}
+
+	// Log hook execution (similar to Bash)
+	fmt.Fprintf(os.Stderr, "Running %s hooks (%d script(s))\n", hookPoint, len(scripts))
+
+	failureMode := getFailureMode()
+	return executeHooks(scripts, envMap, failureMode, getAsyncEnabled(), getMaxAsyncHooks())
+}
+
+func buildHookEnv(hookPoint string, envVars []string) map[string]string {
 	envMap := make(map[string]string)
 	envMap["HOOK_POINT"] = hookPoint
 	envMap["TMUX_INTRAY_HOOKS_FAILURE_MODE"] = getFailureMode()
 	envMap["HOOK_TIMESTAMP"] = time.Now().Format(time.RFC3339)
-	// Add the tmux-intray binary path to help hooks find it
-	// Try multiple methods to find the binary
-	var tmuxIntrayPath string
-	// Method 1: Use os.Executable()
-	if exe, err := os.Executable(); err == nil {
-		tmuxIntrayPath = exe
-	}
-	// Method 2: Check if we're being called directly and use argv[0]
-	if len(os.Args) > 0 && os.Args[0] != "" {
-		// Resolve relative paths
-		if filepath.IsAbs(os.Args[0]) {
-			tmuxIntrayPath = os.Args[0]
-		} else {
-			// Try to find the command in PATH
-			if path, err := exec.LookPath(os.Args[0]); err == nil {
-				tmuxIntrayPath = path
-			}
-		}
-	}
-	// Method 3: Try common installation paths if still not found
-	if tmuxIntrayPath == "" {
-		// Check common installation directories
-		home, _ := os.UserHomeDir()
-		commonPaths := []string{
-			filepath.Join(home, ".local", "bin", "tmux-intray"),
-			"/usr/local/bin/tmux-intray",
-			"/usr/bin/tmux-intray",
-		}
-		for _, path := range commonPaths {
-			if _, err := os.Stat(path); err == nil {
-				tmuxIntrayPath = path
-				break
-			}
-		}
-	}
-	if tmuxIntrayPath != "" {
+
+	if tmuxIntrayPath := resolveTmuxIntrayPath(); tmuxIntrayPath != "" {
 		envMap["TMUX_INTRAY_BINARY"] = tmuxIntrayPath
 	}
+
 	for _, v := range envVars {
 		parts := strings.SplitN(v, "=", 2)
 		if len(parts) == 2 {
@@ -289,7 +270,43 @@ func Run(hookPoint string, envVars ...string) error {
 		}
 	}
 
-	// Collect executable hook scripts
+	return envMap
+}
+
+func resolveTmuxIntrayPath() string {
+	var tmuxIntrayPath string
+	if exe, err := os.Executable(); err == nil {
+		tmuxIntrayPath = exe
+	}
+
+	if len(os.Args) > 0 && os.Args[0] != "" {
+		if filepath.IsAbs(os.Args[0]) {
+			tmuxIntrayPath = os.Args[0]
+		} else if path, err := exec.LookPath(os.Args[0]); err == nil {
+			tmuxIntrayPath = path
+		}
+	}
+
+	if tmuxIntrayPath != "" {
+		return tmuxIntrayPath
+	}
+
+	home, _ := os.UserHomeDir()
+	commonPaths := []string{
+		filepath.Join(home, ".local", "bin", "tmux-intray"),
+		"/usr/local/bin/tmux-intray",
+		"/usr/bin/tmux-intray",
+	}
+	for _, path := range commonPaths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	return ""
+}
+
+func collectHookScripts(hookDir string, files []os.DirEntry) []hookScript {
 	scripts := []hookScript{}
 	for _, f := range files {
 		if f.IsDir() {
@@ -299,36 +316,28 @@ func Run(hookPoint string, envVars ...string) error {
 		scriptPath := filepath.Join(hookDir, f.Name())
 		info, err := os.Stat(scriptPath)
 		if err != nil || info.Mode()&0111 == 0 {
-			// Not executable
 			continue
 		}
 		scripts = append(scripts, hookScript{path: scriptPath, name: f.Name()})
 	}
-	// Sort by name (ascending)
+
 	sort.Slice(scripts, func(i, j int) bool {
 		return scripts[i].name < scripts[j].name
 	})
 
-	if len(scripts) == 0 {
-		return nil
-	}
+	return scripts
+}
 
-	// Log hook execution (similar to Bash)
-	fmt.Fprintf(os.Stderr, "Running %s hooks (%d script(s))\n", hookPoint, len(scripts))
-
-	failureMode := getFailureMode()
-	asyncEnabled := getAsyncEnabled()
-	maxAsync := getMaxAsyncHooks()
-
+func executeHooks(scripts []hookScript, envMap map[string]string, failureMode string, asyncEnabled bool, maxAsync int) error {
 	for _, script := range scripts {
 		fmt.Fprintf(os.Stderr, "  Executing hook: %s\n", script.name)
 		if asyncEnabled {
 			tryStartAsyncHook(script, envMap, failureMode, maxAsync)
-		} else {
-			// Synchronous execution
-			if err := runSyncHookAndCheckAbort(script, envMap, failureMode); err != nil {
-				return err
-			}
+			continue
+		}
+
+		if err := runSyncHookAndCheckAbort(script, envMap, failureMode); err != nil {
+			return err
 		}
 	}
 	return nil

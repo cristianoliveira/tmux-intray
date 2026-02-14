@@ -461,6 +461,7 @@ func TestModelUpdateHandlesCollapseExpandKeys(t *testing.T) {
 	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}}
 	updated, _ = model.Update(msg)
 	model = updated.(*Model)
+	require.NotNil(t, model)
 	assert.True(t, paneNode.Expanded)
 }
 
@@ -483,6 +484,7 @@ func TestModelUpdateHandlesCollapseExpandKeysNonGroupedView(t *testing.T) {
 	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}}
 	updated, _ = model.Update(msg)
 	model = updated.(*Model)
+	require.NotNil(t, model)
 	// No assertion needed, just ensure no panic
 }
 
@@ -1030,6 +1032,13 @@ func TestModelUpdateHandlesKeyBindingsInSearchAndCommandModes(t *testing.T) {
 	updated, _ = model.Update(msg)
 	model = updated.(*Model)
 	assert.Equal(t, "i", model.uiState.GetSearchQuery())
+	// 'q' should be treated as input and not quit
+	model.uiState.SetSearchQuery("")
+	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}}
+	updated, cmd := model.Update(msg)
+	model = updated.(*Model)
+	assert.Nil(t, cmd)
+	assert.Equal(t, "q", model.uiState.GetSearchQuery())
 
 	// Test command mode (canProcessBinding returns false)
 	model.uiState.SetSearchMode(false)
@@ -2306,17 +2315,18 @@ func TestToState(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Initialize uiState based on test expectations
-			if tt.name == "model with settings" {
+			switch tt.name {
+			case "model with settings":
 				tt.model.uiState = NewUIState()
 				tt.model.uiState.SetViewMode(uimodel.ViewMode(settings.ViewModeDetailed))
 				tt.model.uiState.SetGroupBy(uimodel.GroupBy(settings.GroupBySession))
 				tt.model.uiState.SetExpandLevel(2)
 				tt.model.uiState.SetExpansionState(map[string]bool{"session:$1": true})
-			} else if tt.name == "model with partial settings" {
+			case "model with partial settings":
 				tt.model.uiState = NewUIState()
 				tt.model.uiState.SetViewMode(uimodel.ViewMode(settings.ViewModeCompact))
 				tt.model.uiState.SetGroupBy(uimodel.GroupBy(settings.GroupByNone))
-			} else {
+			default:
 				tt.model.uiState = NewUIState()
 			}
 			got := tt.model.ToState()
