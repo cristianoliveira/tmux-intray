@@ -23,7 +23,7 @@ func TestAddCmdArgsValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err, stderr := runAddArgsSafely(t, tt.args)
+			stderr, err := runAddArgsSafely(t, tt.args)
 			if tt.wantErr && err == nil {
 				t.Fatalf("expected error, got nil")
 			}
@@ -48,7 +48,7 @@ func TestAddCmdArgsNilAndEmptySlicesAreStable(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err, _ := runAddArgsSafely(t, tt.args)
+			_, err := runAddArgsSafely(t, tt.args)
 			if err == nil {
 				t.Fatalf("expected error for %s, got nil", tt.name)
 			}
@@ -75,7 +75,7 @@ func TestNewAddCmdPanicsWhenClientIsNil(t *testing.T) {
 	NewAddCmd(nil)
 }
 
-func runAddArgsSafely(t *testing.T, args []string) (err error, stderr string) {
+func runAddArgsSafely(t *testing.T, args []string) (stderr string, err error) {
 	t.Helper()
 
 	client := &fakeAddClient{}
@@ -90,7 +90,7 @@ func runAddArgsSafely(t *testing.T, args []string) (err error, stderr string) {
 	}()
 
 	err = add.Args(add, args)
-	return err, errBuffer.String()
+	return errBuffer.String(), err
 }
 
 func TestValidateMessage(t *testing.T) {
