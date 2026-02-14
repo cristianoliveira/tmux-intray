@@ -202,43 +202,7 @@ func printList(opts FilterOptions, w io.Writer) {
 	}
 
 	// Determine search provider
-	var searchProvider search.Provider
-	if opts.SearchProvider != nil {
-		// Use custom provider if provided
-		searchProvider = opts.SearchProvider
-	} else if opts.Search != "" {
-		// Fetch name maps for transparent name-based search
-		client := tmux.NewDefaultClient()
-		sessionNames, err := client.ListSessions()
-		if err != nil {
-			sessionNames = make(map[string]string)
-		}
-		windowNames, err := client.ListWindows()
-		if err != nil {
-			windowNames = make(map[string]string)
-		}
-		paneNames, err := client.ListPanes()
-		if err != nil {
-			paneNames = make(map[string]string)
-		}
-
-		// Create default provider based on Regex flag
-		if opts.Regex {
-			searchProvider = search.NewRegexProvider(
-				search.WithCaseInsensitive(false),
-				search.WithSessionNames(sessionNames),
-				search.WithWindowNames(windowNames),
-				search.WithPaneNames(paneNames),
-			)
-		} else {
-			searchProvider = search.NewSubstringProvider(
-				search.WithCaseInsensitive(false),
-				search.WithSessionNames(sessionNames),
-				search.WithWindowNames(windowNames),
-				search.WithPaneNames(paneNames),
-			)
-		}
-	}
+	searchProvider := resolveSearchProvider(opts)
 
 	// Parse lines into notifications
 	var notifications []notification.Notification
@@ -314,6 +278,48 @@ func orderUnreadFirst(notifs []notification.Notification) []notification.Notific
 	})
 
 	return ordered
+}
+
+// resolveSearchProvider determines the appropriate search provider based on options.
+func resolveSearchProvider(opts FilterOptions) search.Provider {
+	if opts.SearchProvider != nil {
+		return opts.SearchProvider
+	}
+
+	if opts.Search == "" {
+		return nil
+	}
+
+	// Fetch name maps for transparent name-based search
+	client := tmux.NewDefaultClient()
+	sessionNames, _ := client.ListSessions()
+	if sessionNames == nil {
+		sessionNames = make(map[string]string)
+	}
+	windowNames, _ := client.ListWindows()
+	if windowNames == nil {
+		windowNames = make(map[string]string)
+	}
+	paneNames, _ := client.ListPanes()
+	if paneNames == nil {
+		paneNames = make(map[string]string)
+	}
+
+	// Create default provider based on Regex flag
+	if opts.Regex {
+		return search.NewRegexProvider(
+			search.WithCaseInsensitive(false),
+			search.WithSessionNames(sessionNames),
+			search.WithWindowNames(windowNames),
+			search.WithPaneNames(paneNames),
+		)
+	}
+	return search.NewSubstringProvider(
+		search.WithCaseInsensitive(false),
+		search.WithSessionNames(sessionNames),
+		search.WithWindowNames(windowNames),
+		search.WithPaneNames(paneNames),
+	)
 }
 
 // groupNotifications groups notifications by field.

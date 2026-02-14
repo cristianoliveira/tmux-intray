@@ -211,21 +211,7 @@ func TestDefaultClientRunCommandFailure(t *testing.T) {
 
 			// Should have stderr with error details
 			if tt.checkStderr {
-				assert.NotEmpty(t, stderr, tt.description+" - stderr should not be empty")
-
-				// Check for expected error patterns
-				if len(tt.stderrContains) > 0 {
-					matched := false
-					for _, pattern := range tt.stderrContains {
-						if strings.Contains(strings.ToLower(stderr), strings.ToLower(pattern)) {
-							matched = true
-							break
-						}
-					}
-					if !matched {
-						t.Logf("Stderr did not contain expected patterns %v, got: %q", tt.stderrContains, stderr)
-					}
-				}
+				verifyStderrContains(t, stderr, tt.stderrContains, tt.description)
 			}
 
 			t.Logf("Command: tmux %s", strings.Join(tt.args, " "))
@@ -237,6 +223,23 @@ func TestDefaultClientRunCommandFailure(t *testing.T) {
 			assert.Contains(t, err.Error(), "tmux command", "error should include 'tmux command' context")
 		})
 	}
+}
+
+// verifyStderrContains checks that stderr contains expected patterns.
+func verifyStderrContains(t *testing.T, stderr string, patterns []string, description string) {
+	t.Helper()
+	assert.NotEmpty(t, stderr, description+" - stderr should not be empty")
+
+	if len(patterns) == 0 {
+		return
+	}
+
+	for _, pattern := range patterns {
+		if strings.Contains(strings.ToLower(stderr), strings.ToLower(pattern)) {
+			return
+		}
+	}
+	t.Logf("Stderr did not contain expected patterns %v, got: %q", patterns, stderr)
 }
 
 // TestDefaultClientRunErrorWrapping tests that errors are properly wrapped with context.
