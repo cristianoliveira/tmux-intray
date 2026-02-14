@@ -21,35 +21,21 @@ Key features:
 
 ### Install the Plugin
 
-#### Using the installation script (recommended)
+#### Quick Installation (recommended)
 
 ```bash
-# Clone the repository (if you haven't already)
+# Clone the repository
 git clone https://github.com/cristianoliveira/tmux-intray.git
-cd tmux-intray
+cd tmux-intray/opencode/plugins/opencode-tmux-intray
 
-# Navigate to the plugin directory
-cd opencode/plugins/opencode-tmux-intray
-
-# Run the installer with your preferred location
-# For global installation (recommended):
-./install.sh --global
-
-# For local installation (current directory):
-./install.sh --local
-
-# Use --force to overwrite existing installation without prompting
-# Use --no-deps to skip npm dependency installation
+# Run the installer
+./install.sh
 ```
 
 The script will:
-1. Check for Node.js and npm
-2. Copy the plugin files to the selected location:
-   - Global: `~/.config/opencode/plugins/`
-   - Local: `$PWD/.opencode/plugins/`
-3. Install npm dependencies (production only)
-
-After installation, OpenCode will automatically detect the plugin from the configured plugin directories.
+1. Create the global plugin directory: `~/.config/opencode/plugins/`
+2. Copy the plugin files to that directory
+3. OpenCode will automatically detect the plugin
 
 #### Manual Installation
 
@@ -58,20 +44,10 @@ After installation, OpenCode will automatically detect the plugin from the confi
 git clone https://github.com/cristianoliveira/tmux-intray.git
 cd tmux-intray
 
-# Copy to global plugin directory
+# Create plugin directory and copy plugin
 mkdir -p ~/.config/opencode/plugins
 cp opencode/plugins/opencode-tmux-intray.js ~/.config/opencode/plugins/
-
-# Or copy to local project directory
-mkdir -p .opencode/plugins
-cp opencode/plugins/opencode-tmux-intray.js .opencode/plugins/
-```
-
-Then install npm dependencies (if needed):
-
-```bash
-cd ~/.config/opencode/plugins/opencode-tmux-intray
-npm install --production
+cp -r opencode/plugins/opencode-tmux-intray ~/.config/opencode/plugins/
 ```
 
 #### Configure OpenCode
@@ -95,11 +71,13 @@ If you prefer to specify the plugin path explicitly, add it to your OpenCode con
 To remove the plugin:
 
 ```bash
-# Global installation
-rm -rf ~/.config/opencode/plugins/opencode-tmux-intray.js
+# Using the uninstall script
+cd tmux-intray/opencode/plugins/opencode-tmux-intray
+./uninstall.sh
 
-# Local installation
-rm -rf .opencode/plugins/opencode-tmux-intray.js
+# Or manually remove
+rm -rf ~/.config/opencode/plugins/opencode-tmux-intray.js
+rm -rf ~/.config/opencode/plugins/opencode-tmux-intray/
 ```
 
 ## Usage
