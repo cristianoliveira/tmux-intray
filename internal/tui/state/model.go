@@ -98,11 +98,31 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleKeyMsg processes keyboard input for the TUI.
 func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if handled, cmd := m.handlePendingKey(msg); handled {
 		return m, cmd
 	}
 
+	// Handle key type-based actions
+	if nextModel, cmd := m.handleKeyType(msg); cmd != nil || nextModel != nil {
+		if nextModel == nil {
+			nextModel = m
+		}
+		return nextModel, cmd
+	}
+
+	// If we're in command mode, don't process other key bindings
+	if m.uiState.IsCommandMode() {
+		return m, nil
+	}
+
+	// Handle string-based key bindings
+	return m.handleKeyBinding(msg.String())
+}
+
+// handleKeyType handles key type-based actions (Ctrl+C, Esc, Enter, etc.).
+func (m *Model) handleKeyType(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyCtrlC:
 		return m.handleCtrlC()
@@ -112,36 +132,49 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleEnter()
 	case tea.KeyRunes:
 		m.handleRunes(msg)
+		return nil, nil
 	case tea.KeyBackspace:
 		m.handleBackspace()
+		return nil, nil
 	case tea.KeyUp, tea.KeyDown:
-		// Navigation handled below
-		break
+		// Navigation handled by key bindings below
+		return nil, nil
 	}
+	return nil, nil
+}
 
-	// If we're in command mode, don't process other key bindings
-	if m.uiState.IsCommandMode() {
-		return m, nil
-	}
+// canProcessBinding returns true if the current state allows processing mode-restricted bindings.
+func (m *Model) canProcessBinding() bool {
+	return !m.uiState.IsSearchMode() && !m.uiState.IsCommandMode()
+}
 
-	// Handle specific key bindings
-	switch msg.String() {
+// handleKeyBinding handles string-based key bindings.
+func (m *Model) handleKeyBinding(key string) (tea.Model, tea.Cmd) {
+	switch key {
 	case "j":
 		m.handleMoveDown()
+		return m, nil
 	case "k":
 		m.handleMoveUp()
+		return m, nil
 	case "G":
-		if !m.uiState.IsSearchMode() && !m.uiState.IsCommandMode() {
+		if m.canProcessBinding() {
 			m.handleMoveBottom()
 		}
+		return m, nil
 	case "g":
-		if !m.uiState.IsSearchMode() && !m.uiState.IsCommandMode() {
+		if m.canProcessBinding() {
 			m.uiState.SetPendingKey("g")
 		}
+		return m, nil
 	case "/":
 		m.handleSearchMode()
+		return m, nil
 	case ":":
-		m.handleCommandMode()
+		if m.canProcessBinding() {
+			m.handleCommandMode()
+		}
+		return m, nil
 	case "d":
 		return m, m.handleDismiss()
 	case "r":
@@ -149,24 +182,28 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "u":
 		return m, m.markSelectedUnread()
 	case "v":
-		if !m.uiState.IsSearchMode() && !m.uiState.IsCommandMode() {
+		if m.canProcessBinding() {
 			m.cycleViewMode()
 		}
+		return m, nil
 	case "h":
 		m.handleCollapseNode()
+		return m, nil
 	case "l":
 		m.handleExpandNode()
+		return m, nil
 	case "z":
-		if !m.uiState.IsSearchMode() && m.isGroupedView() {
+		if m.canProcessBinding() && m.isGroupedView() {
 			m.uiState.SetPendingKey("z")
 		}
+		return m, nil
 	case "i":
 		// In search mode, 'i' is handled by KeyRunes
 		// This is a no-op but kept for documentation
+		return m, nil
 	case "q":
 		return m.handleQuit()
 	}
-
 	return m, nil
 }
 
