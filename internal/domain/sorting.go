@@ -12,19 +12,21 @@ import (
 type SortByField string
 
 const (
-	SortByIDField        SortByField = "id"
-	SortByTimestampField SortByField = "timestamp"
-	SortByStateField     SortByField = "state"
-	SortByLevelField     SortByField = "level"
-	SortBySessionField   SortByField = "session"
-	SortByMessageField   SortByField = "message"
+	SortByIDField         SortByField = "id"
+	SortByTimestampField  SortByField = "timestamp"
+	SortByStateField      SortByField = "state"
+	SortByLevelField      SortByField = "level"
+	SortBySessionField    SortByField = "session"
+	SortByMessageField    SortByField = "message"
+	SortByReadStatusField SortByField = "read_status"
 )
 
 // IsValid checks if the sort by field is valid.
 func (s SortByField) IsValid() bool {
 	switch s {
 	case SortByIDField, SortByTimestampField, SortByStateField,
-		SortByLevelField, SortBySessionField, SortByMessageField:
+		SortByLevelField, SortBySessionField, SortByMessageField,
+		SortByReadStatusField:
 		return true
 	default:
 		return false
@@ -106,6 +108,21 @@ func SortNotifications(notifs []Notification, opts SortOptions) []Notification {
 			} else {
 				less = msgI < msgJ
 			}
+		case SortByReadStatusField:
+			iRead := sorted[i].IsRead()
+			jRead := sorted[j].IsRead()
+			var cmp int
+			if iRead == jRead {
+				cmp = 0
+			} else if !iRead && jRead {
+				cmp = -1 // unread before read
+			} else {
+				cmp = 1
+			}
+			if opts.Order == SortOrderDesc {
+				cmp = -cmp
+			}
+			return cmp < 0
 		default:
 			less = sorted[i].Timestamp < sorted[j].Timestamp
 		}
@@ -142,6 +159,11 @@ func SortByLevel(notifs []Notification, order SortOrder) []Notification {
 // SortBySession sorts notifications by session.
 func SortBySession(notifs []Notification, order SortOrder) []Notification {
 	return SortNotifications(notifs, SortOptions{Field: SortBySessionField, Order: order})
+}
+
+// SortByReadStatus sorts notifications by read status (unread first).
+func SortByReadStatus(notifs []Notification, order SortOrder) []Notification {
+	return SortNotifications(notifs, SortOptions{Field: SortByReadStatusField, Order: order})
 }
 
 // SortByMessage sorts notifications by message.
