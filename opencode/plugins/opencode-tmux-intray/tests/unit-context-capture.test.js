@@ -5,7 +5,7 @@
  * in isolation with JavaScript-level mocking of execFileAsync.
  *
  * This test suite validates:
- * 1. Successful capture returns correct format ($N, @N, %N)
+ * 1. Successful capture returns correct format (session_id, @N, %N)
  * 2. Error handling returns empty string
  * 3. execFileAsync is called with correct arguments
  * 4. Return values are properly trimmed
@@ -48,16 +48,16 @@ describe('Context Capture Functions - Unit Tests', () => {
   });
 
   describe('getTmuxSessionID', () => {
-    test('captures session ID in $N format', async () => {
+    test('captures session ID', async () => {
       // Mock execFileAsync to return session ID
       vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
         const callback = rest[rest.length - 1]; // Last arg is always callback
-        setTimeout(() => callback(null, { stdout: '$3\n' }), 0);
+        setTimeout(() => callback(null, { stdout: 'myproject\n' }), 0);
       });
 
       const result = await getTmuxSessionID();
 
-      expect(result).toBe('$3');
+      expect(result).toBe('myproject');
       expect(execFile).toHaveBeenCalledWith(
         'tmux',
         ['display-message', '-p', '#{session_id}'],
@@ -70,25 +70,25 @@ describe('Context Capture Functions - Unit Tests', () => {
       // Mock to return whitespace-padded output
       vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
         const callback = rest[rest.length - 1]; // Last arg is always callback
-        setTimeout(() => callback(null, { stdout: '  $5  \n' }), 0);
+        setTimeout(() => callback(null, { stdout: '  mysession  \n' }), 0);
       });
 
       const result = await getTmuxSessionID();
 
       // Should be trimmed
-      expect(result).toBe('$5');
+      expect(result).toBe('mysession');
     });
 
     test('handles newlines in output', async () => {
       // Mock to return output with multiple newlines
       vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
         const callback = rest[rest.length - 1]; // Last arg is always callback
-        setTimeout(() => callback(null, { stdout: '\n\n$7\n\n' }), 0);
+        setTimeout(() => callback(null, { stdout: '\n\nwork\n\n' }), 0);
       });
 
       const result = await getTmuxSessionID();
 
-      expect(result).toBe('$7');
+      expect(result).toBe('work');
     });
 
     test('returns empty string on error', async () => {
@@ -119,12 +119,12 @@ describe('Context Capture Functions - Unit Tests', () => {
       // Some callback patterns pass error: null for success
       vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
         const callback = rest[rest.length - 1]; // Last arg is always callback
-        setTimeout(() => callback(null, { stdout: '$2\n' }), 0);
+        setTimeout(() => callback(null, { stdout: 'dev\n' }), 0);
       });
 
       const result = await getTmuxSessionID();
 
-      expect(result).toBe('$2');
+      expect(result).toBe('dev');
     });
   });
 
@@ -269,7 +269,7 @@ describe('Context Capture Functions - Unit Tests', () => {
     test('getTmuxSessionID calls execFileAsync with correct arguments', async () => {
       vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
         const callback = rest[rest.length - 1]; // Last arg is always callback
-        setTimeout(() => callback(null, { stdout: '$3\n' }), 0);
+        setTimeout(() => callback(null, { stdout: 'myproject\n' }), 0);
       });
 
       await getTmuxSessionID();
@@ -343,17 +343,17 @@ describe('Context Capture Functions - Unit Tests', () => {
       expect(result).toBe('');
     });
 
-    test('handles very long ID values', async () => {
-      // Some ID formats might be very long
-      const longID = '$' + 'x'.repeat(100);
+    test('handles very long session IDs', async () => {
+      // Some session IDs might be very long
+      const longName = 'session-' + 'x'.repeat(100);
       vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
         const callback = rest[rest.length - 1]; // Last arg is always callback
-        setTimeout(() => callback(null, { stdout: longID + '\n' }), 0);
+        setTimeout(() => callback(null, { stdout: longName + '\n' }), 0);
       });
 
       const result = await getTmuxSessionID();
 
-      expect(result).toBe(longID);
+      expect(result).toBe(longName);
     });
 
     test('multiple calls maintain isolation', async () => {
@@ -363,19 +363,19 @@ describe('Context Capture Functions - Unit Tests', () => {
       // First call
       vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
         const callback = rest[rest.length - 1]; // Last arg is always callback
-        setTimeout(() => callback(null, { stdout: '$1\n' }), 0);
+        setTimeout(() => callback(null, { stdout: 'session1\n' }), 0);
       });
       const result1 = await getTmuxSessionID();
 
       // Second call
       vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
         const callback = rest[rest.length - 1]; // Last arg is always callback
-        setTimeout(() => callback(null, { stdout: '$2\n' }), 0);
+        setTimeout(() => callback(null, { stdout: 'session2\n' }), 0);
       });
       const result2 = await getTmuxSessionID();
 
-      expect(result1).toBe('$1');
-      expect(result2).toBe('$2');
+      expect(result1).toBe('session1');
+      expect(result2).toBe('session2');
       expect(execFile).toHaveBeenCalledTimes(2);
     });
   });
@@ -426,7 +426,7 @@ describe('Context Capture Functions - Unit Tests', () => {
     test('can be awaited successfully', async () => {
       vi.mocked(execFile).mockImplementation((cmd, args, ...rest) => {
         const callback = rest[rest.length - 1]; // Last arg is always callback
-        setTimeout(() => callback(null, { stdout: '$3\n' }), 0);
+        setTimeout(() => callback(null, { stdout: 'myproject\n' }), 0);
       });
 
       // Should be awaitable and return a string
@@ -439,22 +439,22 @@ describe('Context Capture Functions - Unit Tests', () => {
       vi.mocked(execFile)
         .mockImplementation((cmd, args, ...rest) => {
           const callback = rest[rest.length - 1]; // Last arg is always callback
-          if (args[2]?.includes('session')) {
-            setTimeout(() => callback(null, { stdout: '$1\n' }), 0);
-          } else if (args[2]?.includes('window')) {
+          if (args[2]?.includes('session_id')) {
+            setTimeout(() => callback(null, { stdout: 'myproject\n' }), 0);
+          } else if (args[2]?.includes('window_id')) {
             setTimeout(() => callback(null, { stdout: '@2\n' }), 0);
           } else {
             setTimeout(() => callback(null, { stdout: '%3\n' }), 0);
           }
         });
 
-      const [sessionID, windowID, paneID] = await Promise.all([
+      const [sessionName, windowID, paneID] = await Promise.all([
         getTmuxSessionID(),
         getTmuxWindowID(),
         getTmuxPaneID(),
       ]);
 
-      expect(sessionID).toBe('$1');
+      expect(sessionName).toBe('myproject');
       expect(windowID).toBe('@2');
       expect(paneID).toBe('%3');
       expect(execFile).toHaveBeenCalledTimes(3);

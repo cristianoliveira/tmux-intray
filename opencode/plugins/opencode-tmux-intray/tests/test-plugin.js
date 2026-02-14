@@ -37,12 +37,12 @@ ${sessionOutput ? "if (args[0] === 'display-message' && args[1] === '-p' && args
  * @returns {Object} Parsed notification with agentName, status, session, message
  */
 function parseTmuxIntrayArgs(args) {
-  // Expected args: ["add", "--level=info", "message"]
-  if (args.length < 3 || args[0] !== 'add' || !args[1].startsWith('--level=')) {
+  // Expected args: ["add", "--level=info", "--", "message"]
+  if (args.length < 4 || args[0] !== 'add' || !args[1].startsWith('--level=') || args[2] !== '--') {
     throw new Error(`Unexpected tmux-intray arguments: ${JSON.stringify(args)}`);
   }
   const level = args[1].replace('--level=', '');
-  const message = args[2]; // message is third argument (quoted as single arg)
+  const message = args[3]; // message is fourth argument (after "--" separator)
   // Map level back to status
   const levelToStatus = {
     'error': 'error',
@@ -58,21 +58,6 @@ function parseTmuxIntrayArgs(args) {
 }
 
 describe('OpenCode Tmux Intray Plugin', () => {
-  let originalConfigPath;
-
-  beforeAll(() => {
-    originalConfigPath = process.env.OPENCODE_TMUX_INTRAY_CONFIG_PATH;
-    // Set config path to a non-existent file to ensure default config is used
-    process.env.OPENCODE_TMUX_INTRAY_CONFIG_PATH = join(os.tmpdir(), `opencode-tmux-intray-test-config-${Date.now()}.json`);
-  });
-
-  afterAll(() => {
-    if (originalConfigPath === undefined) {
-      delete process.env.OPENCODE_TMUX_INTRAY_CONFIG_PATH;
-    } else {
-      process.env.OPENCODE_TMUX_INTRAY_CONFIG_PATH = originalConfigPath;
-    }
-  });
 
   test('plugin file exists and is readable', async () => {
     await expect(fs.promises.access(pluginPath)).resolves.not.toThrow();
@@ -122,28 +107,19 @@ describe('OpenCode Tmux Intray Plugin', () => {
 });
 
 describe('Simplified plugin behavior (delegating context detection to Go CLI)', () => {
-  let originalConfigPath;
   let binDir;
   let originalTmuxIntrayPath;
   let originalTestMode;
 
   beforeAll(async () => {
-    originalConfigPath = process.env.OPENCODE_TMUX_INTRAY_CONFIG_PATH;
     originalTmuxIntrayPath = process.env.TMUX_INTRAY_PATH;
     originalTestMode = process.env.TEST_MODE;
     binDir = await fs.promises.mkdtemp(join(os.tmpdir(), 'opencode-tmux-intray-simple-'));
-    // Set config path to a non-existent file to ensure default config is used
-    process.env.OPENCODE_TMUX_INTRAY_CONFIG_PATH = join(binDir, 'non-existent-config.json');
     // Disable tmux context capture for these tests (delegate to Go CLI)
     process.env.TEST_MODE = '1';
   });
 
   afterAll(async () => {
-    if (originalConfigPath === undefined) {
-      delete process.env.OPENCODE_TMUX_INTRAY_CONFIG_PATH;
-    } else {
-      process.env.OPENCODE_TMUX_INTRAY_CONFIG_PATH = originalConfigPath;
-    }
     if (originalTmuxIntrayPath === undefined) {
       delete process.env.TMUX_INTRAY_PATH;
     } else {
@@ -180,12 +156,13 @@ describe('Simplified plugin behavior (delegating context detection to Go CLI)', 
     expect(session).toBe(''); // Context NOT passed to plugin
     expect(message).toBe('Session error');
     
-    // Verify command structure: ["add", "--level=error", "message"]
+    // Verify command structure: ["add", "--level=error", "--", "message"]
     const args = JSON.parse(notifyCalls[0]);
     expect(args[0]).toBe('add');
     expect(args[1]).toBe('--level=error');
-    expect(args[2]).toBe('Session error');
-    expect(args.length).toBe(3); // Only 3 arguments, no context flags
+    expect(args[2]).toBe('--');
+    expect(args[3]).toBe('Session error');
+    expect(args.length).toBe(4); // 4 arguments: add, level, separator, message (no context flags)
   });
 
   test('Plugin executes command via execAsync', async () => {
@@ -281,10 +258,11 @@ describe('Simplified plugin behavior (delegating context detection to Go CLI)', 
     // Verify each call has the correct structure
     for (const call of notifyCalls) {
       const args = JSON.parse(call);
-      expect(args.length).toBe(3);
+      expect(args.length).toBe(4);
       expect(args[0]).toBe('add');
       expect(args[1]).toMatch(/^--level=\w+$/);
-      expect(typeof args[2]).toBe('string');
+      expect(args[2]).toBe('--');
+      expect(typeof args[3]).toBe('string');
     }
   });
 });
