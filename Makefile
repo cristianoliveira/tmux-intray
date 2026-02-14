@@ -67,6 +67,10 @@ go-complexity-lint:
 	@echo "Running Go complexity linting with golangci-lint..."
 	golangci-lint run --issues-exit-code=0
 
+go-complexity-lint-strict:
+	@echo "Running Go complexity linting with golangci-lint (strict)..."
+	golangci-lint run
+
 go-cover:
 	@echo "Running Go test coverage..."
 	go test ./... -coverprofile=coverage.out
@@ -90,6 +94,10 @@ go-build:
 
 lint: check-fmt go-lint go-complexity-lint
 	@echo "Running linter..."
+	./scripts/lint.sh
+
+lint-strict: check-fmt go-lint go-complexity-lint-strict
+	@echo "Running strict linter..."
 	./scripts/lint.sh
 
 docs:
