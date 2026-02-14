@@ -283,7 +283,7 @@ func TestMockClientNotCalled(t *testing.T) {
 
 	// Call a different method
 	mockClient.On("HasSession").Return(true, nil)
-	mockClient.HasSession()
+	_, _ = mockClient.HasSession()
 
 	// Assert that GetCurrentContext was not called
 	mockClient.AssertNotCalled(t, "GetCurrentContext")

@@ -18,6 +18,7 @@ func TestSortByField_IsValid(t *testing.T) {
 		{"valid level", SortByLevelField, true},
 		{"valid session", SortBySessionField, true},
 		{"valid message", SortByMessageField, true},
+		{"valid read_status", SortByReadStatusField, true},
 		{"invalid", SortByField("invalid"), false},
 		{"invalid empty", SortByField(""), false},
 	}
@@ -40,6 +41,7 @@ func TestSortByField_String(t *testing.T) {
 		{"level", SortByLevelField, "level"},
 		{"session", SortBySessionField, "session"},
 		{"message", SortByMessageField, "message"},
+		{"read_status", SortByReadStatusField, "read_status"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -179,6 +181,38 @@ func TestSortNotifications(t *testing.T) {
 		result := SortNotifications([]Notification{}, opts)
 		assert.Len(t, result, 0)
 	})
+
+	t.Run("sort by read status ascending (unread first)", func(t *testing.T) {
+		notifs := []Notification{
+			{ID: 1, ReadTimestamp: "2024-01-01T12:00:00Z"}, // read
+			{ID: 2, ReadTimestamp: ""},                     // unread
+			{ID: 3, ReadTimestamp: "2024-01-02T12:00:00Z"}, // read
+			{ID: 4, ReadTimestamp: ""},                     // unread
+		}
+		opts := SortOptions{Field: SortByReadStatusField, Order: SortOrderAsc}
+		result := SortNotifications(notifs, opts)
+		// unread first (ID 2, 4), then read (ID 1, 3)
+		assert.Equal(t, 2, result[0].ID)
+		assert.Equal(t, 4, result[1].ID)
+		assert.Equal(t, 1, result[2].ID)
+		assert.Equal(t, 3, result[3].ID)
+	})
+
+	t.Run("sort by read status descending (read first)", func(t *testing.T) {
+		notifs := []Notification{
+			{ID: 1, ReadTimestamp: "2024-01-01T12:00:00Z"},
+			{ID: 2, ReadTimestamp: ""},
+			{ID: 3, ReadTimestamp: "2024-01-02T12:00:00Z"},
+			{ID: 4, ReadTimestamp: ""},
+		}
+		opts := SortOptions{Field: SortByReadStatusField, Order: SortOrderDesc}
+		result := SortNotifications(notifs, opts)
+		// read first (ID 1, 3), then unread (ID 2, 4)
+		assert.Equal(t, 1, result[0].ID)
+		assert.Equal(t, 3, result[1].ID)
+		assert.Equal(t, 2, result[2].ID)
+		assert.Equal(t, 4, result[3].ID)
+	})
 }
 
 func TestSortByID(t *testing.T) {
@@ -258,6 +292,22 @@ func TestSortByMessage(t *testing.T) {
 	assert.Equal(t, "zebra", result[2].Message)
 }
 
+func TestSortByReadStatus(t *testing.T) {
+	notifications := []Notification{
+		{ID: 1, ReadTimestamp: "2024-01-01T12:00:00Z"}, // read
+		{ID: 2, ReadTimestamp: ""},                     // unread
+		{ID: 3, ReadTimestamp: "2024-01-02T12:00:00Z"}, // read
+		{ID: 4, ReadTimestamp: ""},                     // unread
+	}
+
+	result := SortByReadStatus(notifications, SortOrderAsc)
+	// unread first (ID 2, 4), then read (ID 1, 3)
+	assert.Equal(t, 2, result[0].ID)
+	assert.Equal(t, 4, result[1].ID)
+	assert.Equal(t, 1, result[2].ID)
+	assert.Equal(t, 3, result[3].ID)
+}
+
 func TestDefaultSortOptions(t *testing.T) {
 	opts := DefaultSortOptions()
 	assert.Equal(t, SortByTimestampField, opts.Field)
@@ -277,6 +327,7 @@ func TestParseSortByField(t *testing.T) {
 		{"level", SortByLevelField, false},
 		{"session", SortBySessionField, false},
 		{"message", SortByMessageField, false},
+		{"read_status", SortByReadStatusField, false},
 		{"invalid", "", true},
 	}
 	for _, tt := range tests {

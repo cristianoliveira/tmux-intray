@@ -392,7 +392,10 @@ func createSampleConfig() {
 		return // file exists
 	}
 	// Ensure directory exists
-	os.MkdirAll(configDir, FileModeDir)
+	if err := os.MkdirAll(configDir, FileModeDir); err != nil {
+		colors.Warning(fmt.Sprintf("unable to create config directory %s: %v", configDir, err))
+		return
+	}
 
 	// Build typed map from configMap (defaults)
 	typed := make(map[string]interface{})

@@ -14,6 +14,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/cmd"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
@@ -22,6 +23,24 @@ import (
 
 type listClient interface {
 	ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error)
+}
+
+// notificationsToValues converts a slice of notification pointers to values.
+func notificationsToValues(notifs []*domain.Notification) []domain.Notification {
+	values := make([]domain.Notification, len(notifs))
+	for i, n := range notifs {
+		values[i] = *n
+	}
+	return values
+}
+
+// notificationsToPointers converts a slice of notification values to pointers.
+func notificationsToPointers(notifs []domain.Notification) []*domain.Notification {
+	ptrs := make([]*domain.Notification, len(notifs))
+	for i := range notifs {
+		ptrs[i] = &notifs[i]
+	}
+	return ptrs
 }
 
 // NewListCmd creates the list command with explicit dependencies.
@@ -202,10 +221,46 @@ func printList(opts FilterOptions, w io.Writer) {
 	}
 
 	// Determine search provider
-	searchProvider := resolveSearchProvider(opts)
+	var searchProvider search.Provider
+	if opts.SearchProvider != nil {
+		// Use custom provider if provided
+		searchProvider = opts.SearchProvider
+	} else if opts.Search != "" {
+		// Fetch name maps for transparent name-based search
+		client := tmux.NewDefaultClient()
+		sessionNames, err := client.ListSessions()
+		if err != nil {
+			sessionNames = make(map[string]string)
+		}
+		windowNames, err := client.ListWindows()
+		if err != nil {
+			windowNames = make(map[string]string)
+		}
+		paneNames, err := client.ListPanes()
+		if err != nil {
+			paneNames = make(map[string]string)
+		}
+
+		// Create default provider based on Regex flag
+		if opts.Regex {
+			searchProvider = search.NewRegexProvider(
+				search.WithCaseInsensitive(false),
+				search.WithSessionNames(sessionNames),
+				search.WithWindowNames(windowNames),
+				search.WithPaneNames(paneNames),
+			)
+		} else {
+			searchProvider = search.NewSubstringProvider(
+				search.WithCaseInsensitive(false),
+				search.WithSessionNames(sessionNames),
+				search.WithWindowNames(windowNames),
+				search.WithPaneNames(paneNames),
+			)
+		}
+	}
 
 	// Parse lines into notifications
-	var notifications []notification.Notification
+	var notifications []*domain.Notification
 	for _, line := range strings.Split(lines, "\n") {
 		if line == "" {
 			continue
@@ -220,7 +275,7 @@ func printList(opts FilterOptions, w io.Writer) {
 				continue
 			}
 		}
-		notifications = append(notifications, notif)
+		notifications = append(notifications, notification.ToDomainUnsafe(notif))
 	}
 
 	if len(notifications) == 0 {
@@ -232,11 +287,12 @@ func printList(opts FilterOptions, w io.Writer) {
 
 	// Apply grouping if requested
 	if opts.GroupBy != "" {
-		grouped := groupNotifications(notifications, opts.GroupBy)
+		notificationsValues := notificationsToValues(notifications)
+		groupResult := domain.GroupNotifications(notificationsValues, domain.GroupByMode(opts.GroupBy))
 		if opts.GroupCount {
-			printGroupCounts(grouped, w, opts.Format)
+			printGroupCounts(groupResult, w, opts.Format)
 		} else {
-			printGrouped(grouped, w, opts.Format)
+			printGrouped(groupResult, w, opts.Format)
 		}
 		return
 	}
@@ -260,12 +316,12 @@ func printList(opts FilterOptions, w io.Writer) {
 
 // orderUnreadFirst places unread notifications before read notifications.
 // It keeps the existing relative order within each bucket (stable).
-func orderUnreadFirst(notifs []notification.Notification) []notification.Notification {
+func orderUnreadFirst(notifs []*domain.Notification) []*domain.Notification {
 	if len(notifs) == 0 {
 		return notifs
 	}
 
-	ordered := make([]notification.Notification, len(notifs))
+	ordered := make([]*domain.Notification, len(notifs))
 	copy(ordered, notifs)
 
 	sort.SliceStable(ordered, func(i, j int) bool {
@@ -280,110 +336,37 @@ func orderUnreadFirst(notifs []notification.Notification) []notification.Notific
 	return ordered
 }
 
-// resolveSearchProvider determines the appropriate search provider based on options.
-func resolveSearchProvider(opts FilterOptions) search.Provider {
-	if opts.SearchProvider != nil {
-		return opts.SearchProvider
-	}
-
-	if opts.Search == "" {
-		return nil
-	}
-
-	// Fetch name maps for transparent name-based search
-	client := tmux.NewDefaultClient()
-	sessionNames, _ := client.ListSessions()
-	if sessionNames == nil {
-		sessionNames = make(map[string]string)
-	}
-	windowNames, _ := client.ListWindows()
-	if windowNames == nil {
-		windowNames = make(map[string]string)
-	}
-	paneNames, _ := client.ListPanes()
-	if paneNames == nil {
-		paneNames = make(map[string]string)
-	}
-
-	// Create default provider based on Regex flag
-	if opts.Regex {
-		return search.NewRegexProvider(
-			search.WithCaseInsensitive(false),
-			search.WithSessionNames(sessionNames),
-			search.WithWindowNames(windowNames),
-			search.WithPaneNames(paneNames),
-		)
-	}
-	return search.NewSubstringProvider(
-		search.WithCaseInsensitive(false),
-		search.WithSessionNames(sessionNames),
-		search.WithWindowNames(windowNames),
-		search.WithPaneNames(paneNames),
-	)
-}
-
-// groupNotifications groups notifications by field.
-func groupNotifications(notifs []notification.Notification, field string) map[string][]notification.Notification {
-	groups := make(map[string][]notification.Notification)
-	for _, n := range notifs {
-		var key string
-		switch field {
-		case "session":
-			key = n.Session
-		case "window":
-			key = n.Window
-		case "pane":
-			key = n.Pane
-		case "level":
-			key = n.Level
-		default:
-			key = ""
-		}
-		groups[key] = append(groups[key], n)
-	}
-	return groups
-}
-
 // printGroupCounts prints only group counts.
-func printGroupCounts(groups map[string][]notification.Notification, w io.Writer, format string) {
-	// Sort keys for consistent output
-	var keys []string
-	for k := range groups {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		fmt.Fprintf(w, "Group: %s (%d)\n", k, len(groups[k]))
+func printGroupCounts(groupResult domain.GroupResult, w io.Writer, format string) {
+	// Groups are already sorted by display name
+	for _, group := range groupResult.Groups {
+		fmt.Fprintf(w, "Group: %s (%d)\n", group.DisplayName, group.Count)
 	}
 }
 
 // printGrouped prints grouped notifications with headers.
-func printGrouped(groups map[string][]notification.Notification, w io.Writer, format string) {
-	// Sort keys for consistent output
-	var keys []string
-	for k := range groups {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		fmt.Fprintf(w, "=== %s (%d) ===\n", k, len(groups[k]))
+func printGrouped(groupResult domain.GroupResult, w io.Writer, format string) {
+	// Groups are already sorted by display name
+	for _, group := range groupResult.Groups {
+		fmt.Fprintf(w, "=== %s (%d) ===\n", group.DisplayName, group.Count)
+		notifs := notificationsToPointers(group.Notifications)
 		switch format {
 		case "simple":
-			printSimple(groups[k], w)
+			printSimple(notifs, w)
 		case "legacy":
-			printLegacy(groups[k], w)
+			printLegacy(notifs, w)
 		case "table":
-			printTable(groups[k], w)
+			printTable(notifs, w)
 		case "compact":
-			printCompact(groups[k], w)
+			printCompact(notifs, w)
 		default:
-			printLegacy(groups[k], w)
+			printLegacy(notifs, w)
 		}
 	}
 }
 
 // printLegacy prints only messages (one per line).
-func printLegacy(notifs []notification.Notification, w io.Writer) {
+func printLegacy(notifs []*domain.Notification, w io.Writer) {
 	for _, n := range notifs {
 		fmt.Fprintln(w, n.Message)
 	}
@@ -391,7 +374,7 @@ func printLegacy(notifs []notification.Notification, w io.Writer) {
 
 // printSimple prints a simple format: ID DATE - Message.
 // Optimized for quick scanning with ID, timestamp, and message on one line.
-func printSimple(notifs []notification.Notification, w io.Writer) {
+func printSimple(notifs []*domain.Notification, w io.Writer) {
 	for _, n := range notifs {
 		// Truncate message for display (50 chars max)
 		displayMsg := n.Message
@@ -405,7 +388,7 @@ func printSimple(notifs []notification.Notification, w io.Writer) {
 // printTable prints a formatted table with ID, Timestamp, Message, and optional context (Session Window Pane).
 // Format: ID DATE - Message (Session Window Pane)
 // Optimized for readability with ID first for easy copying.
-func printTable(notifs []notification.Notification, w io.Writer) {
+func printTable(notifs []*domain.Notification, w io.Writer) {
 	if len(notifs) == 0 {
 		return
 	}
@@ -424,7 +407,7 @@ func printTable(notifs []notification.Notification, w io.Writer) {
 }
 
 // printCompact prints a compact format with Message only.
-func printCompact(notifs []notification.Notification, w io.Writer) {
+func printCompact(notifs []*domain.Notification, w io.Writer) {
 	for _, n := range notifs {
 		// Truncate message for display
 		displayMsg := n.Message

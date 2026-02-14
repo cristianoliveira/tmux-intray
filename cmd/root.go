@@ -1,5 +1,5 @@
 /*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
+Copyright © 2026 Cristian Oliveira <license@cristianoliveira.dev>
 */
 package cmd
 
@@ -25,10 +25,10 @@ var RootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) > 0 {
 			if args[0] == "--help" || args[0] == "-h" {
-				cmd.Help()
+				_ = cmd.Help()
 				return
 			}
-			fmt.Fprintf(os.Stderr, "Unknown command '%s'\n", args[0])
+			_, _ = fmt.Fprintf(os.Stderr, "Unknown command '%s'\n", args[0])
 		}
 	},
 }
@@ -44,7 +44,7 @@ func init() {
 // Custom error handling to match bash messages
 func handleCommandError(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
-		fmt.Fprintf(cmd.ErrOrStderr(), "Unknown command '%s'\n", args[0])
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Unknown command '%s'\n", args[0])
 		return fmt.Errorf("")
 	}
 	return nil

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/stretchr/testify/assert"
@@ -534,20 +535,20 @@ func (f *fakeListClient) ListNotifications(stateFilter, levelFilter, sessionFilt
 func TestOrderUnreadFirstEdgeCases(t *testing.T) {
 	// Empty slice
 	empty := []notification.Notification{}
-	result := orderUnreadFirst(empty)
+	result := orderUnreadFirst(notification.ToDomainSliceUnsafe(empty))
 	assert.Equal(t, 0, len(result))
 
 	// Single unread notification (no read timestamp)
 	n1 := notification.Notification{ID: 1, ReadTimestamp: ""}
 	single := []notification.Notification{n1}
-	result = orderUnreadFirst(single)
-	assert.Equal(t, []notification.Notification{n1}, result)
+	result = orderUnreadFirst(notification.ToDomainSliceUnsafe(single))
+	assert.Equal(t, notification.ToDomainSliceUnsafe(single), result)
 
 	// Single read notification
 	n2 := notification.Notification{ID: 2, ReadTimestamp: "2025-01-01T10:00:00Z"}
 	singleRead := []notification.Notification{n2}
-	result = orderUnreadFirst(singleRead)
-	assert.Equal(t, []notification.Notification{n2}, result)
+	result = orderUnreadFirst(notification.ToDomainSliceUnsafe(singleRead))
+	assert.Equal(t, notification.ToDomainSliceUnsafe(singleRead), result)
 
 	// Mixed: unread should come before read
 	notifs := []notification.Notification{
@@ -556,10 +557,10 @@ func TestOrderUnreadFirstEdgeCases(t *testing.T) {
 		{ID: 3, ReadTimestamp: "2025-01-01T11:00:00Z"}, // read
 		{ID: 4, ReadTimestamp: ""},                     // unread
 	}
-	result = orderUnreadFirst(notifs)
+	result = orderUnreadFirst(notification.ToDomainSliceUnsafe(notifs))
 	// Expect unread IDs 2,4 first, then read IDs 1,3 preserving relative order
 	expected := []notification.Notification{notifs[1], notifs[3], notifs[0], notifs[2]}
-	assert.Equal(t, expected, result)
+	assert.Equal(t, notification.ToDomainSliceUnsafe(expected), result)
 }
 
 func TestGroupNotifications(t *testing.T) {
@@ -568,42 +569,72 @@ func TestGroupNotifications(t *testing.T) {
 		{ID: 2, Session: "sess1", Window: "win2", Pane: "pane2", Level: "warning"},
 		{ID: 3, Session: "sess2", Window: "win1", Pane: "pane1", Level: "info"},
 	}
+	domainNotifs := notification.ToDomainSliceUnsafe(notifs)
+	// Convert to values for domain.GroupNotifications
+	values := notificationsToValues(domainNotifs)
+
 	// Group by session
-	groups := groupNotifications(notifs, "session")
-	assert.Equal(t, 2, len(groups))
-	assert.Equal(t, 2, len(groups["sess1"]))
-	assert.Equal(t, 1, len(groups["sess2"]))
+	result := domain.GroupNotifications(values, domain.GroupBySession)
+	assert.Equal(t, 2, len(result.Groups))
+	// Find groups by display name (should be sess1, sess2)
+	var sess1Group, sess2Group domain.Group
+	for _, g := range result.Groups {
+		if g.DisplayName == "sess1" {
+			sess1Group = g
+		} else if g.DisplayName == "sess2" {
+			sess2Group = g
+		}
+	}
+	assert.Equal(t, 2, sess1Group.Count)
+	assert.Equal(t, 1, sess2Group.Count)
+
 	// Group by window
-	groups = groupNotifications(notifs, "window")
-	assert.Equal(t, 2, len(groups)) // win1 has two, win2 has one
+	result = domain.GroupNotifications(values, domain.GroupByWindow)
+	assert.Equal(t, 3, len(result.Groups)) // sess1/win1, sess1/win2, sess2/win1
+	// Check total count
+	assert.Equal(t, 3, result.TotalCount)
+
 	// Group by pane
-	groups = groupNotifications(notifs, "pane")
-	assert.Equal(t, 2, len(groups)) // pane1 has two, pane2 has one
+	result = domain.GroupNotifications(values, domain.GroupByPane)
+	assert.Equal(t, 3, len(result.Groups)) // sess1/win1/pane1, sess1/win2/pane2, sess2/win1/pane1
+	assert.Equal(t, 3, result.TotalCount)
+
 	// Group by level
-	groups = groupNotifications(notifs, "level")
-	assert.Equal(t, 2, len(groups)) // info has two, warning has one
-	// Unknown field defaults to empty key
-	groups = groupNotifications(notifs, "unknown")
-	assert.Equal(t, 1, len(groups))
-	assert.Equal(t, 3, len(groups[""]))
+	result = domain.GroupNotifications(values, domain.GroupByLevel)
+	assert.Equal(t, 2, len(result.Groups)) // info, warning
+	var infoGroup, warningGroup domain.Group
+	for _, g := range result.Groups {
+		if g.DisplayName == "info" {
+			infoGroup = g
+		} else if g.DisplayName == "warning" {
+			warningGroup = g
+		}
+	}
+	assert.Equal(t, 2, infoGroup.Count)
+	assert.Equal(t, 1, warningGroup.Count)
+
+	// Unknown field defaults to GroupByNone (empty groups)
+	result = domain.GroupNotifications(values, domain.GroupByMode("unknown"))
+	assert.Equal(t, 0, len(result.Groups))
+	assert.Equal(t, 3, result.TotalCount)
 }
 
 func TestPrintFunctionsWithEmptySlice(t *testing.T) {
 	var buf bytes.Buffer
 	// printSimple
-	printSimple([]notification.Notification{}, &buf)
+	printSimple(notification.ToDomainSliceUnsafe([]notification.Notification{}), &buf)
 	assert.Equal(t, "", buf.String())
 	buf.Reset()
 	// printTable
-	printTable([]notification.Notification{}, &buf)
+	printTable(notification.ToDomainSliceUnsafe([]notification.Notification{}), &buf)
 	assert.Equal(t, "", buf.String())
 	buf.Reset()
 	// printCompact
-	printCompact([]notification.Notification{}, &buf)
+	printCompact(notification.ToDomainSliceUnsafe([]notification.Notification{}), &buf)
 	assert.Equal(t, "", buf.String())
 	buf.Reset()
 	// printLegacy
-	printLegacy([]notification.Notification{}, &buf)
+	printLegacy(notification.ToDomainSliceUnsafe([]notification.Notification{}), &buf)
 	assert.Equal(t, "", buf.String())
 }
 
@@ -614,17 +645,17 @@ func TestPrintFunctionsWithSingleNotification(t *testing.T) {
 		Message:   "test message",
 	}
 	var buf bytes.Buffer
-	printSimple([]notification.Notification{notif}, &buf)
+	printSimple(notification.ToDomainSliceUnsafe([]notification.Notification{notif}), &buf)
 	assert.Contains(t, buf.String(), "42")
 	assert.Contains(t, buf.String(), "test message")
 	buf.Reset()
-	printTable([]notification.Notification{notif}, &buf)
+	printTable(notification.ToDomainSliceUnsafe([]notification.Notification{notif}), &buf)
 	assert.Contains(t, buf.String(), "42")
 	buf.Reset()
-	printCompact([]notification.Notification{notif}, &buf)
+	printCompact(notification.ToDomainSliceUnsafe([]notification.Notification{notif}), &buf)
 	assert.Contains(t, buf.String(), "test message")
 	buf.Reset()
-	printLegacy([]notification.Notification{notif}, &buf)
+	printLegacy(notification.ToDomainSliceUnsafe([]notification.Notification{notif}), &buf)
 	assert.Equal(t, "test message\n", buf.String())
 }
 
