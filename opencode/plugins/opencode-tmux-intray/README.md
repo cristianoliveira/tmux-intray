@@ -1,16 +1,14 @@
 # OpenCode Tmux Intray Plugin
 
-A plugin for OpenCode that integrates with tmux-intray to display notifications in tmux when OpenCode sessions complete, error, require permissions, or ask questions.
+A simplified plugin for OpenCode that integrates with tmux-intray to display notifications in tmux when OpenCode sessions complete, error, or require permissions.
 
 ## Overview
 
 The `opencode-tmux-intray` plugin connects OpenCode events to tmux-intray notifications. When OpenCode sessions emit events (like session completion, errors, or permission requests), the plugin sends notifications to tmux-intray, which displays them in your tmux status bar.
 
 Key features:
-- **Event-driven notifications**: Configurable notifications for OpenCode session events
-- **Template messages**: Customizable notification messages with event property substitution
-- **Session awareness**: Automatically detects tmux session for context
-- **Configurable sound/TTS**: Optional sound and text-to-speech notifications (macOS)
+- **Simple event-driven notifications**: Notifications for common OpenCode session events
+- **Tmux context capture**: Automatically detects tmux session/window/pane for context
 - **Plugin hooks**: Integrates seamlessly with OpenCode's plugin system
 
 ## Installation
@@ -24,8 +22,6 @@ Key features:
 ### Install the Plugin
 
 #### Using the installation script (recommended)
-
-The plugin includes an installation script that handles copying files, installing dependencies, and setting up npm scripts.
 
 ```bash
 # Clone the repository (if you haven't already)
@@ -52,39 +48,26 @@ The script will:
    - Global: `~/.config/opencode/plugins/`
    - Local: `$PWD/.opencode/plugins/`
 3. Install npm dependencies (production only)
-4. Add npm scripts (`install-plugin`, `uninstall-plugin`) to package.json
 
 After installation, OpenCode will automatically detect the plugin from the configured plugin directories.
 
 #### Manual Installation
-
-If you prefer to install manually:
 
 ```bash
 # Clone the repository
 git clone https://github.com/cristianoliveira/tmux-intray.git
 cd tmux-intray
 
-# The main plugin entry point is at opencode/plugins/opencode-tmux-intray.js
-# Supporting modules are in opencode/plugins/opencode-tmux-intray/
-# OpenCode will automatically load plugins from its configured plugin directories
-```
-
-You'll need to manually copy the plugin files to an OpenCode plugin directory:
-
-```bash
 # Copy to global plugin directory
 mkdir -p ~/.config/opencode/plugins
 cp opencode/plugins/opencode-tmux-intray.js ~/.config/opencode/plugins/
-cp -R opencode/plugins/opencode-tmux-intray ~/.config/opencode/plugins/
 
 # Or copy to local project directory
 mkdir -p .opencode/plugins
 cp opencode/plugins/opencode-tmux-intray.js .opencode/plugins/
-cp -R opencode/plugins/opencode-tmux-intray .opencode/plugins/
 ```
 
-Then install npm dependencies:
+Then install npm dependencies (if needed):
 
 ```bash
 cd ~/.config/opencode/plugins/opencode-tmux-intray
@@ -96,8 +79,6 @@ npm install --production
 OpenCode automatically loads plugins from:
 - Global: `~/.config/opencode/plugins/`
 - Local: `$PWD/.opencode/plugins/`
-
-If you installed using the installation script, no further configuration is needed.
 
 If you prefer to specify the plugin path explicitly, add it to your OpenCode configuration file:
 
@@ -111,163 +92,30 @@ If you prefer to specify the plugin path explicitly, add it to your OpenCode con
 
 ### Uninstallation
 
-To remove the plugin, use the uninstall script:
-
-```bash
-# Navigate to the plugin directory
-cd /path/to/tmux-intray/opencode/plugins/opencode-tmux-intray
-
-# Uninstall from global location
-./uninstall.sh --global
-
-# Or uninstall from local location
-./uninstall.sh --local
-
-# Use --force to skip confirmation prompt
-```
-
-Alternatively, manually remove the plugin files:
+To remove the plugin:
 
 ```bash
 # Global installation
-rm -rf ~/.config/opencode/plugins/opencode-tmux-intray.js ~/.config/opencode/plugins/opencode-tmux-intray/
+rm -rf ~/.config/opencode/plugins/opencode-tmux-intray.js
 
 # Local installation
-rm -rf .opencode/plugins/opencode-tmux-intray.js .opencode/plugins/opencode-tmux-intray/
+rm -rf .opencode/plugins/opencode-tmux-intray.js
 ```
-
-## Configuration
-
-The plugin reads configuration from `~/.config/opencode-tmux-intray/opencode-config.json`. You can generate a starter configuration with:
-
-```bash
-cd /path/to/tmux-intray/opencode/plugins/opencode-tmux-intray
-./test-utils/generate-config.js
-```
-
-Or print it to stdout:
-
-```bash
-./test-utils/generate-config.js --stdout
-```
-
-### Configuration Structure
-
-The configuration file has the following structure:
-
-```json
-{
-  "enabled": true,
-  "agentName": "opencode",
-  "notifications": {
-    "session.idle": {
-      "enabled": true,
-      "message": "Task completed",
-      "status": "success"
-    },
-    "session.error": {
-      "enabled": true,
-      "message": "Session error",
-      "status": "error"
-    },
-    "session.status": {
-      "enabled": false,
-      "message": "Session status: {properties.status}",
-      "status": "pending"
-    },
-    "session.created": {
-      "enabled": false,
-      "message": "New session created",
-      "status": "success"
-    },
-    "session.updated": {
-      "enabled": false,
-      "message": "Session updated",
-      "status": "success"
-    },
-    "permission.updated": {
-      "enabled": true,
-      "message": "Permission needed",
-      "status": "pending"
-    },
-    "permission.replied": {
-      "enabled": false,
-      "message": "Permission replied",
-      "status": "success"
-    },
-    "question.asked": {
-      "enabled": false,
-      "message": "Question asked: {question}",
-      "status": "pending"
-    },
-    "permission.asked": {
-      "enabled": false,
-      "message": "Permission asked: {permission}",
-      "status": "pending"
-    }
-  },
-  "sound": {
-    "enabled": true,
-    "file": "/System/Library/Sounds/Glass.aiff"
-  },
-  "tts": {
-    "enabled": false,
-    "message": "Agent {agentName} completed with status {status}",
-    "voice": "Alex"
-  }
-}
-```
-
-### Configuration Details
-
-#### Global Settings
-- `enabled`: Master toggle for the plugin (default: `true`)
-- `agentName`: Name used in notifications (default: `"opencode"`)
-
-#### Event Configuration
-Each event type has:
-- `enabled`: Whether notifications are sent for this event
-- `message`: Template string with placeholders like `{property.path}`
-- `status`: Maps to tmux-intray levels: `"success"` → `info`, `"error"` → `error`, `"pending"` → `warning`
-
-#### Sound and TTS
-- `sound`: Sound notification settings (macOS only)
-- `tts`: Text-to-speech settings (macOS only)
-
-### Template Substitution
-
-Message templates support placeholders that reference properties from the OpenCode event object. Use curly braces with dot notation:
-
-```json
-{
-  "message": "Session {sessionId} completed with status {properties.status}"
-}
-```
-
-Available properties depend on the event type. Common properties include:
-- `sessionId`: The OpenCode session ID
-- `properties.*`: Event-specific properties
-- `agentName`: From global configuration
 
 ## Usage
 
-Once installed and configured, the plugin works automatically. OpenCode will load the plugin and start listening for events.
+Once installed, the plugin works automatically. OpenCode will load the plugin and start listening for events.
 
 ### Event Types
 
-The plugin supports the following OpenCode events:
+The plugin handles the following OpenCode events:
 
-| Event Type | Default Status | Description |
-|------------|----------------|-------------|
+| Event Type | Status | Description |
+|------------|--------|-------------|
 | `session.idle` | `success` | Session completed successfully |
 | `session.error` | `error` | Session encountered an error |
-| `session.status` | `pending` | Session status changed (e.g., waiting for input) |
-| `session.created` | `success` | New session created |
-| `session.updated` | `success` | Session updated with new messages |
+| `session.status` | `pending` | Session status changed to pending |
 | `permission.updated` | `pending` | AI waiting for user input/permission |
-| `permission.replied` | `success` | Permission response received |
-| `question.asked` | `pending` | AI asked a question |
-| `permission.asked` | `pending` | AI asked for permission |
 
 ### Notification Levels Mapping
 
@@ -279,9 +127,16 @@ The plugin maps event statuses to tmux-intray levels:
 | `error`      | `error`           | Error occurred |
 | `pending`    | `warning`         | Awaiting user input |
 
-### Testing the Plugin
+### Default Messages
 
-You can test the plugin using Vitest. Note that `npm test` runs both the main project tests (via `make tests`) and the plugin tests (via Vitest). For plugin-only tests, use `npm run test:plugin`.
+- `session.idle`: "Task completed"
+- `session.error`: "Session error"
+- `session.status`: "Session status: pending" (only when status is pending)
+- `permission.updated`: "Permission needed"
+
+## Testing the Plugin
+
+You can test the plugin using Vitest:
 
 ```bash
 cd /path/to/tmux-intray/opencode/plugins/opencode-tmux-intray
@@ -289,38 +144,30 @@ npm run test:plugin
 ```
 
 The test suite includes:
-- `test-plugin.js`: Basic plugin functionality and session detection
-- `test-config-loader.js`: Configuration loading and validation
-- `test-integration.js`: Full integration tests with configuration scenarios
+- `test-plugin.js`: Basic plugin functionality
+- `integration.test.js`: Integration tests with tmux context capture
+- `unit-context-capture.test.js`: Unit tests for context capture functions
 - `test-real.js`: Real-world integration with tmux-intray (requires tmux-intray installed)
 
 ## Directory Structure
 
-The plugin consists of two parts:
-1. **Main plugin entry point**: `opencode/plugins/opencode-tmux-intray.js` (loaded by OpenCode)
-2. **Supporting modules**: Located in the `opencode/plugins/opencode-tmux-intray/` directory
-
 ```
 opencode/plugins/
 ├── opencode-tmux-intray.js          # Main plugin entry point
-└── opencode-tmux-intray/            # Supporting modules directory
+└── opencode-tmux-intray/            # Supporting files
     ├── README.md                    # This file
-    ├── config-loader.js             # Configuration loading and validation
-    ├── example-config.json          # Example configuration with comments
-    ├── test-utils/                  # Test utility scripts
-    │   ├── convert-tests.js         # Test conversion utility
-    │   ├── fix-warn-mocks.js        # Mock fixing utility
-    │   └── generate-config.js       # Configuration file generator
-    └── tests/
-        ├── test-plugin.js           # Basic plugin functionality tests
-        ├── test-config-loader.js    # Configuration loading tests
-        ├── test-integration.js      # Full integration tests
-        └── test-real.js             # Real-world scenario tests
+    ├── tests/                       # Test files
+    │   ├── test-plugin.js
+    │   ├── integration.test.js
+    │   ├── unit-context-capture.test.js
+    │   └── test-real.js
+    ├── install.sh                   # Installation script
+    └── uninstall.sh                 # Uninstallation script
 ```
 
 ## Running Tests
 
-The plugin includes comprehensive tests using Vitest. The test suite runs both the main project tests (via `make tests`) and the plugin tests (via Vitest). Run them with:
+The plugin includes comprehensive tests using Vitest:
 
 ```bash
 cd /path/to/tmux-intray/opencode/plugins/opencode-tmux-intray
@@ -328,7 +175,7 @@ cd /path/to/tmux-intray/opencode/plugins/opencode-tmux-intray
 # Install dependencies (first time only)
 npm install
 
-# Run all tests (main project tests + plugin tests)
+# Run all tests
 npm test
 
 # Run only the plugin tests
@@ -344,52 +191,11 @@ npm run test:ui
 npm run test:coverage
 ```
 
-You can also run plugin tests directly with Vitest:
-
-```bash
-npx vitest run
-```
-
 Tests verify:
 - Plugin loading and initialization
-- Configuration loading and validation
 - Event handling and notification sending
-- Session detection (tmux integration)
-- Template substitution
-
-## Migration Notes from agentmux-notify
-
-If you're migrating from the older `agentmux-notify` plugin:
-
-### Key Differences
-
-1. **Configuration Location**: 
-   - `agentmux-notify`: Used OpenCode's main configuration
-   - `opencode-tmux-intray`: Separate config file at `~/.config/opencode-tmux-intray/opencode-config.json`
-
-2. **Event Handling**:
-   - `agentmux-notify`: Limited event types
-   - `opencode-tmux-intray`: Comprehensive event support with template substitution
-
-3. **tmux Integration**:
-   - Both plugins use tmux-intray, but `opencode-tmux-intray` has better session detection and caching
-
-### Migration Steps
-
-1. **Generate new configuration**:
-    ```bash
-    ./test-utils/generate-config.js
-    ```
-
-2. **Review and customize** the generated configuration to match your previous settings.
-
-3. **Update OpenCode configuration** to use the new plugin path.
-
-4. **Test** with a simple OpenCode session to ensure notifications work as expected.
-
-### Configuration Mapping
-
-If you had custom messages in `agentmux-notify`, you'll need to manually recreate them in the new configuration format. The new template system is more powerful, allowing property substitution.
+- Tmux context capture (session/window/pane)
+- Error handling
 
 ## Troubleshooting
 
@@ -407,35 +213,26 @@ If you had custom messages in `agentmux-notify`, you'll need to manually recreat
 
 3. **Check tmux session**:
    - Ensure you're inside a tmux session
-   - Verify `tmux display-message -p "#S"` returns a session name
+   - Verify `tmux display-message -p "#{session_name}"` returns a session name
 
-4. **Check configuration**:
-   - Ensure `enabled: true` in config
-   - Verify specific events are enabled
-
-5. **Enable debug logging**:
-   - Plugin logs errors to `.tmp/debug.log` in the current directory
-   - Notifications are logged to `/tmp/opencode-tmux-intray.log`
+4. **Enable debug logging**:
+   - Plugin logs to `/tmp/opencode-tmux-intray.log`
+   - Check this file for errors and debugging information
 
 ### Notifications have wrong content
 
-1. **Check template syntax**:
-   - Placeholders use `{property.path}` syntax
-   - Properties must exist in the event object
-
-2. **Check event properties**:
-   - Different events have different properties
-   - Use the example config as reference
-
-### Sound/TTS not working
-
-1. **macOS only**: Sound and TTS features are macOS-specific
-2. **Check file paths**: Sound files must exist at the specified path
-3. **Check permissions**: The plugin needs permission to play sounds
+Events use hardcoded messages:
+- Only the events listed above are handled
+- Messages cannot be customized (simplified design)
 
 ### Session detection issues
 
-The plugin caches the tmux session at initialization. If you change tmux sessions after OpenCode starts, notifications may use the wrong session. Restart OpenCode to refresh the session cache.
+The plugin captures tmux context (session/window/pane) on each notification:
+1. Checks tmux session name via `tmux display-message -p "#{session_name}"`
+2. Checks tmux window ID via `tmux display-message -p "#{window_id}"`
+3. Checks tmux pane ID via `tmux display-message -p "#{pane_id}"`
+
+If you're not in a tmux session, the plugin will still work but won't attach context.
 
 ## Plugin API and Event Handling
 
@@ -446,6 +243,7 @@ export async function opencodeTmuxIntrayPlugin({ client }) {
   return {
     event: async ({ event }) => {
       // Handle OpenCode events
+      // Calls tmux-intray add with appropriate level and message
     }
   };
 }
@@ -454,18 +252,12 @@ export async function opencodeTmuxIntrayPlugin({ client }) {
 ### Event Flow
 
 1. OpenCode emits an event
-2. Plugin checks if event is enabled in configuration
-3. If enabled, builds message using template substitution
+2. Plugin checks if event type is known
+3. If known, determines message and status based on event type
 4. Maps event status to tmux-intray level
-5. Calls `tmux-intray add --level=<level> "<message>"`
-6. Notification appears in tmux-intray
-
-### Session Detection
-
-The plugin detects tmux sessions by:
-1. Checking `TMUX` environment variable
-2. Falling back to `tmux display-message -p "#S"` command
-3. Caching the session at plugin initialization for performance
+5. Captures current tmux context (session/window/pane)
+6. Calls `tmux-intray add --level=<level> --session=<id> --window=<id> --pane=<id> "<message>"`
+7. Notification appears in tmux-intray
 
 ## Contributing
 

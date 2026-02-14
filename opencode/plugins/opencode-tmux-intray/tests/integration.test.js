@@ -61,12 +61,15 @@ fs.appendFileSync('${outputFile.replace(/'/g, "\\'")}', JSON.stringify(args) + '
 `;
 
   // Handle tmux command responses
-  // Note: the shell parses quotes, so the format string will be #{session_id} not "#{session_id}"
+  // Note: the shell parses quotes, so the format string will be #{session_name} not "#{session_name}"
   if (sessionOutput || windowOutput || paneOutput) {
     content += `
 if (args[0] === 'display-message' && args[1] === '-p') {
   const format = args[2];
   if (format && format.includes('session_id')) {
+    if ('${sessionOutput}') console.log('${sessionOutput}');
+    process.exit(0);
+  } else if (format && format.includes('session_name')) {
     if ('${sessionOutput}') console.log('${sessionOutput}');
     process.exit(0);
   } else if (format && format.includes('window_id')) {
@@ -103,7 +106,7 @@ async function createTestEnv(options = {}) {
 
   // Create mock binaries
   await createMockBin(binDir, 'tmux', tmuxLog, {
-    sessionOutput: options.sessionID || '$0',
+    sessionOutput: options.sessionID || 'myproject',
     windowOutput: options.windowID || '@0',
     paneOutput: options.paneID || '%0',
   });
@@ -524,7 +527,7 @@ describe('End-to-End Notifications', () => {
 
   test('multiple sequential events create multiple notifications', async () => {
     const env = await createTestEnv({ 
-      sessionID: '$0',
+      sessionID: 'myproject',
       windowID: '@0',
       paneID: '%0'
     });
@@ -640,9 +643,9 @@ describe('Flag Passing', () => {
     const cmdString = cmd.join(' ');
     
     // When running in real tmux, verify the identifier prefixes are correct
-    // Session IDs should start with $, window with @, pane with %
+    // Session names are user-friendly strings, window IDs start with @, pane IDs start with %
     if (cmdString.match(/--session=/)) {
-      expect(cmdString).toMatch(/--session=.*\$|\/bin\/sh/);  // $N or /bin/sh from real tmux
+      expect(cmdString).toMatch(/--session=[^\s]+/);  // Any non-whitespace session name
     }
     if (cmdString.match(/--window=/)) {
       expect(cmdString).toMatch(/--window=.*@/);  // @N format
