@@ -71,7 +71,15 @@ func (p *DefaultHelpProvider) GetAllHelp() []model.CommandHelp {
 
 // registerDefaultHelp registers help for the default commands.
 func (p *DefaultHelpProvider) registerDefaultHelp() {
-	// Quit command
+	p.registerQuitHelp()
+	p.registerWriteHelp()
+	p.registerGroupByHelp()
+	p.registerExpandLevelHelp()
+	p.registerToggleViewHelp()
+}
+
+// registerQuitHelp registers help for the quit command.
+func (p *DefaultHelpProvider) registerQuitHelp() {
 	p.commands["q"] = &model.CommandHelp{
 		Name:        "q",
 		Description: "Quit the application",
@@ -79,8 +87,10 @@ func (p *DefaultHelpProvider) registerDefaultHelp() {
 		Arguments:   []model.ArgumentHelp{},
 		Examples:    []string{":q"},
 	}
+}
 
-	// Write command
+// registerWriteHelp registers help for the write command.
+func (p *DefaultHelpProvider) registerWriteHelp() {
 	p.commands["w"] = &model.CommandHelp{
 		Name:        "w",
 		Description: "Save settings",
@@ -88,8 +98,10 @@ func (p *DefaultHelpProvider) registerDefaultHelp() {
 		Arguments:   []model.ArgumentHelp{},
 		Examples:    []string{":w"},
 	}
+}
 
-	// Group-by command
+// registerGroupByHelp registers help for the group-by command.
+func (p *DefaultHelpProvider) registerGroupByHelp() {
 	p.commands["group-by"] = &model.CommandHelp{
 		Name:        "group-by",
 		Description: "Set the grouping mode for notifications",
@@ -109,8 +121,10 @@ func (p *DefaultHelpProvider) registerDefaultHelp() {
 			":group-by pane",
 		},
 	}
+}
 
-	// Expand-level command
+// registerExpandLevelHelp registers help for the expand-level command.
+func (p *DefaultHelpProvider) registerExpandLevelHelp() {
 	p.commands["expand-level"] = &model.CommandHelp{
 		Name:        "expand-level",
 		Description: "Set the default expansion level for grouped views",
@@ -130,8 +144,10 @@ func (p *DefaultHelpProvider) registerDefaultHelp() {
 			":expand-level 3",
 		},
 	}
+}
 
-	// Toggle-view command
+// registerToggleViewHelp registers help for the toggle-view command.
+func (p *DefaultHelpProvider) registerToggleViewHelp() {
 	p.commands["toggle-view"] = &model.CommandHelp{
 		Name:        "toggle-view",
 		Description: "Toggle between detailed and grouped view modes",

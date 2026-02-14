@@ -104,6 +104,37 @@ func ValidatePaneExists(sessionID, windowID, paneID string) bool {
 // jumpToPane is the private implementation that accepts a custom error handler.
 func (c *Core) jumpToPane(sessionID, windowID, paneID string, handler errors.ErrorHandler) bool {
 	// ASSERTION: Validate input parameters are non-empty
+	if !validateJumpParams(sessionID, windowID, paneID, handler) {
+		return false
+	}
+
+	shouldSwitch := c.shouldSwitchSession(sessionID)
+
+	paneExists := c.ValidatePaneExists(sessionID, windowID, paneID)
+	colors.Debug(fmt.Sprintf("JumpToPane: pane validation for %s:%s in window %s:%s - exists: %v", sessionID, paneID, sessionID, windowID, paneExists))
+
+	if shouldSwitch {
+		if !c.switchToSession(sessionID, handler) {
+			return false
+		}
+	}
+
+	targetWindow := sessionID + ":" + windowID
+	if !c.selectWindow(targetWindow, handler) {
+		return false
+	}
+
+	if !paneExists {
+		handler.Warning("Pane " + paneID + " does not exist in window " + targetWindow + ", jumping to window instead")
+		colors.Debug(fmt.Sprintf("JumpToPane: falling back to window selection (pane %s not found)", paneID))
+		return true
+	}
+
+	return c.selectPane(sessionID, windowID, paneID, handler)
+}
+
+// validateJumpParams validates the jump parameters.
+func validateJumpParams(sessionID, windowID, paneID string, handler errors.ErrorHandler) bool {
 	if sessionID == "" || windowID == "" || paneID == "" {
 		var missing []string
 		if sessionID == "" {
@@ -118,37 +149,37 @@ func (c *Core) jumpToPane(sessionID, windowID, paneID string, handler errors.Err
 		handler.Error(fmt.Sprintf("jump to pane: invalid parameters (empty %s)", strings.Join(missing, ", ")))
 		return false
 	}
+	return true
+}
 
-	shouldSwitch := true
+// shouldSwitchSession determines if we need to switch to the target session.
+func (c *Core) shouldSwitchSession(sessionID string) bool {
 	currentCtx, err := c.client.GetCurrentContext()
 	if err != nil {
 		colors.Debug("JumpToPane: failed to get tmux context: " + err.Error())
-	} else if currentCtx.SessionID == sessionID {
-		shouldSwitch = false
+		return true
 	}
-	var stderr string
+	return currentCtx.SessionID != sessionID
+}
 
-	// First validate if the pane exists
-	paneExists := c.ValidatePaneExists(sessionID, windowID, paneID)
-	colors.Debug(fmt.Sprintf("JumpToPane: pane validation for %s:%s in window %s:%s - exists: %v", sessionID, paneID, sessionID, windowID, paneExists))
-
-	// Switch client to target session before selecting window/pane
-	if shouldSwitch {
-		colors.Debug(fmt.Sprintf("JumpToPane: switching client to session %s", sessionID))
-		_, stderr, err = c.client.Run("switch-client", "-t", sessionID)
-		if err != nil {
-			handler.Error(fmt.Sprintf("jump to pane: failed to switch client to session %s: %v", sessionID, err))
-			if stderr != "" {
-				colors.Debug("JumpToPane: stderr: " + stderr)
-			}
-			return false
+// switchToSession switches to the target session.
+func (c *Core) switchToSession(sessionID string, handler errors.ErrorHandler) bool {
+	colors.Debug(fmt.Sprintf("JumpToPane: switching client to session %s", sessionID))
+	_, stderr, err := c.client.Run("switch-client", "-t", sessionID)
+	if err != nil {
+		handler.Error(fmt.Sprintf("jump to pane: failed to switch client to session %s: %v", sessionID, err))
+		if stderr != "" {
+			colors.Debug("JumpToPane: stderr: " + stderr)
 		}
+		return false
 	}
+	return true
+}
 
-	// Select the window (this happens regardless of whether the pane exists)
-	targetWindow := sessionID + ":" + windowID
+// selectWindow selects the target window.
+func (c *Core) selectWindow(targetWindow string, handler errors.ErrorHandler) bool {
 	colors.Debug(fmt.Sprintf("JumpToPane: selecting window %s", targetWindow))
-	_, stderr, err = c.client.Run("select-window", "-t", targetWindow)
+	_, stderr, err := c.client.Run("select-window", "-t", targetWindow)
 	if err != nil {
 		handler.Error(fmt.Sprintf("jump to pane: failed to select window %s: %v", targetWindow, err))
 		if stderr != "" {
@@ -156,21 +187,15 @@ func (c *Core) jumpToPane(sessionID, windowID, paneID string, handler errors.Err
 		}
 		return false
 	}
+	return true
+}
 
-	// If pane doesn't exist, show warning and fall back to window selection
-	if !paneExists {
-		handler.Warning("Pane " + paneID + " does not exist in window " + targetWindow + ", jumping to window instead")
-		colors.Debug(fmt.Sprintf("JumpToPane: falling back to window selection (pane %s not found)", paneID))
-		return true
-	}
-
-	// Pane exists, select it using the correct tmux pane syntax: "sessionID:windowID.paneID"
-	// ASSERTION: targetPane must follow tmux pane reference format
+// selectPane selects the target pane.
+func (c *Core) selectPane(sessionID, windowID, paneID string, handler errors.ErrorHandler) bool {
 	targetPane := sessionID + ":" + windowID + "." + paneID
 	colors.Debug(fmt.Sprintf("JumpToPane: selecting pane %s", targetPane))
-	_, stderr, err = c.client.Run("select-pane", "-t", targetPane)
+	_, stderr, err := c.client.Run("select-pane", "-t", targetPane)
 	if err != nil {
-		// Fail-fast: don't swallow errors, return false to indicate failure
 		handler.Error(fmt.Sprintf("jump to pane: failed to select pane %s: %v", targetPane, err))
 		if stderr != "" {
 			colors.Debug("JumpToPane: stderr: " + stderr)
