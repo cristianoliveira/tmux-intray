@@ -453,14 +453,12 @@ func TestModelUpdateHandlesCollapseExpandKeys(t *testing.T) {
 
 	// Press 'h' to collapse node
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}}
-	updated, _ := model.Update(msg)
-	model = updated.(*Model)
+	model.Update(msg)
 	assert.False(t, paneNode.Expanded)
 
 	// Press 'l' to expand node
 	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}}
-	updated, _ = model.Update(msg)
-	model = updated.(*Model)
+	model.Update(msg)
 	assert.True(t, paneNode.Expanded)
 }
 
@@ -477,12 +475,10 @@ func TestModelUpdateHandlesCollapseExpandKeysNonGroupedView(t *testing.T) {
 
 	// 'h' and 'l' should be ignored (no panic)
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}}
-	updated, _ := model.Update(msg)
-	model = updated.(*Model)
+	model.Update(msg)
 	// Nothing should change
 	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}}
-	updated, _ = model.Update(msg)
-	model = updated.(*Model)
+	model.Update(msg)
 	// No assertion needed, just ensure no panic
 }
 
@@ -2306,17 +2302,18 @@ func TestToState(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Initialize uiState based on test expectations
-			if tt.name == "model with settings" {
+			switch tt.name {
+			case "model with settings":
 				tt.model.uiState = NewUIState()
 				tt.model.uiState.SetViewMode(uimodel.ViewMode(settings.ViewModeDetailed))
 				tt.model.uiState.SetGroupBy(uimodel.GroupBy(settings.GroupBySession))
 				tt.model.uiState.SetExpandLevel(2)
 				tt.model.uiState.SetExpansionState(map[string]bool{"session:$1": true})
-			} else if tt.name == "model with partial settings" {
+			case "model with partial settings":
 				tt.model.uiState = NewUIState()
 				tt.model.uiState.SetViewMode(uimodel.ViewMode(settings.ViewModeCompact))
 				tt.model.uiState.SetGroupBy(uimodel.GroupBy(settings.GroupByNone))
-			} else {
+			default:
 				tt.model.uiState = NewUIState()
 			}
 			got := tt.model.ToState()

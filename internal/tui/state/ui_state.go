@@ -142,7 +142,7 @@ func (u *UIState) AppendToSearchQuery(r rune) {
 
 // BackspaceSearchQuery removes the last character from the search query.
 func (u *UIState) BackspaceSearchQuery() {
-	if len(u.searchQuery) > 0 {
+	if u.searchQuery != "" {
 		u.searchQuery = u.searchQuery[:len(u.searchQuery)-1]
 	}
 }
@@ -177,7 +177,7 @@ func (u *UIState) AppendToCommandQuery(r rune) {
 
 // BackspaceCommandQuery removes the last character from the command query.
 func (u *UIState) BackspaceCommandQuery() {
-	if len(u.commandQuery) > 0 {
+	if u.commandQuery != "" {
 		u.commandQuery = u.commandQuery[:len(u.commandQuery)-1]
 	}
 }

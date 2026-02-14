@@ -139,7 +139,7 @@ func (m *Model) handlePendingKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 			m.handleMoveTop()
 			return true, nil
 		}
-		if !(m.uiState.GetPendingKey() == "z" && msg.String() == "z") {
+		if m.uiState.GetPendingKey() != "z" || msg.String() != "z" {
 			m.uiState.ClearPendingKey()
 		}
 	}
