@@ -122,6 +122,15 @@ func (a *DomainRepositoryAdapter) DismissAll() error {
 	return nil
 }
 
+// DismissByFilter marks notifications matching the provided filters as dismissed.
+func (a *DomainRepositoryAdapter) DismissByFilter(session, window, pane string) error {
+	err := a.storage.DismissByFilter(session, window, pane)
+	if err != nil {
+		return fmt.Errorf("%w: %v", domain.ErrStorageFailed, err)
+	}
+	return nil
+}
+
 // MarkRead marks a notification as read.
 func (a *DomainRepositoryAdapter) MarkRead(id int) error {
 	idStr := strconv.Itoa(id)

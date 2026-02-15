@@ -25,6 +25,11 @@ func errorMsgAfter(d time.Duration) tea.Cmd {
 
 // handleKeyMsg processes keyboard input for the TUI.
 func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Handle confirmation mode first
+	if m.uiState.IsConfirmationMode() {
+		return m.handleConfirmation(msg)
+	}
+
 	if handled, cmd := m.handlePendingKey(msg); handled {
 		return m, cmd
 	}
@@ -42,6 +47,49 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m.handleKeyBinding(msg.String())
+}
+
+// handleConfirmation handles key input during confirmation mode.
+func (m *Model) handleConfirmation(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyCtrlC:
+		// Cancel confirmation and quit
+		m.uiState.SetConfirmationMode(false)
+		return m.handleCtrlC()
+	case tea.KeyEsc:
+		// Cancel confirmation
+		m.uiState.SetConfirmationMode(false)
+		return m, nil
+	case tea.KeyEnter:
+		// Confirm action
+		return m, m.executeConfirmedAction()
+	case tea.KeyRunes:
+		// Handle y/Y for yes, n/N for no
+		if len(msg.Runes) == 0 {
+			return m, nil
+		}
+		switch msg.Runes[0] {
+		case 'y', 'Y':
+			return m, m.executeConfirmedAction()
+		case 'n', 'N':
+			m.uiState.SetConfirmationMode(false)
+			return m, nil
+		}
+	}
+	return m, nil
+}
+
+// executeConfirmedAction executes the action that was confirmed.
+func (m *Model) executeConfirmedAction() tea.Cmd {
+	action := m.uiState.GetPendingAction()
+	m.uiState.SetConfirmationMode(false)
+
+	if action.Type == ActionDismissGroup {
+		return m.handleDismissByFilter(action.Session, action.Window, action.Pane)
+	} else {
+		m.errorHandler.Error(fmt.Sprintf("Unknown action type: %s", action.Type))
+		return nil
+	}
 }
 
 // handleKeyType handles key type-based actions (Ctrl+C, Esc, Enter, etc.).
@@ -90,6 +138,8 @@ func (m *Model) handleKeyBinding(key string) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "d":
 		return m, m.handleDismiss()
+	case "D":
+		return m, m.handleDismissGroup()
 	case "r":
 		return m, m.markSelectedRead()
 	case "u":
@@ -324,6 +374,91 @@ func (m *Model) handleDismiss() tea.Cmd {
 
 	// Update viewport content
 	m.updateViewportContent()
+
+	return nil
+}
+
+// handleDismissGroup handles the dismiss group action.
+// Shows confirmation dialog if current selection is a group node in grouped view.
+func (m *Model) handleDismissGroup() tea.Cmd {
+	// Only available in grouped view
+	if !m.isGroupedView() {
+		return nil
+	}
+
+	if m.currentListLen() == 0 {
+		return nil
+	}
+
+	// Get the selected node
+	node := m.selectedVisibleNode()
+	if node == nil {
+		return nil
+	}
+
+	// Only work on group nodes (not notification nodes)
+	if !m.isGroupNode(node) {
+		return nil
+	}
+	// Only session, window, and pane groups can be dismissed
+	// Only session, window, and pane groups can be dismissed
+	if node.Kind != model.NodeKindSession && node.Kind != model.NodeKindWindow && node.Kind != model.NodeKindPane {
+		return nil
+	}
+	// Collect session, window, pane filters and count
+	session, window, pane, count := m.collectNotificationsInGroup(node)
+	if count == 0 {
+		return nil
+	}
+
+	// Set up confirmation
+	action := PendingAction{
+		Type:     ActionDismissGroup,
+		Message:  fmt.Sprintf("Dismiss %d notifications in this %s?", count, getGroupTypeLabel(node.Kind)),
+		Session:  session,
+		Window:   window,
+		Pane:     pane,
+		Count:    count,
+		NodeKind: node.Kind,
+	}
+	m.uiState.SetPendingAction(action)
+	m.uiState.SetConfirmationMode(true)
+
+	return nil
+}
+
+// handleDismissByFilter dismisses notifications matching the provided filters.
+func (m *Model) handleDismissByFilter(session, window, pane string) tea.Cmd {
+	// Dismiss using storage
+	if err := storage.DismissByFilter(session, window, pane); err != nil {
+		m.errorHandler.Error(fmt.Sprintf("Failed to dismiss notifications: %v", err))
+		return errorMsgAfter(errorClearDuration)
+	}
+
+	// Save the current cursor position before reload
+	oldCursor := m.uiState.GetCursor()
+
+	// Reload notifications to get updated state (preserve cursor)
+	if err := m.loadNotifications(true); err != nil {
+		m.errorHandler.Error(fmt.Sprintf("Failed to reload notifications: %v", err))
+		return errorMsgAfter(errorClearDuration)
+	}
+
+	// Restore cursor to the saved position, adjusting for bounds
+	listLen := m.currentListLen()
+	if listLen == 0 {
+		m.uiState.SetCursor(0)
+	} else {
+		m.uiState.SetCursor(oldCursor)
+		// Ensure cursor is within bounds
+		m.adjustCursorBounds()
+	}
+
+	// Update viewport content
+	m.updateViewportContent()
+
+	// Show success message
+	m.errorHandler.Success("Notifications dismissed")
 
 	return nil
 }

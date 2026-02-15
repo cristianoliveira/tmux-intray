@@ -424,6 +424,37 @@ func (m *Model) nodePathSegments(path []*model.TreeNode) (session string, window
 	return session, window, pane
 }
 
+// findNodePath returns the path from root to target node (inclusive).
+// Returns nil if target not found.
+func (m *Model) findNodePath(root, target *model.TreeNode) []*model.TreeNode {
+	if root == nil || target == nil {
+		return nil
+	}
+	if root == target {
+		return []*model.TreeNode{root}
+	}
+	for _, child := range root.Children {
+		if path := m.findNodePath(child, target); path != nil {
+			return append([]*model.TreeNode{root}, path...)
+		}
+	}
+	return nil
+}
+
+// getAncestorTitles returns session, window, pane titles for a node by finding its path from root.
+func (m *Model) getAncestorTitles(node *model.TreeNode) (session, window, pane string, ok bool) {
+	treeRoot := m.treeService.GetTreeRoot()
+	if treeRoot == nil {
+		return "", "", "", false
+	}
+	path := m.findNodePath(treeRoot, node)
+	if path == nil {
+		return "", "", "", false
+	}
+	session, window, pane = m.nodePathSegments(path)
+	return session, window, pane, true
+}
+
 // buildFilteredTree builds a tree from filtered notifications and applies saved expansion state.
 // Returns a tree where group counts reflect only matching notifications.
 func (m *Model) buildFilteredTree(notifications []notification.Notification) *model.TreeNode {
@@ -652,4 +683,43 @@ func (m *Model) getTreeRootForTest() *model.TreeNode {
 // getVisibleNodesForTest returns the visible nodes for testing purposes.
 func (m *Model) getVisibleNodesForTest() []*model.TreeNode {
 	return m.treeService.GetVisibleNodes()
+}
+
+// collectNotificationsInGroup collects all notifications under a group node.
+// Returns the session, window, pane filters and count of notifications.
+func (m *Model) collectNotificationsInGroup(node *model.TreeNode) (session, window, pane string, count int) {
+	if node == nil || node.Kind == model.NodeKindNotification {
+		return "", "", "", 0
+	}
+
+	count = node.Count
+
+	switch node.Kind {
+	case model.NodeKindSession:
+		return node.Title, "", "", count
+	case model.NodeKindWindow, model.NodeKindPane:
+		sess, win, pan, ok := m.getAncestorTitles(node)
+		if !ok {
+			return "", "", "", 0
+		}
+		return sess, win, pan, count
+	default:
+		return "", "", "", 0
+	}
+}
+
+// getGroupTypeLabel returns a human-readable label for the group kind.
+func getGroupTypeLabel(kind model.NodeKind) string {
+	switch kind {
+	case model.NodeKindSession:
+		return "session"
+	case model.NodeKindWindow:
+		return "window"
+	case model.NodeKindPane:
+		return "pane"
+	case model.NodeKindMessage:
+		return "message"
+	default:
+		return "group"
+	}
 }

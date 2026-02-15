@@ -268,6 +268,30 @@ func (s *SQLiteStorage) DismissAll() error {
 	return nil
 }
 
+// DismissByFilter marks active notifications matching the provided filters as dismissed.
+// Empty string in a field means "match any value".
+func (s *SQLiteStorage) DismissByFilter(session, window, pane string) error {
+	// Get all notifications matching the filters before dismissal to run hooks
+	activeNotifications, err := s.listActiveNotificationsByFilter(session, window, pane)
+	if err != nil {
+		return err
+	}
+
+	if len(activeNotifications) == 0 {
+		return nil
+	}
+
+	// Run pre-dismiss hooks and dismiss each notification
+	for _, notification := range activeNotifications {
+		if err := s.dismissSingleNotification(notification); err != nil {
+			return err
+		}
+	}
+
+	s.syncTmuxStatusOption()
+	return nil
+}
+
 // MarkNotificationRead sets read_timestamp to current UTC time.
 func (s *SQLiteStorage) MarkNotificationRead(id string) error {
 	return s.markNotificationReadState(id, utcNow())
@@ -527,6 +551,44 @@ func (s *SQLiteStorage) listActiveNotificationsForHooks() ([]hookNotification, e
 
 	notifications := make([]hookNotification, 0, len(rows))
 	for _, row := range rows {
+		notifications = append(notifications, hookNotification{
+			id:          row.ID,
+			timestamp:   row.Timestamp,
+			state:       row.State,
+			session:     row.Session,
+			window:      row.Window,
+			pane:        row.Pane,
+			message:     row.Message,
+			paneCreated: row.PaneCreated,
+			level:       row.Level,
+		})
+	}
+
+	return notifications, nil
+}
+
+// TODO: Optimize with a SQL query that filters in database instead of loading all active notifications.
+func (s *SQLiteStorage) listActiveNotificationsByFilter(session, window, pane string) ([]hookNotification, error) {
+	// First get all active notifications
+	allRows, err := s.queries.ListActiveNotificationsForHooks(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("sqlite storage: list active notifications: %w", err)
+	}
+
+	// Filter by the provided criteria
+	notifications := make([]hookNotification, 0, len(allRows))
+	for _, row := range allRows {
+		// Apply filters - empty string means match any
+		if session != "" && row.Session != session {
+			continue
+		}
+		if window != "" && row.Window != window {
+			continue
+		}
+		if pane != "" && row.Pane != pane {
+			continue
+		}
+
 		notifications = append(notifications, hookNotification{
 			id:          row.ID,
 			timestamp:   row.Timestamp,

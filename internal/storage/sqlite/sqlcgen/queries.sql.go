@@ -107,6 +107,31 @@ func (q *Queries) DismissNotificationByID(ctx context.Context, arg DismissNotifi
 	return q.db.ExecContext(ctx, dismissNotificationByID, arg.UpdatedAt, arg.ID)
 }
 
+const dismissNotificationsByFilter = `-- name: DismissNotificationsByFilter :execresult
+UPDATE notifications
+SET state = 'dismissed', updated_at = ?1
+WHERE state = 'active'
+  AND (?2 = '' OR session = ?2)
+  AND (?3 = '' OR window = ?3)
+  AND (?4 = '' OR pane = ?4)
+`
+
+type DismissNotificationsByFilterParams struct {
+	UpdatedAt     string
+	SessionFilter interface{}
+	WindowFilter  interface{}
+	PaneFilter    interface{}
+}
+
+func (q *Queries) DismissNotificationsByFilter(ctx context.Context, arg DismissNotificationsByFilterParams) (sql.Result, error) {
+	return q.db.ExecContext(ctx, dismissNotificationsByFilter,
+		arg.UpdatedAt,
+		arg.SessionFilter,
+		arg.WindowFilter,
+		arg.PaneFilter,
+	)
+}
+
 const getNotificationForHooksByID = `-- name: GetNotificationForHooksByID :one
 SELECT id, timestamp, state, session, window, pane, message, pane_created, level
 FROM notifications

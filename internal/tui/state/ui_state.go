@@ -6,6 +6,26 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
 
+// PendingAction represents an action that requires user confirmation.
+type PendingAction struct {
+	Type     ActionType
+	Message  string
+	Session  string
+	Window   string
+	Pane     string
+	Count    int
+	NodeKind model.NodeKind
+}
+
+// ActionType represents the type of action requiring confirmation.
+type ActionType string
+
+const (
+	ActionDismissGroup ActionType = "dismiss_group"
+)
+
+// UIState manages all UI-specific state for the TUI.
+
 // UIState manages all UI-specific state for the TUI.
 // This includes viewport management, cursor position, search mode,
 // and other UI-related state that should be separated from business logic.
@@ -27,6 +47,10 @@ type UIState struct {
 
 	// Input handling state
 	pendingKey string
+
+	// Confirmation state for actions requiring user confirmation
+	confirmationMode bool
+	pendingAction    PendingAction
 
 	// View mode management
 	viewMode model.ViewMode
@@ -156,6 +180,34 @@ func (u *UIState) SetPendingKey(key string) {
 // ClearPendingKey clears the pending key.
 func (u *UIState) ClearPendingKey() {
 	u.pendingKey = ""
+}
+
+// IsConfirmationMode returns whether confirmation mode is active.
+func (u *UIState) IsConfirmationMode() bool {
+	return u.confirmationMode
+}
+
+// SetConfirmationMode activates or deactivates confirmation mode.
+func (u *UIState) SetConfirmationMode(active bool) {
+	u.confirmationMode = active
+	if !active {
+		u.pendingAction = PendingAction{}
+	}
+}
+
+// GetPendingAction returns the current pending action for confirmation.
+func (u *UIState) GetPendingAction() PendingAction {
+	return u.pendingAction
+}
+
+// SetPendingAction sets a pending action that requires confirmation.
+func (u *UIState) SetPendingAction(action PendingAction) {
+	u.pendingAction = action
+}
+
+// ClearPendingAction clears the pending action.
+func (u *UIState) ClearPendingAction() {
+	u.pendingAction = PendingAction{}
 }
 
 // GetError returns the current error message.
