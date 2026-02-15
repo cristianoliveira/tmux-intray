@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/pelletier/go-toml/v2"
 	"github.com/stretchr/testify/assert"
@@ -35,6 +36,15 @@ func TestDefaultSettings(t *testing.T) {
 	assert.Equal(t, GroupByNone, s.GroupBy)
 	assert.Equal(t, 1, s.DefaultExpandLevel)
 	assert.Equal(t, map[string]bool{}, s.ExpansionState)
+
+	// Check group header options
+	assert.True(t, s.GroupHeader.ShowTimeRange)
+	assert.True(t, s.GroupHeader.ShowLevelBadges)
+	assert.False(t, s.GroupHeader.ShowSourceAggregation)
+	assert.Equal(t, colors.Blue, s.GroupHeader.BadgeColors[LevelFilterInfo])
+	assert.Equal(t, colors.Yellow, s.GroupHeader.BadgeColors[LevelFilterWarning])
+	assert.Equal(t, colors.Red, s.GroupHeader.BadgeColors[LevelFilterError])
+	assert.Equal(t, colors.Red, s.GroupHeader.BadgeColors[LevelFilterCritical])
 }
 
 func TestLoadDefaultWhenFileDoesNotExist(t *testing.T) {
@@ -56,6 +66,7 @@ func TestLoadDefaultWhenFileDoesNotExist(t *testing.T) {
 	assert.Equal(t, expected.GroupBy, settings.GroupBy)
 	assert.Equal(t, expected.DefaultExpandLevel, settings.DefaultExpandLevel)
 	assert.Equal(t, expected.ExpansionState, settings.ExpansionState)
+	assert.Equal(t, expected.GroupHeader, settings.GroupHeader)
 }
 
 func TestLoadFromExistingFile(t *testing.T) {
@@ -83,6 +94,17 @@ func TestLoadFromExistingFile(t *testing.T) {
 		ExpansionState: map[string]bool{
 			"window:@1": true,
 		},
+		GroupHeader: GroupHeaderOptions{
+			ShowTimeRange:         false,
+			ShowLevelBadges:       true,
+			ShowSourceAggregation: true,
+			BadgeColors: map[string]string{
+				LevelFilterInfo:     colors.Green,
+				LevelFilterWarning:  colors.Yellow,
+				LevelFilterError:    colors.Red,
+				LevelFilterCritical: colors.Red,
+			},
+		},
 	}
 
 	data, err := toml.Marshal(customSettings)
@@ -106,6 +128,7 @@ func TestLoadFromExistingFile(t *testing.T) {
 	assert.Equal(t, GroupByWindow, settings.GroupBy)
 	assert.Equal(t, 2, settings.DefaultExpandLevel)
 	assert.Equal(t, map[string]bool{"window:@1": true}, settings.ExpansionState)
+	assert.Equal(t, customSettings.GroupHeader, settings.GroupHeader)
 }
 
 func TestLoadPartialSettings(t *testing.T) {
@@ -140,6 +163,7 @@ viewMode = "detailed"
 	assert.Equal(t, GroupByNone, settings.GroupBy)
 	assert.Equal(t, 1, settings.DefaultExpandLevel)
 	assert.Equal(t, map[string]bool{}, settings.ExpansionState)
+	assert.Equal(t, DefaultSettings().GroupHeader, settings.GroupHeader)
 }
 
 func TestLoadInvalidTOML(t *testing.T) {
@@ -242,6 +266,17 @@ func TestSave(t *testing.T) {
 		ExpansionState: map[string]bool{
 			"session:$1": true,
 		},
+		GroupHeader: GroupHeaderOptions{
+			ShowTimeRange:         true,
+			ShowLevelBadges:       false,
+			ShowSourceAggregation: false,
+			BadgeColors: map[string]string{
+				LevelFilterInfo:     colors.Blue,
+				LevelFilterWarning:  colors.Yellow,
+				LevelFilterError:    colors.Red,
+				LevelFilterCritical: colors.Red,
+			},
+		},
 	}
 
 	// Save settings
@@ -269,6 +304,7 @@ func TestSave(t *testing.T) {
 	assert.Equal(t, settings.GroupBy, loaded.GroupBy)
 	assert.Equal(t, settings.DefaultExpandLevel, loaded.DefaultExpandLevel)
 	assert.Equal(t, settings.ExpansionState, loaded.ExpansionState)
+	assert.Equal(t, settings.GroupHeader, loaded.GroupHeader)
 }
 
 func TestSaveInvalidSettings(t *testing.T) {

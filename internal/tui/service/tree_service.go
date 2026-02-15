@@ -395,13 +395,14 @@ func (s *DefaultTreeService) getOrCreateGroupNode(parent *model.TreeNode, cache 
 }
 
 func (s *DefaultTreeService) incrementGroupStats(node *model.TreeNode, notif notification.Notification) {
+	if node == nil {
+		return
+	}
 	node.Count++
-	if !notif.IsRead() {
-		node.UnreadCount++
-	}
-	if node.LatestEvent == nil || s.isNewerTimestamp(notif.Timestamp, node.LatestEvent.Timestamp) {
-		node.LatestEvent = &notif
-	}
+	s.updateUnreadCount(node, notif)
+	s.updateTimeRange(node, notif)
+	s.updateLevelCounts(node, notif)
+	s.updateSourceSet(node, notif)
 }
 
 func (s *DefaultTreeService) isNewerTimestamp(current string, latest string) bool {
@@ -412,6 +413,16 @@ func (s *DefaultTreeService) isNewerTimestamp(current string, latest string) boo
 		return true
 	}
 	return current > latest
+}
+
+func (s *DefaultTreeService) isOlderTimestamp(current string, earliest string) bool {
+	if current == "" {
+		return false
+	}
+	if earliest == "" {
+		return true
+	}
+	return current < earliest
 }
 
 func (s *DefaultTreeService) sortTree(node *model.TreeNode) {

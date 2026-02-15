@@ -282,6 +282,39 @@ func TestBuildTreeWithMessageGroupingAndReadNotifications(t *testing.T) {
 	assert.Equal(t, 1, errorGroup.UnreadCount) // Only one is unread
 }
 
+func TestTreeServiceTracksExtendedGroupStats(t *testing.T) {
+	service := NewTreeService(model.GroupByPane).(*DefaultTreeService)
+
+	notifs := []notification.Notification{
+		{
+			ID:        1,
+			Timestamp: "2025-01-01T10:00:00Z",
+			Session:   "$1",
+			Window:    "@1",
+			Pane:      "%1",
+			Level:     "error",
+		},
+		{
+			ID:        2,
+			Timestamp: "2025-01-01T09:30:00Z",
+			Session:   "$2",
+			Window:    "@2",
+			Pane:      "%2",
+			Level:     "warning",
+		},
+	}
+
+	require.NoError(t, service.BuildTree(notifs, settings.GroupBySession))
+	root := service.GetTreeRoot()
+	require.NotNil(t, root)
+	require.NotNil(t, root.EarliestEvent)
+	assert.Equal(t, "2025-01-01T09:30:00Z", root.EarliestEvent.Timestamp)
+	require.NotNil(t, root.LevelCounts)
+	assert.Equal(t, 1, root.LevelCounts["error"])
+	assert.Equal(t, 1, root.LevelCounts["warning"])
+	assert.Len(t, root.Sources, 2)
+}
+
 func TestGetTreeLevelWithMessageNode(t *testing.T) {
 	service := NewTreeService(model.GroupByPane).(*DefaultTreeService)
 

@@ -1,11 +1,13 @@
 package state
 
 import (
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/render"
 )
@@ -83,7 +85,7 @@ func (m *Model) renderGroupedView(content *strings.Builder, width, cursor int) {
 			content.WriteString("\n")
 		}
 		if m.isGroupNode(node) {
-			m.renderGroupNodeRow(content, node, rowIndex, cursor, width)
+			m.renderGroupNodeRow(content, node, rowIndex, cursor, width, now)
 			continue
 		}
 		if node.Notification == nil {
@@ -94,7 +96,7 @@ func (m *Model) renderGroupedView(content *strings.Builder, width, cursor int) {
 }
 
 // renderGroupNodeRow renders a single group node row.
-func (m *Model) renderGroupNodeRow(content *strings.Builder, node *model.TreeNode, rowIndex, cursor, width int) {
+func (m *Model) renderGroupNodeRow(content *strings.Builder, node *model.TreeNode, rowIndex, cursor, width int, now time.Time) {
 	display := node.Display
 	switch node.Kind {
 	case model.NodeKindSession:
@@ -104,16 +106,27 @@ func (m *Model) renderGroupNodeRow(content *strings.Builder, node *model.TreeNod
 	case model.NodeKindPane:
 		display = m.getPaneName(node.Title)
 	}
+	options := m.getGroupHeaderOptions()
+	sources := m.groupSourcesForNode(node)
+	earliest := timestampFromEvent(node.EarliestEvent)
+	latest := timestampFromEvent(node.LatestEvent)
 	content.WriteString(render.RenderGroupRow(render.GroupRow{
 		Node: &render.GroupNode{
-			Title:    node.Title,
-			Display:  display,
-			Expanded: node.Expanded,
-			Count:    node.Count,
+			Title:       node.Title,
+			Display:     display,
+			Expanded:    node.Expanded,
+			Count:       node.Count,
+			UnreadCount: node.UnreadCount,
 		},
-		Selected: rowIndex == cursor,
-		Level:    m.treeService.GetTreeLevel(node),
-		Width:    width,
+		Selected:          rowIndex == cursor,
+		Level:             m.treeService.GetTreeLevel(node),
+		Width:             width,
+		Now:               now,
+		EarliestTimestamp: earliest,
+		LatestTimestamp:   latest,
+		LevelCounts:       node.LevelCounts,
+		Sources:           sources,
+		Options:           options,
 	}))
 }
 
@@ -127,6 +140,71 @@ func (m *Model) renderNotificationRow(content *strings.Builder, notif notificati
 		Selected:     rowIndex == cursor,
 		Now:          now,
 	}))
+}
+
+func (m *Model) getGroupHeaderOptions() settings.GroupHeaderOptions {
+	if m == nil {
+		return settings.DefaultGroupHeaderOptions()
+	}
+	if m.groupHeaderOptions.BadgeColors == nil && !m.groupHeaderOptions.ShowTimeRange && !m.groupHeaderOptions.ShowLevelBadges && !m.groupHeaderOptions.ShowSourceAggregation {
+		return settings.DefaultGroupHeaderOptions()
+	}
+	return m.groupHeaderOptions.Clone()
+}
+
+func (m *Model) groupSourcesForNode(node *model.TreeNode) []string {
+	if node == nil || len(node.Sources) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(node.Sources))
+	for _, source := range node.Sources {
+		names = appendSourceIfMissing(names, m.resolveSourceLabel(source))
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	sort.Strings(names)
+	return names
+}
+
+func (m *Model) resolveSourceLabel(source model.NotificationSource) string {
+	if pane := m.getPaneName(source.Pane); pane != "" {
+		return pane
+	}
+	parts := make([]string, 0, 3)
+	parts = appendIfNonEmpty(parts, m.getSessionName(source.Session))
+	parts = appendIfNonEmpty(parts, m.getWindowName(source.Window))
+	parts = appendIfNonEmpty(parts, source.Pane)
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, ":")
+}
+
+func appendSourceIfMissing(list []string, label string) []string {
+	if label == "" {
+		return list
+	}
+	for _, existing := range list {
+		if existing == label {
+			return list
+		}
+	}
+	return append(list, label)
+}
+
+func appendIfNonEmpty(parts []string, value string) []string {
+	if value == "" {
+		return parts
+	}
+	return append(parts, value)
+}
+
+func timestampFromEvent(event *notification.Notification) string {
+	if event == nil {
+		return ""
+	}
+	return event.Timestamp
 }
 
 // renderFlatView renders the flat notification list view.

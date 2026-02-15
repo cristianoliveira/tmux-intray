@@ -16,6 +16,11 @@ import (
 func (m *Model) SetLoadedSettings(loaded *settings.Settings) {
 	m.ensureSettingsService().setLoadedSettings(loaded)
 	m.loadedSettings = loaded
+	if loaded != nil {
+		m.groupHeaderOptions = loaded.GroupHeader.Clone()
+	} else {
+		m.groupHeaderOptions = settings.DefaultGroupHeaderOptions()
+	}
 }
 
 // ToState converts the Model to a TUIState DTO for settings persistence.
