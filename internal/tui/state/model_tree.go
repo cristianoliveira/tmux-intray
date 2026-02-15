@@ -424,6 +424,37 @@ func (m *Model) nodePathSegments(path []*model.TreeNode) (session string, window
 	return session, window, pane
 }
 
+// findNodePath returns the path from root to target node (inclusive).
+// Returns nil if target not found.
+func (m *Model) findNodePath(root, target *model.TreeNode) []*model.TreeNode {
+	if root == nil || target == nil {
+		return nil
+	}
+	if root == target {
+		return []*model.TreeNode{root}
+	}
+	for _, child := range root.Children {
+		if path := m.findNodePath(child, target); path != nil {
+			return append([]*model.TreeNode{root}, path...)
+		}
+	}
+	return nil
+}
+
+// getAncestorTitles returns session, window, pane titles for a node by finding its path from root.
+func (m *Model) getAncestorTitles(node *model.TreeNode) (session, window, pane string, ok bool) {
+	treeRoot := m.treeService.GetTreeRoot()
+	if treeRoot == nil {
+		return "", "", "", false
+	}
+	path := m.findNodePath(treeRoot, node)
+	if path == nil {
+		return "", "", "", false
+	}
+	session, window, pane = m.nodePathSegments(path)
+	return session, window, pane, true
+}
+
 // buildFilteredTree builds a tree from filtered notifications and applies saved expansion state.
 // Returns a tree where group counts reflect only matching notifications.
 func (m *Model) buildFilteredTree(notifications []notification.Notification) *model.TreeNode {
@@ -663,49 +694,15 @@ func (m *Model) collectNotificationsInGroup(node *model.TreeNode) (session, wind
 
 	count = node.Count
 
-	// Based on node kind, set appropriate filters
 	switch node.Kind {
 	case model.NodeKindSession:
 		return node.Title, "", "", count
-	case model.NodeKindWindow:
-		// For window node, we need to get parent session
-		treeRoot := m.treeService.GetTreeRoot()
-		if treeRoot == nil {
+	case model.NodeKindWindow, model.NodeKindPane:
+		sess, win, pan, ok := m.getAncestorTitles(node)
+		if !ok {
 			return "", "", "", 0
 		}
-		// Find the session parent
-		for _, child := range treeRoot.Children {
-			if child.Kind == model.NodeKindSession {
-				// Check if this session contains the window
-				for _, win := range child.Children {
-					if win == node {
-						return child.Title, node.Title, "", count
-					}
-				}
-			}
-		}
-		return "", "", "", 0
-	case model.NodeKindPane:
-		// For pane node, we need to get parent session and window
-		treeRoot := m.treeService.GetTreeRoot()
-		if treeRoot == nil {
-			return "", "", "", 0
-		}
-		// Find the session and window parents
-		for _, child := range treeRoot.Children {
-			if child.Kind == model.NodeKindSession {
-				for _, win := range child.Children {
-					if win.Kind == model.NodeKindWindow {
-						for _, p := range win.Children {
-							if p == node {
-								return child.Title, win.Title, node.Title, count
-							}
-						}
-					}
-				}
-			}
-		}
-		return "", "", "", 0
+		return sess, win, pan, count
 	default:
 		return "", "", "", 0
 	}
