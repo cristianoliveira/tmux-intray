@@ -113,6 +113,9 @@ const (
 	// NodeKindPane represents a pane group node.
 	NodeKindPane NodeKind = "pane"
 
+	// NodeKindMessage represents a message group node.
+	NodeKindMessage NodeKind = "message"
+
 	// NodeKindNotification represents a leaf node containing a notification.
 	NodeKindNotification NodeKind = "notification"
 )

@@ -143,6 +143,9 @@ const (
 
 	// GroupByPane groups notifications by session, window, and pane.
 	GroupByPane GroupBy = "pane"
+
+	// GroupByMessage groups notifications by message text.
+	GroupByMessage GroupBy = "message"
 )
 
 // UIDTO is a data transfer object for UI state persistence.

@@ -17,6 +17,7 @@ const (
 	NodeKindSession      NodeKind = "session"
 	NodeKindWindow       NodeKind = "window"
 	NodeKindPane         NodeKind = "pane"
+	NodeKindMessage      NodeKind = "message"
 	NodeKindNotification NodeKind = "notification"
 )
 
@@ -47,6 +48,7 @@ func BuildTree(notifications []notification.Notification, groupBy string) *Node 
 	sessionNodes := make(map[string]*Node)
 	windowNodes := make(map[string]*Node)
 	paneNodes := make(map[string]*Node)
+	messageNodes := make(map[string]*Node)
 
 	for _, notif := range notifications {
 		current := notif
@@ -70,6 +72,12 @@ func BuildTree(notifications []notification.Notification, groupBy string) *Node 
 			paneNode := getOrCreateGroupNode(parent, paneNodes, NodeKindPane, paneKey, current.Pane)
 			incrementGroupStats(paneNode, current)
 			parent = paneNode
+		}
+
+		if resolvedGroupBy == settings.GroupByMessage {
+			messageNode := getOrCreateGroupNode(root, messageNodes, NodeKindMessage, current.Message, current.Message)
+			incrementGroupStats(messageNode, current)
+			parent = messageNode
 		}
 
 		leaf := &Node{
