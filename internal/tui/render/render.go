@@ -172,15 +172,15 @@ func Footer(state FooterState) string {
 	} else {
 		// Minimal footer
 		if state.SearchMode {
-			// Always show search query and navigation help, plus mode indicator
+			// Always show search query and navigation help
 			items = append(items, fmt.Sprintf("Search: %s", state.SearchQuery))
 			items = append(items, "ESC: exit search")
 			items = append(items, "Ctrl+j/k: navigate")
-			items = append(items, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
 		} else {
-			items = append(items, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
 			items = append(items, "j/k: move")
 		}
+		// Add mode indicator at the end
+		items = append(items, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
 	}
 
 	// Apply styling to each item
