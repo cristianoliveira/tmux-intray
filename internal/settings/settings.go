@@ -239,7 +239,7 @@ func (o GroupHeaderOptions) Validate() error {
 //
 // Valid viewMode values: "compact", "detailed", "grouped".
 //
-// Settings are stored at ~/.config/tmux-intray/settings.toml
+// Settings are stored at ~/.config/tmux-intray/tui.toml by default.
 type Settings struct {
 	// Columns defines which columns are displayed and their order.
 	// Empty slice means use default column order.
@@ -419,18 +419,7 @@ func Init() (*Settings, error) {
 	config.Load()
 	colors.Debug("Initializing settings package")
 
-	// Ensure config directory exists
-	configDir := config.Get("config_dir", "")
-	if configDir == "" {
-		// Use default path
-		home, _ := os.UserHomeDir()
-		xdgConfigHome := os.Getenv("XDG_CONFIG_HOME")
-		if xdgConfigHome == "" {
-			xdgConfigHome = filepath.Join(home, ".config")
-		}
-		configDir = filepath.Join(xdgConfigHome, "tmux-intray")
-	}
-
+	configDir := resolveConfigDir()
 	if err := os.MkdirAll(configDir, FileModeDir); err != nil {
 		return nil, fmt.Errorf("failed to create config directory: %w", err)
 	}
@@ -483,17 +472,4 @@ func Reset() (*Settings, error) {
 	return defaults, nil
 }
 
-// getSettingsPath returns the path to the settings.toml file.
-func getSettingsPath() string {
-	configDir := config.Get("config_dir", "")
-	if configDir == "" {
-		// Fallback to XDG_CONFIG_HOME default
-		home, _ := os.UserHomeDir()
-		xdgConfigHome := os.Getenv("XDG_CONFIG_HOME")
-		if xdgConfigHome == "" {
-			xdgConfigHome = filepath.Join(home, ".config")
-		}
-		configDir = filepath.Join(xdgConfigHome, "tmux-intray")
-	}
-	return filepath.Join(configDir, "settings"+FileExtTOML)
-}
+// getSettingsPath is implemented in path.go.
