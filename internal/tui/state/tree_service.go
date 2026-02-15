@@ -204,7 +204,7 @@ func (s *treeService) nodeExpansionKey(root *Node, node *Node) string {
 		return ""
 	}
 
-	session, window, pane := nodePathSegments(path)
+	session, window, pane, message := nodePathSegments(path)
 
 	switch node.Kind {
 	case NodeKindSession:
@@ -219,6 +219,11 @@ func (s *treeService) nodeExpansionKey(root *Node, node *Node) string {
 			return ""
 		}
 		return serializeNodeExpansionPath(uimodel.NodeKind(NodeKindPane), session, window, pane)
+	case NodeKindMessage:
+		if session == "" || window == "" || pane == "" {
+			return ""
+		}
+		return serializeNodeExpansionPath(uimodel.NodeKind(NodeKindMessage), session, window, pane, message)
 	default:
 		return ""
 	}
@@ -233,7 +238,7 @@ func (s *treeService) nodeExpansionLegacyKey(root *Node, node *Node) string {
 		return ""
 	}
 
-	session, window, pane := nodePathSegments(path)
+	session, window, pane, message := nodePathSegments(path)
 
 	switch node.Kind {
 	case NodeKindSession:
@@ -248,6 +253,11 @@ func (s *treeService) nodeExpansionLegacyKey(root *Node, node *Node) string {
 			return ""
 		}
 		return serializeLegacyNodeExpansionPath(uimodel.NodeKind(NodeKindPane), session, window, pane)
+	case NodeKindMessage:
+		if session == "" || window == "" || pane == "" {
+			return ""
+		}
+		return serializeLegacyNodeExpansionPath(uimodel.NodeKind(NodeKindMessage), session, window, pane, message)
 	default:
 		return ""
 	}
@@ -271,6 +281,8 @@ func treeNodeLevel(node *Node) int {
 		return 1
 	case NodeKindPane:
 		return 2
+	case NodeKindMessage:
+		return 3
 	default:
 		return 0
 	}
@@ -305,7 +317,7 @@ func findNodePath(root *Node, target *Node) ([]*Node, bool) {
 	return nil, false
 }
 
-func nodePathSegments(path []*Node) (session string, window string, pane string) {
+func nodePathSegments(path []*Node) (session string, window string, pane string, message string) {
 	for _, current := range path {
 		switch current.Kind {
 		case NodeKindSession:
@@ -314,7 +326,9 @@ func nodePathSegments(path []*Node) (session string, window string, pane string)
 			window = current.Title
 		case NodeKindPane:
 			pane = current.Title
+		case NodeKindMessage:
+			message = current.Title
 		}
 	}
-	return session, window, pane
+	return session, window, pane, message
 }

@@ -140,7 +140,7 @@ The TUI (Terminal User Interface) automatically saves your preferences when you 
 
 ### Settings File Location
 
-Settings are stored at `~/.config/tmux-intray/tui.toml` (or `$XDG_CONFIG_HOME/tmux-intray/tui.toml` if XDG_CONFIG_HOME is set).
+Settings are stored at `~/.config/tmux-intray/tui.toml` (or `$XDG_CONFIG_HOME/tmux-intray/tui.toml` if XDG_CONFIG_HOME is set). Older releases used `settings.toml`; tmux-intray automatically migrates that legacy file to `tui.toml` on startup.
 
 To move the file elsewhere, set `TMUX_INTRAY_TUI_SETTINGS_PATH` (or the `tui_settings_path` key in `config.toml`).
 
@@ -249,7 +249,7 @@ critical = "\u001b[0;31m"
 Settings are saved automatically in these situations:
 
 1. **On TUI exit** (pressing `q`, `:q`, or `Ctrl+C`)
-2. **Manual save** (pressing `:w` in command mode)
+2. **Manual save** (pressing `:w`)
 
 The save operation uses atomic writes to prevent file corruption.
 
@@ -366,6 +366,6 @@ This ensures that a corrupted settings file doesn't prevent the TUI from running
 - The settings directory (`~/.config/tmux-intray`) is created automatically if it doesn't exist
 - File locking is used to prevent concurrent writes when multiple TUI instances are running
 - Empty string values for filters mean "no filter" (show all)
-- Use the `:filter-read <read|unread|all>` TUI command to change `filters.read` on the fly without editing the file
+- Use the TUI to change `filters.read` on the fly without editing the file
 - Empty or missing `columns` array uses the default column order
 - For XDG Base Directory compliance, the file location is `$XDG_CONFIG_HOME/tmux-intray/tui.toml`

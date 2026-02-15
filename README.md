@@ -319,10 +319,9 @@ The `tmux-intray tui` command provides an interactive terminal user interface fo
 |--------------|--------------------------------------------|
 | j/k          | Navigate up/down in the list               |
 | /            | Enter search mode                          |
-| :            | Enter command mode                         |
-| ESC          | Exit search/command mode, or quit TUI      |
+| ESC          | Exit search mode, or quit TUI              |
 | d            | Dismiss selected notification              |
-| Enter        | Jump to pane (or execute command in command mode) |
+| Enter        | Jump to pane                                   |
 | q            | Quit TUI                                   |
 | :w           | Save settings manually                     |
 | i            | Edit search query (when in search mode)    |
@@ -338,12 +337,7 @@ The `tmux-intray tui` command provides an interactive terminal user interface fo
 - Footer shows the active read/unread filter; adjust it live with `:filter-read <read|unread|all>` and the preference is saved automatically
 - Settings file location: `~/.config/tmux-intray/tui.toml`
 
-**Command Mode Commands:**
-- `:w` – Save settings manually
-- `:group-by <none|session|window|pane|message>` – Change grouping strategy
-- `:expand-level <0|1|2|3>` – Set default tree expansion depth
-- `:toggle-view` – Switch between detailed and grouped layouts
-- `:filter-read <read|unread|all>` – Show only read/unread notifications or all and persist the choice
+
 
 ### Status Bar Integration
 

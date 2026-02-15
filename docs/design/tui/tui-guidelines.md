@@ -107,12 +107,6 @@ type UIState interface {
     GetSearchQuery() string
     SetSearchQuery(query string)
     
-    // Command mode
-    GetCommandMode() bool
-    SetCommandMode(enabled bool)
-    GetCommandQuery() string
-    SetCommandQuery(query string)
-    
     // View configuration
     GetViewMode() ViewMode
     SetViewMode(mode ViewMode)
