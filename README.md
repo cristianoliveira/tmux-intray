@@ -223,7 +223,7 @@ Documentation is automatically generated from the command-line help texts.
 ### TUI Settings Persistence
 
 The TUI automatically saves your preferences on exit:
-- **Settings file**: `~/.config/tmux-intray/settings.json`
+- **Settings file**: `~/.config/tmux-intray/tui.toml`
 - **Manual save**: Press `:w` in TUI command mode
 - **Auto-save**: Settings are saved when you quit (q, :q, Ctrl+C)
 - **Reset settings**: Run `tmux-intray settings reset`
@@ -336,7 +336,7 @@ The `tmux-intray tui` command provides an interactive terminal user interface fo
 - Notifications sorted by most recent first
 - **Settings persistence**: TUI preferences (column order, sort order, filters, view mode) are automatically saved on exit and restored on startup
 - Footer shows the active read/unread filter; adjust it live with `:filter-read <read|unread|all>` and the preference is saved automatically
-- Settings file location: `~/.config/tmux-intray/settings.json`
+- Settings file location: `~/.config/tmux-intray/tui.toml`
 
 **Command Mode Commands:**
 - `:w` – Save settings manually

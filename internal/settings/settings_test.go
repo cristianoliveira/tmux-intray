@@ -567,68 +567,6 @@ func TestGetSettingsPathWithOverride(t *testing.T) {
 	assert.Equal(t, customPath, path)
 }
 
-func TestLegacySettingsMigration(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", tmpDir)
-	t.Setenv("HOME", tmpDir)
-
-	config.Load()
-
-	configDir := filepath.Join(tmpDir, "tmux-intray")
-	require.NoError(t, os.MkdirAll(configDir, 0755))
-	legacyPath := filepath.Join(configDir, "settings.toml")
-	newPath := filepath.Join(configDir, "tui.toml")
-
-	customSettings := &Settings{
-		SortBy:    SortByLevel,
-		SortOrder: SortOrderAsc,
-	}
-
-	data, err := toml.Marshal(customSettings)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(legacyPath, data, 0644))
-
-	loaded, err := Load()
-	require.NoError(t, err)
-	require.Equal(t, SortByLevel, loaded.SortBy)
-	require.Equal(t, SortOrderAsc, loaded.SortOrder)
-
-	_, err = os.Stat(newPath)
-	require.NoError(t, err)
-	_, err = os.Stat(legacyPath)
-	require.True(t, os.IsNotExist(err))
-}
-
-func TestLegacySettingsMigrationSkippedWhenTUIExists(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", tmpDir)
-	t.Setenv("HOME", tmpDir)
-
-	config.Load()
-
-	configDir := filepath.Join(tmpDir, "tmux-intray")
-	require.NoError(t, os.MkdirAll(configDir, 0755))
-	legacyPath := filepath.Join(configDir, "settings.toml")
-	newPath := filepath.Join(configDir, "tui.toml")
-
-	legacySettings := &Settings{SortBy: SortByState}
-	legacyData, err := toml.Marshal(legacySettings)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(legacyPath, legacyData, 0644))
-
-	newSettings := &Settings{SortBy: SortByLevel}
-	newData, err := toml.Marshal(newSettings)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(newPath, newData, 0644))
-
-	loaded, err := Load()
-	require.NoError(t, err)
-	require.Equal(t, SortByLevel, loaded.SortBy)
-
-	_, err = os.Stat(legacyPath)
-	require.NoError(t, err)
-}
-
 func TestSettingsTOMLMarshaling(t *testing.T) {
 	settings := DefaultSettings()
 

@@ -140,7 +140,7 @@ The TUI (Terminal User Interface) automatically saves your preferences when you 
 
 ### Settings File Location
 
-Settings are stored at `~/.config/tmux-intray/tui.toml` (or `$XDG_CONFIG_HOME/tmux-intray/tui.toml` if XDG_CONFIG_HOME is set). Older releases used `settings.toml`; tmux-intray automatically migrates that legacy file to `tui.toml` on startup.
+Settings are stored at `~/.config/tmux-intray/tui.toml` (or `$XDG_CONFIG_HOME/tmux-intray/tui.toml` if XDG_CONFIG_HOME is set).
 
 To move the file elsewhere, set `TMUX_INTRAY_TUI_SETTINGS_PATH` (or the `tui_settings_path` key in `config.toml`).
 
