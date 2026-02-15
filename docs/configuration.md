@@ -200,7 +200,7 @@ critical = "\u001b[0;31m"
 | `groupHeader.showSourceAggregation` | bool | Show aggregated pane/source info | `false` | `true`, `false` |
 | `groupHeader.badgeColors` | table | ANSI color codes per level (`info`, `warning`, `error`, `critical`) | defaults shown above | Strings containing ANSI escape sequences |
 
-`filters.read` lets you persist whether the TUI should show only read, only unread, or all notifications. At runtime you can toggle the same preference via the TUI; the change is saved back to `tui.toml` automatically.
+`filters.read` lets you persist whether the TUI should show only read, only unread, or all notifications. At runtime you can toggle the same preference with the `:filter-read <read|unread|all>` command; the change is saved back to `tui.toml` automatically.
 
 `groupBy` controls the depth of grouped view hierarchy:
 

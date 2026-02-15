@@ -92,7 +92,7 @@ func TestSettingsValidation(t *testing.T) {
 
 func TestLoadDefaultFileMissing(t *testing.T) {
 	configDir := setupSettingsTest(t)
-	settingsPath := filepath.Join(configDir, "settings.json")
+	settingsPath := filepath.Join(configDir, tuiSettingsFilename)
 
 	_, err := os.Stat(settingsPath)
 	require.True(t, os.IsNotExist(err))
@@ -102,12 +102,12 @@ func TestLoadDefaultFileMissing(t *testing.T) {
 	assert.Equal(t, DefaultSettings(), loaded)
 }
 
-func TestLoadCorruptedJSON(t *testing.T) {
+func TestLoadCorruptedTOML(t *testing.T) {
 	configDir := setupSettingsTest(t)
 	require.NoError(t, os.MkdirAll(configDir, FileModeDir))
 
-	settingsPath := filepath.Join(configDir, "settings.json")
-	require.NoError(t, os.WriteFile(settingsPath, []byte("{bad-json"), FileModeFile))
+	settingsPath := filepath.Join(configDir, tuiSettingsFilename)
+	require.NoError(t, os.WriteFile(settingsPath, []byte("invalid = ["), FileModeFile))
 
 	loaded, err := Load()
 	require.NoError(t, err)
