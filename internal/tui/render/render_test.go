@@ -256,6 +256,28 @@ func TestFooterSearchModeHelpText(t *testing.T) {
 	assert.Contains(t, footer, "Search: test")
 }
 
+func TestFooterSearchModeWithoutHelp(t *testing.T) {
+	footer := Footer(FooterState{SearchMode: true, SearchQuery: "test", ViewMode: settings.ViewModeDetailed, ShowHelp: false})
+
+	// Should contain search query and search help
+	assert.Contains(t, footer, "Search: test")
+	assert.Contains(t, footer, "ESC: exit search")
+	assert.Contains(t, footer, "Ctrl+j/k: navigate")
+	// Should contain mode indicator
+	assert.Contains(t, footer, "mode: [D]")
+	// Should NOT contain regular help items
+	assert.NotContains(t, footer, "read:")
+	assert.NotContains(t, footer, "j/k: move")
+	assert.NotContains(t, footer, "gg/G:")
+	assert.NotContains(t, footer, "r: read")
+	assert.NotContains(t, footer, "u: unread")
+	assert.NotContains(t, footer, "d: dismiss")
+	assert.NotContains(t, footer, "Enter:")
+	assert.NotContains(t, footer, "q: quit")
+	assert.NotContains(t, footer, "?: toggle help")
+
+}
+
 func TestFooterReadFilterIndicator(t *testing.T) {
 	footer := Footer(FooterState{ViewMode: settings.ViewModeGrouped, ReadFilter: settings.ReadFilterUnread, ShowHelp: true})
 	assert.Contains(t, footer, "read: unread")
