@@ -135,22 +135,39 @@ func Row(state RowState) string {
 // Footer renders the footer with help text.
 func Footer(state FooterState) string {
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	searchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("33")).Bold(true)
+	searchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ansiColorNumber(colors.Blue))).Bold(true)
 
 	var items []string
 	// Error message is rendered above the footer, not included here
 
 	if state.ShowHelp {
 		// Full help
-		items = append(items, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
-		items = append(items, fmt.Sprintf("read: %s", readFilterIndicator(state.ReadFilter)))
-		items = append(items, "j/k: move")
-		items = append(items, "gg/G: top/bottom")
 		if state.SearchMode {
+			// When searching, prioritize search query
+			items = append(items, fmt.Sprintf("Search: %s", state.SearchQuery))
+			items = append(items, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
+			items = append(items, fmt.Sprintf("read: %s", readFilterIndicator(state.ReadFilter)))
 			items = append(items, "ESC: exit search")
 			items = append(items, "Ctrl+j/k: navigate")
-			items = append(items, fmt.Sprintf("Search: %s", state.SearchQuery))
+			items = append(items, "j/k: move")
+			items = append(items, "gg/G: top/bottom")
+			// Add other common commands
+			items = append(items, "r: read")
+			items = append(items, "u: unread")
+			items = append(items, "d: dismiss")
+			enterHelp := "Enter: jump"
+			if state.Grouped {
+				enterHelp = "Enter: toggle/jump"
+			}
+			items = append(items, enterHelp)
+			items = append(items, "q: quit")
+			items = append(items, "?: toggle help")
 		} else {
+			// Not in search mode - keep original order
+			items = append(items, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
+			items = append(items, fmt.Sprintf("read: %s", readFilterIndicator(state.ReadFilter)))
+			items = append(items, "j/k: move")
+			items = append(items, "gg/G: top/bottom")
 			items = append(items, "/: search")
 			items = append(items, "v: cycle view mode")
 			if state.Grouped {
@@ -158,17 +175,17 @@ func Footer(state FooterState) string {
 				items = append(items, "za: toggle fold")
 				items = append(items, "D: dismiss group")
 			}
+			items = append(items, "r: read")
+			items = append(items, "u: unread")
+			items = append(items, "d: dismiss")
+			enterHelp := "Enter: jump"
+			if state.Grouped {
+				enterHelp = "Enter: toggle/jump"
+			}
+			items = append(items, enterHelp)
+			items = append(items, "q: quit")
+			items = append(items, "?: toggle help")
 		}
-		items = append(items, "r: read")
-		items = append(items, "u: unread")
-		items = append(items, "d: dismiss")
-		enterHelp := "Enter: jump"
-		if state.Grouped {
-			enterHelp = "Enter: toggle/jump"
-		}
-		items = append(items, enterHelp)
-		items = append(items, "q: quit")
-		items = append(items, "?: toggle help")
 	} else {
 		// Minimal footer
 		if state.SearchMode {
@@ -176,11 +193,11 @@ func Footer(state FooterState) string {
 			items = append(items, fmt.Sprintf("Search: %s", state.SearchQuery))
 			items = append(items, "ESC: exit search")
 			items = append(items, "Ctrl+j/k: navigate")
+			items = append(items, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
 		} else {
+			items = append(items, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
 			items = append(items, "j/k: move")
 		}
-		// Add mode indicator at the end
-		items = append(items, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
 	}
 
 	// Apply styling to each item
