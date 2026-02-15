@@ -18,7 +18,7 @@ const (
 	CriteriaMessageSource Criteria = "message_source"
 	CriteriaExact         Criteria = "exact"
 
-	bucketSeparator = "" // Unit Separator to avoid conflicts with message text
+	bucketSeparator = "\x1f" // Unit Separator to avoid conflicts with message text
 )
 
 // Options configure deduplication behavior when building grouping keys.
