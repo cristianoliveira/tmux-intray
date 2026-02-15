@@ -197,7 +197,7 @@ critical = "\u001b[0;31m"
 | `groupHeader.showSourceAggregation` | bool | Show aggregated pane/source info | `false` | `true`, `false` |
 | `groupHeader.badgeColors` | table | ANSI color codes per level (`info`, `warning`, `error`, `critical`) | defaults shown above | Strings containing ANSI escape sequences |
 
-`filters.read` lets you persist whether the TUI should show only read, only unread, or all notifications. At runtime you can toggle the same preference with the `:filter-read <read|unread|all>` command; the change is saved back to `settings.toml` automatically.
+`filters.read` lets you persist whether the TUI should show only read, only unread, or all notifications. At runtime you can toggle the same preference via the TUI; the change is saved back to `settings.toml` automatically.
 
 `groupBy` controls the depth of grouped view hierarchy:
 
@@ -246,7 +246,7 @@ critical = "\u001b[0;31m"
 Settings are saved automatically in these situations:
 
 1. **On TUI exit** (pressing `q`, `:q`, or `Ctrl+C`)
-2. **Manual save** (pressing `:w` in command mode)
+2. **Manual save** (pressing `:w`)
 
 The save operation uses atomic writes to prevent file corruption.
 
@@ -363,6 +363,6 @@ This ensures that a corrupted settings file doesn't prevent the TUI from running
 - The settings directory (`~/.config/tmux-intray`) is created automatically if it doesn't exist
 - File locking is used to prevent concurrent writes when multiple TUI instances are running
 - Empty string values for filters mean "no filter" (show all)
-- Use the `:filter-read <read|unread|all>` TUI command to change `filters.read` on the fly without editing the file
+- Use the TUI to change `filters.read` on the fly without editing the file
 - Empty or missing `columns` array uses the default column order
 - For XDG Base Directory compliance, the file location is `$XDG_CONFIG_HOME/tmux-intray/settings.toml`
