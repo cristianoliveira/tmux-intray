@@ -2,7 +2,6 @@
 package state
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
@@ -72,35 +71,6 @@ type SearchQueryChangedMsg struct {
 	Query string
 }
 
-// CommandModeChangedMsg is sent when command mode is toggled.
-type CommandModeChangedMsg struct {
-	Active bool
-}
-
-// CommandQueryChangedMsg is sent when the command query is updated.
-type CommandQueryChangedMsg struct {
-	Query string
-}
-
-// CommandExecutedMsg is sent when a command is executed.
-type CommandExecutedMsg struct {
-	Result *model.CommandResult
-}
-
-// SettingsChangedMsg is sent when TUI settings change.
-type SettingsChangedMsg struct {
-	ViewMode    string
-	GroupBy     string
-	ExpandLevel int
-}
-
-// TmuxJumpMsg is sent when jumping to a pane.
-type TmuxJumpMsg struct {
-	SessionID string
-	WindowID  string
-	PaneID    string
-}
-
 // TmuxContextChangedMsg is sent when tmux context changes.
 type TmuxContextChangedMsg struct {
 	Context *model.TmuxContext
@@ -138,14 +108,4 @@ type saveSettingsFailedMsg struct {
 // SaveSettingsFailedMsg is exported version of saveSettingsFailedMsg.
 type SaveSettingsFailedMsg struct {
 	saveSettingsFailedMsg
-}
-
-// SaveSettingsCmd returns a command to save settings.
-func SaveSettingsCmd(saveFn func() error) tea.Cmd {
-	return func() tea.Msg {
-		if err := saveFn(); err != nil {
-			return saveSettingsFailedMsg{err: err}
-		}
-		return saveSettingsSuccessMsg{}
-	}
 }

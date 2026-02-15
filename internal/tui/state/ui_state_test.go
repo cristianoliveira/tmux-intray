@@ -13,9 +13,7 @@ func TestUIState(t *testing.T) {
 	// Test initial values
 	assert.Equal(t, 0, uiState.GetCursor())
 	assert.Equal(t, "", uiState.GetSearchQuery())
-	assert.Equal(t, "", uiState.GetCommandQuery())
 	assert.False(t, uiState.IsSearchMode())
-	assert.False(t, uiState.IsCommandMode())
 	assert.Equal(t, defaultViewportWidth, uiState.GetWidth())
 	assert.Equal(t, defaultViewportHeight, uiState.GetHeight())
 
@@ -48,24 +46,6 @@ func TestUIState(t *testing.T) {
 	uiState.SetSearchMode(false)
 	assert.False(t, uiState.IsSearchMode())
 	assert.Equal(t, "", uiState.GetSearchQuery())
-
-	// Test command mode
-	uiState.SetCommandMode(true)
-	assert.True(t, uiState.IsCommandMode())
-	assert.Equal(t, "", uiState.GetCommandQuery())
-
-	uiState.SetCommandQuery("quit")
-	assert.Equal(t, "quit", uiState.GetCommandQuery())
-
-	uiState.AppendToCommandQuery('!')
-	assert.Equal(t, "quit!", uiState.GetCommandQuery())
-
-	uiState.BackspaceCommandQuery()
-	assert.Equal(t, "quit", uiState.GetCommandQuery())
-
-	uiState.SetCommandMode(false)
-	assert.False(t, uiState.IsCommandMode())
-	assert.Equal(t, "", uiState.GetCommandQuery())
 
 	// Test viewport
 	uiState.SetWidth(100)
@@ -104,9 +84,4 @@ func TestUIStateWithModel(t *testing.T) {
 	model.uiState.SetSearchQuery("test")
 	assert.True(t, model.uiState.IsSearchMode())
 	assert.Equal(t, "test", model.uiState.GetSearchQuery())
-
-	model.uiState.SetCommandMode(true)
-	model.uiState.SetCommandQuery("quit")
-	assert.True(t, model.uiState.IsCommandMode())
-	assert.Equal(t, "quit", model.uiState.GetCommandQuery())
 }

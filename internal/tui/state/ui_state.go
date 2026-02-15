@@ -7,7 +7,7 @@ import (
 )
 
 // UIState manages all UI-specific state for the TUI.
-// This includes viewport management, cursor position, search and command modes,
+// This includes viewport management, cursor position, search mode,
 // and other UI-related state that should be separated from business logic.
 type UIState struct {
 	// Viewport management
@@ -21,10 +21,6 @@ type UIState struct {
 	// Search state
 	searchMode  bool
 	searchQuery string
-
-	// Command state
-	commandMode  bool
-	commandQuery string
 
 	// Error state
 	errorMessage string
@@ -144,41 +140,6 @@ func (u *UIState) AppendToSearchQuery(r rune) {
 func (u *UIState) BackspaceSearchQuery() {
 	if len(u.searchQuery) > 0 {
 		u.searchQuery = u.searchQuery[:len(u.searchQuery)-1]
-	}
-}
-
-// IsCommandMode returns whether command mode is active.
-func (u *UIState) IsCommandMode() bool {
-	return u.commandMode
-}
-
-// SetCommandMode activates or deactivates command mode.
-func (u *UIState) SetCommandMode(active bool) {
-	u.commandMode = active
-	if !active {
-		u.commandQuery = ""
-	}
-}
-
-// GetCommandQuery returns the current command query.
-func (u *UIState) GetCommandQuery() string {
-	return u.commandQuery
-}
-
-// SetCommandQuery updates the command query.
-func (u *UIState) SetCommandQuery(query string) {
-	u.commandQuery = query
-}
-
-// AppendToCommandQuery appends a rune to the command query.
-func (u *UIState) AppendToCommandQuery(r rune) {
-	u.commandQuery += string(r)
-}
-
-// BackspaceCommandQuery removes the last character from the command query.
-func (u *UIState) BackspaceCommandQuery() {
-	if len(u.commandQuery) > 0 {
-		u.commandQuery = u.commandQuery[:len(u.commandQuery)-1]
 	}
 }
 

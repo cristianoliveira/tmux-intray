@@ -40,9 +40,7 @@ func (m *Model) View() string {
 	s.WriteString("\n")
 	s.WriteString(render.Footer(render.FooterState{
 		SearchMode:   m.uiState.IsSearchMode(),
-		CommandMode:  m.uiState.IsCommandMode(),
 		SearchQuery:  m.uiState.GetSearchQuery(),
-		CommandQuery: m.uiState.GetCommandQuery(),
 		Grouped:      m.isGroupedView(),
 		ViewMode:     string(m.uiState.GetViewMode()),
 		Width:        m.uiState.GetWidth(),

@@ -3,7 +3,6 @@
 package model
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 )
 
@@ -34,18 +33,6 @@ type UIState interface {
 
 	// SetSearchQuery sets the search query string.
 	SetSearchQuery(query string)
-
-	// GetCommandMode returns true if command mode is active.
-	GetCommandMode() bool
-
-	// SetCommandMode enables or disables command mode.
-	SetCommandMode(enabled bool)
-
-	// GetCommandQuery returns the current command query string.
-	GetCommandQuery() string
-
-	// SetCommandQuery sets the command query string.
-	SetCommandQuery(query string)
 
 	// GetViewMode returns the current view mode (compact, detailed, grouped).
 	GetViewMode() ViewMode
@@ -197,19 +184,4 @@ type Filters struct {
 
 	// Pane filters by pane ID.
 	Pane string
-}
-
-// CommandResult represents the result of executing a command.
-type CommandResult struct {
-	// Message is a user-facing message describing the result.
-	Message string
-
-	// Quit indicates whether the TUI should exit after this command.
-	Quit bool
-
-	// Cmd is a bubbletea command to execute (optional).
-	Cmd tea.Cmd
-
-	// Error indicates whether the command failed.
-	Error bool
 }

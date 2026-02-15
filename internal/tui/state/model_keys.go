@@ -37,7 +37,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	if !m.canProcessBinding() {
-		// In search/command modes, only text input is handled; bindings are ignored.
+		// In search mode, only text input is handled; bindings are ignored.
 		return m, nil
 	}
 
@@ -67,7 +67,7 @@ func (m *Model) handleKeyType(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // canProcessBinding returns true if the current state allows processing mode-restricted bindings.
 func (m *Model) canProcessBinding() bool {
-	return !m.uiState.IsSearchMode() && !m.uiState.IsCommandMode()
+	return !m.uiState.IsSearchMode()
 }
 
 // handleKeyBinding handles string-based key bindings.
@@ -88,8 +88,6 @@ func (m *Model) handleKeyBinding(key string) (tea.Model, tea.Cmd) {
 	case "/":
 		m.handleSearchMode()
 		return m, nil
-	case ":":
-		return m.handleBindingWithCheck(m.handleCommandMode)
 	case "d":
 		return m, m.handleDismiss()
 	case "r":
@@ -161,8 +159,6 @@ func (m *Model) handleEsc() (tea.Model, tea.Cmd) {
 		m.uiState.SetSearchMode(false)
 		m.applySearchFilter()
 		m.uiState.ResetCursor()
-	} else if m.uiState.IsCommandMode() {
-		m.uiState.SetCommandMode(false)
 	} else {
 		return m, tea.Quit
 	}
@@ -173,11 +169,6 @@ func (m *Model) handleEnter() (tea.Model, tea.Cmd) {
 	if m.uiState.IsSearchMode() {
 		m.uiState.SetSearchMode(false)
 		return m, nil
-	}
-	if m.uiState.IsCommandMode() {
-		cmd := m.executeCommandViaService()
-		m.uiState.SetCommandMode(false)
-		return m, cmd
 	}
 	if m.isGroupedView() && m.toggleNodeExpansion() {
 		return m, nil
@@ -193,11 +184,6 @@ func (m *Model) handleRunes(msg tea.KeyMsg) {
 		}
 		m.applySearchFilter()
 		m.uiState.ResetCursor()
-	} else if m.uiState.IsCommandMode() {
-		// In command mode, append runes to command query
-		for _, r := range msg.Runes {
-			m.uiState.AppendToCommandQuery(r)
-		}
 	}
 }
 
@@ -207,10 +193,6 @@ func (m *Model) handleBackspace() {
 			m.uiState.BackspaceSearchQuery()
 			m.applySearchFilter()
 			m.uiState.ResetCursor()
-		}
-	} else if m.uiState.IsCommandMode() {
-		if len(m.uiState.GetCommandQuery()) > 0 {
-			m.uiState.BackspaceCommandQuery()
 		}
 	}
 }
@@ -253,12 +235,6 @@ func (m *Model) handleSearchMode() {
 	m.uiState.SetSearchMode(true)
 	m.applySearchFilter()
 	m.uiState.ResetCursor()
-}
-
-func (m *Model) handleCommandMode() {
-	if m.canProcessBinding() {
-		m.uiState.SetCommandMode(true)
-	}
 }
 
 func (m *Model) handleCollapseNode() {
