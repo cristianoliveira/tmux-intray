@@ -2694,3 +2694,129 @@ func TestModelViewportEdgeConditions(t *testing.T) {
 	model.uiState.EnsureCursorVisible(0)
 	// Should not panic
 }
+
+// TestCtrlJKNavigationInSearchModeEmptyResults tests Ctrl+j/k navigation when search results are empty.
+func TestCtrlJKNavigationInSearchModeEmptyResults(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+		{ID: 2, Message: "Second"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetSearchMode(true)
+	model.uiState.SetSearchQuery("nonexistent")
+	model.applySearchFilter()
+	model.uiState.ResetCursor()
+	// filtered should be empty
+	require.Empty(t, model.filtered)
+	require.Equal(t, 0, model.uiState.GetCursor())
+
+	// Ctrl+k should not crash and cursor stays at 0
+	msg := tea.KeyMsg{Type: tea.KeyCtrlK}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+
+	// Ctrl+j should not crash and cursor stays at 0
+	msg = tea.KeyMsg{Type: tea.KeyCtrlJ}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+}
+
+// TestCtrlJKNavigationInSearchModeSingleItem tests Ctrl+j/k navigation with single search result.
+func TestCtrlJKNavigationInSearchModeSingleItem(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "Unique"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetSearchMode(true)
+	model.uiState.SetSearchQuery("unique")
+	model.applySearchFilter()
+	model.uiState.ResetCursor()
+	require.Len(t, model.filtered, 1)
+	require.Equal(t, 0, model.uiState.GetCursor())
+
+	// Ctrl+k at top stays at 0
+	msg := tea.KeyMsg{Type: tea.KeyCtrlK}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+
+	// Ctrl+j at bottom stays at 0
+	msg = tea.KeyMsg{Type: tea.KeyCtrlJ}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+}
+
+// TestCtrlHLNoOp tests that Ctrl+h and Ctrl+l are no-op in all modes.
+func TestCtrlHLNoOp(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+		{ID: 2, Message: "Second"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+
+	// Test in normal mode
+	model.uiState.SetSearchMode(false)
+	model.uiState.SetCursor(1)
+	msg := tea.KeyMsg{Type: tea.KeyCtrlH}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 1, model.uiState.GetCursor())
+
+	msg = tea.KeyMsg{Type: tea.KeyCtrlL}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 1, model.uiState.GetCursor())
+
+	// Test in search mode
+	model.uiState.SetSearchMode(true)
+	model.uiState.SetSearchQuery("")
+	model.applySearchFilter()
+	model.uiState.ResetCursor()
+	msg = tea.KeyMsg{Type: tea.KeyCtrlH}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+
+	msg = tea.KeyMsg{Type: tea.KeyCtrlL}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+}
+
+// TestCtrlJKNavigationBoundary tests boundary conditions for Ctrl+j/k.
+func TestCtrlJKNavigationBoundary(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+		{ID: 2, Message: "Second"},
+		{ID: 3, Message: "Third"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetSearchMode(true)
+	model.uiState.SetSearchQuery("") // match all
+	model.applySearchFilter()
+	model.uiState.ResetCursor()
+	require.Len(t, model.filtered, 3)
+
+	// Start at top (cursor 0)
+	model.uiState.SetCursor(0)
+	// Ctrl+k should stay at top
+	msg := tea.KeyMsg{Type: tea.KeyCtrlK}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+
+	// Move to bottom
+	model.uiState.SetCursor(2)
+	// Ctrl+j should stay at bottom
+	msg = tea.KeyMsg{Type: tea.KeyCtrlJ}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 2, model.uiState.GetCursor())
+}

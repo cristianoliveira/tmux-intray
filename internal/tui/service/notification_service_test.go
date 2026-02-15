@@ -67,3 +67,112 @@ func TestApplyFiltersAndSearchRespectsReadFilter(t *testing.T) {
 	require.Len(t, filtered, 1)
 	assert.Equal(t, 1, filtered[0].ID)
 }
+
+// TestSearchFunction tests the Search method with token matching.
+func TestSearchFunction(t *testing.T) {
+	svc := NewNotificationService(nil, nil)
+	notifications := []notification.Notification{
+		{ID: 1, Message: "Error: file not found", Level: "error", Timestamp: "2024-01-01T10:00:00Z", State: "active"},
+		{ID: 2, Message: "Warning: low memory", Level: "warning", Timestamp: "2024-01-01T10:00:00Z", State: "active"},
+		{ID: 3, Message: "Error: connection failed", Level: "error", Timestamp: "2024-01-01T10:00:00Z", State: "active"},
+		{ID: 4, Message: "Info: task completed", Level: "info", Timestamp: "2024-01-01T10:00:00Z", State: "active"},
+	}
+	svc.SetNotifications(notifications)
+	t.Logf("notifications: %+v", notifications)
+
+	// Search for "error" (case-insensitive by default)
+	results := svc.Search(notifications, "error", false)
+	t.Logf("results for 'error': %+v", results)
+	require.Len(t, results, 2)
+	assert.Equal(t, 1, results[0].ID)
+	assert.Equal(t, 3, results[1].ID)
+
+	// Search for "file not found"
+	results = svc.Search(notifications, "file not found", false)
+	t.Logf("results for 'file not found': %+v", results)
+	require.Len(t, results, 1)
+	assert.Equal(t, 1, results[0].ID)
+
+	// Search for "Warning" with case-sensitive (should match exact case)
+	results = svc.Search(notifications, "Warning", true)
+	t.Logf("results for 'Warning': %+v", results)
+	require.Len(t, results, 1)
+	assert.Equal(t, 2, results[0].ID)
+
+	// Empty query returns all
+	results = svc.Search(notifications, "", false)
+	t.Logf("results for empty query: %+v", results)
+	require.Len(t, results, 4)
+}
+
+// TestApplyFiltersAndSearchLevelFilter tests filtering by level.
+func TestApplyFiltersAndSearchLevelFilter(t *testing.T) {
+	svc := NewNotificationService(nil, nil)
+	notifications := []notification.Notification{
+		{ID: 1, Message: "Error one", Level: "error", Timestamp: "2024-01-01T10:00:00Z", State: "active"},
+		{ID: 2, Message: "Warning one", Level: "warning", Timestamp: "2024-01-01T10:00:00Z", State: "active"},
+		{ID: 3, Message: "Error two", Level: "error", Timestamp: "2024-01-01T10:00:00Z", State: "active"},
+		{ID: 4, Message: "Info one", Level: "info", Timestamp: "2024-01-01T10:00:00Z", State: "active"},
+	}
+	svc.SetNotifications(notifications)
+
+	// Filter by level "error"
+	svc.ApplyFiltersAndSearch("", "", "error", "", "", "", "", "timestamp", "asc")
+	filtered := svc.GetFilteredNotifications()
+	require.Len(t, filtered, 2)
+	assert.Equal(t, 1, filtered[0].ID)
+	assert.Equal(t, 3, filtered[1].ID)
+
+	// Filter by level "warning"
+	svc.ApplyFiltersAndSearch("", "", "warning", "", "", "", "", "timestamp", "asc")
+	filtered = svc.GetFilteredNotifications()
+	require.Len(t, filtered, 1)
+	assert.Equal(t, 2, filtered[0].ID)
+
+	// Filter by level "info"
+	svc.ApplyFiltersAndSearch("", "", "info", "", "", "", "", "timestamp", "asc")
+	filtered = svc.GetFilteredNotifications()
+	require.Len(t, filtered, 1)
+	assert.Equal(t, 4, filtered[0].ID)
+}
+
+// TestApplyFiltersAndSearchSessionWindowPaneFilter tests filtering by session, window, pane.
+func TestApplyFiltersAndSearchSessionWindowPaneFilter(t *testing.T) {
+	svc := NewNotificationService(nil, nil)
+	notifications := []notification.Notification{
+		{ID: 1, Message: "Msg 1", Session: "$1", Window: "@1", Pane: "%1", Timestamp: "2024-01-01T10:00:00Z", State: "active", Level: "info"},
+		{ID: 2, Message: "Msg 2", Session: "$1", Window: "@1", Pane: "%2", Timestamp: "2024-01-01T10:00:00Z", State: "active", Level: "info"},
+		{ID: 3, Message: "Msg 3", Session: "$2", Window: "@1", Pane: "%1", Timestamp: "2024-01-01T10:00:00Z", State: "active", Level: "info"},
+		{ID: 4, Message: "Msg 4", Session: "$2", Window: "@2", Pane: "%1", Timestamp: "2024-01-01T10:00:00Z", State: "active", Level: "info"},
+	}
+	svc.SetNotifications(notifications)
+
+	// Filter by session "$1"
+	svc.ApplyFiltersAndSearch("", "", "", "$1", "", "", "", "timestamp", "asc")
+	filtered := svc.GetFilteredNotifications()
+	require.Len(t, filtered, 2)
+	assert.Equal(t, 1, filtered[0].ID)
+	assert.Equal(t, 2, filtered[1].ID)
+
+	// Filter by window "@1"
+	svc.ApplyFiltersAndSearch("", "", "", "", "@1", "", "", "timestamp", "asc")
+	filtered = svc.GetFilteredNotifications()
+	require.Len(t, filtered, 3)
+	assert.Equal(t, 1, filtered[0].ID)
+	assert.Equal(t, 2, filtered[1].ID)
+	assert.Equal(t, 3, filtered[2].ID)
+
+	// Filter by pane "%1"
+	svc.ApplyFiltersAndSearch("", "", "", "", "", "%1", "", "timestamp", "asc")
+	filtered = svc.GetFilteredNotifications()
+	require.Len(t, filtered, 3)
+	assert.Equal(t, 1, filtered[0].ID)
+	assert.Equal(t, 3, filtered[1].ID)
+	assert.Equal(t, 4, filtered[2].ID)
+
+	// Combined session and pane
+	svc.ApplyFiltersAndSearch("", "", "", "$1", "", "%1", "", "timestamp", "asc")
+	filtered = svc.GetFilteredNotifications()
+	require.Len(t, filtered, 1)
+	assert.Equal(t, 1, filtered[0].ID)
+}
