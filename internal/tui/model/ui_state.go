@@ -3,7 +3,6 @@
 package model
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 )
 
@@ -179,19 +178,4 @@ type Filters struct {
 
 	// Pane filters by pane ID.
 	Pane string
-}
-
-// CommandResult represents the result of executing a command.
-type CommandResult struct {
-	// Message is a user-facing message describing the result.
-	Message string
-
-	// Quit indicates whether the TUI should exit after this command.
-	Quit bool
-
-	// Cmd is a bubbletea command to execute (optional).
-	Cmd tea.Cmd
-
-	// Error indicates whether the command failed.
-	Error bool
 }

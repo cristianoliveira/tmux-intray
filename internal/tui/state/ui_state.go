@@ -7,7 +7,7 @@ import (
 )
 
 // UIState manages all UI-specific state for the TUI.
-// This includes viewport management, cursor position, search and command modes,
+// This includes viewport management, cursor position, search mode,
 // and other UI-related state that should be separated from business logic.
 type UIState struct {
 	// Viewport management

@@ -957,7 +957,7 @@ func TestModelUpdateCyclesViewModesWithPersistence(t *testing.T) {
 	assert.Equal(t, settings.ViewModeCompact, loaded.ViewMode)
 }
 
-func TestModelUpdateIgnoresViewModeCycleInSearchAndCommandModes(t *testing.T) {
+func TestModelUpdateIgnoresViewModeCycleInSearchMode(t *testing.T) {
 	model := newTestModel(t, []notification.Notification{})
 	model.uiState.SetSearchMode(true)
 	model.uiState.SetWidth(80)

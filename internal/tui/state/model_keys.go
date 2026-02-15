@@ -36,7 +36,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	if !m.canProcessBinding() {
-		// In search/command modes, only text input is handled; bindings are ignored.
+		// In search mode, only text input is handled; bindings are ignored.
 		return m, nil
 	}
 
