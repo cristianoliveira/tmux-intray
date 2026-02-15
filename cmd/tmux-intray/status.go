@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/cristianoliveira/tmux-intray/cmd"
-	"github.com/cristianoliveira/tmux-intray/internal/storage"
+	"github.com/cristianoliveira/tmux-intray/internal/format"
 	"github.com/spf13/cobra"
 )
 
@@ -137,81 +137,40 @@ func countByLevel(client statusClient) (info, warning, error, critical int) {
 	if err != nil || lines == "" {
 		return
 	}
-	for _, line := range strings.Split(lines, "\n") {
-		if line == "" {
-			continue
-		}
-		fields := strings.Split(line, "\t")
-		if len(fields) <= storage.FieldLevel {
-			continue
-		}
-		level := fields[storage.FieldLevel]
-		switch level {
-		case "info":
-			info++
-		case "warning":
-			warning++
-		case "error":
-			error++
-		case "critical":
-			critical++
-		default:
-			info++
-		}
-	}
+	info, warning, error, critical, _ = format.ParseCountsByLevel(lines)
 	return
 }
 
 func paneCounts(client statusClient) map[string]int {
-	counts := make(map[string]int)
 	lines, err := client.ListNotifications("active", "", "", "", "", "", "", "")
 	if err != nil || lines == "" {
-		return counts
+		return make(map[string]int)
 	}
-	for _, line := range strings.Split(lines, "\n") {
-		if line == "" {
-			continue
-		}
-		fields := strings.Split(line, "\t")
-		if len(fields) <= storage.FieldPane {
-			continue
-		}
-		session := fields[storage.FieldSession]
-		window := fields[storage.FieldWindow]
-		pane := fields[storage.FieldPane]
-		key := fmt.Sprintf("%s:%s:%s", session, window, pane)
-		counts[key]++
-	}
-	return counts
+	return format.ParsePaneCounts(lines)
 }
 
 func formatSummary(client statusClient, w io.Writer) error {
 	active := countByState(client, "active")
 	if active == 0 {
-		_, _ = fmt.Fprintf(w, "No active notifications\n")
-		return nil
+		return format.FormatSummary(w, 0, 0, 0, 0, 0)
 	}
-	_, _ = fmt.Fprintf(w, "Active notifications: %d\n", active)
 	info, warning, error, critical := countByLevel(client)
-	_, _ = fmt.Fprintf(w, "  info: %d, warning: %d, error: %d, critical: %d\n", info, warning, error, critical)
-	return nil
+	return format.FormatSummary(w, active, info, warning, error, critical)
 }
 
 func formatLevels(client statusClient, w io.Writer) error {
 	info, warning, error, critical := countByLevel(client)
-	_, _ = fmt.Fprintf(w, "info:%d\nwarning:%d\nerror:%d\ncritical:%d\n", info, warning, error, critical)
-	return nil
+	return format.FormatLevels(w, info, warning, error, critical)
 }
 
 func formatPanes(client statusClient, w io.Writer) error {
 	counts := paneCounts(client)
-	for pane, count := range counts {
-		_, _ = fmt.Fprintf(w, "%s:%d\n", pane, count)
-	}
-	return nil
+	return format.FormatPanes(w, counts)
 }
 
 func formatJSON(client statusClient, w io.Writer) error {
-	_, _ = fmt.Fprintln(w, "JSON format not yet implemented")
-	return nil
+	active := countByState(client, "active")
+	info, warning, error, critical := countByLevel(client)
+	counts := paneCounts(client)
+	return format.FormatJSON(w, active, info, warning, error, critical, counts)
 }
