@@ -57,6 +57,14 @@ UPDATE notifications
 SET read_timestamp = sqlc.arg(read_timestamp), updated_at = sqlc.arg(updated_at)
 WHERE id = sqlc.arg(id);
 
+-- name: DismissNotificationsByFilter :execresult
+UPDATE notifications
+SET state = 'dismissed', updated_at = sqlc.arg(updated_at)
+WHERE state = 'active'
+  AND (sqlc.arg(session_filter) = '' OR session = sqlc.arg(session_filter))
+  AND (sqlc.arg(window_filter) = '' OR window = sqlc.arg(window_filter))
+  AND (sqlc.arg(pane_filter) = '' OR pane = sqlc.arg(pane_filter));
+
 -- name: CountDismissedForCleanup :one
 SELECT COUNT(1)
 FROM notifications

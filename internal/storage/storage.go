@@ -69,6 +69,16 @@ func DismissAll() error {
 	return store.DismissAll()
 }
 
+// DismissByFilter dismisses notifications matching the provided filters.
+// Empty string in a field means "match any value".
+func DismissByFilter(session, window, pane string) error {
+	store, err := getDefaultStorage()
+	if err != nil {
+		return fmt.Errorf("failed to get storage: %w", err)
+	}
+	return store.DismissByFilter(session, window, pane)
+}
+
 // MarkNotificationRead marks a notification as read using the default storage backend.
 func MarkNotificationRead(id string) error {
 	store, err := getDefaultStorage()

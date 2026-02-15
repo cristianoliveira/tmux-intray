@@ -238,3 +238,201 @@ func TestTmuxStatusParityForActiveCountChanges(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, line, "\tdismissed\t")
 }
+
+func TestDismissByFilter(t *testing.T) {
+	s := newTestStorage(t)
+
+	// Add notifications with different session/window/pane combinations
+	_, err := s.AddNotification("n1", "", "sess1", "win1", "pane1", "", "info")
+	require.NoError(t, err)
+	_, err = s.AddNotification("n2", "", "sess1", "win1", "pane2", "", "warning")
+	require.NoError(t, err)
+	_, err = s.AddNotification("n3", "", "sess1", "win2", "pane1", "", "error")
+	require.NoError(t, err)
+	_, err = s.AddNotification("n4", "", "sess2", "win1", "pane1", "", "info")
+	require.NoError(t, err)
+
+	// Verify all are active
+	require.Equal(t, 4, s.GetActiveCount())
+
+	// Dismiss by session filter
+	err = s.DismissByFilter("sess1", "", "")
+	require.NoError(t, err)
+	require.Equal(t, 1, s.GetActiveCount())
+
+	// Verify sess1 notifications are dismissed
+	list, err := s.ListNotifications("all", "", "sess1", "", "", "", "", "")
+	require.NoError(t, err)
+	lines := strings.Split(list, "\n")
+	// Count non-empty lines
+	notificationLines := 0
+	for _, line := range lines {
+		if line != "" {
+			notificationLines++
+			require.Contains(t, line, "\tdismissed\t")
+		}
+	}
+	require.Equal(t, 3, notificationLines) // 3 notifications from sess1
+
+	// Verify remaining notifications count
+	activeCount := 0
+	list, err = s.ListNotifications("active", "", "", "", "", "", "", "")
+	require.NoError(t, err)
+	lines = strings.Split(list, "\n")
+	for _, line := range lines {
+		if line != "" {
+			activeCount++
+			require.Contains(t, line, "\tactive\t")
+			// Should be from sess2 (the one not dismissed)
+			require.Contains(t, line, "sess2")
+		}
+	}
+	require.Equal(t, 1, activeCount)
+}
+
+func TestDismissByFilterWithWindow(t *testing.T) {
+	s := newTestStorage(t)
+
+	// Add notifications with different windows
+	_, err := s.AddNotification("n1", "", "sess1", "win1", "pane1", "", "info")
+	require.NoError(t, err)
+	_, err = s.AddNotification("n2", "", "sess1", "win1", "pane2", "", "warning")
+	require.NoError(t, err)
+	_, err = s.AddNotification("n3", "", "sess1", "win2", "pane1", "", "error")
+	require.NoError(t, err)
+
+	// Dismiss by window filter (within session)
+	err = s.DismissByFilter("sess1", "win1", "")
+	require.NoError(t, err)
+	require.Equal(t, 1, s.GetActiveCount())
+
+	// Verify win1 notifications are dismissed, win2 is still active
+	list, err := s.ListNotifications("all", "", "sess1", "", "", "", "", "")
+	require.NoError(t, err)
+	lines := strings.Split(list, "\n")
+	dismissedCount := 0
+	activeCount := 0
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		if strings.Contains(line, "\tdismissed\t") {
+			dismissedCount++
+		}
+		if strings.Contains(line, "\tactive\t") {
+			activeCount++
+		}
+	}
+	require.Equal(t, 2, dismissedCount)
+	require.Equal(t, 1, activeCount)
+}
+
+func TestDismissByFilterWithPane(t *testing.T) {
+	s := newTestStorage(t)
+
+	// Add notifications with different panes
+	_, err := s.AddNotification("n1", "", "sess1", "win1", "pane1", "", "info")
+	require.NoError(t, err)
+	_, err = s.AddNotification("n2", "", "sess1", "win1", "pane2", "", "warning")
+	require.NoError(t, err)
+	_, err = s.AddNotification("n3", "", "sess1", "win1", "pane3", "", "error")
+	require.NoError(t, err)
+
+	// Dismiss by pane filter (within session and window)
+	err = s.DismissByFilter("sess1", "win1", "pane1")
+	require.NoError(t, err)
+	require.Equal(t, 2, s.GetActiveCount())
+
+	// Verify pane1 notification is dismissed, others are still active
+	list, err := s.ListNotifications("all", "", "sess1", "win1", "", "", "", "")
+	require.NoError(t, err)
+	lines := strings.Split(list, "\n")
+	dismissedCount := 0
+	activeCount := 0
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		if strings.Contains(line, "\tdismissed\t") {
+			dismissedCount++
+		}
+		if strings.Contains(line, "\tactive\t") {
+			activeCount++
+		}
+	}
+	require.Equal(t, 1, dismissedCount)
+	require.Equal(t, 2, activeCount)
+}
+
+func TestDismissByFilterWithEmptyFilters(t *testing.T) {
+	s := newTestStorage(t)
+
+	// Add notifications
+	_, err := s.AddNotification("n1", "", "sess1", "win1", "pane1", "", "info")
+	require.NoError(t, err)
+	_, err = s.AddNotification("n2", "", "sess2", "win2", "pane2", "", "warning")
+	require.NoError(t, err)
+
+	// Dismiss with empty filters (should dismiss all active)
+	err = s.DismissByFilter("", "", "")
+	require.NoError(t, err)
+	require.Equal(t, 0, s.GetActiveCount())
+
+	// Verify all are dismissed
+	list, err := s.ListNotifications("all", "", "", "", "", "", "", "")
+	require.NoError(t, err)
+	lines := strings.Split(list, "\n")
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		require.Contains(t, line, "\tdismissed\t")
+	}
+}
+
+func TestDismissByFilterWithNoMatches(t *testing.T) {
+	s := newTestStorage(t)
+
+	// Add notifications
+	_, err := s.AddNotification("n1", "", "sess1", "win1", "pane1", "", "info")
+	require.NoError(t, err)
+	initialCount := s.GetActiveCount()
+
+	// Dismiss with non-matching filters
+	err = s.DismissByFilter("nonexistent", "", "")
+	require.NoError(t, err)
+	require.Equal(t, initialCount, s.GetActiveCount())
+}
+
+func TestDismissByFilterRunsHooks(t *testing.T) {
+	hooksDir := filepath.Join(t.TempDir(), "hooks")
+	hookLog := filepath.Join(t.TempDir(), "hooks.log")
+	t.Setenv("TMUX_INTRAY_HOOKS_DIR", hooksDir)
+	t.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "abort")
+
+	scriptBody := "#!/bin/sh\necho \"$HOOK_POINT:$NOTIFICATION_ID\" >> \"$HOOK_LOG\"\n"
+	writeHookScript(t, hooksDir, "pre-dismiss", "01-pre-dismiss.sh", scriptBody)
+	writeHookScript(t, hooksDir, "post-dismiss", "01-post-dismiss.sh", scriptBody)
+	t.Setenv("HOOK_LOG", hookLog)
+
+	s := newTestStorage(t)
+
+	// Add notifications with same session
+	id1, err := s.AddNotification("n1", "", "sess1", "win1", "pane1", "", "info")
+	require.NoError(t, err)
+	id2, err := s.AddNotification("n2", "", "sess1", "win1", "pane2", "", "warning")
+	require.NoError(t, err)
+
+	// Dismiss by session filter
+	err = s.DismissByFilter("sess1", "", "")
+	require.NoError(t, err)
+
+	// Verify hooks were called for both notifications
+	content, err := os.ReadFile(hookLog)
+	require.NoError(t, err)
+	logOutput := string(content)
+	require.Contains(t, logOutput, "pre-dismiss:"+id1)
+	require.Contains(t, logOutput, "post-dismiss:"+id1)
+	require.Contains(t, logOutput, "pre-dismiss:"+id2)
+	require.Contains(t, logOutput, "post-dismiss:"+id2)
+}

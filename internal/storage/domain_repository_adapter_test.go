@@ -40,6 +40,11 @@ func (m *MockStorage) DismissAll() error {
 	return args.Error(0)
 }
 
+func (m *MockStorage) DismissByFilter(session, window, pane string) error {
+	args := m.Called(session, window, pane)
+	return args.Error(0)
+}
+
 func (m *MockStorage) MarkNotificationRead(id string) error {
 	args := m.Called(id)
 	return args.Error(0)

@@ -36,6 +36,9 @@ type NotificationRepository interface {
 	// DismissAll marks all notifications as dismissed.
 	DismissAll() error
 
+	// DismissByFilter marks notifications matching the provided filters as dismissed.
+	DismissByFilter(session, window, pane string) error
+
 	// MarkRead marks a notification as read.
 	MarkRead(id int) error
 
@@ -85,6 +88,11 @@ func (s *NotificationService) Dismiss(id int) error {
 // DismissAll marks all notifications as dismissed.
 func (s *NotificationService) DismissAll() error {
 	return s.repo.DismissAll()
+}
+
+// DismissByFilter marks notifications matching the provided filters as dismissed.
+func (s *NotificationService) DismissByFilter(session, window, pane string) error {
+	return s.repo.DismissByFilter(session, window, pane)
 }
 
 // MarkRead marks a notification as read by ID.

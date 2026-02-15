@@ -653,3 +653,76 @@ func (m *Model) getTreeRootForTest() *model.TreeNode {
 func (m *Model) getVisibleNodesForTest() []*model.TreeNode {
 	return m.treeService.GetVisibleNodes()
 }
+
+// collectNotificationsInGroup collects all notifications under a group node.
+// Returns the session, window, pane filters and count of notifications.
+func (m *Model) collectNotificationsInGroup(node *model.TreeNode) (session, window, pane string, count int) {
+	if node == nil || node.Kind == model.NodeKindNotification {
+		return "", "", "", 0
+	}
+
+	count = node.Count
+
+	// Based on node kind, set appropriate filters
+	switch node.Kind {
+	case model.NodeKindSession:
+		return node.Title, "", "", count
+	case model.NodeKindWindow:
+		// For window node, we need to get parent session
+		treeRoot := m.treeService.GetTreeRoot()
+		if treeRoot == nil {
+			return "", "", "", 0
+		}
+		// Find the session parent
+		for _, child := range treeRoot.Children {
+			if child.Kind == model.NodeKindSession {
+				// Check if this session contains the window
+				for _, win := range child.Children {
+					if win == node {
+						return child.Title, node.Title, "", count
+					}
+				}
+			}
+		}
+		return "", "", "", 0
+	case model.NodeKindPane:
+		// For pane node, we need to get parent session and window
+		treeRoot := m.treeService.GetTreeRoot()
+		if treeRoot == nil {
+			return "", "", "", 0
+		}
+		// Find the session and window parents
+		for _, child := range treeRoot.Children {
+			if child.Kind == model.NodeKindSession {
+				for _, win := range child.Children {
+					if win.Kind == model.NodeKindWindow {
+						for _, p := range win.Children {
+							if p == node {
+								return child.Title, win.Title, node.Title, count
+							}
+						}
+					}
+				}
+			}
+		}
+		return "", "", "", 0
+	default:
+		return "", "", "", 0
+	}
+}
+
+// getGroupTypeLabel returns a human-readable label for the group kind.
+func getGroupTypeLabel(kind model.NodeKind) string {
+	switch kind {
+	case model.NodeKindSession:
+		return "session"
+	case model.NodeKindWindow:
+		return "window"
+	case model.NodeKindPane:
+		return "pane"
+	case model.NodeKindMessage:
+		return "message"
+	default:
+		return "group"
+	}
+}

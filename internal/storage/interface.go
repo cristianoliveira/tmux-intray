@@ -8,6 +8,7 @@ type Storage interface {
 	GetNotificationByID(id string) (string, error)
 	DismissNotification(id string) error
 	DismissAll() error
+	DismissByFilter(session, window, pane string) error
 	MarkNotificationRead(id string) error
 	MarkNotificationUnread(id string) error
 	MarkNotificationReadWithTimestamp(id, timestamp string) error

@@ -12,6 +12,14 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/tui/render"
 )
 
+// Constants for confirmation dialog rendering
+const (
+	confirmationDialogPadding  = 20
+	confirmationDialogMargin   = 4
+	confirmationDialogMinWidth = 40
+	confirmationDialogHeight   = 7
+)
+
 // View renders the TUI.
 func (m *Model) View() string {
 	if m.uiState.GetWidth() == 0 {
@@ -28,6 +36,11 @@ func (m *Model) View() string {
 	}
 
 	var s strings.Builder
+
+	// If in confirmation mode, render confirmation dialog
+	if m.uiState.IsConfirmationMode() {
+		return m.renderConfirmationDialog()
+	}
 
 	// Header
 	s.WriteString(render.Header(m.uiState.GetWidth()))
@@ -47,6 +60,73 @@ func (m *Model) View() string {
 		ErrorMessage: m.errorMessage,
 		ReadFilter:   m.filters.Read,
 	}))
+
+	return s.String()
+}
+
+// renderConfirmationDialog renders the confirmation dialog.
+func (m *Model) renderConfirmationDialog() string {
+	action := m.uiState.GetPendingAction()
+	if action.Message == "" {
+		return ""
+	}
+
+	width := m.uiState.GetWidth()
+	if width == 0 {
+		width = defaultViewportWidth
+	}
+
+	// Calculate dialog dimensions
+	dialogWidth := len(action.Message) + confirmationDialogPadding
+	if dialogWidth > width-confirmationDialogMargin {
+		dialogWidth = width - confirmationDialogMargin
+	}
+	if dialogWidth < confirmationDialogMinWidth {
+		dialogWidth = confirmationDialogMinWidth
+	}
+
+	dialogHeight := confirmationDialogHeight
+
+	// Create dialog style
+	borderStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62")).
+		Padding(1, 2)
+
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("226"))
+
+	messageStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("255"))
+
+	hintStyle := lipgloss.NewStyle().
+		Faint(true).
+		Foreground(lipgloss.Color("245"))
+
+	// Build dialog content
+	var content strings.Builder
+	content.WriteString(titleStyle.Render("Confirm Action"))
+	content.WriteString("\n\n")
+	content.WriteString(messageStyle.Render(action.Message))
+	content.WriteString("\n\n")
+	content.WriteString(hintStyle.Render("(y/N) to confirm, ESC to cancel"))
+
+	// Render dialog
+	dialog := borderStyle.Width(dialogWidth).Render(content.String())
+
+	// Center dialog in viewport
+	viewportHeight := m.uiState.GetHeight() - headerFooterLines
+	topMargin := (viewportHeight - dialogHeight) / 2
+	if topMargin < 0 {
+		topMargin = 0
+	}
+
+	var s strings.Builder
+	for i := 0; i < topMargin; i++ {
+		s.WriteString("\n")
+	}
+	s.WriteString(lipgloss.NewStyle().Width(width).Align(lipgloss.Center).Render(dialog))
 
 	return s.String()
 }
