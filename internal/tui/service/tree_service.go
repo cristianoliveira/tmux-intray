@@ -85,20 +85,9 @@ func (s *DefaultTreeService) BuildTree(notifications []notification.Notification
 		}
 
 		if groupByMessage {
-			messageKeySuffix := current.Message
-			if idx < len(messageKeys) && messageKeys[idx] != "" {
-				messageKeySuffix = messageKeys[idx]
+			if messageNode := s.attachMessageNode(parent, current, idx, messageKeys, paneKey, messageNodes); messageNode != nil {
+				parent = messageNode
 			}
-
-			messageKeyBase := paneKey
-			if messageKeyBase == "" {
-				messageKeyBase = current.Session + "\x00" + current.Window + "\x00" + current.Pane
-			}
-
-			messageKey := messageKeyBase + "\x00" + messageKeySuffix
-			messageNode := s.getOrCreateGroupNode(parent, messageNodes, model.NodeKindMessage, messageKey, current.Message)
-			s.incrementGroupStats(messageNode, current)
-			parent = messageNode
 		}
 
 		leaf := &model.TreeNode{

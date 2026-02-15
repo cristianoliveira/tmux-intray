@@ -152,3 +152,24 @@ func buildNotificationDedupRecords(notifs []notification.Notification) []dedup.R
 	}
 	return records
 }
+
+func (s *DefaultTreeService) attachMessageNode(parent *model.TreeNode, notif notification.Notification, idx int, messageKeys []string, paneKey string, messageNodes map[string]*model.TreeNode) *model.TreeNode {
+	if parent == nil {
+		return nil
+	}
+
+	messageKeySuffix := notif.Message
+	if idx < len(messageKeys) && messageKeys[idx] != "" {
+		messageKeySuffix = messageKeys[idx]
+	}
+
+	messageKeyBase := paneKey
+	if messageKeyBase == "" {
+		messageKeyBase = notif.Session + "\x00" + notif.Window + "\x00" + notif.Pane
+	}
+
+	messageKey := messageKeyBase + "\x00" + messageKeySuffix
+	messageNode := s.getOrCreateGroupNode(parent, messageNodes, model.NodeKindMessage, messageKey, notif.Message)
+	s.incrementGroupStats(messageNode, notif)
+	return messageNode
+}
