@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/cristianoliveira/tmux-intray/internal/dedup"
+	"github.com/cristianoliveira/tmux-intray/internal/dedupconfig"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
@@ -42,7 +44,13 @@ func (s *DefaultTreeService) BuildTree(notifications []notification.Notification
 	paneNodes := make(map[string]*model.TreeNode)
 	messageNodes := make(map[string]*model.TreeNode)
 
-	for _, notif := range notifications {
+	var messageKeys []string
+	if resolvedGroupBy == settings.GroupByMessage {
+		records := buildNotificationDedupRecords(notifications)
+		messageKeys = dedup.BuildKeys(records, dedupconfig.Load())
+	}
+
+	for idx, notif := range notifications {
 		current := notif
 		parent := root
 
@@ -67,7 +75,13 @@ func (s *DefaultTreeService) BuildTree(notifications []notification.Notification
 		}
 
 		if resolvedGroupBy == settings.GroupByMessage {
-			messageNode := s.getOrCreateGroupNode(root, messageNodes, model.NodeKindMessage, current.Message, current.Message)
+			key := current.Message
+			if idx < len(messageKeys) && messageKeys != nil {
+				if messageKeys[idx] != "" {
+					key = messageKeys[idx]
+				}
+			}
+			messageNode := s.getOrCreateGroupNode(root, messageNodes, model.NodeKindMessage, key, current.Message)
 			s.incrementGroupStats(messageNode, current)
 			parent = messageNode
 		}
@@ -495,4 +509,20 @@ func (s *DefaultTreeService) notificationNodeMatches(node *model.TreeNode, notif
 		node.Notification.Session == notif.Session &&
 		node.Notification.Window == notif.Window &&
 		node.Notification.Pane == notif.Pane
+}
+
+func buildNotificationDedupRecords(notifs []notification.Notification) []dedup.Record {
+	records := make([]dedup.Record, len(notifs))
+	for i, n := range notifs {
+		records[i] = dedup.Record{
+			Message:   n.Message,
+			Level:     n.Level,
+			Session:   n.Session,
+			Window:    n.Window,
+			Pane:      n.Pane,
+			State:     n.State,
+			Timestamp: n.Timestamp,
+		}
+	}
+	return records
 }

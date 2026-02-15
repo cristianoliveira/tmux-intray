@@ -105,7 +105,7 @@ func (p *DefaultHelpProvider) registerWriteHelp() {
 func (p *DefaultHelpProvider) registerGroupByHelp() {
 	p.commands["group-by"] = &model.CommandHelp{
 		Name:        "group-by",
-		Description: "Set the grouping mode for notifications",
+		Description: "Set the grouping mode for notifications (use message to collapse identical text)",
 		Usage:       "group-by <none|session|window|pane|message>",
 		Arguments: []model.ArgumentHelp{
 			{

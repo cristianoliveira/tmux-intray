@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/pelletier/go-toml/v2"
@@ -38,6 +39,8 @@ func TestDefaultConfig(t *testing.T) {
 	require.Equal(t, "false", Get("hooks_async", ""))
 	require.Equal(t, "30", Get("hooks_async_timeout", ""))
 	require.Equal(t, "10", Get("max_hooks", ""))
+	require.Equal(t, "message", Get("dedup.criteria", ""))
+	require.Equal(t, "", Get("dedup.window", ""))
 	// Directories should be non-empty.
 	require.NotEmpty(t, Get("state_dir", ""))
 	require.NotEmpty(t, Get("config_dir", ""))
@@ -54,6 +57,8 @@ func TestEnvironmentOverrides(t *testing.T) {
 	t.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
 	t.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "60")
 	t.Setenv("TMUX_INTRAY_MAX_HOOKS", "5")
+	t.Setenv("TMUX_INTRAY_DEDUP__CRITERIA", "exact")
+	t.Setenv("TMUX_INTRAY_DEDUP__WINDOW", "2m")
 
 	Load()
 
@@ -63,6 +68,8 @@ func TestEnvironmentOverrides(t *testing.T) {
 	require.Equal(t, "ignore", Get("hooks_failure_mode", ""))
 	require.Equal(t, "60", Get("hooks_async_timeout", ""))
 	require.Equal(t, "5", Get("max_hooks", ""))
+	require.Equal(t, "exact", Get("dedup.criteria", ""))
+	require.Equal(t, "2m0s", Get("dedup.window", ""))
 }
 
 func TestConfigFileTOML(t *testing.T) {
@@ -85,6 +92,24 @@ table_format = "minimal"
 	require.Equal(t, "false", Get("status_enabled", ""))
 	require.Equal(t, "sqlite", Get("storage_backend", ""))
 	require.Equal(t, "minimal", Get("table_format", ""))
+}
+
+func TestNestedDedupConfig(t *testing.T) {
+	reset()
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.toml")
+	data := `
+[dedup]
+criteria = "message_level"
+window = "45s"
+`
+	require.NoError(t, os.WriteFile(configPath, []byte(data), 0644))
+
+	t.Setenv("TMUX_INTRAY_CONFIG_PATH", configPath)
+	Load()
+
+	require.Equal(t, "message_level", Get("dedup.criteria", ""))
+	require.Equal(t, "45s", Get("dedup.window", ""))
 }
 
 func TestConfigFileTypeValidation(t *testing.T) {
@@ -159,6 +184,16 @@ func TestValidation(t *testing.T) {
 	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "unknown")
 	Load()
 	require.Equal(t, "sqlite", Get("storage_backend", ""))
+
+	// Invalid dedup settings
+	reset()
+	tmpDir7 := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir7)
+	t.Setenv("TMUX_INTRAY_DEDUP__CRITERIA", "invalid")
+	t.Setenv("TMUX_INTRAY_DEDUP__WINDOW", "abc")
+	Load()
+	require.Equal(t, "message", Get("dedup.criteria", ""))
+	require.Equal(t, "", Get("dedup.window", ""))
 }
 
 func TestGetIntGetBool(t *testing.T) {
@@ -169,12 +204,15 @@ func TestGetIntGetBool(t *testing.T) {
 	t.Setenv("TMUX_INTRAY_STATUS_ENABLED", "1")
 	t.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "45")
 	t.Setenv("TMUX_INTRAY_MAX_HOOKS", "7")
+	t.Setenv("TMUX_INTRAY_DEDUP__WINDOW", "90s")
 	Load()
 
 	require.Equal(t, 123, GetInt("max_notifications", 0))
 	require.Equal(t, true, GetBool("status_enabled", false))
 	require.Equal(t, 45, GetInt("hooks_async_timeout", 0))
 	require.Equal(t, 7, GetInt("max_hooks", 0))
+	require.Equal(t, 90*time.Second, GetDuration("dedup.window", 0))
+	require.Equal(t, time.Minute, GetDuration("missing_duration", time.Minute))
 	// Missing key returns default.
 	require.Equal(t, 999, GetInt("missing_key", 999))
 	require.Equal(t, true, GetBool("missing_key", true))
@@ -637,6 +675,25 @@ func TestBoolValidatorInvalid(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "default", result, "value %s should return default", val)
 	}
+}
+
+func TestDurationValidator(t *testing.T) {
+	validator := DurationValidator(true)
+	result, err := validator("dedup.window", "", "")
+	require.NoError(t, err)
+	require.Equal(t, "", result)
+
+	result, err = validator("dedup.window", "15m", "")
+	require.NoError(t, err)
+	require.Equal(t, "15m0s", result)
+
+	result, err = validator("dedup.window", "-5m", "30s")
+	require.NoError(t, err)
+	require.Equal(t, "30s", result)
+
+	result, err = validator("dedup.window", "bogus", "30s")
+	require.NoError(t, err)
+	require.Equal(t, "30s", result)
 }
 
 // TestNormalizeBool tests the normalizeBool helper function.

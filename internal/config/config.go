@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/pelletier/go-toml/v2"
@@ -90,6 +91,25 @@ func BoolValidator() Validator {
 			return defaultValue, nil
 		}
 		return normalized, nil
+	}
+}
+
+// DurationValidator validates Go-style duration strings (e.g., 30s, 1m, 2h).
+// When allowEmpty is true, empty values are preserved (used to disable duration-based behavior).
+func DurationValidator(allowEmpty bool) Validator {
+	return func(key, value, defaultValue string) (string, error) {
+		if value == "" {
+			if allowEmpty {
+				return value, nil
+			}
+			return defaultValue, nil
+		}
+		duration, err := time.ParseDuration(value)
+		if err != nil || duration < 0 {
+			colors.Warning(fmt.Sprintf("invalid duration for %s: '%s', must be a Go-style duration (e.g. 30s, 5m); using default: %s", key, value, defaultValue))
+			return defaultValue, nil
+		}
+		return duration.String(), nil
 	}
 }
 
@@ -186,6 +206,8 @@ func setDefaults() {
 	setDefault("hooks_enabled_post_cleanup", "true")
 	setDefault("debug", "false")
 	setDefault("quiet", "false")
+	setDefault("dedup.criteria", "message")
+	setDefault("dedup.window", "")
 }
 
 func setDefault(key, value string) {
@@ -229,15 +251,45 @@ func loadFromFile() {
 		return
 	}
 
-	// Merge into config, converting values to strings
-	for k, v := range raw {
-		key := strings.ToLower(k)
-		converted, ok := coerceConfigValue(v)
-		if !ok {
-			colors.Warning(fmt.Sprintf("unsupported config value type for %s: %T", key, v))
-			continue
+	flat := flattenConfigMap(raw)
+	for key, value := range flat {
+		config[key] = value
+	}
+}
+
+// flattenConfigMap flattens nested TOML structures into dot-delimited keys.
+func flattenConfigMap(raw map[string]interface{}) map[string]string {
+	result := make(map[string]string)
+	flattenConfigMapInto(result, "", raw)
+	return result
+}
+
+func flattenConfigMapInto(result map[string]string, prefix string, raw map[string]interface{}) {
+	if raw == nil {
+		return
+	}
+	keys := make([]string, 0, len(raw))
+	for key := range raw {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		value := raw[key]
+		lowerKey := strings.ToLower(key)
+		if prefix != "" {
+			lowerKey = prefix + "." + lowerKey
 		}
-		config[key] = converted
+		switch typed := value.(type) {
+		case map[string]interface{}:
+			flattenConfigMapInto(result, lowerKey, typed)
+		default:
+			converted, ok := coerceConfigValue(value)
+			if !ok {
+				colors.Warning(fmt.Sprintf("unsupported config value type for %s: %T", lowerKey, value))
+				continue
+			}
+			result[lowerKey] = converted
+		}
 	}
 }
 
@@ -273,6 +325,7 @@ func loadFromEnv() {
 			continue
 		}
 		key := strings.TrimPrefix(parts[0], "TMUX_INTRAY_")
+		key = strings.ReplaceAll(key, "__", ".")
 		key = strings.ToLower(key)
 		config[key] = parts[1]
 	}
@@ -340,6 +393,15 @@ func initValidators() {
 	RegisterValidator("hooks_enabled_post_dismiss", boolValidator)
 	RegisterValidator("hooks_enabled_cleanup", boolValidator)
 	RegisterValidator("hooks_enabled_post_cleanup", boolValidator)
+
+	// Deduplication validators
+	RegisterValidator("dedup.criteria", EnumValidator(map[string]bool{
+		"message":        true,
+		"message_level":  true,
+		"message_source": true,
+		"exact":          true,
+	}))
+	RegisterValidator("dedup.window", DurationValidator(true))
 }
 
 // allowedValues returns a comma-separated string of allowed values.
@@ -365,6 +427,40 @@ func valueToInterface(key, val string) interface{} {
 	}
 	// default string
 	return val
+}
+
+// buildSampleConfigMap converts the flat defaults map into a nested map suitable for TOML marshaling.
+func buildSampleConfigMap(flat map[string]string) map[string]interface{} {
+	root := make(map[string]interface{})
+	keys := make([]string, 0, len(flat))
+	for key := range flat {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		parts := strings.Split(key, ".")
+		current := root
+		for i, part := range parts {
+			if i == len(parts)-1 {
+				current[part] = valueToInterface(key, flat[key])
+				continue
+			}
+			next, ok := current[part]
+			if !ok {
+				nested := make(map[string]interface{})
+				current[part] = nested
+				current = nested
+				continue
+			}
+			nested, ok := next.(map[string]interface{})
+			if !ok {
+				nested = make(map[string]interface{})
+				current[part] = nested
+			}
+			current = nested
+		}
+	}
+	return root
 }
 
 // computeDirs recomputes directory paths after config is loaded.
@@ -398,10 +494,7 @@ func createSampleConfig() {
 	}
 
 	// Build typed map from configMap (defaults)
-	typed := make(map[string]interface{})
-	for k, v := range configMap {
-		typed[k] = valueToInterface(k, v)
-	}
+	typed := buildSampleConfigMap(configMap)
 
 	data, err := toml.Marshal(typed)
 	if err != nil {
@@ -456,4 +549,19 @@ func GetBool(key string, defaultValue bool) bool {
 	default:
 		return defaultValue
 	}
+}
+
+// GetDuration returns a configuration value parsed as time.Duration, or defaultValue when missing/invalid.
+func GetDuration(key string, defaultValue time.Duration) time.Duration {
+	mu.RLock()
+	defer mu.RUnlock()
+	val, ok := config[key]
+	if !ok || val == "" {
+		return defaultValue
+	}
+	d, err := time.ParseDuration(val)
+	if err != nil {
+		return defaultValue
+	}
+	return d
 }

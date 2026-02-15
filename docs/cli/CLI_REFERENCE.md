@@ -40,3 +40,21 @@ Use "tmux-intray [command] --help" for more information about a command.
 
 ## Commands
 
+### list
+
+```
+tmux-intray list [flags]
+```
+
+Lists notifications with filter, grouping, and formatting flags. Common grouping flags:
+
+- `--group-by <field>` – field can be `session`, `window`, `pane`, `level`, or `message`. The new `message` option collapses identical notification text so you can review duplicates once.
+- `--group-count` – when paired with `--group-by`, only emit group headers and counts.
+
+Use `--group-by=message --group-count` to summarize duplicate notifications quickly:
+
+```
+tmux-intray list --group-by=message --group-count
+```
+
+The CLI shares its grouping implementation with the TUI, so any value that works in one place (including `message`) works in the other.
