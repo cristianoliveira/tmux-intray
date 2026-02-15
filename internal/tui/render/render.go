@@ -167,6 +167,7 @@ func Footer(state FooterState) string {
 		}
 		help = append(help, enterHelp)
 		help = append(help, "q: quit")
+		help = append(help, "?: toggle help")
 	} else {
 		// Minimal footer: only mode and movement
 		help = append(help, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
