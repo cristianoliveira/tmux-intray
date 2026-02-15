@@ -9,89 +9,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/pelletier/go-toml/v2"
 )
-
-// Validator validates and normalizes a configuration value.
-// Returns the normalized value and an error if validation fails.
-type Validator func(key, value, defaultValue string) (normalized string, err error)
-
-// validatorRegistry manages the set of registered validators.
-type validatorRegistry struct {
-	mu         sync.RWMutex
-	validators map[string]Validator
-}
-
-// registry is the global validator registry.
-var registry = &validatorRegistry{
-	validators: make(map[string]Validator),
-}
-
-// RegisterValidator registers a validator for a configuration key.
-// Panics if a validator is already registered for the key.
-func RegisterValidator(key string, validator Validator) {
-	registry.mu.Lock()
-	defer registry.mu.Unlock()
-	if _, exists := registry.validators[key]; exists {
-		panic(fmt.Sprintf("validator already registered for key: %s", key))
-	}
-	registry.validators[key] = validator
-}
-
-// getValidator returns the validator for a key, or nil if not registered.
-func getValidator(key string) Validator {
-	registry.mu.RLock()
-	defer registry.mu.RUnlock()
-	return registry.validators[key]
-}
-
-// PositiveIntValidator returns a validator that ensures a value is a positive integer.
-func PositiveIntValidator() Validator {
-	return func(key, value, defaultValue string) (string, error) {
-		if value == "" {
-			return defaultValue, nil
-		}
-		n, err := strconv.Atoi(value)
-		if err != nil || n <= 0 {
-			colors.Warning(fmt.Sprintf("invalid %s value '%s': must be a positive integer, using default: %s", key, value, defaultValue))
-			return defaultValue, nil
-		}
-		return value, nil
-	}
-}
-
-// EnumValidator returns a validator that ensures a value is one of the allowed enum values.
-func EnumValidator(allowed map[string]bool) Validator {
-	return func(key, value, defaultValue string) (string, error) {
-		if value == "" {
-			return defaultValue, nil
-		}
-		valueLower := strings.ToLower(value)
-		if !allowed[valueLower] {
-			colors.Warning(fmt.Sprintf("invalid %s value '%s': must be one of: %s; using default: %s", key, value, allowedValues(allowed), defaultValue))
-			return defaultValue, nil
-		}
-		return valueLower, nil
-	}
-}
-
-// BoolValidator returns a validator that normalizes and validates boolean values.
-// Returns a shared validator instance for all boolean keys.
-func BoolValidator() Validator {
-	return func(key, value, defaultValue string) (string, error) {
-		if value == "" {
-			return defaultValue, nil
-		}
-		normalized := normalizeBool(value)
-		if normalized != "true" && normalized != "false" {
-			colors.Warning(fmt.Sprintf("invalid boolean value for %s: '%s', must be one of: 1, true, yes, on, 0, false, no, off; using default: %s", key, value, defaultValue))
-			return defaultValue, nil
-		}
-		return normalized, nil
-	}
-}
 
 // File permission constants
 const (
@@ -186,6 +108,7 @@ func setDefaults() {
 	setDefault("hooks_enabled_post_cleanup", "true")
 	setDefault("debug", "false")
 	setDefault("quiet", "false")
+	setDedupDefaults()
 }
 
 func setDefault(key, value string) {
@@ -229,15 +152,45 @@ func loadFromFile() {
 		return
 	}
 
-	// Merge into config, converting values to strings
-	for k, v := range raw {
-		key := strings.ToLower(k)
-		converted, ok := coerceConfigValue(v)
-		if !ok {
-			colors.Warning(fmt.Sprintf("unsupported config value type for %s: %T", key, v))
-			continue
+	flat := flattenConfigMap(raw)
+	for key, value := range flat {
+		config[key] = value
+	}
+}
+
+// flattenConfigMap flattens nested TOML structures into dot-delimited keys.
+func flattenConfigMap(raw map[string]interface{}) map[string]string {
+	result := make(map[string]string)
+	flattenConfigMapInto(result, "", raw)
+	return result
+}
+
+func flattenConfigMapInto(result map[string]string, prefix string, raw map[string]interface{}) {
+	if raw == nil {
+		return
+	}
+	keys := make([]string, 0, len(raw))
+	for key := range raw {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		value := raw[key]
+		lowerKey := strings.ToLower(key)
+		if prefix != "" {
+			lowerKey = prefix + "." + lowerKey
 		}
-		config[key] = converted
+		switch typed := value.(type) {
+		case map[string]interface{}:
+			flattenConfigMapInto(result, lowerKey, typed)
+		default:
+			converted, ok := coerceConfigValue(value)
+			if !ok {
+				colors.Warning(fmt.Sprintf("unsupported config value type for %s: %T", lowerKey, value))
+				continue
+			}
+			result[lowerKey] = converted
+		}
 	}
 }
 
@@ -273,6 +226,7 @@ func loadFromEnv() {
 			continue
 		}
 		key := strings.TrimPrefix(parts[0], "TMUX_INTRAY_")
+		key = strings.ReplaceAll(key, "__", ".")
 		key = strings.ToLower(key)
 		config[key] = parts[1]
 	}
@@ -298,61 +252,6 @@ func validate() {
 	}
 }
 
-// normalizeBool converts various boolean representations to "true"/"false".
-func normalizeBool(val string) string {
-	switch strings.ToLower(val) {
-	case "1", "true", "yes", "on":
-		return "true"
-	case "0", "false", "no", "off":
-		return "false"
-	default:
-		// If invalid, return as-is; validation will fix it.
-		return val
-	}
-}
-
-// initValidators registers all configuration validators.
-func initValidators() {
-	// Positive integer validators (4 keys)
-	positiveIntValidator := PositiveIntValidator()
-	RegisterValidator("max_notifications", positiveIntValidator)
-	RegisterValidator("auto_cleanup_days", positiveIntValidator)
-	RegisterValidator("hooks_async_timeout", positiveIntValidator)
-	RegisterValidator("max_hooks", positiveIntValidator)
-
-	// Enum validators (3 keys)
-	RegisterValidator("table_format", EnumValidator(map[string]bool{"default": true, "minimal": true, "fancy": true}))
-	RegisterValidator("storage_backend", EnumValidator(map[string]bool{"sqlite": true}))
-	RegisterValidator("status_format", EnumValidator(map[string]bool{"compact": true, "detailed": true, "count-only": true}))
-	RegisterValidator("hooks_failure_mode", EnumValidator(map[string]bool{"ignore": true, "warn": true, "abort": true}))
-
-	// Boolean validators (12 keys) - shared instance
-	boolValidator := BoolValidator()
-	RegisterValidator("status_enabled", boolValidator)
-	RegisterValidator("show_levels", boolValidator)
-	RegisterValidator("hooks_enabled", boolValidator)
-	RegisterValidator("hooks_async", boolValidator)
-	RegisterValidator("debug", boolValidator)
-	RegisterValidator("quiet", boolValidator)
-	RegisterValidator("hooks_enabled_pre_add", boolValidator)
-	RegisterValidator("hooks_enabled_post_add", boolValidator)
-	RegisterValidator("hooks_enabled_pre_dismiss", boolValidator)
-	RegisterValidator("hooks_enabled_post_dismiss", boolValidator)
-	RegisterValidator("hooks_enabled_cleanup", boolValidator)
-	RegisterValidator("hooks_enabled_post_cleanup", boolValidator)
-}
-
-// allowedValues returns a comma-separated string of allowed values.
-func allowedValues(allowed map[string]bool) string {
-	values := make([]string, 0, len(allowed))
-	for k := range allowed {
-		values = append(values, k)
-	}
-	// Sort for consistent output
-	sort.Strings(values)
-	return strings.Join(values, ", ")
-}
-
 // valueToInterface converts a configuration value to appropriate type for TOML.
 func valueToInterface(key, val string) interface{} {
 	// Try to parse as integer first
@@ -365,6 +264,40 @@ func valueToInterface(key, val string) interface{} {
 	}
 	// default string
 	return val
+}
+
+// buildSampleConfigMap converts the flat defaults map into a nested map suitable for TOML marshaling.
+func buildSampleConfigMap(flat map[string]string) map[string]interface{} {
+	root := make(map[string]interface{})
+	keys := make([]string, 0, len(flat))
+	for key := range flat {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		parts := strings.Split(key, ".")
+		current := root
+		for i, part := range parts {
+			if i == len(parts)-1 {
+				current[part] = valueToInterface(key, flat[key])
+				continue
+			}
+			next, ok := current[part]
+			if !ok {
+				nested := make(map[string]interface{})
+				current[part] = nested
+				current = nested
+				continue
+			}
+			nested, ok := next.(map[string]interface{})
+			if !ok {
+				nested = make(map[string]interface{})
+				current[part] = nested
+			}
+			current = nested
+		}
+	}
+	return root
 }
 
 // computeDirs recomputes directory paths after config is loaded.
@@ -398,10 +331,7 @@ func createSampleConfig() {
 	}
 
 	// Build typed map from configMap (defaults)
-	typed := make(map[string]interface{})
-	for k, v := range configMap {
-		typed[k] = valueToInterface(k, v)
-	}
+	typed := buildSampleConfigMap(configMap)
 
 	data, err := toml.Marshal(typed)
 	if err != nil {
@@ -456,4 +386,19 @@ func GetBool(key string, defaultValue bool) bool {
 	default:
 		return defaultValue
 	}
+}
+
+// GetDuration returns a configuration value parsed as time.Duration, or defaultValue when missing/invalid.
+func GetDuration(key string, defaultValue time.Duration) time.Duration {
+	mu.RLock()
+	defer mu.RUnlock()
+	val, ok := config[key]
+	if !ok || val == "" {
+		return defaultValue
+	}
+	d, err := time.ParseDuration(val)
+	if err != nil {
+		return defaultValue
+	}
+	return d
 }

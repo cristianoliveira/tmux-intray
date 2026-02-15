@@ -2,8 +2,11 @@ package domain
 
 import (
 	"testing"
+	"time"
 
+	"github.com/cristianoliveira/tmux-intray/internal/dedup"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGroupByMode_IsValid(t *testing.T) {
@@ -229,6 +232,35 @@ func TestGetGroupCounts(t *testing.T) {
 	assert.Len(t, counts, 2)
 	assert.Equal(t, 2, counts["$1"])
 	assert.Equal(t, 1, counts["$2"])
+}
+
+func TestGroupNotificationsWithDedupCriteria(t *testing.T) {
+	notifications := []Notification{
+		{ID: 1, Message: "disk full", Level: LevelError, Timestamp: "2024-01-01T10:00:00Z"},
+		{ID: 2, Message: "disk full", Level: LevelWarning, Timestamp: "2024-01-01T10:05:00Z"},
+	}
+
+	result := GroupNotificationsWithDedup(notifications, GroupByMessage, dedup.Options{Criteria: dedup.CriteriaMessageLevel})
+	require.Len(t, result.Groups, 2)
+	assert.Equal(t, "disk full", result.Groups[0].DisplayName)
+	assert.Equal(t, "disk full", result.Groups[1].DisplayName)
+
+	result = GroupNotificationsWithDedup(notifications, GroupByMessage, dedup.Options{Criteria: dedup.CriteriaMessage})
+	require.Len(t, result.Groups, 1)
+	assert.Equal(t, 2, result.Groups[0].Count)
+}
+
+func TestGroupNotificationsWithDedupWindow(t *testing.T) {
+	notifications := []Notification{
+		{ID: 1, Message: "disk full", Level: LevelError, Timestamp: "2024-01-01T10:00:00Z"},
+		{ID: 2, Message: "disk full", Level: LevelError, Timestamp: "2024-01-01T09:50:00Z"},
+		{ID: 3, Message: "disk full", Level: LevelError, Timestamp: "2024-01-01T09:20:00Z"},
+	}
+
+	result := GroupNotificationsWithDedup(notifications, GroupByMessage, dedup.Options{Criteria: dedup.CriteriaMessage, Window: 15 * time.Minute})
+	require.Len(t, result.Groups, 2)
+	assert.Equal(t, 2, result.Groups[0].Count)
+	assert.Equal(t, 1, result.Groups[1].Count)
 }
 
 func TestExtractDisplayName(t *testing.T) {

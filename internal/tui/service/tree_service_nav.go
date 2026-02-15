@@ -111,18 +111,3 @@ func (s *DefaultTreeService) GetNodeIdentifier(node *model.TreeNode) string {
 	}
 	return strings.Join(parts, ":")
 }
-
-// notificationNodeMatches checks if a notification node matches the given notification.
-func (s *DefaultTreeService) notificationNodeMatches(node *model.TreeNode, notif notification.Notification) bool {
-	if node == nil || node.Kind != model.NodeKindNotification || node.Notification == nil {
-		return false
-	}
-	if node.Notification.ID == notif.ID {
-		return true
-	}
-	return node.Notification.Timestamp == notif.Timestamp &&
-		node.Notification.Message == notif.Message &&
-		node.Notification.Session == notif.Session &&
-		node.Notification.Window == notif.Window &&
-		node.Notification.Pane == notif.Pane
-}

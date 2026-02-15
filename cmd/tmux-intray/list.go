@@ -14,6 +14,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/cmd"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/dedupconfig"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
@@ -322,7 +323,12 @@ func printNotifications(notifications []*domain.Notification, opts FilterOptions
 	// Apply grouping if requested
 	if opts.GroupBy != "" {
 		notificationsValues := notificationsToValues(notifications)
-		groupResult := domain.GroupNotifications(notificationsValues, domain.GroupByMode(opts.GroupBy))
+		var groupResult domain.GroupResult
+		if opts.GroupBy == domain.GroupByMessage.String() {
+			groupResult = domain.GroupNotificationsWithDedup(notificationsValues, domain.GroupByMode(opts.GroupBy), dedupconfig.Load())
+		} else {
+			groupResult = domain.GroupNotifications(notificationsValues, domain.GroupByMode(opts.GroupBy))
+		}
 		if opts.GroupCount {
 			printGroupCounts(groupResult, w, opts.Format)
 		} else {

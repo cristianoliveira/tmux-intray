@@ -4,6 +4,9 @@ package domain
 
 import (
 	"sort"
+	"strings"
+
+	"github.com/cristianoliveira/tmux-intray/internal/dedup"
 )
 
 // GroupByMode specifies how notifications should be grouped.
@@ -50,8 +53,13 @@ type GroupResult struct {
 	TotalUnread int
 }
 
-// GroupNotifications groups notifications by the specified mode.
+// GroupNotifications groups notifications by the specified mode using default dedup options.
 func GroupNotifications(notifs []Notification, mode GroupByMode) GroupResult {
+	return GroupNotificationsWithDedup(notifs, mode, dedup.Options{})
+}
+
+// GroupNotificationsWithDedup groups notifications, honoring deduplication options when grouping by message.
+func GroupNotificationsWithDedup(notifs []Notification, mode GroupByMode, dedupOpts dedup.Options) GroupResult {
 	if !mode.IsValid() {
 		mode = GroupByNone
 	}
@@ -66,8 +74,13 @@ func GroupNotifications(notifs []Notification, mode GroupByMode) GroupResult {
 	}
 
 	groupsMap := make(map[string][]Notification)
+	var messageKeys []string
+	if mode == GroupByMessage {
+		records := buildDedupRecords(notifs)
+		messageKeys = dedup.BuildKeys(records, dedupOpts)
+	}
 
-	for _, n := range notifs {
+	for idx, n := range notifs {
 		var key string
 
 		switch mode {
@@ -80,7 +93,7 @@ func GroupNotifications(notifs []Notification, mode GroupByMode) GroupResult {
 		case GroupByLevel:
 			key = n.Level.String()
 		case GroupByMessage:
-			key = n.Message
+			key = messageKeys[idx]
 		}
 
 		groupsMap[key] = append(groupsMap[key], n)
@@ -135,10 +148,33 @@ func extractDisplayName(key string, mode GroupByMode) string {
 	case GroupByLevel:
 		return key
 	case GroupByMessage:
-		return key
+		stripped := dedup.StripBucketSuffix(key)
+		if idx := strings.IndexRune(stripped, '\x00'); idx >= 0 {
+			stripped = stripped[:idx]
+		}
+		if stripped == "" {
+			return "(empty)"
+		}
+		return stripped
 	default:
 		return key
 	}
+}
+
+func buildDedupRecords(notifs []Notification) []dedup.Record {
+	records := make([]dedup.Record, len(notifs))
+	for i, n := range notifs {
+		records[i] = dedup.Record{
+			Message:   n.Message,
+			Level:     n.Level.String(),
+			Session:   n.Session,
+			Window:    n.Window,
+			Pane:      n.Pane,
+			State:     n.State.String(),
+			Timestamp: n.Timestamp,
+		}
+	}
+	return records
 }
 
 // splitKey splits a composite key into its parts.

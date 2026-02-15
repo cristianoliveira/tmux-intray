@@ -33,6 +33,25 @@ All configuration options are controlled by environment variables with the `TMUX
 | `TMUX_INTRAY_TABLE_FORMAT` | `default` | Table style for `--format=table` output (`default`, `minimal`, `fancy`). |
 | `TMUX_INTRAY_LEVEL_COLORS` | `info:green,warning:yellow,error:red,critical:magenta` | Color mapping for notification levels in status bar. Available colors: black, red, green, yellow, blue, magenta, cyan, white. |
 
+### Deduplication
+
+`tmux-intray` can collapse identical notifications when you enable `group_by = "message"` in the TUI or run `tmux-intray list --group-by=message`. Use the `[dedup]` section in `config.toml` (or matching environment variables) to refine how duplicates are detected.
+
+| Key | Env Var | Default | Description |
+|-----|---------|---------|-------------|
+| `dedup.criteria` | `TMUX_INTRAY_DEDUP__CRITERIA` | `"message"` | Fields used to determine duplicates. Allowed values: `"message"`, `"message_level"`, `"message_source"`, `"exact"`. `message_level` requires both message text and severity to match, `message_source` also includes session/window/pane, and `exact` matches message + level + tmux source + state. |
+| `dedup.window` | `TMUX_INTRAY_DEDUP__WINDOW` | *(empty)* | Optional Go-style duration (e.g., `"30s"`, `"5m"`) that limits deduplication to events occurring within the specified time window. Leave empty to combine all matching notifications regardless of age. |
+
+Environment variables that refer to dotted keys use double underscores (`__`) to separate segments. For example, set `TMUX_INTRAY_DEDUP__CRITERIA=message_source` to override `dedup.criteria`.
+
+```toml
+[dedup]
+criteria = "message_source"
+window = "5m"
+```
+
+With the configuration above, `tmux-intray` only collapses notifications when they share the same message text and tmux source (session/window/pane) and were emitted within five minutes of each other.
+
 ### Status Bar Integration
 
 | Variable | Default | Description |
@@ -209,6 +228,22 @@ critical = "\u001b[0;31m"
 - `window`: session -> window -> notification
 - `pane`: session -> window -> pane -> notification
 - `message`: groups notifications by message text (exact match)
+
+#### Message-Based Grouping
+
+Set `groupBy = "message"` (the same value referred to as `group_by = "message"` in issue #223) to collapse identical notifications into a single group headed by the message text. You can do this in two ways:
+
+1. **Edit the settings file** – add `groupBy = "message"` to `~/.config/tmux-intray/settings.toml` (or your `$XDG_CONFIG_HOME` variant) alongside your other preferences:
+
+    ```toml
+    viewMode = "grouped"
+    groupBy = "message"
+    defaultExpandLevel = 1
+    ```
+
+2. **Use the TUI command palette** – run `:group-by message` inside the TUI; the change is saved automatically on exit or when you run `:w`.
+
+Message grouping keeps all other filters intact and works with CLI commands such as `tmux-intray list --group-by=message` and `tmux-intray list --group-by=message --group-count`.
 
 ### Default Settings
 
