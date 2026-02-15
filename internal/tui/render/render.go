@@ -36,6 +36,7 @@ type FooterState struct {
 	Width        int
 	ErrorMessage string
 	ReadFilter   string
+	ShowHelp     bool
 }
 
 // RowState defines the inputs needed to render a notification row.
@@ -136,38 +137,41 @@ func Footer(state FooterState) string {
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 
 	var help []string
-	if state.ErrorMessage != "" {
-		errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ansiColorNumber(colors.Red)))
-		help = append(help, errorStyle.Render("Error: "+state.ErrorMessage))
-	}
-	help = append(help, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
-	help = append(help, fmt.Sprintf("read: %s", readFilterIndicator(state.ReadFilter)))
-	help = append(help, "j/k: move")
-	help = append(help, "gg/G: top/bottom")
-	if state.SearchMode {
-		help = append(help, "ESC: exit search")
-		help = append(help, "Ctrl+j/k: navigate")
-		help = append(help, fmt.Sprintf("Search: %s", state.SearchQuery))
-	} else {
-		help = append(help, "/: search")
+	// Error message is rendered above the footer, not included here
 
-		help = append(help, "v: cycle view mode")
-		if state.Grouped {
-			help = append(help, "h/l: collapse/expand")
-			help = append(help, "za: toggle fold")
-			help = append(help, "D: dismiss group")
+	if state.ShowHelp {
+		help = append(help, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
+		help = append(help, fmt.Sprintf("read: %s", readFilterIndicator(state.ReadFilter)))
+		help = append(help, "j/k: move")
+		help = append(help, "gg/G: top/bottom")
+		if state.SearchMode {
+			help = append(help, "ESC: exit search")
+			help = append(help, "Ctrl+j/k: navigate")
+			help = append(help, fmt.Sprintf("Search: %s", state.SearchQuery))
+		} else {
+			help = append(help, "/: search")
+
+			help = append(help, "v: cycle view mode")
+			if state.Grouped {
+				help = append(help, "h/l: collapse/expand")
+				help = append(help, "za: toggle fold")
+				help = append(help, "D: dismiss group")
+			}
 		}
+		help = append(help, "r: read")
+		help = append(help, "u: unread")
+		help = append(help, "d: dismiss")
+		enterHelp := "Enter: jump"
+		if state.Grouped {
+			enterHelp = "Enter: toggle/jump"
+		}
+		help = append(help, enterHelp)
+		help = append(help, "q: quit")
+	} else {
+		// Minimal footer: only mode and movement
+		help = append(help, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
+		help = append(help, "j/k: move")
 	}
-	help = append(help, "r: read")
-	help = append(help, "u: unread")
-	help = append(help, "d: dismiss")
-	enterHelp := "Enter: jump"
-	if state.Grouped {
-		enterHelp = "Enter: toggle/jump"
-	}
-
-	help = append(help, enterHelp)
-	help = append(help, "q: quit")
 
 	footer := strings.Join(help, "  |  ")
 	footer = truncateFooter(footer, state.Width)

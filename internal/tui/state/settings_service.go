@@ -32,6 +32,7 @@ func (s *settingsService) toState(uiState *UIState, columns []string, sortBy str
 		DefaultExpandLevel:    dto.ExpandLevel,
 		DefaultExpandLevelSet: true,
 		ExpansionState:        dto.ExpansionState,
+		ShowHelp:              dto.ShowHelp,
 	}
 }
 
@@ -69,6 +70,7 @@ func (s *settingsService) fromState(state settings.TUIState, uiState *UIState, c
 	if state.ExpansionState != nil {
 		dto.ExpansionState = state.ExpansionState
 	}
+	dto.ShowHelp = state.ShowHelp
 
 	if err := uiState.FromDTO(dto); err != nil {
 		return err

@@ -278,6 +278,10 @@ type Settings struct {
 
 	// GroupHeader configures group header rendering.
 	GroupHeader GroupHeaderOptions `toml:"groupHeader"`
+
+	// ShowHelp controls whether to show help text in the footer.
+	// Defaults to true for backward compatibility.
+	ShowHelp bool `toml:"show_help"`
 }
 
 // DefaultSettings returns settings with all default values.
@@ -300,6 +304,7 @@ func DefaultSettings() *Settings {
 		AutoExpandUnread:   false, // Default to false to avoid unexpected behavior
 		ExpansionState:     map[string]bool{},
 		GroupHeader:        DefaultGroupHeaderOptions(),
+		ShowHelp:           true,
 	}
 }
 

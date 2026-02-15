@@ -58,6 +58,9 @@ type UIState struct {
 	// Expansion state
 	expandLevel    int
 	expansionState map[string]bool
+
+	// Show help setting
+	showHelp bool
 }
 
 // NewUIState creates a new UIState instance with default values.
@@ -71,6 +74,7 @@ func NewUIState() *UIState {
 		groupBy:        model.GroupByNone,
 		expandLevel:    defaultExpandLevel, // Default expand level
 		expansionState: make(map[string]bool),
+		showHelp:       true,
 	}
 }
 
@@ -411,6 +415,16 @@ func (u *UIState) SetDimensions(width, height int) {
 	}
 }
 
+// ShowHelp returns whether help text should be shown in footer.
+func (u *UIState) ShowHelp() bool {
+	return u.showHelp
+}
+
+// SetShowHelp sets whether help text should be shown in footer.
+func (u *UIState) SetShowHelp(show bool) {
+	u.showHelp = show
+}
+
 func (u *UIState) Save() error {
 	// UI state is saved through the Model\'s saveSettings() method
 	// This is a placeholder for future direct UI state persistence
@@ -430,6 +444,7 @@ func (u *UIState) ToDTO() model.UIDTO {
 		GroupBy:        u.groupBy,
 		ExpandLevel:    u.expandLevel,
 		ExpansionState: u.expansionState,
+		ShowHelp:       u.showHelp,
 	}
 }
 
@@ -450,5 +465,6 @@ func (u *UIState) FromDTO(dto model.UIDTO) error {
 	if dto.ExpansionState != nil {
 		u.expansionState = dto.ExpansionState
 	}
+	u.showHelp = dto.ShowHelp
 	return nil
 }
