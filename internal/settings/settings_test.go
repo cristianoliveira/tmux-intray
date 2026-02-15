@@ -389,6 +389,17 @@ func TestValidateValidSettings(t *testing.T) {
 				GroupBy:   "",
 			},
 		},
+		{
+			name: "group by message",
+			settings: &Settings{
+				Columns:            DefaultColumns,
+				SortBy:             SortByTimestamp,
+				SortOrder:          SortOrderDesc,
+				ViewMode:           ViewModeGrouped,
+				GroupBy:            GroupByMessage,
+				DefaultExpandLevel: 1,
+			},
+		},
 	}
 
 	for _, tt := range tests {

@@ -105,13 +105,13 @@ func (p *DefaultHelpProvider) registerGroupByHelp() {
 	p.commands["group-by"] = &model.CommandHelp{
 		Name:        "group-by",
 		Description: "Set the grouping mode for notifications",
-		Usage:       "group-by <none|session|window|pane>",
+		Usage:       "group-by <none|session|window|pane|message>",
 		Arguments: []model.ArgumentHelp{
 			{
 				Name:        "mode",
 				Description: "Grouping mode",
 				Required:    true,
-				Options:     []string{"none", "session", "window", "pane"},
+				Options:     []string{"none", "session", "window", "pane", "message"},
 			},
 		},
 		Examples: []string{
@@ -119,6 +119,7 @@ func (p *DefaultHelpProvider) registerGroupByHelp() {
 			":group-by session",
 			":group-by window",
 			":group-by pane",
+			":group-by message",
 		},
 	}
 }

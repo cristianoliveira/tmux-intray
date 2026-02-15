@@ -109,13 +109,13 @@ func (m *Model) handleWriteCommand(args []string) tea.Cmd {
 
 func (m *Model) handleGroupByCommand(args []string) tea.Cmd {
 	if len(args) != 1 {
-		m.errorHandler.Warning("Invalid usage: group-by <none|session|window|pane>")
+		m.errorHandler.Warning("Invalid usage: group-by <none|session|window|pane|message>")
 		return errorMsgAfter(errorClearDuration)
 	}
 
 	groupBy := strings.ToLower(args[0])
 	if !settings.IsValidGroupBy(groupBy) {
-		m.errorHandler.Warning(fmt.Sprintf("Invalid group-by value: %s (expected one of: none, session, window, pane)", args[0]))
+		m.errorHandler.Warning(fmt.Sprintf("Invalid group-by value: %s (expected one of: none, session, window, pane, message)", args[0]))
 		return errorMsgAfter(errorClearDuration)
 	}
 
