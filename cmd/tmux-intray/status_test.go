@@ -154,7 +154,16 @@ func TestStatusRunEJSONFormatNotImplemented(t *testing.T) {
 	err := cmd.RunE(cmd, []string{})
 	require.NoError(t, err)
 	output := stdout.String()
-	assert.Contains(t, output, "JSON format not yet implemented")
+	// JSON format should now be implemented and output valid JSON
+	assert.Contains(t, output, "active")
+	assert.Contains(t, output, "info")
+	assert.Contains(t, output, "warning")
+	assert.Contains(t, output, "error")
+	assert.Contains(t, output, "critical")
+	assert.Contains(t, output, "panes")
+	// Should be valid JSON (basic check)
+	assert.True(t, strings.HasPrefix(strings.TrimSpace(output), "{"))
+	assert.True(t, strings.HasSuffix(strings.TrimSpace(output), "}"))
 }
 
 func TestStatusRunETmuxNotRunning(t *testing.T) {

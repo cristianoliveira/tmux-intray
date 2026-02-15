@@ -13,6 +13,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
+	"github.com/cristianoliveira/tmux-intray/internal/format"
 	"github.com/spf13/cobra"
 )
 
@@ -182,30 +183,7 @@ func getCountsByLevelWithClient(client statusPanelClient) (info, warning, error,
 	if lines == "" {
 		return 0, 0, 0, 0, nil
 	}
-	for _, line := range strings.Split(lines, "\n") {
-		if line == "" {
-			continue
-		}
-		fields := strings.Split(line, "\t")
-		if len(fields) <= fieldLevel {
-			continue
-		}
-		level := fields[fieldLevel]
-		switch level {
-		case "info":
-			info++
-		case "warning":
-			warning++
-		case "error":
-			error++
-		case "critical":
-			critical++
-		default:
-			// Default to info
-			info++
-		}
-	}
-	return info, warning, error, critical, nil
+	return format.ParseCountsByLevel(lines)
 }
 
 // parseLevelColorsWithClient parses the level_colors config using the client.
@@ -352,30 +330,7 @@ func getCountsByLevel() (info, warning, error, critical int, err error) {
 	if lines == "" {
 		return 0, 0, 0, 0, nil
 	}
-	for _, line := range strings.Split(lines, "\n") {
-		if line == "" {
-			continue
-		}
-		fields := strings.Split(line, "\t")
-		if len(fields) <= fieldLevel {
-			continue
-		}
-		level := fields[fieldLevel]
-		switch level {
-		case "info":
-			info++
-		case "warning":
-			warning++
-		case "error":
-			error++
-		case "critical":
-			critical++
-		default:
-			// Default to info
-			info++
-		}
-	}
-	return info, warning, error, critical, nil
+	return format.ParseCountsByLevel(lines)
 }
 
 // parseLevelColors parses the level_colors config into a map.
