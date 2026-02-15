@@ -16,6 +16,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/cmd"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/spf13/cobra"
 )
@@ -125,10 +126,10 @@ func colorForLevel(level string) string {
 }
 
 // printNotification prints a single notification to the writer with formatting.
-func printNotification(n notification.Notification, w io.Writer) {
+func printNotification(n domain.Notification, w io.Writer) {
 	timeStr := formatTimestamp(n.Timestamp)
-	msg := fmt.Sprintf("[%s] [%s] %s", timeStr, n.Level, n.Message)
-	color := colorForLevel(n.Level)
+	msg := fmt.Sprintf("[%s] [%s] %s", timeStr, n.Level.String(), n.Message)
+	color := colorForLevel(n.Level.String())
 	reset := colors.Reset
 	if color != "" {
 		_, _ = fmt.Fprintf(w, "%s%s%s\n", color, msg, reset)
@@ -182,11 +183,6 @@ func Follow(ctx context.Context, opts FollowOptions) error {
 		return listFunc(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, "", "", "")
 	}
 
-	return followLoop(ctx, sigChan, tickChan, fetchNotifications, seen, opts)
-}
-
-// followLoop runs the main follow loop.
-func followLoop(ctx context.Context, sigChan chan os.Signal, tickChan <-chan time.Time, fetchNotifications func() string, seen map[int]bool, opts FollowOptions) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -195,35 +191,31 @@ func followLoop(ctx context.Context, sigChan chan os.Signal, tickChan <-chan tim
 			_, _ = fmt.Fprintf(opts.Output, "\nReceived signal %v, stopping...\n", sig)
 			return nil
 		case <-tickChan:
-			processFollowTick(fetchNotifications, seen, opts)
-		}
-	}
-}
-
-// processFollowTick processes a single tick of the follow loop.
-func processFollowTick(fetchNotifications func() string, seen map[int]bool, opts FollowOptions) {
-	// Fetch notifications with filters
-	lines := fetchNotifications()
-	if lines == "" {
-		return
-	}
-	// Parse lines
-	var notifications []notification.Notification
-	for _, line := range strings.Split(lines, "\n") {
-		if line == "" {
-			continue
-		}
-		notif, err := notification.ParseNotification(line)
-		if err != nil {
-			continue
-		}
-		notifications = append(notifications, notif)
-	}
-	// Print new notifications
-	for _, notif := range notifications {
-		if !seen[notif.ID] {
-			printNotification(notif, opts.Output)
-			seen[notif.ID] = true
+			// Fetch notifications with filters
+			lines := fetchNotifications()
+			if lines == "" {
+				continue
+			}
+			// Parse lines
+			var notifications []notification.Notification
+			for _, line := range strings.Split(lines, "\n") {
+				if line == "" {
+					continue
+				}
+				notif, err := notification.ParseNotification(line)
+				if err != nil {
+					continue
+				}
+				notifications = append(notifications, notif)
+			}
+			// Print new notifications
+			for _, notif := range notifications {
+				if !seen[notif.ID] {
+					domainNotif := notification.ToDomainUnsafe(notif)
+					printNotification(*domainNotif, opts.Output)
+					seen[notif.ID] = true
+				}
+			}
 		}
 	}
 }
