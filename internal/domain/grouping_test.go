@@ -17,6 +17,7 @@ func TestGroupByMode_IsValid(t *testing.T) {
 		{"valid window", GroupByWindow, true},
 		{"valid pane", GroupByPane, true},
 		{"valid level", GroupByLevel, true},
+		{"valid message", GroupByMessage, true},
 		{"invalid", GroupByMode("invalid"), false},
 		{"invalid empty", GroupByMode(""), false},
 	}
@@ -38,6 +39,7 @@ func TestGroupByMode_String(t *testing.T) {
 		{"window", GroupByWindow, "window"},
 		{"pane", GroupByPane, "pane"},
 		{"level", GroupByLevel, "level"},
+		{"message", GroupByMessage, "message"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -115,6 +117,18 @@ func TestGroupNotifications(t *testing.T) {
 		assert.Equal(t, 1, result.Groups[1].Count)
 	})
 
+	t.Run("group by message", func(t *testing.T) {
+		result := GroupNotifications(notifications, GroupByMessage)
+		assert.Equal(t, GroupByMessage, result.Mode)
+		assert.Len(t, result.Groups, 3)
+		assert.Equal(t, "test message 1", result.Groups[0].DisplayName)
+		assert.Equal(t, 1, result.Groups[0].Count)
+		assert.Equal(t, "test message 2", result.Groups[1].DisplayName)
+		assert.Equal(t, 1, result.Groups[1].Count)
+		assert.Equal(t, "test message 3", result.Groups[2].DisplayName)
+		assert.Equal(t, 1, result.Groups[2].Count)
+	})
+
 	t.Run("group by none", func(t *testing.T) {
 		result := GroupNotifications(notifications, GroupByNone)
 		assert.Equal(t, GroupByNone, result.Mode)
@@ -189,6 +203,21 @@ func TestGetNotificationsByLevel(t *testing.T) {
 	assert.Equal(t, "info", groups[0].DisplayName)
 }
 
+func TestGetNotificationsByMessage(t *testing.T) {
+	notifications := []Notification{
+		{ID: 1, Message: "error: file not found"},
+		{ID: 2, Message: "warning: low disk space"},
+		{ID: 3, Message: "error: file not found"},
+	}
+
+	groups := GetNotificationsByMessage(notifications)
+	assert.Len(t, groups, 2)
+	assert.Equal(t, 2, groups[0].Count)
+	assert.Equal(t, "error: file not found", groups[0].DisplayName)
+	assert.Equal(t, 1, groups[1].Count)
+	assert.Equal(t, "warning: low disk space", groups[1].DisplayName)
+}
+
 func TestGetGroupCounts(t *testing.T) {
 	notifications := []Notification{
 		{ID: 1, Session: "$1"},
@@ -213,7 +242,9 @@ func TestExtractDisplayName(t *testing.T) {
 		{"window key", "$1\x00@1", GroupByWindow, "@1"},
 		{"pane key", "$1\x00@1\x00%1", GroupByPane, "%1"},
 		{"level key", "info", GroupByLevel, "info"},
+		{"message key", "test message", GroupByMessage, "test message"},
 		{"empty key", "", GroupBySession, "(empty)"},
+		{"empty key message", "", GroupByMessage, "(empty)"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
