@@ -110,7 +110,9 @@ func (m *Model) renderConfirmationDialog() string {
 	content.WriteString("\n\n")
 	content.WriteString(messageStyle.Render(action.Message))
 	content.WriteString("\n\n")
-	content.WriteString(hintStyle.Render("(y/N) to confirm, ESC to cancel"))
+	content.WriteString(hintStyle.Render("Type \"yes\" to confirm; Enter/Esc cancel"))
+	content.WriteString("\n")
+	content.WriteString(hintStyle.Render("Input: " + m.uiState.GetConfirmationInput()))
 
 	// Render dialog
 	dialog := borderStyle.Width(dialogWidth).Render(content.String())

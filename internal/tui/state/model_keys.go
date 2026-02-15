@@ -60,21 +60,29 @@ func (m *Model) handleConfirmation(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Cancel confirmation
 		m.uiState.SetConfirmationMode(false)
 		return m, nil
+	case tea.KeyBackspace, tea.KeyCtrlH:
+		m.uiState.BackspaceConfirmationInput()
+		return m, nil
 	case tea.KeyEnter:
-		// Confirm action
-		return m, m.executeConfirmedAction()
+		input := strings.TrimSpace(m.uiState.GetConfirmationInput())
+		if strings.EqualFold(input, "yes") {
+			return m, m.executeConfirmedAction()
+		}
+		m.uiState.SetConfirmationMode(false)
+		return m, nil
 	case tea.KeyRunes:
-		// Handle y/Y for yes, n/N for no
 		if len(msg.Runes) == 0 {
 			return m, nil
 		}
-		switch msg.Runes[0] {
-		case 'y', 'Y':
-			return m, m.executeConfirmedAction()
-		case 'n', 'N':
-			m.uiState.SetConfirmationMode(false)
-			return m, nil
+		if len(msg.Runes) == 1 {
+			switch msg.Runes[0] {
+			case 'n', 'N':
+				m.uiState.SetConfirmationMode(false)
+				return m, nil
+			}
 		}
+		m.uiState.AppendConfirmationInput(msg.Runes)
+		return m, nil
 	}
 	return m, nil
 }
@@ -422,6 +430,7 @@ func (m *Model) handleDismissGroup() tea.Cmd {
 		NodeKind: node.Kind,
 	}
 	m.uiState.SetPendingAction(action)
+	m.uiState.ResetConfirmationInput()
 	m.uiState.SetConfirmationMode(true)
 
 	return nil

@@ -142,6 +142,10 @@ type UIState interface {
 
 This interface defines all UI state operations, separating state management from rendering and input handling.
 
+#### Confirmation Dialog Workflow
+
+Group dismissals in the TUI require explicit confirmation to prevent accidental bulk actions. When a user presses `D` on a group node, the UI enters confirmation mode, clears the `confirmationInput` buffer, and presents a dialog instructing the user to type the word `yes`. The pending action only executes when the trimmed buffer equals `yes` (case-insensitive); pressing `Enter` without the word, `Esc`, `Ctrl+C`, or `n`/`N` cancels the action. The current buffer contents are rendered in the dialog so users can verify their input before continuing.
+
 ### 4. CommandService Interface
 
 The `CommandService` interface handles command parsing and execution:

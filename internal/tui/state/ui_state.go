@@ -1,6 +1,8 @@
 package state
 
 import (
+	"unicode"
+
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
@@ -20,11 +22,8 @@ type PendingAction struct {
 // ActionType represents the type of action requiring confirmation.
 type ActionType string
 
-const (
-	ActionDismissGroup ActionType = "dismiss_group"
-)
-
-// UIState manages all UI-specific state for the TUI.
+const ActionDismissGroup ActionType = "dismiss_group"
+const defaultExpandLevel = 1
 
 // UIState manages all UI-specific state for the TUI.
 // This includes viewport management, cursor position, search mode,
@@ -49,8 +48,9 @@ type UIState struct {
 	pendingKey string
 
 	// Confirmation state for actions requiring user confirmation
-	confirmationMode bool
-	pendingAction    PendingAction
+	confirmationMode  bool
+	confirmationInput string
+	pendingAction     PendingAction
 
 	// View mode management
 	viewMode model.ViewMode
@@ -72,7 +72,7 @@ func NewUIState() *UIState {
 		cursor:         0,
 		viewMode:       model.ViewModeDetailed,
 		groupBy:        model.GroupByNone,
-		expandLevel:    1, // Default expand level
+		expandLevel:    defaultExpandLevel, // Default expand level
 		expansionState: make(map[string]bool),
 	}
 }
@@ -178,9 +178,7 @@ func (u *UIState) SetPendingKey(key string) {
 }
 
 // ClearPendingKey clears the pending key.
-func (u *UIState) ClearPendingKey() {
-	u.pendingKey = ""
-}
+func (u *UIState) ClearPendingKey() { u.pendingKey = "" }
 
 // IsConfirmationMode returns whether confirmation mode is active.
 func (u *UIState) IsConfirmationMode() bool {
@@ -189,10 +187,52 @@ func (u *UIState) IsConfirmationMode() bool {
 
 // SetConfirmationMode activates or deactivates confirmation mode.
 func (u *UIState) SetConfirmationMode(active bool) {
+	if u.confirmationMode != active {
+		u.ResetConfirmationInput()
+	}
 	u.confirmationMode = active
 	if !active {
 		u.pendingAction = PendingAction{}
 	}
+}
+
+// ResetConfirmationInput clears the confirmation input buffer.
+func (u *UIState) ResetConfirmationInput() { u.confirmationInput = "" }
+
+// AppendConfirmationInput appends runes to the confirmation buffer, ignoring whitespace-only input.
+func (u *UIState) AppendConfirmationInput(runes []rune) {
+	if len(runes) == 0 {
+		return
+	}
+	whitespaceOnly := true
+	for _, r := range runes {
+		if !unicode.IsSpace(r) {
+			whitespaceOnly = false
+			break
+		}
+	}
+	if whitespaceOnly {
+		return
+	}
+	u.confirmationInput += string(runes)
+}
+
+// BackspaceConfirmationInput removes the last rune from the confirmation buffer.
+func (u *UIState) BackspaceConfirmationInput() {
+	if u.confirmationInput == "" {
+		return
+	}
+	runes := []rune(u.confirmationInput)
+	if len(runes) == 0 {
+		u.confirmationInput = ""
+		return
+	}
+	u.confirmationInput = string(runes[:len(runes)-1])
+}
+
+// GetConfirmationInput returns the current confirmation input buffer.
+func (u *UIState) GetConfirmationInput() string {
+	return u.confirmationInput
 }
 
 // GetPendingAction returns the current pending action for confirmation.
@@ -221,9 +261,7 @@ func (u *UIState) SetError(msg string) {
 }
 
 // ClearError clears the error message.
-func (u *UIState) ClearError() {
-	u.errorMessage = ""
-}
+func (u *UIState) ClearError() { u.errorMessage = "" }
 
 // HasError returns whether there is an active error.
 func (u *UIState) HasError() bool {
@@ -282,9 +320,7 @@ func (u *UIState) AdjustCursorBounds(listLen int) {
 }
 
 // ResetCursor resets the cursor to the first item.
-func (u *UIState) ResetCursor() {
-	u.cursor = 0
-}
+func (u *UIState) ResetCursor() { u.cursor = 0 }
 
 // GetViewMode returns the current view mode.
 func (u *UIState) GetViewMode() model.ViewMode {
@@ -348,15 +384,12 @@ func (u *UIState) SetExpansionState(state map[string]bool) {
 
 // UpdateExpansionState updates the expansion state for a specific node.
 func (u *UIState) UpdateExpansionState(nodeIdentifier string, expanded bool) {
-	if u.expansionState == nil {
-		u.expansionState = make(map[string]bool)
-	}
 	u.expansionState[nodeIdentifier] = expanded
 }
 
 // GetSelectedNotification returns the notification at the current cursor position.
 func (u *UIState) GetSelectedNotification(notifications []notification.Notification, visibleNodes []*model.TreeNode) (notification.Notification, bool) {
-	if u.isGroupedView() {
+	if u.IsGroupedView() {
 		// In grouped view, get the notification from the visible nodes
 		if u.cursor < 0 || u.cursor >= len(visibleNodes) {
 			return notification.Notification{}, false
@@ -377,7 +410,7 @@ func (u *UIState) GetSelectedNotification(notifications []notification.Notificat
 
 // GetSelectedNode returns the tree node at the current cursor position (in grouped view).
 func (u *UIState) GetSelectedNode(visibleNodes []*model.TreeNode) *model.TreeNode {
-	if !u.isGroupedView() {
+	if !u.IsGroupedView() {
 		return nil
 	}
 	if u.cursor < 0 || u.cursor >= len(visibleNodes) {
@@ -423,16 +456,14 @@ func (u *UIState) SetDimensions(width, height int) {
 	}
 }
 
-// Save saves the current UI state to persistent storage.
 func (u *UIState) Save() error {
-	// UI state is saved through the Model's saveSettings() method
+	// UI state is saved through the Model\'s saveSettings() method
 	// This is a placeholder for future direct UI state persistence
 	return nil
 }
 
-// Load loads UI state from persistent storage.
 func (u *UIState) Load() error {
-	// UI state is loaded through the Model's FromState() method
+	// UI state is loaded through the Model\'s FromState() method
 	// This is a placeholder for future direct UI state persistence
 	return nil
 }
@@ -465,9 +496,4 @@ func (u *UIState) FromDTO(dto model.UIDTO) error {
 		u.expansionState = dto.ExpansionState
 	}
 	return nil
-}
-
-// isGroupedView is a helper method to check if view mode is grouped.
-func (u *UIState) isGroupedView() bool {
-	return u.viewMode == model.ViewModeGrouped
 }
