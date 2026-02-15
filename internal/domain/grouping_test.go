@@ -259,8 +259,13 @@ func TestGroupNotificationsWithDedupWindow(t *testing.T) {
 
 	result := GroupNotificationsWithDedup(notifications, GroupByMessage, dedup.Options{Criteria: dedup.CriteriaMessage, Window: 15 * time.Minute})
 	require.Len(t, result.Groups, 2)
-	assert.Equal(t, 2, result.Groups[0].Count)
-	assert.Equal(t, 1, result.Groups[1].Count)
+	// Instead of assuming order, check for the presence of groups with expected counts.
+	var counts []int
+	for _, group := range result.Groups {
+		counts = append(counts, group.Count)
+	}
+	assert.Contains(t, counts, 2, "Expected a group with count 2")
+	assert.Contains(t, counts, 1, "Expected a group with count 1")
 }
 
 func TestExtractDisplayName(t *testing.T) {
