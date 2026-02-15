@@ -60,7 +60,7 @@ OPTIONS:
     --newer-than <days>  Show notifications newer than N days
     --search <pattern>   Search messages (substring match)
     --regex              Use regex search with --search
-    --group-by <field>   Group notifications by field (session, window, pane, level)
+    --group-by <field>   Group notifications by field (session, window, pane, level, message)
     --group-count        Show only group counts (requires --group-by)
     --filter <status>    Filter notifications by read status: read, unread
     --format=<format>    Output format: simple (default), legacy, table, compact, json
@@ -139,7 +139,7 @@ func registerListFlags(cmd *cobra.Command, listPane, listLevel, listSession, lis
 	cmd.Flags().IntVar(listNewerThan, "newer-than", 0, "Show notifications newer than N days")
 	cmd.Flags().StringVar(listSearch, "search", "", "Search messages (substring match)")
 	cmd.Flags().BoolVar(listRegex, "regex", false, "Use regex search with --search")
-	cmd.Flags().StringVar(listGroupBy, "group-by", "", "Group notifications by field (session, window, pane, level)")
+	cmd.Flags().StringVar(listGroupBy, "group-by", "", "Group notifications by field (session, window, pane, level, message)")
 	cmd.Flags().BoolVar(listGroupCount, "group-count", false, "Show only group counts (requires --group-by)")
 	cmd.Flags().StringVar(listFormat, "format", "simple", "Output format: simple (default), legacy, table, compact, json")
 	cmd.Flags().StringVar(listFilter, "filter", "", "Filter notifications by read status: read, unread")
@@ -173,8 +173,8 @@ func computeCutoffTimestamps(olderThan, newerThan int) (olderCutoff, newerCutoff
 // validateListOptions validates list command options.
 func validateListOptions(groupBy, filter string) error {
 	// Validate group-by field
-	if groupBy != "" && groupBy != "session" && groupBy != "window" && groupBy != "pane" && groupBy != "level" {
-		return fmt.Errorf("invalid group-by field: %s (must be session, window, pane, level)", groupBy)
+	if groupBy != "" && groupBy != "session" && groupBy != "window" && groupBy != "pane" && groupBy != "level" && groupBy != "message" {
+		return fmt.Errorf("invalid group-by field: %s (must be session, window, pane, level, message)", groupBy)
 	}
 
 	// Validate read filter
