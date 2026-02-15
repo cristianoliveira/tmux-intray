@@ -39,13 +39,13 @@ USAGE:
 KEY BINDINGS:
     j/k         Move up/down in the list
     /           Enter search mode
-    :           Enter command mode
+
     v           Cycle view mode (compact/detailed/grouped)
-    ESC         Exit search/command mode, or quit TUI
+    ESC         Exit search mode, or quit TUI
     d           Dismiss selected notification
     r           Mark selected notification as read
     u           Mark selected notification as unread
-    Enter       Jump to pane (or execute command in command mode)
+    Enter       Jump to pane
     :w          Save settings
     q           Quit TUI`,
 		RunE: func(cmd *cobra.Command, args []string) error {

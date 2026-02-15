@@ -246,15 +246,6 @@ func TestFooterGroupedHelpText(t *testing.T) {
 	assert.Contains(t, footer, "Enter: toggle/jump")
 }
 
-func TestFooterCommandModeHelpText(t *testing.T) {
-	footer := Footer(FooterState{CommandMode: true, CommandQuery: "group-by window", ViewMode: settings.ViewModeGrouped})
-
-	assert.Contains(t, footer, "ESC: cancel")
-	assert.Contains(t, footer, "cmds: "+commandList)
-	assert.Contains(t, footer, ":group-by window")
-	assert.Contains(t, footer, "Enter: execute")
-}
-
 func TestFooterReadFilterIndicator(t *testing.T) {
 	footer := Footer(FooterState{ViewMode: settings.ViewModeGrouped, ReadFilter: settings.ReadFilterUnread})
 	assert.Contains(t, footer, "read: unread")
