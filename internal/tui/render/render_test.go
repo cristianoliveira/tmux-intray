@@ -246,6 +246,16 @@ func TestFooterGroupedHelpText(t *testing.T) {
 	assert.Contains(t, footer, "Enter: toggle/jump")
 }
 
+func TestFooterSearchModeHelpText(t *testing.T) {
+	footer := Footer(FooterState{SearchMode: true, SearchQuery: "test", ViewMode: settings.ViewModeDetailed})
+
+	assert.Contains(t, footer, "mode: [D]")
+	assert.Contains(t, footer, "read: all")
+	assert.Contains(t, footer, "ESC: exit search")
+	assert.Contains(t, footer, "Ctrl+j/k: navigate")
+	assert.Contains(t, footer, "Search: test")
+}
+
 func TestFooterReadFilterIndicator(t *testing.T) {
 	footer := Footer(FooterState{ViewMode: settings.ViewModeGrouped, ReadFilter: settings.ReadFilterUnread})
 	assert.Contains(t, footer, "read: unread")

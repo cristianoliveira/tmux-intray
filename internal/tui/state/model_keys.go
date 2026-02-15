@@ -109,6 +109,30 @@ func (m *Model) handleKeyType(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return nil, nil
 	case tea.KeyUp, tea.KeyDown:
 		return nil, nil
+	case tea.KeyCtrlH:
+		// In search mode, Ctrl+h moves cursor left (same as normal navigation)
+		if m.uiState.IsSearchMode() {
+			return m, nil // Left movement not needed for vertical navigation
+		}
+		return m, nil
+	case tea.KeyCtrlJ:
+		// In search mode, Ctrl+j moves cursor down
+		if m.uiState.IsSearchMode() {
+			m.handleMoveDown()
+		}
+		return m, nil
+	case tea.KeyCtrlK:
+		// In search mode, Ctrl+k moves cursor up
+		if m.uiState.IsSearchMode() {
+			m.handleMoveUp()
+		}
+		return m, nil
+	case tea.KeyCtrlL:
+		// In search mode, Ctrl+l moves cursor right (same as normal navigation)
+		if m.uiState.IsSearchMode() {
+			return m, nil // Right movement not needed for vertical navigation
+		}
+		return m, nil
 	}
 	return nil, nil
 }

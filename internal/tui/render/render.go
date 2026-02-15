@@ -146,6 +146,7 @@ func Footer(state FooterState) string {
 	help = append(help, "gg/G: top/bottom")
 	if state.SearchMode {
 		help = append(help, "ESC: exit search")
+		help = append(help, "Ctrl+j/k: navigate")
 		help = append(help, fmt.Sprintf("Search: %s", state.SearchQuery))
 	} else {
 		help = append(help, "/: search")

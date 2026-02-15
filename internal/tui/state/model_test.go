@@ -1302,6 +1302,139 @@ func TestModelUpdateHandlesSearchEnter(t *testing.T) {
 	assert.Equal(t, "", model.uiState.GetSearchQuery())
 }
 
+// TestCtrlJKNavigationInSearchMode tests that Ctrl+j and Ctrl+k work for navigation in search mode.
+func TestCtrlJKNavigationInSearchMode(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+		{ID: 2, Message: "Second"},
+		{ID: 3, Message: "Third"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetCursor(0)
+	model.uiState.SetSearchMode(true)
+
+	// Test Ctrl+k moves cursor up (should stay at 0)
+	msg := tea.KeyMsg{Type: tea.KeyCtrlK}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+
+	// Test Ctrl+j moves cursor down
+	msg = tea.KeyMsg{Type: tea.KeyCtrlJ}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 1, model.uiState.GetCursor())
+
+	// Test Ctrl+j moves cursor down again
+	msg = tea.KeyMsg{Type: tea.KeyCtrlJ}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 2, model.uiState.GetCursor())
+
+	// Test Ctrl+j at bottom should stay at bottom
+	msg = tea.KeyMsg{Type: tea.KeyCtrlJ}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 2, model.uiState.GetCursor())
+
+	// Test Ctrl+k moves cursor up
+	msg = tea.KeyMsg{Type: tea.KeyCtrlK}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 1, model.uiState.GetCursor())
+}
+
+// TestCtrlHLInSearchMode tests that Ctrl+h and Ctrl+l are handled gracefully in search mode.
+func TestCtrlHLInSearchMode(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetCursor(0)
+	model.uiState.SetSearchMode(true)
+
+	// Test Ctrl+h does not crash
+	msg := tea.KeyMsg{Type: tea.KeyCtrlH}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+
+	// Test Ctrl+l does not crash
+	msg = tea.KeyMsg{Type: tea.KeyCtrlL}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+}
+
+// TestCtrlJKNavigationInNormalMode tests that Ctrl+j and Ctrl+k do NOT work in normal mode.
+func TestCtrlJKNavigationInNormalMode(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+		{ID: 2, Message: "Second"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetCursor(0)
+	// Not in search mode
+
+	// Test Ctrl+k does not move cursor in normal mode
+	msg := tea.KeyMsg{Type: tea.KeyCtrlK}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+
+	// Test Ctrl+j does not move cursor in normal mode
+	msg = tea.KeyMsg{Type: tea.KeyCtrlJ}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+}
+
+// TestCtrlJKNavigationInSearchModeWithFilter tests navigation with filtered results.
+func TestCtrlJKNavigationInSearchModeWithFilter(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "Error: first"},
+		{ID: 2, Message: "Warning: second"},
+		{ID: 3, Message: "Error: third"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetSearchMode(true)
+	model.uiState.SetSearchQuery("error")
+	model.applySearchFilter()
+	model.uiState.ResetCursor()
+
+	// Should have 2 filtered results (contains "Error")
+	require.Len(t, model.filtered, 2)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+
+	// Test Ctrl+k at top stays at top
+	msg := tea.KeyMsg{Type: tea.KeyCtrlK}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+
+	// Test Ctrl+j moves down
+	msg = tea.KeyMsg{Type: tea.KeyCtrlJ}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 1, model.uiState.GetCursor())
+
+	// Test Ctrl+j at bottom stays at bottom
+	msg = tea.KeyMsg{Type: tea.KeyCtrlJ}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 1, model.uiState.GetCursor())
+
+	// Test Ctrl+k moves up
+	msg = tea.KeyMsg{Type: tea.KeyCtrlK}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+}
+
 // TestApplySearchFilterGroupedView tests that search filtering works correctly
 // in grouped view mode, including tree rebuilding and empty group pruning.
 func TestApplySearchFilterGroupedView(t *testing.T) {
