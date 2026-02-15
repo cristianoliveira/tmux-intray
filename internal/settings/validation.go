@@ -124,7 +124,24 @@ func validateFilters(filter Filter) error {
 		return fmt.Errorf("invalid filter state: %s", filter.State)
 	}
 
+	validReadFilters := map[string]bool{
+		"": true, ReadFilterRead: true, ReadFilterUnread: true,
+	}
+	if !validReadFilters[filter.Read] {
+		return fmt.Errorf("invalid filter read value: %s", filter.Read)
+	}
+
 	return nil
+}
+
+// IsValidGroupBy returns true if groupBy is a supported grouping mode.
+func IsValidGroupBy(groupBy string) bool {
+	switch groupBy {
+	case GroupByNone, GroupBySession, GroupByWindow, GroupByPane, GroupByMessage:
+		return true
+	default:
+		return false
+	}
 }
 
 // validate is an alias for Validate for internal use.

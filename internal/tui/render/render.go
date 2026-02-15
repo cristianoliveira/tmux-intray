@@ -24,7 +24,7 @@ const (
 	groupIndentSize      = 2
 	groupCollapsedSymbol = "▸"
 	groupExpandedSymbol  = "▾"
-	commandList          = "q,w,toggle-view,group-by,expand-level,auto-expand-unread"
+	commandList          = "q,w,toggle-view,group-by,expand-level,filter-read,auto-expand-unread"
 )
 
 // FooterState defines the inputs needed to render footer help text.
@@ -37,6 +37,7 @@ type FooterState struct {
 	ViewMode     string
 	Width        int
 	ErrorMessage string
+	ReadFilter   string
 }
 
 // RowState defines the inputs needed to render a notification row.
@@ -142,6 +143,7 @@ func Footer(state FooterState) string {
 		help = append(help, errorStyle.Render("Error: "+state.ErrorMessage))
 	}
 	help = append(help, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
+	help = append(help, fmt.Sprintf("read: %s", readFilterIndicator(state.ReadFilter)))
 	help = append(help, "j/k: move")
 	help = append(help, "gg/G: top/bottom")
 	if state.SearchMode {
@@ -200,6 +202,17 @@ func viewModeIndicator(mode string) string {
 		return "[G]"
 	default:
 		return "[?]"
+	}
+}
+
+func readFilterIndicator(filter string) string {
+	switch filter {
+	case settings.ReadFilterRead:
+		return "read"
+	case settings.ReadFilterUnread:
+		return "unread"
+	default:
+		return "all"
 	}
 }
 

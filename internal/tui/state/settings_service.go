@@ -87,6 +87,9 @@ func applyNonEmptyFilters(src settings.Filter, dest *settings.Filter) {
 	if src.State != "" {
 		dest.State = src.State
 	}
+	if src.Read != "" {
+		dest.Read = src.Read
+	}
 	if src.Session != "" {
 		dest.Session = src.Session
 	}

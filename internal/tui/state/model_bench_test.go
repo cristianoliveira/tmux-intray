@@ -548,7 +548,24 @@ func (d *dummyNotificationService) GetFilteredNotifications() []notification.Not
 	return d.filtered
 }
 
-func (d *dummyNotificationService) ApplyFiltersAndSearch(query, state, level, sessionID, windowID, paneID, sortBy, sortOrder string) {
+func (d *dummyNotificationService) FilterByReadStatus(notifications []notification.Notification, readFilter string) []notification.Notification {
+	if readFilter == "" {
+		return notifications
+	}
+	var filtered []notification.Notification
+	for _, n := range notifications {
+		isRead := n.IsRead()
+		if readFilter == settings.ReadFilterUnread && !isRead {
+			filtered = append(filtered, n)
+		}
+		if readFilter == settings.ReadFilterRead && isRead {
+			filtered = append(filtered, n)
+		}
+	}
+	return filtered
+}
+
+func (d *dummyNotificationService) ApplyFiltersAndSearch(query, state, level, sessionID, windowID, paneID, readFilter, sortBy, sortOrder string) {
 	result := d.notifications
 
 	if state != "" {
@@ -569,6 +586,10 @@ func (d *dummyNotificationService) ApplyFiltersAndSearch(query, state, level, se
 
 	if paneID != "" {
 		result = d.FilterByPane(result, paneID)
+	}
+
+	if readFilter != "" {
+		result = d.FilterByReadStatus(result, readFilter)
 	}
 
 	if query != "" {

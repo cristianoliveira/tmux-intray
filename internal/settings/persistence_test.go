@@ -30,6 +30,7 @@ func TestSettingsJSONRoundTrip(t *testing.T) {
 		Filters: Filter{
 			Level:   LevelFilterWarning,
 			State:   StateFilterActive,
+			Read:    ReadFilterUnread,
 			Session: "session-1",
 			Window:  "@1",
 			Pane:    "%1",
