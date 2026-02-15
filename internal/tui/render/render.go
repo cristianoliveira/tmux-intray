@@ -166,7 +166,6 @@ func Footer(state FooterState) string {
 
 	help = append(help, enterHelp)
 	help = append(help, "q: quit")
-	help = append(help, ":w: save")
 
 	footer := strings.Join(help, "  |  ")
 	footer = truncateFooter(footer, state.Width)
