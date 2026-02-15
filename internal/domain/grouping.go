@@ -15,12 +15,13 @@ const (
 	GroupByWindow  GroupByMode = "window"
 	GroupByPane    GroupByMode = "pane"
 	GroupByLevel   GroupByMode = "level"
+	GroupByMessage GroupByMode = "message"
 )
 
 // IsValid checks if the group by mode is valid.
 func (g GroupByMode) IsValid() bool {
 	switch g {
-	case GroupByNone, GroupBySession, GroupByWindow, GroupByPane, GroupByLevel:
+	case GroupByNone, GroupBySession, GroupByWindow, GroupByPane, GroupByLevel, GroupByMessage:
 		return true
 	default:
 		return false
@@ -78,6 +79,8 @@ func GroupNotifications(notifs []Notification, mode GroupByMode) GroupResult {
 			key = n.Session + "\x00" + n.Window + "\x00" + n.Pane
 		case GroupByLevel:
 			key = n.Level.String()
+		case GroupByMessage:
+			key = n.Message
 		}
 
 		groupsMap[key] = append(groupsMap[key], n)
@@ -130,6 +133,8 @@ func extractDisplayName(key string, mode GroupByMode) string {
 		}
 		return key
 	case GroupByLevel:
+		return key
+	case GroupByMessage:
 		return key
 	default:
 		return key
@@ -191,6 +196,12 @@ func GetNotificationsByPane(notifs []Notification) []Group {
 // GetNotificationsByLevel groups notifications by level.
 func GetNotificationsByLevel(notifs []Notification) []Group {
 	result := GroupNotifications(notifs, GroupByLevel)
+	return result.Groups
+}
+
+// GetNotificationsByMessage groups notifications by message.
+func GetNotificationsByMessage(notifs []Notification) []Group {
+	result := GroupNotifications(notifs, GroupByMessage)
 	return result.Groups
 }
 
