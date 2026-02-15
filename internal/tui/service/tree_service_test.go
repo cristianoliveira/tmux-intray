@@ -178,3 +178,140 @@ func sampleNotifications() []notification.Notification {
 		},
 	}
 }
+
+func TestBuildTreeWithMessageGrouping(t *testing.T) {
+	service := NewTreeService(model.GroupByPane).(*DefaultTreeService)
+
+	// Create notifications with duplicate messages
+	notifs := []notification.Notification{
+		{
+			ID:        1,
+			Timestamp: "2025-01-01T10:00:00Z",
+			Session:   "session-a",
+			Window:    "window-1",
+			Pane:      "pane-1",
+			Message:   "error occurred",
+		},
+		{
+			ID:        2,
+			Timestamp: "2025-01-01T10:01:00Z",
+			Session:   "session-b",
+			Window:    "window-2",
+			Pane:      "pane-2",
+			Message:   "error occurred", // Same message as above
+		},
+		{
+			ID:        3,
+			Timestamp: "2025-01-01T10:02:00Z",
+			Session:   "session-a",
+			Window:    "window-1",
+			Pane:      "pane-1",
+			Message:   "warning issued",
+		},
+	}
+
+	err := service.BuildTree(notifs, settings.GroupByMessage)
+	require.NoError(t, err)
+
+	root := service.GetTreeRoot()
+	require.NotNil(t, root)
+	require.Len(t, root.Children, 2) // Two unique messages
+
+	// Find message groups
+	var errorGroup *model.TreeNode
+	var warningGroup *model.TreeNode
+	for _, child := range root.Children {
+		if child.Kind == model.NodeKindMessage {
+			switch child.Title {
+			case "error occurred":
+				errorGroup = child
+			case "warning issued":
+				warningGroup = child
+			}
+		}
+	}
+
+	require.NotNil(t, errorGroup)
+	require.NotNil(t, warningGroup)
+
+	// Verify error group has 2 notifications
+	assert.Equal(t, 2, errorGroup.Count)
+	assert.Equal(t, 2, len(errorGroup.Children))
+	assert.Equal(t, 2, errorGroup.UnreadCount)
+
+	// Verify warning group has 1 notification
+	assert.Equal(t, 1, warningGroup.Count)
+	assert.Equal(t, 1, len(warningGroup.Children))
+	assert.Equal(t, 1, warningGroup.UnreadCount)
+}
+
+func TestBuildTreeWithMessageGroupingAndReadNotifications(t *testing.T) {
+	service := NewTreeService(model.GroupByPane).(*DefaultTreeService)
+
+	// Create notifications with duplicate messages, some read
+	notifs := []notification.Notification{
+		{
+			ID:            1,
+			Timestamp:     "2025-01-01T10:00:00Z",
+			Session:       "session-a",
+			Window:        "window-1",
+			Pane:          "pane-1",
+			Message:       "error occurred",
+			ReadTimestamp: "2025-01-01T11:00:00Z", // Read
+		},
+		{
+			ID:        2,
+			Timestamp: "2025-01-01T10:01:00Z",
+			Session:   "session-b",
+			Window:    "window-2",
+			Pane:      "pane-2",
+			Message:   "error occurred", // Same message, unread
+		},
+	}
+
+	err := service.BuildTree(notifs, settings.GroupByMessage)
+	require.NoError(t, err)
+
+	root := service.GetTreeRoot()
+	require.NotNil(t, root)
+	require.Len(t, root.Children, 1) // One unique message
+
+	errorGroup := root.Children[0]
+	assert.Equal(t, model.NodeKindMessage, errorGroup.Kind)
+	assert.Equal(t, 2, errorGroup.Count)
+	assert.Equal(t, 1, errorGroup.UnreadCount) // Only one is unread
+}
+
+func TestGetTreeLevelWithMessageNode(t *testing.T) {
+	service := NewTreeService(model.GroupByPane).(*DefaultTreeService)
+
+	messageNode := &model.TreeNode{
+		Kind: model.NodeKindMessage,
+	}
+
+	level := service.GetTreeLevel(messageNode)
+	assert.Equal(t, 0, level)
+}
+
+func TestGroupByCommandHandlerWithMessage(t *testing.T) {
+	mockModel := new(MockModelInterface)
+	handler := &GroupByCommandHandler{model: mockModel}
+
+	// Test Execute with message
+	mockModel.On("GetGroupBy").Return("none")
+	mockModel.On("SetGroupBy", "message").Return(nil)
+	mockModel.On("ApplySearchFilter")
+	mockModel.On("ResetCursor")
+	mockModel.On("SaveSettings").Return(nil)
+	result, err := handler.Execute([]string{"message"})
+	assert.NoError(t, err)
+	assert.Contains(t, result.Message, "Group by: message")
+
+	// Test Validate
+	err = handler.Validate([]string{"message"})
+	assert.NoError(t, err)
+
+	// Test Complete
+	suggestions := handler.Complete([]string{})
+	assert.Contains(t, suggestions, "message")
+}

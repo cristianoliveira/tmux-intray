@@ -40,6 +40,7 @@ func (s *DefaultTreeService) BuildTree(notifications []notification.Notification
 	sessionNodes := make(map[string]*model.TreeNode)
 	windowNodes := make(map[string]*model.TreeNode)
 	paneNodes := make(map[string]*model.TreeNode)
+	messageNodes := make(map[string]*model.TreeNode)
 
 	for _, notif := range notifications {
 		current := notif
@@ -63,6 +64,12 @@ func (s *DefaultTreeService) BuildTree(notifications []notification.Notification
 			paneNode := s.getOrCreateGroupNode(parent, paneNodes, model.NodeKindPane, paneKey, current.Pane)
 			s.incrementGroupStats(paneNode, current)
 			parent = paneNode
+		}
+
+		if resolvedGroupBy == settings.GroupByMessage {
+			messageNode := s.getOrCreateGroupNode(root, messageNodes, model.NodeKindMessage, current.Message, current.Message)
+			s.incrementGroupStats(messageNode, current)
+			parent = messageNode
 		}
 
 		leaf := &model.TreeNode{
@@ -351,6 +358,8 @@ func (s *DefaultTreeService) GetTreeLevel(node *model.TreeNode) int {
 		return 1
 	case model.NodeKindPane:
 		return 2
+	case model.NodeKindMessage:
+		return 0
 	default:
 		return 0
 	}
