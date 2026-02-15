@@ -83,9 +83,6 @@ func newTestModel(t *testing.T, notifications []notification.Notification) *Mode
 	}
 	m.syncNotificationMirrors()
 
-	// Initialize command service after model creation (needs ModelInterface)
-	m.commandService = service.NewCommandService(&m, m.errorHandler)
-
 	return &m
 }
 
@@ -707,19 +704,14 @@ func TestCanProcessBinding(t *testing.T) {
 	model := &Model{
 		uiState: NewUIState(),
 	}
-	// Default state: not in search or command mode
+	// Default state: not in search mode
 	assert.True(t, model.canProcessBinding())
 
 	model.uiState.SetSearchMode(true)
 	assert.False(t, model.canProcessBinding())
 
 	model.uiState.SetSearchMode(false)
-	model.uiState.SetCommandMode(true)
-	assert.False(t, model.canProcessBinding())
-
-	model.uiState.SetSearchMode(true)
-	model.uiState.SetCommandMode(true)
-	assert.False(t, model.canProcessBinding())
+	assert.True(t, model.canProcessBinding())
 }
 
 func TestModelUpdateHandlesNavigation(t *testing.T) {
@@ -977,16 +969,9 @@ func TestModelUpdateIgnoresViewModeCycleInSearchAndCommandModes(t *testing.T) {
 	model = updated.(*Model)
 	assert.Equal(t, settings.ViewModeCompact, string(model.uiState.GetViewMode()))
 	assert.Equal(t, "v", model.uiState.GetSearchQuery())
-
-	model.uiState.SetSearchMode(false)
-	model.uiState.SetCommandMode(true)
-	updated, _ = model.Update(msg)
-	model = updated.(*Model)
-	assert.Equal(t, settings.ViewModeCompact, string(model.uiState.GetViewMode()))
-	assert.Equal(t, "v", model.uiState.GetCommandQuery())
 }
 
-func TestModelUpdateHandlesKeyBindingsInSearchAndCommandModes(t *testing.T) {
+func TestModelUpdateHandlesKeyBindingsInSearchMode(t *testing.T) {
 	model := newTestModel(t, []notification.Notification{
 		{ID: 1, Message: "First"},
 	})
@@ -1011,12 +996,11 @@ func TestModelUpdateHandlesKeyBindingsInSearchAndCommandModes(t *testing.T) {
 	model = updated.(*Model)
 	assert.Equal(t, "", model.uiState.GetPendingKey())
 	assert.Equal(t, "g", model.uiState.GetSearchQuery())
-	// ':' should not enter command mode
+	// ':' should be treated as input in search mode
 	model.uiState.SetSearchQuery("")
 	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}}
 	updated, _ = model.Update(msg)
 	model = updated.(*Model)
-	assert.False(t, model.uiState.IsCommandMode())
 	assert.Equal(t, ":", model.uiState.GetSearchQuery())
 	// 'v' should not cycle view mode (already covered)
 	// 'z' should not set pending key
@@ -1040,46 +1024,8 @@ func TestModelUpdateHandlesKeyBindingsInSearchAndCommandModes(t *testing.T) {
 	assert.Nil(t, cmd)
 	assert.Equal(t, "q", model.uiState.GetSearchQuery())
 
-	// Test command mode (canProcessBinding returns false)
-	model.uiState.SetSearchMode(false)
-	model.uiState.SetCommandMode(true)
-	model.uiState.SetCommandQuery("")
-	// 'G' should not move cursor
-	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}}
-	updated, _ = model.Update(msg)
-	model = updated.(*Model)
-	assert.Equal(t, 0, model.uiState.GetCursor())
-	assert.Equal(t, "G", model.uiState.GetCommandQuery())
-	// 'g' should not set pending key
-	model.uiState.SetCommandQuery("")
-	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}}
-	updated, _ = model.Update(msg)
-	model = updated.(*Model)
-	assert.Equal(t, "", model.uiState.GetPendingKey())
-	assert.Equal(t, "g", model.uiState.GetCommandQuery())
-	// ':' should not enter command mode (already in command mode)
-	model.uiState.SetCommandQuery("")
-	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}}
-	updated, _ = model.Update(msg)
-	model = updated.(*Model)
-	assert.True(t, model.uiState.IsCommandMode())
-	assert.Equal(t, ":", model.uiState.GetCommandQuery())
-	// 'z' should not set pending key
-	model.uiState.SetCommandQuery("")
-	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'z'}}
-	updated, _ = model.Update(msg)
-	model = updated.(*Model)
-	assert.Equal(t, "", model.uiState.GetPendingKey())
-	assert.Equal(t, "z", model.uiState.GetCommandQuery())
-	// 'i' should be no-op (adds to command query)
-	model.uiState.SetCommandQuery("")
-	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}}
-	updated, _ = model.Update(msg)
-	model = updated.(*Model)
-	assert.Equal(t, "i", model.uiState.GetCommandQuery())
-
 	// Test normal mode (canProcessBinding returns true) but not grouped view
-	model.uiState.SetCommandMode(false)
+	model.uiState.SetSearchMode(false)
 	model.uiState.SetViewMode(settings.ViewModeCompact) // not grouped
 	// 'z' should not set pending key because not grouped view
 	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'z'}}
@@ -1090,9 +1036,8 @@ func TestModelUpdateHandlesKeyBindingsInSearchAndCommandModes(t *testing.T) {
 	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}}
 	updated, _ = model.Update(msg)
 	model = updated.(*Model)
-	// Should not affect search or command query
+	// Should not affect search query
 	assert.Equal(t, "", model.uiState.GetSearchQuery())
-	assert.Equal(t, "", model.uiState.GetCommandQuery())
 	// 'h', 'l', 'r', 'u' keys should work (already covered by other tests)
 }
 
@@ -1228,7 +1173,6 @@ func TestApplySearchFilterWithMockProvider(t *testing.T) {
 		notifications:       notifications,
 		filtered:            []notification.Notification{},
 	}
-	model.commandService = service.NewCommandService(&model, model.errorHandler)
 
 	model.uiState.SetSearchQuery("test")
 	model.uiState.SetWidth(80)
@@ -1542,53 +1486,6 @@ func TestBuildFilteredTreeGroupCounts(t *testing.T) {
 	require.NotNil(t, pane2)
 	assert.Equal(t, 1, pane1.Count)
 	assert.Equal(t, 1, pane2.Count)
-}
-
-func TestModelUpdateHandlesCommandMode(t *testing.T) {
-	tmpDir := t.TempDir()
-	setupConfig(t, tmpDir)
-
-	model := &Model{
-		uiState: NewUIState(),
-	}
-
-	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}}
-	updated, _ := model.Update(msg)
-	model = updated.(*Model)
-
-	assert.True(t, model.uiState.IsCommandMode())
-	assert.Equal(t, "", model.uiState.GetCommandQuery())
-
-	model.uiState.SetCommandMode(true)
-	model.uiState.SetCommandQuery("test")
-
-	msg = tea.KeyMsg{Type: tea.KeyEsc}
-	updated, cmd := model.Update(msg)
-	model = updated.(*Model)
-
-	assert.Nil(t, cmd)
-	assert.False(t, model.uiState.IsCommandMode())
-	assert.Equal(t, "", model.uiState.GetCommandQuery())
-
-	model.uiState.SetCommandMode(true)
-	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}}
-	updated, _ = model.Update(msg)
-	model = updated.(*Model)
-
-	assert.Equal(t, "q", model.uiState.GetCommandQuery())
-
-	msg = tea.KeyMsg{Type: tea.KeyBackspace}
-	updated, _ = model.Update(msg)
-	model = updated.(*Model)
-
-	assert.Equal(t, "", model.uiState.GetCommandQuery())
-
-	model.uiState.SetCommandMode(true)
-	model.uiState.SetCommandQuery("q")
-	msg = tea.KeyMsg{Type: tea.KeyEnter}
-	_, cmd = model.Update(msg)
-
-	assert.NotNil(t, cmd)
 }
 
 func TestModelUpdateHandlesWindowSize(t *testing.T) {

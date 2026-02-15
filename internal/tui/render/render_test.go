@@ -184,15 +184,6 @@ func TestFooterGroupedHelpText(t *testing.T) {
 	assert.Contains(t, footer, "Enter: toggle/jump")
 }
 
-func TestFooterCommandModeHelpText(t *testing.T) {
-	footer := Footer(FooterState{CommandMode: true, CommandQuery: "group-by window", ViewMode: settings.ViewModeGrouped})
-
-	assert.Contains(t, footer, "ESC: cancel")
-	assert.Contains(t, footer, "cmds: "+commandList)
-	assert.Contains(t, footer, ":group-by window")
-	assert.Contains(t, footer, "Enter: execute")
-}
-
 func TestFooterClampsToWidthAndClearsLine(t *testing.T) {
 	footer := Footer(FooterState{Grouped: true, ViewMode: settings.ViewModeGrouped, Width: 24})
 

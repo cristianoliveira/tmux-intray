@@ -47,7 +47,6 @@ type Model struct {
 	treeService         model.TreeService
 	notificationService model.NotificationService
 	runtimeCoordinator  model.RuntimeCoordinator
-	commandService      model.CommandService
 	// Legacy fields for backward compatibility
 	client            tmux.TmuxClient
 	sessionNames      map[string]string
@@ -133,9 +132,6 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 	if coordinator, ok := runtimeCoordinator.(*service.DefaultRuntimeCoordinator); ok {
 		coordinator.SetErrorHandler(m.errorHandler)
 	}
-
-	// Initialize command service after model creation (needs ModelInterface)
-	m.commandService = service.NewCommandService(&m, m.errorHandler)
 
 	// Load initial notifications
 	err := m.loadNotifications(false)

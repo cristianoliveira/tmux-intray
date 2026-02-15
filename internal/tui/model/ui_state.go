@@ -35,18 +35,6 @@ type UIState interface {
 	// SetSearchQuery sets the search query string.
 	SetSearchQuery(query string)
 
-	// GetCommandMode returns true if command mode is active.
-	GetCommandMode() bool
-
-	// SetCommandMode enables or disables command mode.
-	SetCommandMode(enabled bool)
-
-	// GetCommandQuery returns the current command query string.
-	GetCommandQuery() string
-
-	// SetCommandQuery sets the command query string.
-	SetCommandQuery(query string)
-
 	// GetViewMode returns the current view mode (compact, detailed, grouped).
 	GetViewMode() ViewMode
 
