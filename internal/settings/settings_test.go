@@ -25,6 +25,7 @@ func TestDefaultSettings(t *testing.T) {
 	// Check filters
 	assert.Equal(t, "", s.Filters.Level)
 	assert.Equal(t, "", s.Filters.State)
+	assert.Equal(t, "", s.Filters.Read)
 	assert.Equal(t, "", s.Filters.Session)
 	assert.Equal(t, "", s.Filters.Window)
 	assert.Equal(t, "", s.Filters.Pane)
@@ -86,6 +87,7 @@ func TestLoadFromExistingFile(t *testing.T) {
 		Filters: Filter{
 			Level:   LevelFilterWarning,
 			State:   StateFilterActive,
+			Read:    ReadFilterUnread,
 			Session: "my-session",
 		},
 		ViewMode:           ViewModeDetailed,
@@ -123,6 +125,7 @@ func TestLoadFromExistingFile(t *testing.T) {
 	assert.Equal(t, SortOrderAsc, settings.SortOrder)
 	assert.Equal(t, LevelFilterWarning, settings.Filters.Level)
 	assert.Equal(t, StateFilterActive, settings.Filters.State)
+	assert.Equal(t, ReadFilterUnread, settings.Filters.Read)
 	assert.Equal(t, "my-session", settings.Filters.Session)
 	assert.Equal(t, ViewModeDetailed, settings.ViewMode)
 	assert.Equal(t, GroupByWindow, settings.GroupBy)
@@ -394,6 +397,7 @@ func TestValidateValidSettings(t *testing.T) {
 				Filters: Filter{
 					Level:   LevelFilterWarning,
 					State:   StateFilterActive,
+					Read:    ReadFilterUnread,
 					Session: "session1",
 					Window:  "@1",
 					Pane:    "%1",
@@ -493,6 +497,13 @@ func TestValidateInvalidSettings(t *testing.T) {
 				Filters: Filter{State: "invalid"},
 			},
 			wantErr: "invalid filter state",
+		},
+		{
+			name: "invalid read filter",
+			settings: &Settings{
+				Filters: Filter{Read: "invalid"},
+			},
+			wantErr: "invalid filter read value",
 		},
 		{
 			name: "invalid groupBy",

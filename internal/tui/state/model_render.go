@@ -47,6 +47,7 @@ func (m *Model) View() string {
 		ViewMode:     string(m.uiState.GetViewMode()),
 		Width:        m.uiState.GetWidth(),
 		ErrorMessage: m.errorMessage,
+		ReadFilter:   m.filters.Read,
 	}))
 
 	return s.String()

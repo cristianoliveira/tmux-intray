@@ -292,8 +292,18 @@ func (s *DefaultNotificationService) GetFilteredNotifications() []notification.N
 	return s.filtered
 }
 
+// FilterByReadStatus filters notifications by read status.
+func (s *DefaultNotificationService) FilterByReadStatus(notifications []notification.Notification, readFilter string) []notification.Notification {
+	if readFilter == "" {
+		return notifications
+	}
+	domainNotifs := s.convertToDomain(notifications)
+	filtered := domain.FilterByReadStatus(domainNotifs, readFilter)
+	return s.convertFromDomain(filtered)
+}
+
 // ApplyFiltersAndSearch applies filters/search/sorting and stores filtered results.
-func (s *DefaultNotificationService) ApplyFiltersAndSearch(query, state, level, sessionID, windowID, paneID, sortBy, sortOrder string) {
+func (s *DefaultNotificationService) ApplyFiltersAndSearch(query, state, level, sessionID, windowID, paneID, readFilter, sortBy, sortOrder string) {
 	result := s.notifications
 	// Apply state filter
 	if state != "" {
@@ -314,6 +324,10 @@ func (s *DefaultNotificationService) ApplyFiltersAndSearch(query, state, level, 
 	// Apply pane filter
 	if paneID != "" {
 		result = s.FilterByPane(result, paneID)
+	}
+	// Apply read filter
+	if readFilter != "" {
+		result = s.FilterByReadStatus(result, readFilter)
 	}
 	// Apply search query filter
 	if query != "" {

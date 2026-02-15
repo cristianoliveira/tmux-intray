@@ -104,6 +104,12 @@ const (
 	LevelFilterCritical = "critical"
 )
 
+// Read filter constants.
+const (
+	ReadFilterRead   = "read"
+	ReadFilterUnread = "unread"
+)
+
 // Filter defines active filter criteria for notification display.
 type Filter struct {
 	// Level filters notifications by severity level.
@@ -115,6 +121,11 @@ type Filter struct {
 	// Empty string means no filter (show all states).
 	// Valid values: "active", "dismissed", "".
 	State string
+
+	// Read filters notifications by read status.
+	// Empty string means no filter (show all notifications).
+	// Valid values: "read", "unread", "".
+	Read string
 
 	// Session filters notifications by tmux session name.
 	// Empty string means no filter (show all sessions).
@@ -215,6 +226,7 @@ func (o GroupHeaderOptions) Validate() error {
 //	  "filters": {
 //	    "level": "",
 //	    "state": "",
+//	    "read": "",
 //	    "session": "",
 //	    "window": "",
 //	    "pane": ""
@@ -277,6 +289,7 @@ func DefaultSettings() *Settings {
 		Filters: Filter{
 			Level:   "",
 			State:   "",
+			Read:    "",
 			Session: "",
 			Window:  "",
 			Pane:    "",
@@ -468,16 +481,6 @@ func Reset() (*Settings, error) {
 	defaults := DefaultSettings()
 	colors.Debug("Settings reset to defaults")
 	return defaults, nil
-}
-
-// IsValidGroupBy returns true if groupBy is a supported grouping mode.
-func IsValidGroupBy(groupBy string) bool {
-	switch groupBy {
-	case GroupByNone, GroupBySession, GroupByWindow, GroupByPane, GroupByMessage:
-		return true
-	default:
-		return false
-	}
 }
 
 // getSettingsPath returns the path to the settings.toml file.

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/cristianoliveira/tmux-intray/internal/errors"
+	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -34,6 +35,16 @@ func (m *MockModelInterface) ApplySearchFilter() {
 
 func (m *MockModelInterface) ResetCursor() {
 	m.Called()
+}
+
+func (m *MockModelInterface) GetReadFilter() string {
+	args := m.Called()
+	return args.String(0)
+}
+
+func (m *MockModelInterface) SetReadFilter(value string) error {
+	args := m.Called(value)
+	return args.Error(0)
 }
 
 func (m *MockModelInterface) GetExpandLevel() int {
@@ -144,8 +155,8 @@ func TestGetAvailableCommands(t *testing.T) {
 
 	commands := service.GetAvailableCommands()
 
-	// Should have 5 default commands
-	assert.Len(t, commands, 5)
+	// Should have 6 default commands
+	assert.Len(t, commands, 6)
 
 	// Check for expected commands
 	cmdNames := make([]string, len(commands))
@@ -157,6 +168,7 @@ func TestGetAvailableCommands(t *testing.T) {
 	assert.Contains(t, cmdNames, "group-by")
 	assert.Contains(t, cmdNames, "expand-level")
 	assert.Contains(t, cmdNames, "toggle-view")
+	assert.Contains(t, cmdNames, "filter-read")
 }
 
 func TestGetCommandHelp(t *testing.T) {
@@ -168,6 +180,12 @@ func TestGetCommandHelp(t *testing.T) {
 	assert.NotEmpty(t, help)
 	assert.Contains(t, help, "q")
 	assert.Contains(t, help, "Quit")
+
+	// Test invalid command
+	help = service.GetCommandHelp("filter-read")
+	assert.NotEmpty(t, help)
+	assert.Contains(t, help, "filter-read")
+	assert.Contains(t, help, "read")
 
 	// Test invalid command
 	help = service.GetCommandHelp("nonexistent")
@@ -185,6 +203,10 @@ func TestGetCommandSuggestions(t *testing.T) {
 	// Test full match
 	suggestions = service.GetCommandSuggestions("q")
 	assert.Contains(t, suggestions, "q")
+
+	// Test filter-read suggestion
+	suggestions = service.GetCommandSuggestions("f")
+	assert.Contains(t, suggestions, "filter-read")
 
 	// Test no match
 	suggestions = service.GetCommandSuggestions("nonexistent")
@@ -308,6 +330,37 @@ func TestExecuteCommand_ToggleView(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, result.Error)
 	assert.Contains(t, result.Message, "View mode: grouped")
+	assert.Nil(t, result.Cmd)
+	mockModel.AssertExpectations(t)
+}
+
+func TestExecuteCommand_FilterRead(t *testing.T) {
+	mockModel := new(MockModelInterface)
+	mockModel.On("GetReadFilter").Return("")
+	mockModel.On("SetReadFilter", settings.ReadFilterUnread).Return(nil)
+	mockModel.On("ApplySearchFilter")
+	mockModel.On("ResetCursor")
+	mockModel.On("SaveSettings").Return(nil)
+	service := NewCommandService(mockModel, errors.NewTUIHandler(nil))
+
+	result, err := service.ExecuteCommand("filter-read", []string{"unread"})
+
+	assert.NoError(t, err)
+	assert.False(t, result.Error)
+	assert.Contains(t, result.Message, "Read filter: unread")
+	assert.Nil(t, result.Cmd)
+	mockModel.AssertExpectations(t)
+}
+
+func TestExecuteCommand_FilterReadAlreadySet(t *testing.T) {
+	mockModel := new(MockModelInterface)
+	mockModel.On("GetReadFilter").Return(settings.ReadFilterRead)
+	service := NewCommandService(mockModel, errors.NewTUIHandler(nil))
+
+	result, err := service.ExecuteCommand("filter-read", []string{"read"})
+	assert.NoError(t, err)
+	assert.False(t, result.Error)
+	assert.Contains(t, result.Message, "already set")
 	assert.Nil(t, result.Cmd)
 	mockModel.AssertExpectations(t)
 }

@@ -77,6 +77,8 @@ func (m *Model) executeCommand() tea.Cmd {
 
 	case "toggle-view":
 		return m.handleToggleViewCommand(args)
+	case "filter-read":
+		return m.handleFilterReadCommand(args)
 	default:
 		m.errorHandler.Warning(fmt.Sprintf("Unknown command: %s", command))
 		return errorMsgAfter(errorClearDuration)
@@ -180,4 +182,50 @@ func (m *Model) handleToggleViewCommand(args []string) tea.Cmd {
 	}
 	m.errorHandler.Info(fmt.Sprintf("View mode: %s", m.uiState.GetViewMode()))
 	return nil
+}
+
+func (m *Model) handleFilterReadCommand(args []string) tea.Cmd {
+	if len(args) != 1 {
+		m.errorHandler.Warning("Invalid usage: filter-read <read|unread|all>")
+		return errorMsgAfter(errorClearDuration)
+	}
+
+	value, label, err := parseReadFilterArg(args[0])
+	if err != nil {
+		m.errorHandler.Warning(err.Error())
+		return errorMsgAfter(errorClearDuration)
+	}
+
+	if m.filters.Read == value {
+		m.errorHandler.Info(fmt.Sprintf("Read filter: %s (already set)", label))
+		return nil
+	}
+
+	if err := m.SetReadFilter(value); err != nil {
+		m.errorHandler.Warning(fmt.Sprintf("Failed to set read filter: %v", err))
+		return errorMsgAfter(errorClearDuration)
+	}
+
+	m.applySearchFilter()
+	m.resetCursor()
+	if err := m.saveSettings(); err != nil {
+		m.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+		return errorMsgAfter(errorClearDuration)
+	}
+
+	m.errorHandler.Info(fmt.Sprintf("Read filter: %s", label))
+	return nil
+}
+
+func parseReadFilterArg(raw string) (string, string, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "all", "":
+		return "", "all", nil
+	case settings.ReadFilterRead:
+		return settings.ReadFilterRead, settings.ReadFilterRead, nil
+	case settings.ReadFilterUnread:
+		return settings.ReadFilterUnread, settings.ReadFilterUnread, nil
+	default:
+		return "", "", fmt.Errorf("invalid read filter value: %s (expected read|unread|all)", raw)
+	}
 }

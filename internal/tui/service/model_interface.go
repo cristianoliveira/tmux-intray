@@ -35,4 +35,10 @@ type ModelInterface interface {
 
 	// GetViewMode returns the current view mode.
 	GetViewMode() string
+
+	// GetReadFilter returns the current read filter value.
+	GetReadFilter() string
+
+	// SetReadFilter updates the read filter value.
+	SetReadFilter(value string) error
 }

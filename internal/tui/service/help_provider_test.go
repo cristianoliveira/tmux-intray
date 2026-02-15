@@ -36,6 +36,11 @@ func TestGetHelp(t *testing.T) {
 	assert.Contains(t, help, "toggle-view")
 	assert.Contains(t, help, "view modes")
 
+	help = provider.GetHelp("filter-read")
+	assert.NotEmpty(t, help)
+	assert.Contains(t, help, "filter-read")
+	assert.Contains(t, help, "read/unread")
+
 	// Test invalid command
 	help = provider.GetHelp("nonexistent")
 	assert.Empty(t, help)
@@ -45,7 +50,7 @@ func TestGetAllHelp(t *testing.T) {
 	provider := NewDefaultHelpProvider()
 
 	helps := provider.GetAllHelp()
-	assert.Len(t, helps, 5) // q, w, group-by, expand-level, toggle-view
+	assert.Len(t, helps, 6) // q, w, group-by, expand-level, toggle-view, filter-read
 
 	// Check for each command
 	commandNames := make([]string, len(helps))
@@ -58,6 +63,7 @@ func TestGetAllHelp(t *testing.T) {
 	assert.Contains(t, commandNames, "group-by")
 	assert.Contains(t, commandNames, "expand-level")
 	assert.Contains(t, commandNames, "toggle-view")
+	assert.Contains(t, commandNames, "filter-read")
 
 	// Check that each help has the expected fields
 	for _, help := range helps {

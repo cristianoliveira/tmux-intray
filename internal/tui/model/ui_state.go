@@ -186,6 +186,9 @@ type Filters struct {
 	// State filters by notification state (active, dismissed).
 	State string
 
+	// Read filters by read/unread status.
+	Read string
+
 	// Session filters by session ID.
 	Session string
 

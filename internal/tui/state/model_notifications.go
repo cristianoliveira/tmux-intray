@@ -104,6 +104,7 @@ func (m *Model) applySearchFilter() {
 		m.filters.Session,
 		m.filters.Window,
 		m.filters.Pane,
+		m.filters.Read,
 		m.sortBy,
 		m.sortOrder,
 	)

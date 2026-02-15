@@ -238,6 +238,7 @@ func TestFooterGroupedHelpText(t *testing.T) {
 	footer := Footer(FooterState{Grouped: true, ViewMode: settings.ViewModeGrouped})
 
 	assert.Contains(t, footer, "mode: [G]")
+	assert.Contains(t, footer, "read: all")
 	assert.Contains(t, footer, "v: cycle view mode")
 	assert.Contains(t, footer, "gg/G: top/bottom")
 	assert.Contains(t, footer, "h/l: collapse/expand")
@@ -252,6 +253,14 @@ func TestFooterCommandModeHelpText(t *testing.T) {
 	assert.Contains(t, footer, "cmds: "+commandList)
 	assert.Contains(t, footer, ":group-by window")
 	assert.Contains(t, footer, "Enter: execute")
+}
+
+func TestFooterReadFilterIndicator(t *testing.T) {
+	footer := Footer(FooterState{ViewMode: settings.ViewModeGrouped, ReadFilter: settings.ReadFilterUnread})
+	assert.Contains(t, footer, "read: unread")
+
+	footer = Footer(FooterState{ViewMode: settings.ViewModeGrouped, ReadFilter: settings.ReadFilterRead})
+	assert.Contains(t, footer, "read: read")
 }
 
 func TestFooterClampsToWidthAndClearsLine(t *testing.T) {
