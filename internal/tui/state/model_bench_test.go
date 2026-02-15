@@ -227,14 +227,28 @@ func (s *dummyTreeService) convertNode(stateNode *Node) *model.TreeNode {
 	}
 
 	modelNode := &model.TreeNode{
-		Kind:         model.NodeKind(stateNode.Kind),
-		Title:        stateNode.Title,
-		Display:      stateNode.Display,
-		Expanded:     stateNode.Expanded,
-		Notification: stateNode.Notification,
-		Count:        stateNode.Count,
-		UnreadCount:  stateNode.UnreadCount,
-		LatestEvent:  stateNode.LatestEvent,
+		Kind:          model.NodeKind(stateNode.Kind),
+		Title:         stateNode.Title,
+		Display:       stateNode.Display,
+		Expanded:      stateNode.Expanded,
+		Notification:  stateNode.Notification,
+		Count:         stateNode.Count,
+		UnreadCount:   stateNode.UnreadCount,
+		LatestEvent:   stateNode.LatestEvent,
+		EarliestEvent: stateNode.EarliestEvent,
+	}
+
+	if len(stateNode.LevelCounts) > 0 {
+		modelNode.LevelCounts = make(map[string]int, len(stateNode.LevelCounts))
+		for level, count := range stateNode.LevelCounts {
+			modelNode.LevelCounts[level] = count
+		}
+	}
+	if len(stateNode.Sources) > 0 {
+		modelNode.Sources = make(map[string]model.NotificationSource, len(stateNode.Sources))
+		for key, src := range stateNode.Sources {
+			modelNode.Sources[key] = src
+		}
 	}
 
 	for _, child := range stateNode.Children {

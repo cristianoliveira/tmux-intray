@@ -161,6 +161,17 @@ viewMode = "grouped"
 groupBy = "none"
 defaultExpandLevel = 1
 expansionState = {}
+
+[groupHeader]
+showTimeRange = true
+showLevelBadges = true
+showSourceAggregation = false
+
+[groupHeader.badgeColors]
+info = "\u001b[0;34m"
+warning = "\u001b[1;33m"
+error = "\u001b[0;31m"
+critical = "\u001b[0;31m"
 ```
 
 #### Settings Fields
@@ -179,6 +190,10 @@ expansionState = {}
 | `groupBy` | string | Group notifications in the TUI | `"none"` | `"none"`, `"session"`, `"window"`, `"pane"`, `"message"` |
 | `defaultExpandLevel` | number | Default grouping expansion depth | `1` | `0`-`3` |
 | `expansionState` | object | Explicit expansion overrides by node path | `{}` | Object of string to boolean |
+| `groupHeader.showTimeRange` | bool | Show earliest/latest ages in group headers | `true` | `true`, `false` |
+| `groupHeader.showLevelBadges` | bool | Show per-level counts as badges | `true` | `true`, `false` |
+| `groupHeader.showSourceAggregation` | bool | Show aggregated pane/source info | `false` | `true`, `false` |
+| `groupHeader.badgeColors` | table | ANSI color codes per level (`info`, `warning`, `error`, `critical`) | defaults shown above | Strings containing ANSI escape sequences |
 
 `groupBy` controls the depth of grouped view hierarchy:
 
@@ -208,6 +223,17 @@ viewMode = "grouped"
 groupBy = "none"
 defaultExpandLevel = 1
 expansionState = {}
+
+[groupHeader]
+showTimeRange = true
+showLevelBadges = true
+showSourceAggregation = false
+
+[groupHeader.badgeColors]
+info = "\u001b[0;34m"
+warning = "\u001b[1;33m"
+error = "\u001b[0;31m"
+critical = "\u001b[0;31m"
 ```
 
 ### How Settings Are Saved
@@ -298,6 +324,21 @@ defaultExpandLevel = 2
 
 [expansionState]
 "session:work" = true
+
+**Customize group headers:**
+
+```toml
+[groupHeader]
+showTimeRange = false
+showLevelBadges = false
+showSourceAggregation = true
+
+[groupHeader.badgeColors]
+info = "\u001b[0;36m"
+warning = "\u001b[1;33m"
+error = "\u001b[0;31m"
+critical = "\u001b[0;31m"
+```
 ```
 
 ### Error Handling

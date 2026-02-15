@@ -100,6 +100,12 @@ func applyNonEmptyFilters(src settings.Filter, dest *settings.Filter) {
 
 func (s *settingsService) save(state settings.TUIState) error {
 	nextSettings := state.ToSettings()
+	if s.loadedSettings != nil {
+		nextSettings.GroupHeader = s.loadedSettings.GroupHeader.Clone()
+	} else {
+		defaults := settings.DefaultGroupHeaderOptions()
+		nextSettings.GroupHeader = defaults
+	}
 	if s.loadedSettings != nil && reflect.DeepEqual(*s.loadedSettings, *nextSettings) {
 		return nil
 	}

@@ -42,6 +42,8 @@ type Model struct {
 	filters        settings.Filter
 	loadedSettings *settings.Settings // Track loaded settings for comparison
 	settingsSvc    *settingsService
+	// UI render options
+	groupHeaderOptions settings.GroupHeaderOptions
 
 	// Services - implementing BubbleTea nested model pattern
 	treeService         model.TreeService
@@ -114,12 +116,13 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 		notificationService: notificationService,
 		settingsSvc:         newSettingsService(),
 		// Legacy fields kept for backward compatibility but now using services
-		client:            client,
-		sessionNames:      runtimeCoordinator.GetSessionNames(),
-		windowNames:       runtimeCoordinator.GetWindowNames(),
-		paneNames:         runtimeCoordinator.GetPaneNames(),
-		ensureTmuxRunning: core.EnsureTmuxRunning,
-		jumpToPane:        core.JumpToPane,
+		client:             client,
+		sessionNames:       runtimeCoordinator.GetSessionNames(),
+		windowNames:        runtimeCoordinator.GetWindowNames(),
+		paneNames:          runtimeCoordinator.GetPaneNames(),
+		ensureTmuxRunning:  core.EnsureTmuxRunning,
+		jumpToPane:         core.JumpToPane,
+		groupHeaderOptions: settings.DefaultGroupHeaderOptions(),
 	}
 
 	// Initialize error handler with callback that sets error message

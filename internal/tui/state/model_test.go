@@ -40,6 +40,25 @@ func setupConfig(t *testing.T, dir string) {
 	t.Setenv("TMUX_INTRAY_CONFIG_DIR", dir)
 }
 
+func disableModelGroupOptions(m *Model) {
+	if m == nil {
+		return
+	}
+	options := settings.DefaultGroupHeaderOptions()
+	options.ShowTimeRange = false
+	options.ShowLevelBadges = false
+	options.ShowSourceAggregation = false
+	m.groupHeaderOptions = options
+}
+
+func disabledRenderGroupOptions() settings.GroupHeaderOptions {
+	options := settings.DefaultGroupHeaderOptions()
+	options.ShowTimeRange = false
+	options.ShowLevelBadges = false
+	options.ShowSourceAggregation = false
+	return options
+}
+
 // newTestModel creates a test model with all services initialized, without loading from storage.
 func newTestModel(t *testing.T, notifications []notification.Notification) *Model {
 	t.Helper()
@@ -74,12 +93,13 @@ func newTestModel(t *testing.T, notifications []notification.Notification) *Mode
 		notificationService: notificationService,
 		errorHandler:        errors.NewTUIHandler(nil),
 		// Legacy fields kept for backward compatibility but now using services
-		client:            mockClient,
-		sessionNames:      runtimeCoordinator.GetSessionNames(),
-		windowNames:       runtimeCoordinator.GetWindowNames(),
-		paneNames:         runtimeCoordinator.GetPaneNames(),
-		ensureTmuxRunning: core.EnsureTmuxRunning,
-		jumpToPane:        core.JumpToPane,
+		client:             mockClient,
+		sessionNames:       runtimeCoordinator.GetSessionNames(),
+		windowNames:        runtimeCoordinator.GetWindowNames(),
+		paneNames:          runtimeCoordinator.GetPaneNames(),
+		ensureTmuxRunning:  core.EnsureTmuxRunning,
+		jumpToPane:         core.JumpToPane,
+		groupHeaderOptions: settings.DefaultGroupHeaderOptions(),
 	}
 	m.syncNotificationMirrors()
 
@@ -271,6 +291,7 @@ func TestModelGroupedModeBuildsVisibleNodes(t *testing.T) {
 	model.uiState.SetViewMode(viewModeGrouped)
 	model.uiState.SetGroupBy(settings.GroupByPane)
 
+	disableModelGroupOptions(model)
 	model.applySearchFilter()
 	model.resetCursor()
 
@@ -1677,6 +1698,7 @@ func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 	model.uiState.SetViewMode(viewModeGrouped)
 	model.uiState.SetGroupBy(settings.GroupByPane)
 
+	disableModelGroupOptions(model)
 	model.applySearchFilter()
 	model.resetCursor()
 	require.NotEmpty(t, model.getVisibleNodesForTest())
@@ -1689,14 +1711,16 @@ func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 
 	expectedGroupRow := render.RenderGroupRow(render.GroupRow{
 		Node: &render.GroupNode{
-			Title:    groupNode.Title,
-			Display:  groupNode.Display,
-			Expanded: groupNode.Expanded,
-			Count:    groupNode.Count,
+			Title:       groupNode.Title,
+			Display:     groupNode.Display,
+			Expanded:    groupNode.Expanded,
+			Count:       groupNode.Count,
+			UnreadCount: groupNode.UnreadCount,
 		},
 		Selected: true,
 		Level:    getTreeLevel(groupNode),
 		Width:    model.uiState.GetWidth(),
+		Options:  disabledRenderGroupOptions(),
 	})
 	assert.Contains(t, content, expectedGroupRow)
 
@@ -1774,14 +1798,16 @@ func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
 
 	expectedGroupRow := render.RenderGroupRow(render.GroupRow{
 		Node: &render.GroupNode{
-			Title:    groupNode.Title,
-			Display:  groupNode.Display,
-			Expanded: groupNode.Expanded,
-			Count:    groupNode.Count,
+			Title:       groupNode.Title,
+			Display:     groupNode.Display,
+			Expanded:    groupNode.Expanded,
+			Count:       groupNode.Count,
+			UnreadCount: groupNode.UnreadCount,
 		},
 		Selected: false,
 		Level:    getTreeLevel(groupNode),
 		Width:    model.uiState.GetWidth(),
+		Options:  disabledRenderGroupOptions(),
 	})
 	assert.Contains(t, content, expectedGroupRow)
 }

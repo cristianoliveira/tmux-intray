@@ -23,15 +23,18 @@ const (
 
 // Node represents a tree node for hierarchical notification grouping.
 type Node struct {
-	Kind         NodeKind
-	Title        string
-	Display      string
-	Expanded     bool
-	Children     []*Node
-	Notification *notification.Notification
-	Count        int
-	UnreadCount  int
-	LatestEvent  *notification.Notification
+	Kind          NodeKind
+	Title         string
+	Display       string
+	Expanded      bool
+	Children      []*Node
+	Notification  *notification.Notification
+	Count         int
+	UnreadCount   int
+	LatestEvent   *notification.Notification
+	EarliestEvent *notification.Notification
+	LevelCounts   map[string]int
+	Sources       map[string]model.NotificationSource
 }
 
 // BuildTree groups notifications according to the configured groupBy depth.
@@ -162,6 +165,24 @@ func incrementGroupStats(node *Node, notif notification.Notification) {
 	if node.LatestEvent == nil || isNewerTimestamp(notif.Timestamp, node.LatestEvent.Timestamp) {
 		node.LatestEvent = &notif
 	}
+	if node.EarliestEvent == nil || isOlderTimestamp(notif.Timestamp, node.EarliestEvent.Timestamp) {
+		node.EarliestEvent = &notif
+	}
+	if node.LevelCounts == nil {
+		node.LevelCounts = make(map[string]int)
+	}
+	level := notif.Level
+	if level == "" {
+		level = settings.LevelFilterInfo
+	}
+	node.LevelCounts[level]++
+	if notif.Session != "" || notif.Window != "" || notif.Pane != "" {
+		if node.Sources == nil {
+			node.Sources = make(map[string]model.NotificationSource)
+		}
+		src := model.NotificationSource{Session: notif.Session, Window: notif.Window, Pane: notif.Pane}
+		node.Sources[src.SourceKey()] = src
+	}
 }
 
 // Assumes timestamps are ISO 8601 strings lexicographically comparable (e.g., 2024-01-02T10:00:00Z).
@@ -173,6 +194,16 @@ func isNewerTimestamp(current string, latest string) bool {
 		return true
 	}
 	return current > latest
+}
+
+func isOlderTimestamp(current string, earliest string) bool {
+	if current == "" {
+		return false
+	}
+	if earliest == "" {
+		return true
+	}
+	return current < earliest
 }
 
 func sortTree(node *Node) {
