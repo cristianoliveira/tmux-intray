@@ -104,6 +104,12 @@ const (
 	LevelFilterCritical = "critical"
 )
 
+// Read filter constants.
+const (
+	ReadFilterRead   = "read"
+	ReadFilterUnread = "unread"
+)
+
 // Filter defines active filter criteria for notification display.
 type Filter struct {
 	// Level filters notifications by severity level.
@@ -115,6 +121,11 @@ type Filter struct {
 	// Empty string means no filter (show all states).
 	// Valid values: "active", "dismissed", "".
 	State string
+
+	// Read filters notifications by read status.
+	// Empty string means no filter (show all notifications).
+	// Valid values: "read", "unread", "".
+	Read string
 
 	// Session filters notifications by tmux session name.
 	// Empty string means no filter (show all sessions).
@@ -129,6 +140,81 @@ type Filter struct {
 	Pane string
 }
 
+// GroupHeaderOptions controls how group headers render additional context.
+type GroupHeaderOptions struct {
+	// ShowTimeRange toggles whether grouped nodes display earliest/latest ages.
+	ShowTimeRange bool `toml:"showTimeRange"`
+
+	// ShowLevelBadges toggles whether grouped nodes display level badges.
+	ShowLevelBadges bool `toml:"showLevelBadges"`
+
+	// ShowSourceAggregation toggles whether grouped nodes display source info.
+	ShowSourceAggregation bool `toml:"showSourceAggregation"`
+
+	// BadgeColors defines ANSI color codes per level key.
+	// Keys: info, warning, error, critical.
+	BadgeColors map[string]string `toml:"badgeColors"`
+}
+
+// DefaultGroupHeaderOptions returns default rendering options for group headers.
+func DefaultGroupHeaderOptions() GroupHeaderOptions {
+	return GroupHeaderOptions{
+		ShowTimeRange:         true,
+		ShowLevelBadges:       true,
+		ShowSourceAggregation: false,
+		BadgeColors:           defaultBadgeColors(),
+	}
+}
+
+// Clone returns a copy of the options with a deep copy of BadgeColors.
+func (o GroupHeaderOptions) Clone() GroupHeaderOptions {
+	clone := GroupHeaderOptions{
+		ShowTimeRange:         o.ShowTimeRange,
+		ShowLevelBadges:       o.ShowLevelBadges,
+		ShowSourceAggregation: o.ShowSourceAggregation,
+		BadgeColors:           make(map[string]string, len(o.BadgeColors)),
+	}
+	for level, color := range o.BadgeColors {
+		clone.BadgeColors[level] = color
+	}
+	clone.normalize()
+	return clone
+}
+
+func defaultBadgeColors() map[string]string {
+	return map[string]string{
+		LevelFilterInfo:     colors.Blue,
+		LevelFilterWarning:  colors.Yellow,
+		LevelFilterError:    colors.Red,
+		LevelFilterCritical: colors.Red,
+	}
+}
+
+func (o *GroupHeaderOptions) normalize() {
+	if o == nil {
+		return
+	}
+	if o.BadgeColors == nil {
+		o.BadgeColors = make(map[string]string)
+	}
+	for level, color := range defaultBadgeColors() {
+		if o.BadgeColors[level] == "" {
+			o.BadgeColors[level] = color
+		}
+	}
+}
+
+// Validate ensures the options structure is well-formed.
+func (o GroupHeaderOptions) Validate() error {
+	requiredLevels := []string{LevelFilterInfo, LevelFilterWarning, LevelFilterError, LevelFilterCritical}
+	for _, level := range requiredLevels {
+		if o.BadgeColors[level] == "" {
+			return fmt.Errorf("missing badge color for level: %s", level)
+		}
+	}
+	return nil
+}
+
 // Settings holds TUI user preferences persisted to disk.
 //
 // TOML Schema:
@@ -140,6 +226,7 @@ type Filter struct {
 //	  "filters": {
 //	    "level": "",
 //	    "state": "",
+//	    "read": "",
 //	    "session": "",
 //	    "window": "",
 //	    "pane": ""
@@ -188,6 +275,9 @@ type Settings struct {
 
 	// ExpansionState stores explicit expansion overrides by node path.
 	ExpansionState map[string]bool
+
+	// GroupHeader configures group header rendering.
+	GroupHeader GroupHeaderOptions `toml:"groupHeader"`
 }
 
 // DefaultSettings returns settings with all default values.
@@ -199,6 +289,7 @@ func DefaultSettings() *Settings {
 		Filters: Filter{
 			Level:   "",
 			State:   "",
+			Read:    "",
 			Session: "",
 			Window:  "",
 			Pane:    "",
@@ -208,6 +299,7 @@ func DefaultSettings() *Settings {
 		DefaultExpandLevel: 1,
 		AutoExpandUnread:   false, // Default to false to avoid unexpected behavior
 		ExpansionState:     map[string]bool{},
+		GroupHeader:        DefaultGroupHeaderOptions(),
 	}
 }
 
@@ -389,86 +481,6 @@ func Reset() (*Settings, error) {
 	defaults := DefaultSettings()
 	colors.Debug("Settings reset to defaults")
 	return defaults, nil
-}
-
-// Validate checks that settings values are valid.
-// Preconditions: settings must be non-nil.
-func Validate(settings *Settings) error {
-	// Validate columns
-	validColumns := map[string]bool{
-		ColumnID: true, ColumnTimestamp: true, ColumnState: true,
-		ColumnSession: true, ColumnWindow: true, ColumnPane: true,
-		ColumnMessage: true, ColumnPaneCreated: true, ColumnLevel: true,
-	}
-	if len(settings.Columns) > 0 {
-		for _, col := range settings.Columns {
-			if !validColumns[col] {
-				return fmt.Errorf("invalid column name: %s", col)
-			}
-		}
-	}
-
-	// Validate sortBy
-	validSortBy := map[string]bool{
-		SortByID: true, SortByTimestamp: true, SortByState: true,
-		SortByLevel: true, SortBySession: true,
-	}
-	if settings.SortBy != "" && !validSortBy[settings.SortBy] {
-		return fmt.Errorf("invalid sortBy value: %s", settings.SortBy)
-	}
-
-	// Validate sortOrder
-	if settings.SortOrder != "" && settings.SortOrder != SortOrderAsc && settings.SortOrder != SortOrderDesc {
-		return fmt.Errorf("invalid sortOrder value: %s", settings.SortOrder)
-	}
-
-	// Validate viewMode
-	if settings.ViewMode != "" && settings.ViewMode != ViewModeCompact && settings.ViewMode != ViewModeDetailed && settings.ViewMode != ViewModeGrouped {
-		return fmt.Errorf("invalid viewMode value: %s", settings.ViewMode)
-	}
-
-	// Validate groupBy
-	if settings.GroupBy != "" && !IsValidGroupBy(settings.GroupBy) {
-		return fmt.Errorf("invalid groupBy value: %s", settings.GroupBy)
-	}
-
-	// Validate defaultExpandLevel
-	if settings.DefaultExpandLevel < MinExpandLevel || settings.DefaultExpandLevel > MaxExpandLevel {
-		return fmt.Errorf("invalid defaultExpandLevel value: %d", settings.DefaultExpandLevel)
-	}
-
-	// Validate filters
-	validLevels := map[string]bool{
-		"": true, LevelFilterInfo: true, LevelFilterWarning: true,
-		LevelFilterError: true, LevelFilterCritical: true,
-	}
-	if !validLevels[settings.Filters.Level] {
-		return fmt.Errorf("invalid filter level: %s", settings.Filters.Level)
-	}
-
-	validStates := map[string]bool{
-		"": true, StateFilterActive: true, StateFilterDismissed: true,
-	}
-	if !validStates[settings.Filters.State] {
-		return fmt.Errorf("invalid filter state: %s", settings.Filters.State)
-	}
-
-	return nil
-}
-
-// IsValidGroupBy returns true if groupBy is a supported grouping mode.
-func IsValidGroupBy(groupBy string) bool {
-	switch groupBy {
-	case GroupByNone, GroupBySession, GroupByWindow, GroupByPane, GroupByMessage:
-		return true
-	default:
-		return false
-	}
-}
-
-// validate is an alias for Validate for internal use.
-func validate(settings *Settings) error {
-	return Validate(settings)
 }
 
 // getSettingsPath returns the path to the settings.toml file.

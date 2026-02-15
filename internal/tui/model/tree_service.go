@@ -3,6 +3,8 @@
 package model
 
 import (
+	"fmt"
+
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 )
 
@@ -95,6 +97,27 @@ type TreeNode struct {
 
 	// LatestEvent is the most recent notification under this group node.
 	LatestEvent *notification.Notification
+
+	// EarliestEvent is the oldest notification under this group node.
+	EarliestEvent *notification.Notification
+
+	// LevelCounts tracks counts per notification level.
+	LevelCounts map[string]int
+
+	// Sources contains unique source references contributing to this node.
+	Sources map[string]NotificationSource
+}
+
+// NotificationSource represents a unique tmux context for notifications.
+type NotificationSource struct {
+	Session string
+	Window  string
+	Pane    string
+}
+
+// SourceKey returns a stable key for the source.
+func (s NotificationSource) SourceKey() string {
+	return fmt.Sprintf("%s\x00%s\x00%s", s.Session, s.Window, s.Pane)
 }
 
 // NodeKind represents the type of a tree node.
@@ -112,6 +135,9 @@ const (
 
 	// NodeKindPane represents a pane group node.
 	NodeKindPane NodeKind = "pane"
+
+	// NodeKindMessage represents a message group node.
+	NodeKindMessage NodeKind = "message"
 
 	// NodeKindNotification represents a leaf node containing a notification.
 	NodeKindNotification NodeKind = "notification"

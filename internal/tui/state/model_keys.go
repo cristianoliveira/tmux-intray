@@ -3,6 +3,7 @@ package state
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -505,5 +506,23 @@ func (m *Model) SetExpandLevel(level int) error {
 	}
 
 	m.uiState.SetExpandLevel(level)
+	return nil
+}
+
+// GetReadFilter returns the current persisted read filter value.
+func (m *Model) GetReadFilter() string {
+	return m.filters.Read
+}
+
+// SetReadFilter updates the read filter preference.
+func (m *Model) SetReadFilter(value string) error {
+	normalized := strings.ToLower(value)
+	if normalized != "" && normalized != settings.ReadFilterRead && normalized != settings.ReadFilterUnread {
+		return fmt.Errorf("invalid read filter value: %s", value)
+	}
+	if m.filters.Read == normalized {
+		return nil
+	}
+	m.filters.Read = normalized
 	return nil
 }

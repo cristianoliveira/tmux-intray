@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/pelletier/go-toml/v2"
 	"github.com/stretchr/testify/assert"
@@ -24,6 +25,7 @@ func TestDefaultSettings(t *testing.T) {
 	// Check filters
 	assert.Equal(t, "", s.Filters.Level)
 	assert.Equal(t, "", s.Filters.State)
+	assert.Equal(t, "", s.Filters.Read)
 	assert.Equal(t, "", s.Filters.Session)
 	assert.Equal(t, "", s.Filters.Window)
 	assert.Equal(t, "", s.Filters.Pane)
@@ -35,6 +37,15 @@ func TestDefaultSettings(t *testing.T) {
 	assert.Equal(t, GroupByNone, s.GroupBy)
 	assert.Equal(t, 1, s.DefaultExpandLevel)
 	assert.Equal(t, map[string]bool{}, s.ExpansionState)
+
+	// Check group header options
+	assert.True(t, s.GroupHeader.ShowTimeRange)
+	assert.True(t, s.GroupHeader.ShowLevelBadges)
+	assert.False(t, s.GroupHeader.ShowSourceAggregation)
+	assert.Equal(t, colors.Blue, s.GroupHeader.BadgeColors[LevelFilterInfo])
+	assert.Equal(t, colors.Yellow, s.GroupHeader.BadgeColors[LevelFilterWarning])
+	assert.Equal(t, colors.Red, s.GroupHeader.BadgeColors[LevelFilterError])
+	assert.Equal(t, colors.Red, s.GroupHeader.BadgeColors[LevelFilterCritical])
 }
 
 func TestLoadDefaultWhenFileDoesNotExist(t *testing.T) {
@@ -56,6 +67,7 @@ func TestLoadDefaultWhenFileDoesNotExist(t *testing.T) {
 	assert.Equal(t, expected.GroupBy, settings.GroupBy)
 	assert.Equal(t, expected.DefaultExpandLevel, settings.DefaultExpandLevel)
 	assert.Equal(t, expected.ExpansionState, settings.ExpansionState)
+	assert.Equal(t, expected.GroupHeader, settings.GroupHeader)
 }
 
 func TestLoadFromExistingFile(t *testing.T) {
@@ -75,6 +87,7 @@ func TestLoadFromExistingFile(t *testing.T) {
 		Filters: Filter{
 			Level:   LevelFilterWarning,
 			State:   StateFilterActive,
+			Read:    ReadFilterUnread,
 			Session: "my-session",
 		},
 		ViewMode:           ViewModeDetailed,
@@ -82,6 +95,17 @@ func TestLoadFromExistingFile(t *testing.T) {
 		DefaultExpandLevel: 2,
 		ExpansionState: map[string]bool{
 			"window:@1": true,
+		},
+		GroupHeader: GroupHeaderOptions{
+			ShowTimeRange:         false,
+			ShowLevelBadges:       true,
+			ShowSourceAggregation: true,
+			BadgeColors: map[string]string{
+				LevelFilterInfo:     colors.Green,
+				LevelFilterWarning:  colors.Yellow,
+				LevelFilterError:    colors.Red,
+				LevelFilterCritical: colors.Red,
+			},
 		},
 	}
 
@@ -101,11 +125,13 @@ func TestLoadFromExistingFile(t *testing.T) {
 	assert.Equal(t, SortOrderAsc, settings.SortOrder)
 	assert.Equal(t, LevelFilterWarning, settings.Filters.Level)
 	assert.Equal(t, StateFilterActive, settings.Filters.State)
+	assert.Equal(t, ReadFilterUnread, settings.Filters.Read)
 	assert.Equal(t, "my-session", settings.Filters.Session)
 	assert.Equal(t, ViewModeDetailed, settings.ViewMode)
 	assert.Equal(t, GroupByWindow, settings.GroupBy)
 	assert.Equal(t, 2, settings.DefaultExpandLevel)
 	assert.Equal(t, map[string]bool{"window:@1": true}, settings.ExpansionState)
+	assert.Equal(t, customSettings.GroupHeader, settings.GroupHeader)
 }
 
 func TestLoadPartialSettings(t *testing.T) {
@@ -140,6 +166,7 @@ viewMode = "detailed"
 	assert.Equal(t, GroupByNone, settings.GroupBy)
 	assert.Equal(t, 1, settings.DefaultExpandLevel)
 	assert.Equal(t, map[string]bool{}, settings.ExpansionState)
+	assert.Equal(t, DefaultSettings().GroupHeader, settings.GroupHeader)
 }
 
 func TestLoadInvalidTOML(t *testing.T) {
@@ -242,6 +269,17 @@ func TestSave(t *testing.T) {
 		ExpansionState: map[string]bool{
 			"session:$1": true,
 		},
+		GroupHeader: GroupHeaderOptions{
+			ShowTimeRange:         true,
+			ShowLevelBadges:       false,
+			ShowSourceAggregation: false,
+			BadgeColors: map[string]string{
+				LevelFilterInfo:     colors.Blue,
+				LevelFilterWarning:  colors.Yellow,
+				LevelFilterError:    colors.Red,
+				LevelFilterCritical: colors.Red,
+			},
+		},
 	}
 
 	// Save settings
@@ -269,6 +307,7 @@ func TestSave(t *testing.T) {
 	assert.Equal(t, settings.GroupBy, loaded.GroupBy)
 	assert.Equal(t, settings.DefaultExpandLevel, loaded.DefaultExpandLevel)
 	assert.Equal(t, settings.ExpansionState, loaded.ExpansionState)
+	assert.Equal(t, settings.GroupHeader, loaded.GroupHeader)
 }
 
 func TestSaveInvalidSettings(t *testing.T) {
@@ -358,6 +397,7 @@ func TestValidateValidSettings(t *testing.T) {
 				Filters: Filter{
 					Level:   LevelFilterWarning,
 					State:   StateFilterActive,
+					Read:    ReadFilterUnread,
 					Session: "session1",
 					Window:  "@1",
 					Pane:    "%1",
@@ -457,6 +497,13 @@ func TestValidateInvalidSettings(t *testing.T) {
 				Filters: Filter{State: "invalid"},
 			},
 			wantErr: "invalid filter state",
+		},
+		{
+			name: "invalid read filter",
+			settings: &Settings{
+				Filters: Filter{Read: "invalid"},
+			},
+			wantErr: "invalid filter read value",
 		},
 		{
 			name: "invalid groupBy",

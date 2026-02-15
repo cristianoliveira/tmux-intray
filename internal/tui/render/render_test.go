@@ -1,6 +1,7 @@
 package render
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -123,6 +124,7 @@ func TestRenderGroupRowIndentationAndSymbol(t *testing.T) {
 		Base:     lipgloss.NewStyle(),
 		Selected: lipgloss.NewStyle(),
 	}
+	options := disabledGroupHeaderOptions()
 
 	row := RenderGroupRow(GroupRow{
 		Node: &GroupNode{
@@ -131,9 +133,10 @@ func TestRenderGroupRowIndentationAndSymbol(t *testing.T) {
 			Expanded: true,
 			Count:    3,
 		},
-		Level:  1,
-		Width:  80,
-		Styles: &styles,
+		Level:   1,
+		Width:   80,
+		Styles:  &styles,
+		Options: options,
 	})
 
 	assert.True(t, strings.HasPrefix(row, "  ▾ session-one (3)"))
@@ -144,9 +147,10 @@ func TestRenderGroupRowIndentationAndSymbol(t *testing.T) {
 			Expanded: false,
 			Count:    2,
 		},
-		Level:  2,
-		Width:  80,
-		Styles: &styles,
+		Level:   2,
+		Width:   80,
+		Styles:  &styles,
+		Options: options,
 	})
 
 	assert.True(t, strings.HasPrefix(row, "    ▸ win-1 (2)"))
@@ -165,23 +169,98 @@ func TestRenderGroupRowTruncatesToWidth(t *testing.T) {
 			Expanded: true,
 			Count:    12,
 		},
-		Level:  0,
-		Width:  10,
-		Styles: &styles,
+		Level:   0,
+		Width:   10,
+		Styles:  &styles,
+		Options: disabledGroupHeaderOptions(),
 	})
 
 	assert.Equal(t, 10, utf8.RuneCountInString(row))
+}
+
+func TestRenderGroupRowDisplaysTimeRange(t *testing.T) {
+	styles := GroupRowStyles{Base: lipgloss.NewStyle(), Selected: lipgloss.NewStyle()}
+	fixedNow := time.Date(2025, 1, 2, 12, 0, 0, 0, time.UTC)
+	row := RenderGroupRow(GroupRow{
+		Node: &GroupNode{
+			Title:    "session",
+			Expanded: true,
+			Count:    2,
+		},
+		Level:             0,
+		Width:             80,
+		Styles:            &styles,
+		Now:               fixedNow,
+		EarliestTimestamp: "2025-01-02T08:00:00Z",
+		LatestTimestamp:   "2025-01-02T11:00:00Z",
+	})
+	assert.Contains(t, stripANSI(row), "4h – 1h")
+}
+
+func TestRenderGroupRowDisplaysBadges(t *testing.T) {
+	styles := GroupRowStyles{Base: lipgloss.NewStyle(), Selected: lipgloss.NewStyle()}
+	row := RenderGroupRow(GroupRow{
+		Node: &GroupNode{
+			Title:    "message",
+			Expanded: true,
+			Count:    5,
+		},
+		Level:       0,
+		Width:       120,
+		Styles:      &styles,
+		LevelCounts: map[string]int{"warning": 2, "info": 3},
+	})
+	clean := stripANSI(row)
+	assert.Contains(t, clean, "⚠2")
+	assert.Contains(t, clean, "ℹ3")
+}
+
+func TestRenderGroupRowDisplaysSources(t *testing.T) {
+	styles := GroupRowStyles{Base: lipgloss.NewStyle(), Selected: lipgloss.NewStyle()}
+	options := settings.DefaultGroupHeaderOptions()
+	options.ShowSourceAggregation = true
+	row := RenderGroupRow(GroupRow{
+		Node: &GroupNode{
+			Title:    "group",
+			Expanded: true,
+			Count:    1,
+		},
+		Level:   0,
+		Width:   120,
+		Styles:  &styles,
+		Sources: []string{"pane1", "pane2"},
+		Options: options,
+	})
+	assert.Contains(t, stripANSI(row), "src: pane1,pane2")
 }
 
 func TestFooterGroupedHelpText(t *testing.T) {
 	footer := Footer(FooterState{Grouped: true, ViewMode: settings.ViewModeGrouped})
 
 	assert.Contains(t, footer, "mode: [G]")
+	assert.Contains(t, footer, "read: all")
 	assert.Contains(t, footer, "v: cycle view mode")
 	assert.Contains(t, footer, "gg/G: top/bottom")
 	assert.Contains(t, footer, "h/l: collapse/expand")
 	assert.Contains(t, footer, "za: toggle fold")
 	assert.Contains(t, footer, "Enter: toggle/jump")
+}
+
+func TestFooterCommandModeHelpText(t *testing.T) {
+	footer := Footer(FooterState{CommandMode: true, CommandQuery: "group-by window", ViewMode: settings.ViewModeGrouped})
+
+	assert.Contains(t, footer, "ESC: cancel")
+	assert.Contains(t, footer, "cmds: "+commandList)
+	assert.Contains(t, footer, ":group-by window")
+	assert.Contains(t, footer, "Enter: execute")
+}
+
+func TestFooterReadFilterIndicator(t *testing.T) {
+	footer := Footer(FooterState{ViewMode: settings.ViewModeGrouped, ReadFilter: settings.ReadFilterUnread})
+	assert.Contains(t, footer, "read: unread")
+
+	footer = Footer(FooterState{ViewMode: settings.ViewModeGrouped, ReadFilter: settings.ReadFilterRead})
+	assert.Contains(t, footer, "read: read")
 }
 
 func TestFooterClampsToWidthAndClearsLine(t *testing.T) {
@@ -203,6 +282,7 @@ func TestRenderGroupRowWithUnreadCounts(t *testing.T) {
 		Base:     lipgloss.NewStyle(),
 		Selected: lipgloss.NewStyle(),
 	}
+	options := disabledGroupHeaderOptions()
 
 	// Test group with no unread items (should show only total)
 	row := RenderGroupRow(GroupRow{
@@ -213,9 +293,10 @@ func TestRenderGroupRowWithUnreadCounts(t *testing.T) {
 			Count:       5,
 			UnreadCount: 0,
 		},
-		Level:  0,
-		Width:  80,
-		Styles: &styles,
+		Level:   0,
+		Width:   80,
+		Styles:  &styles,
+		Options: options,
 	})
 
 	assert.Contains(t, row, "session-one (5)")
@@ -230,9 +311,10 @@ func TestRenderGroupRowWithUnreadCounts(t *testing.T) {
 			Count:       10,
 			UnreadCount: 3,
 		},
-		Level:  1,
-		Width:  80,
-		Styles: &styles,
+		Level:   1,
+		Width:   80,
+		Styles:  &styles,
+		Options: options,
 	})
 
 	assert.Contains(t, row, "session-two (10/3)")
@@ -243,6 +325,7 @@ func TestRenderGroupRowWithUnreadHighlighting(t *testing.T) {
 		Base:     lipgloss.NewStyle(),
 		Selected: lipgloss.NewStyle(),
 	}
+	options := disabledGroupHeaderOptions()
 
 	// Test that groups with unread items use different styling
 	rowWithUnread := RenderGroupRow(GroupRow{
@@ -253,9 +336,10 @@ func TestRenderGroupRowWithUnreadHighlighting(t *testing.T) {
 			Count:       5,
 			UnreadCount: 2,
 		},
-		Level:  0,
-		Width:  80,
-		Styles: &styles,
+		Level:   0,
+		Width:   80,
+		Styles:  &styles,
+		Options: options,
 	})
 
 	rowAllRead := RenderGroupRow(GroupRow{
@@ -266,9 +350,10 @@ func TestRenderGroupRowWithUnreadHighlighting(t *testing.T) {
 			Count:       5,
 			UnreadCount: 0,
 		},
-		Level:  0,
-		Width:  80,
-		Styles: &styles,
+		Level:   0,
+		Width:   80,
+		Styles:  &styles,
+		Options: options,
 	})
 
 	// Both should render successfully
@@ -284,4 +369,18 @@ func TestRenderGroupRowWithUnreadHighlighting(t *testing.T) {
 
 	// The all-read row should show only the total
 	assert.Contains(t, rowAllRead, "(5)")
+}
+
+func disabledGroupHeaderOptions() settings.GroupHeaderOptions {
+	options := settings.DefaultGroupHeaderOptions()
+	options.ShowTimeRange = false
+	options.ShowLevelBadges = false
+	options.ShowSourceAggregation = false
+	return options
+}
+
+var ansiRegexp = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+func stripANSI(input string) string {
+	return ansiRegexp.ReplaceAllString(input, "")
 }

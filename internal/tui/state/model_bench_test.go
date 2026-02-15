@@ -227,14 +227,28 @@ func (s *dummyTreeService) convertNode(stateNode *Node) *model.TreeNode {
 	}
 
 	modelNode := &model.TreeNode{
-		Kind:         model.NodeKind(stateNode.Kind),
-		Title:        stateNode.Title,
-		Display:      stateNode.Display,
-		Expanded:     stateNode.Expanded,
-		Notification: stateNode.Notification,
-		Count:        stateNode.Count,
-		UnreadCount:  stateNode.UnreadCount,
-		LatestEvent:  stateNode.LatestEvent,
+		Kind:          model.NodeKind(stateNode.Kind),
+		Title:         stateNode.Title,
+		Display:       stateNode.Display,
+		Expanded:      stateNode.Expanded,
+		Notification:  stateNode.Notification,
+		Count:         stateNode.Count,
+		UnreadCount:   stateNode.UnreadCount,
+		LatestEvent:   stateNode.LatestEvent,
+		EarliestEvent: stateNode.EarliestEvent,
+	}
+
+	if len(stateNode.LevelCounts) > 0 {
+		modelNode.LevelCounts = make(map[string]int, len(stateNode.LevelCounts))
+		for level, count := range stateNode.LevelCounts {
+			modelNode.LevelCounts[level] = count
+		}
+	}
+	if len(stateNode.Sources) > 0 {
+		modelNode.Sources = make(map[string]model.NotificationSource, len(stateNode.Sources))
+		for key, src := range stateNode.Sources {
+			modelNode.Sources[key] = src
+		}
 	}
 
 	for _, child := range stateNode.Children {
@@ -534,7 +548,24 @@ func (d *dummyNotificationService) GetFilteredNotifications() []notification.Not
 	return d.filtered
 }
 
-func (d *dummyNotificationService) ApplyFiltersAndSearch(query, state, level, sessionID, windowID, paneID, sortBy, sortOrder string) {
+func (d *dummyNotificationService) FilterByReadStatus(notifications []notification.Notification, readFilter string) []notification.Notification {
+	if readFilter == "" {
+		return notifications
+	}
+	var filtered []notification.Notification
+	for _, n := range notifications {
+		isRead := n.IsRead()
+		if readFilter == settings.ReadFilterUnread && !isRead {
+			filtered = append(filtered, n)
+		}
+		if readFilter == settings.ReadFilterRead && isRead {
+			filtered = append(filtered, n)
+		}
+	}
+	return filtered
+}
+
+func (d *dummyNotificationService) ApplyFiltersAndSearch(query, state, level, sessionID, windowID, paneID, readFilter, sortBy, sortOrder string) {
 	result := d.notifications
 
 	if state != "" {
@@ -555,6 +586,10 @@ func (d *dummyNotificationService) ApplyFiltersAndSearch(query, state, level, se
 
 	if paneID != "" {
 		result = d.FilterByPane(result, paneID)
+	}
+
+	if readFilter != "" {
+		result = d.FilterByReadStatus(result, readFilter)
 	}
 
 	if query != "" {

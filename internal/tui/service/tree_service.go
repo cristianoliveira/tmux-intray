@@ -40,6 +40,7 @@ func (s *DefaultTreeService) BuildTree(notifications []notification.Notification
 	sessionNodes := make(map[string]*model.TreeNode)
 	windowNodes := make(map[string]*model.TreeNode)
 	paneNodes := make(map[string]*model.TreeNode)
+	messageNodes := make(map[string]*model.TreeNode)
 
 	for _, notif := range notifications {
 		current := notif
@@ -63,6 +64,12 @@ func (s *DefaultTreeService) BuildTree(notifications []notification.Notification
 			paneNode := s.getOrCreateGroupNode(parent, paneNodes, model.NodeKindPane, paneKey, current.Pane)
 			s.incrementGroupStats(paneNode, current)
 			parent = paneNode
+		}
+
+		if resolvedGroupBy == settings.GroupByMessage {
+			messageNode := s.getOrCreateGroupNode(root, messageNodes, model.NodeKindMessage, current.Message, current.Message)
+			s.incrementGroupStats(messageNode, current)
+			parent = messageNode
 		}
 
 		leaf := &model.TreeNode{
@@ -351,6 +358,8 @@ func (s *DefaultTreeService) GetTreeLevel(node *model.TreeNode) int {
 		return 1
 	case model.NodeKindPane:
 		return 2
+	case model.NodeKindMessage:
+		return 0
 	default:
 		return 0
 	}
@@ -386,13 +395,14 @@ func (s *DefaultTreeService) getOrCreateGroupNode(parent *model.TreeNode, cache 
 }
 
 func (s *DefaultTreeService) incrementGroupStats(node *model.TreeNode, notif notification.Notification) {
+	if node == nil {
+		return
+	}
 	node.Count++
-	if !notif.IsRead() {
-		node.UnreadCount++
-	}
-	if node.LatestEvent == nil || s.isNewerTimestamp(notif.Timestamp, node.LatestEvent.Timestamp) {
-		node.LatestEvent = &notif
-	}
+	s.updateUnreadCount(node, notif)
+	s.updateTimeRange(node, notif)
+	s.updateLevelCounts(node, notif)
+	s.updateSourceSet(node, notif)
 }
 
 func (s *DefaultTreeService) isNewerTimestamp(current string, latest string) bool {
@@ -403,6 +413,16 @@ func (s *DefaultTreeService) isNewerTimestamp(current string, latest string) boo
 		return true
 	}
 	return current > latest
+}
+
+func (s *DefaultTreeService) isOlderTimestamp(current string, earliest string) bool {
+	if current == "" {
+		return false
+	}
+	if earliest == "" {
+		return true
+	}
+	return current < earliest
 }
 
 func (s *DefaultTreeService) sortTree(node *model.TreeNode) {

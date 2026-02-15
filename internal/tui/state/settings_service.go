@@ -87,6 +87,9 @@ func applyNonEmptyFilters(src settings.Filter, dest *settings.Filter) {
 	if src.State != "" {
 		dest.State = src.State
 	}
+	if src.Read != "" {
+		dest.Read = src.Read
+	}
 	if src.Session != "" {
 		dest.Session = src.Session
 	}
@@ -100,6 +103,12 @@ func applyNonEmptyFilters(src settings.Filter, dest *settings.Filter) {
 
 func (s *settingsService) save(state settings.TUIState) error {
 	nextSettings := state.ToSettings()
+	if s.loadedSettings != nil {
+		nextSettings.GroupHeader = s.loadedSettings.GroupHeader.Clone()
+	} else {
+		defaults := settings.DefaultGroupHeaderOptions()
+		nextSettings.GroupHeader = defaults
+	}
 	if s.loadedSettings != nil && reflect.DeepEqual(*s.loadedSettings, *nextSettings) {
 		return nil
 	}

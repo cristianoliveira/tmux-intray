@@ -24,16 +24,20 @@ const (
 	groupIndentSize      = 2
 	groupCollapsedSymbol = "▸"
 	groupExpandedSymbol  = "▾"
+	commandList          = "q,w,toggle-view,group-by,expand-level,filter-read,auto-expand-unread"
 )
 
 // FooterState defines the inputs needed to render footer help text.
 type FooterState struct {
 	SearchMode   bool
+	CommandMode  bool
 	SearchQuery  string
+	CommandQuery string
 	Grouped      bool
 	ViewMode     string
 	Width        int
 	ErrorMessage string
+	ReadFilter   string
 }
 
 // RowState defines the inputs needed to render a notification row.
@@ -43,30 +47,6 @@ type RowState struct {
 	Width        int
 	Selected     bool
 	Now          time.Time
-}
-
-// GroupNode defines the inputs needed to render a grouped tree node.
-type GroupNode struct {
-	Title       string
-	Display     string
-	Expanded    bool
-	Count       int
-	UnreadCount int
-}
-
-// GroupRow defines the inputs needed to render a group row.
-type GroupRow struct {
-	Node     *GroupNode
-	Selected bool
-	Level    int
-	Width    int
-	Styles   *GroupRowStyles
-}
-
-// GroupRowStyles defines styles for group rows.
-type GroupRowStyles struct {
-	Base     lipgloss.Style
-	Selected lipgloss.Style
 }
 
 // Header renders the table header.
@@ -153,53 +133,6 @@ func Row(state RowState) string {
 	return row.String()
 }
 
-// RenderGroupRow renders a single group row.
-func RenderGroupRow(row GroupRow) string {
-	if row.Node == nil {
-		return ""
-	}
-
-	styles := row.Styles
-	if styles == nil {
-		defaultStyles := defaultGroupRowStyles()
-		styles = &defaultStyles
-	}
-
-	indent := strings.Repeat(" ", groupIndentSize*row.Level)
-	symbol := groupCollapsedSymbol
-	if row.Node.Expanded {
-		symbol = groupExpandedSymbol
-	}
-
-	title := row.Node.Display
-	if title == "" {
-		title = row.Node.Title
-	}
-
-	// Format: "title (total/unread)"
-	var countLabel string
-	if row.Node.UnreadCount > 0 {
-		countLabel = fmt.Sprintf("%d/%d", row.Node.Count, row.Node.UnreadCount)
-	} else {
-		countLabel = fmt.Sprintf("%d", row.Node.Count)
-	}
-
-	label := fmt.Sprintf("%s%s %s (%s)", indent, symbol, title, countLabel)
-	label = truncateGroupRow(label, row.Width)
-
-	if row.Selected {
-		return styles.Selected.Render(label)
-	}
-
-	// Use different style for groups with unread items
-	if row.Node.UnreadCount > 0 {
-		styles := stylesWithUnread()
-		return styles.Base.Render(label)
-	}
-
-	return styles.Base.Render(label)
-}
-
 // Footer renders the footer with help text.
 func Footer(state FooterState) string {
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
@@ -210,13 +143,19 @@ func Footer(state FooterState) string {
 		help = append(help, errorStyle.Render("Error: "+state.ErrorMessage))
 	}
 	help = append(help, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
+	help = append(help, fmt.Sprintf("read: %s", readFilterIndicator(state.ReadFilter)))
 	help = append(help, "j/k: move")
 	help = append(help, "gg/G: top/bottom")
 	if state.SearchMode {
 		help = append(help, "ESC: exit search")
 		help = append(help, fmt.Sprintf("Search: %s", state.SearchQuery))
+	} else if state.CommandMode {
+		help = append(help, "ESC: cancel")
+		help = append(help, "cmds: "+commandList)
+		help = append(help, fmt.Sprintf(":%s", state.CommandQuery))
 	} else {
 		help = append(help, "/: search")
+		help = append(help, ":: command")
 		help = append(help, "v: cycle view mode")
 		if state.Grouped {
 			help = append(help, "h/l: collapse/expand")
@@ -229,6 +168,9 @@ func Footer(state FooterState) string {
 	enterHelp := "Enter: jump"
 	if state.Grouped {
 		enterHelp = "Enter: toggle/jump"
+	}
+	if state.CommandMode {
+		enterHelp = "Enter: execute"
 	}
 	help = append(help, enterHelp)
 	help = append(help, "q: quit")
@@ -263,48 +205,20 @@ func viewModeIndicator(mode string) string {
 	}
 }
 
+func readFilterIndicator(filter string) string {
+	switch filter {
+	case settings.ReadFilterRead:
+		return "read"
+	case settings.ReadFilterUnread:
+		return "unread"
+	default:
+		return "all"
+	}
+}
+
 func calculateMessageWidth(width int) int {
 	totalFixedWidth := readStatusWidth + typeWidth + statusWidth + sessionWidth + paneWidth + ageWidth
 	return width - totalFixedWidth - spacesBetweenColumns
-}
-
-func defaultGroupRowStyles() GroupRowStyles {
-	base := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color(ansiColorNumber(colors.Blue)))
-	selected := lipgloss.NewStyle().
-		Bold(true).
-		Background(lipgloss.Color(ansiColorNumber(colors.Blue))).
-		Foreground(lipgloss.Color("0"))
-	return GroupRowStyles{
-		Base:     base,
-		Selected: selected,
-	}
-}
-
-func stylesWithUnread() GroupRowStyles {
-	// Use a different color (e.g., yellow/orange) for groups with unread items
-	base := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color(ansiColorNumber(colors.Yellow)))
-	selected := lipgloss.NewStyle().
-		Bold(true).
-		Background(lipgloss.Color(ansiColorNumber(colors.Blue))).
-		Foreground(lipgloss.Color("0"))
-	return GroupRowStyles{
-		Base:     base,
-		Selected: selected,
-	}
-}
-
-func truncateGroupRow(value string, width int) string {
-	if width <= 0 {
-		return value
-	}
-	if utf8.RuneCountInString(value) <= width {
-		return value
-	}
-	return string([]rune(value)[:width])
 }
 
 func levelIcon(level string) string {

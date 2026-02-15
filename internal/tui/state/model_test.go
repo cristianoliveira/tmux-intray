@@ -40,6 +40,25 @@ func setupConfig(t *testing.T, dir string) {
 	t.Setenv("TMUX_INTRAY_CONFIG_DIR", dir)
 }
 
+func disableModelGroupOptions(m *Model) {
+	if m == nil {
+		return
+	}
+	options := settings.DefaultGroupHeaderOptions()
+	options.ShowTimeRange = false
+	options.ShowLevelBadges = false
+	options.ShowSourceAggregation = false
+	m.groupHeaderOptions = options
+}
+
+func disabledRenderGroupOptions() settings.GroupHeaderOptions {
+	options := settings.DefaultGroupHeaderOptions()
+	options.ShowTimeRange = false
+	options.ShowLevelBadges = false
+	options.ShowSourceAggregation = false
+	return options
+}
+
 // newTestModel creates a test model with all services initialized, without loading from storage.
 func newTestModel(t *testing.T, notifications []notification.Notification) *Model {
 	t.Helper()
@@ -74,12 +93,13 @@ func newTestModel(t *testing.T, notifications []notification.Notification) *Mode
 		notificationService: notificationService,
 		errorHandler:        errors.NewTUIHandler(nil),
 		// Legacy fields kept for backward compatibility but now using services
-		client:            mockClient,
-		sessionNames:      runtimeCoordinator.GetSessionNames(),
-		windowNames:       runtimeCoordinator.GetWindowNames(),
-		paneNames:         runtimeCoordinator.GetPaneNames(),
-		ensureTmuxRunning: core.EnsureTmuxRunning,
-		jumpToPane:        core.JumpToPane,
+		client:             mockClient,
+		sessionNames:       runtimeCoordinator.GetSessionNames(),
+		windowNames:        runtimeCoordinator.GetWindowNames(),
+		paneNames:          runtimeCoordinator.GetPaneNames(),
+		ensureTmuxRunning:  core.EnsureTmuxRunning,
+		jumpToPane:         core.JumpToPane,
+		groupHeaderOptions: settings.DefaultGroupHeaderOptions(),
 	}
 	m.syncNotificationMirrors()
 
@@ -268,6 +288,7 @@ func TestModelGroupedModeBuildsVisibleNodes(t *testing.T) {
 	model.uiState.SetViewMode(viewModeGrouped)
 	model.uiState.SetGroupBy(settings.GroupByPane)
 
+	disableModelGroupOptions(model)
 	model.applySearchFilter()
 	model.resetCursor()
 
@@ -1574,6 +1595,7 @@ func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 	model.uiState.SetViewMode(viewModeGrouped)
 	model.uiState.SetGroupBy(settings.GroupByPane)
 
+	disableModelGroupOptions(model)
 	model.applySearchFilter()
 	model.resetCursor()
 	require.NotEmpty(t, model.getVisibleNodesForTest())
@@ -1586,14 +1608,16 @@ func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 
 	expectedGroupRow := render.RenderGroupRow(render.GroupRow{
 		Node: &render.GroupNode{
-			Title:    groupNode.Title,
-			Display:  groupNode.Display,
-			Expanded: groupNode.Expanded,
-			Count:    groupNode.Count,
+			Title:       groupNode.Title,
+			Display:     groupNode.Display,
+			Expanded:    groupNode.Expanded,
+			Count:       groupNode.Count,
+			UnreadCount: groupNode.UnreadCount,
 		},
 		Selected: true,
 		Level:    getTreeLevel(groupNode),
 		Width:    model.uiState.GetWidth(),
+		Options:  disabledRenderGroupOptions(),
 	})
 	assert.Contains(t, content, expectedGroupRow)
 
@@ -1671,14 +1695,16 @@ func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
 
 	expectedGroupRow := render.RenderGroupRow(render.GroupRow{
 		Node: &render.GroupNode{
-			Title:    groupNode.Title,
-			Display:  groupNode.Display,
-			Expanded: groupNode.Expanded,
-			Count:    groupNode.Count,
+			Title:       groupNode.Title,
+			Display:     groupNode.Display,
+			Expanded:    groupNode.Expanded,
+			Count:       groupNode.Count,
+			UnreadCount: groupNode.UnreadCount,
 		},
 		Selected: false,
 		Level:    getTreeLevel(groupNode),
 		Width:    model.uiState.GetWidth(),
+		Options:  disabledRenderGroupOptions(),
 	})
 	assert.Contains(t, content, expectedGroupRow)
 }
@@ -2168,6 +2194,7 @@ func TestToState(t *testing.T) {
 				filters: settings.Filter{
 					Level:   settings.LevelFilterWarning,
 					State:   settings.StateFilterActive,
+					Read:    settings.ReadFilterUnread,
 					Session: "my-session",
 					Window:  "@1",
 					Pane:    "%1",
@@ -2180,6 +2207,7 @@ func TestToState(t *testing.T) {
 				Filters: settings.Filter{
 					Level:   settings.LevelFilterWarning,
 					State:   settings.StateFilterActive,
+					Read:    settings.ReadFilterUnread,
 					Session: "my-session",
 					Window:  "@1",
 					Pane:    "%1",
@@ -2276,6 +2304,7 @@ func TestFromState(t *testing.T) {
 				Filters: settings.Filter{
 					Level:   settings.LevelFilterWarning,
 					State:   settings.StateFilterActive,
+					Read:    settings.ReadFilterUnread,
 					Session: "my-session",
 					Window:  "@1",
 					Pane:    "%1",
@@ -2299,6 +2328,7 @@ func TestFromState(t *testing.T) {
 				assert.Equal(t, map[string]bool{"window:@1": true}, m.uiState.GetExpansionState())
 				assert.Equal(t, settings.LevelFilterWarning, m.filters.Level)
 				assert.Equal(t, settings.StateFilterActive, m.filters.State)
+				assert.Equal(t, settings.ReadFilterUnread, m.filters.Read)
 				assert.Equal(t, "my-session", m.filters.Session)
 				assert.Equal(t, "@1", m.filters.Window)
 				assert.Equal(t, "%1", m.filters.Pane)
@@ -2346,6 +2376,7 @@ func TestFromState(t *testing.T) {
 				filters: settings.Filter{
 					Level:   settings.LevelFilterError,
 					State:   settings.StateFilterActive,
+					Read:    settings.ReadFilterUnread,
 					Session: "old-session",
 					Window:  "old-session",
 					Pane:    "old-session",
@@ -2354,6 +2385,7 @@ func TestFromState(t *testing.T) {
 			state: settings.TUIState{
 				Filters: settings.Filter{
 					Level:   settings.LevelFilterWarning,
+					Read:    settings.ReadFilterRead,
 					Session: "new-session",
 				},
 				ExpansionState: map[string]bool{},
@@ -2362,6 +2394,7 @@ func TestFromState(t *testing.T) {
 			verifyFn: func(t *testing.T, m *Model) {
 				assert.Equal(t, settings.LevelFilterWarning, m.filters.Level)
 				assert.Equal(t, settings.StateFilterActive, m.filters.State)
+				assert.Equal(t, settings.ReadFilterRead, m.filters.Read)
 				assert.Equal(t, "new-session", m.filters.Session)
 				// Fields not set in state preserve their old values
 				assert.Equal(t, "old-session", m.filters.Window)
@@ -2403,6 +2436,15 @@ func TestFromState(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSetReadFilter(t *testing.T) {
+	m := &Model{}
+	require.NoError(t, m.SetReadFilter(settings.ReadFilterUnread))
+	assert.Equal(t, settings.ReadFilterUnread, m.GetReadFilter())
+
+	err := m.SetReadFilter("invalid")
+	require.Error(t, err)
 }
 
 func TestModelWithNegativeDimensions(t *testing.T) {

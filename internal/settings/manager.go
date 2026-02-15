@@ -86,6 +86,7 @@ func (t TUIState) IsEmpty() bool {
 		len(t.ExpansionState) == 0 &&
 		t.Filters.Level == "" &&
 		t.Filters.State == "" &&
+		t.Filters.Read == "" &&
 		t.Filters.Session == "" &&
 		t.Filters.Window == "" &&
 		t.Filters.Pane == ""

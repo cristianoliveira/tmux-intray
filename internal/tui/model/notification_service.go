@@ -19,7 +19,7 @@ type NotificationService interface {
 	GetFilteredNotifications() []notification.Notification
 
 	// ApplyFiltersAndSearch applies filters/search/sorting and stores filtered results.
-	ApplyFiltersAndSearch(query, state, level, sessionID, windowID, paneID, sortBy, sortOrder string)
+	ApplyFiltersAndSearch(query, state, level, sessionID, windowID, paneID, readFilter, sortBy, sortOrder string)
 
 	// FilterNotifications filters notifications based on a search query.
 	// Returns a list of matching notifications.
@@ -39,6 +39,9 @@ type NotificationService interface {
 
 	// FilterByPane filters notifications by pane ID.
 	FilterByPane(notifications []notification.Notification, paneID string) []notification.Notification
+
+	// FilterByReadStatus filters notifications by read/unread status.
+	FilterByReadStatus(notifications []notification.Notification, readFilter string) []notification.Notification
 
 	// SortNotifications sorts notifications by the specified field and order.
 	SortNotifications(notifications []notification.Notification, sortBy, sortOrder string) []notification.Notification

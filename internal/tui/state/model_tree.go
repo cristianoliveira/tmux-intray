@@ -60,6 +60,8 @@ func getTreeLevel(node *model.TreeNode) int {
 		return 1
 	case model.NodeKindPane:
 		return 2
+	case model.NodeKindMessage:
+		return 0
 	default:
 		return 0
 	}

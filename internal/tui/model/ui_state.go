@@ -130,6 +130,9 @@ const (
 
 	// GroupByPane groups notifications by session, window, and pane.
 	GroupByPane GroupBy = "pane"
+
+	// GroupByMessage groups notifications by message text.
+	GroupByMessage GroupBy = "message"
 )
 
 // UIDTO is a data transfer object for UI state persistence.
@@ -169,6 +172,9 @@ type Filters struct {
 
 	// State filters by notification state (active, dismissed).
 	State string
+
+	// Read filters by read/unread status.
+	Read string
 
 	// Session filters by session ID.
 	Session string

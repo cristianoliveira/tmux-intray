@@ -153,6 +153,7 @@ sortOrder = "desc"
 [filters]
 level = ""
 state = ""
+read = ""
 session = ""
 window = ""
 pane = ""
@@ -161,6 +162,17 @@ viewMode = "grouped"
 groupBy = "none"
 defaultExpandLevel = 1
 expansionState = {}
+
+[groupHeader]
+showTimeRange = true
+showLevelBadges = true
+showSourceAggregation = false
+
+[groupHeader.badgeColors]
+info = "\u001b[0;34m"
+warning = "\u001b[1;33m"
+error = "\u001b[0;31m"
+critical = "\u001b[0;31m"
 ```
 
 #### Settings Fields
@@ -172,6 +184,7 @@ expansionState = {}
 | `sortOrder` | string | Sort direction | `"desc"` | `"asc"`, `"desc"` |
 | `filters.level` | string | Filter by severity level | `""` (no filter) | `"info"`, `"warning"`, `"error"`, `"critical"`, `""` |
 | `filters.state` | string | Filter by state | `""` (no filter) | `"active"`, `"dismissed"`, `""` |
+| `filters.read` | string | Filter by read/unread status | `""` (all notifications) | `"read"`, `"unread"`, `""` |
 | `filters.session` | string | Filter by tmux session | `""` (no filter) | Session name or `""` |
 | `filters.window` | string | Filter by tmux window | `""` (no filter) | Window ID or `""` |
 | `filters.pane` | string | Filter by tmux pane | `""` (no filter) | Pane ID or `""` |
@@ -179,6 +192,12 @@ expansionState = {}
 | `groupBy` | string | Group notifications in the TUI | `"none"` | `"none"`, `"session"`, `"window"`, `"pane"`, `"message"` |
 | `defaultExpandLevel` | number | Default grouping expansion depth | `1` | `0`-`3` |
 | `expansionState` | object | Explicit expansion overrides by node path | `{}` | Object of string to boolean |
+| `groupHeader.showTimeRange` | bool | Show earliest/latest ages in group headers | `true` | `true`, `false` |
+| `groupHeader.showLevelBadges` | bool | Show per-level counts as badges | `true` | `true`, `false` |
+| `groupHeader.showSourceAggregation` | bool | Show aggregated pane/source info | `false` | `true`, `false` |
+| `groupHeader.badgeColors` | table | ANSI color codes per level (`info`, `warning`, `error`, `critical`) | defaults shown above | Strings containing ANSI escape sequences |
+
+`filters.read` lets you persist whether the TUI should show only read, only unread, or all notifications. At runtime you can toggle the same preference with the `:filter-read <read|unread|all>` command; the change is saved back to `settings.toml` automatically.
 
 `groupBy` controls the depth of grouped view hierarchy:
 
@@ -200,6 +219,7 @@ sortOrder = "desc"
 [filters]
 level = ""
 state = ""
+read = ""
 session = ""
 window = ""
 pane = ""
@@ -208,6 +228,17 @@ viewMode = "grouped"
 groupBy = "none"
 defaultExpandLevel = 1
 expansionState = {}
+
+[groupHeader]
+showTimeRange = true
+showLevelBadges = true
+showSourceAggregation = false
+
+[groupHeader.badgeColors]
+info = "\u001b[0;34m"
+warning = "\u001b[1;33m"
+error = "\u001b[0;31m"
+critical = "\u001b[0;31m"
 ```
 
 ### How Settings Are Saved
@@ -268,6 +299,7 @@ sortOrder = "asc"
 [filters]
 level = "error"
 state = "active"
+read = "unread"
 session = ""
 window = ""
 pane = ""
@@ -288,6 +320,7 @@ sortOrder = "desc"
 [filters]
 level = "critical"
 state = ""
+read = ""
 session = "work"
 window = ""
 pane = ""
@@ -298,6 +331,21 @@ defaultExpandLevel = 2
 
 [expansionState]
 "session:work" = true
+
+**Customize group headers:**
+
+```toml
+[groupHeader]
+showTimeRange = false
+showLevelBadges = false
+showSourceAggregation = true
+
+[groupHeader.badgeColors]
+info = "\u001b[0;36m"
+warning = "\u001b[1;33m"
+error = "\u001b[0;31m"
+critical = "\u001b[0;31m"
+```
 ```
 
 ### Error Handling
@@ -315,5 +363,6 @@ This ensures that a corrupted settings file doesn't prevent the TUI from running
 - The settings directory (`~/.config/tmux-intray`) is created automatically if it doesn't exist
 - File locking is used to prevent concurrent writes when multiple TUI instances are running
 - Empty string values for filters mean "no filter" (show all)
+- Use the `:filter-read <read|unread|all>` TUI command to change `filters.read` on the fly without editing the file
 - Empty or missing `columns` array uses the default column order
 - For XDG Base Directory compliance, the file location is `$XDG_CONFIG_HOME/tmux-intray/settings.toml`
