@@ -79,7 +79,7 @@ func TestLoadFromExistingFile(t *testing.T) {
 	configDir := filepath.Join(tmpDir, "tmux-intray")
 	require.NoError(t, os.MkdirAll(configDir, 0755))
 
-	settingsPath := filepath.Join(configDir, "settings.toml")
+	settingsPath := filepath.Join(configDir, "tui.toml")
 	customSettings := &Settings{
 		Columns:   []string{ColumnID, ColumnMessage, ColumnLevel},
 		SortBy:    SortByLevel,
@@ -143,7 +143,7 @@ func TestLoadPartialSettings(t *testing.T) {
 	configDir := filepath.Join(tmpDir, "tmux-intray")
 	require.NoError(t, os.MkdirAll(configDir, 0755))
 
-	settingsPath := filepath.Join(configDir, "settings.toml")
+	settingsPath := filepath.Join(configDir, "tui.toml")
 	partialTOML := `sortBy = "level"
 viewMode = "detailed"
 `
@@ -178,7 +178,7 @@ func TestLoadInvalidTOML(t *testing.T) {
 	configDir := filepath.Join(tmpDir, "tmux-intray")
 	require.NoError(t, os.MkdirAll(configDir, 0755))
 
-	settingsPath := filepath.Join(configDir, "settings.toml")
+	settingsPath := filepath.Join(configDir, "tui.toml")
 	require.NoError(t, os.WriteFile(settingsPath, []byte("invalid toml [unclosed"), 0644))
 	t.Cleanup(func() { _ = os.Remove(settingsPath) })
 
@@ -207,7 +207,7 @@ func TestLoadInvalidExpansionStateType(t *testing.T) {
 	configDir := filepath.Join(tmpDir, "tmux-intray")
 	require.NoError(t, os.MkdirAll(configDir, 0755))
 
-	settingsPath := filepath.Join(configDir, "settings.toml")
+	settingsPath := filepath.Join(configDir, "tui.toml")
 	invalidTOML := `viewMode = "grouped"
 groupBy = "window"
 [expansionState]
@@ -235,7 +235,7 @@ func TestLoadInvalidColumn(t *testing.T) {
 	configDir := filepath.Join(tmpDir, "tmux-intray")
 	require.NoError(t, os.MkdirAll(configDir, 0755))
 
-	settingsPath := filepath.Join(configDir, "settings.toml")
+	settingsPath := filepath.Join(configDir, "tui.toml")
 	invalidTOML := `columns = ["id", "invalid_column"]
 `
 	require.NoError(t, os.WriteFile(settingsPath, []byte(invalidTOML), 0644))
@@ -288,7 +288,7 @@ func TestSave(t *testing.T) {
 
 	// Verify file exists
 	configDir := filepath.Join(tmpDir, "tmux-intray")
-	settingsPath := filepath.Join(configDir, "settings.toml")
+	settingsPath := filepath.Join(configDir, "tui.toml")
 	require.FileExists(t, settingsPath)
 
 	// Verify file contents
@@ -538,7 +538,7 @@ func TestGetSettingsPath(t *testing.T) {
 	config.Load()
 
 	path := getSettingsPath()
-	expected := filepath.Join(tmpDir, "tmux-intray", "settings.toml")
+	expected := filepath.Join(tmpDir, "tmux-intray", "tui.toml")
 	assert.Equal(t, expected, path)
 }
 
@@ -553,8 +553,80 @@ func TestGetSettingsPathFallback(t *testing.T) {
 	config.Load()
 
 	path := getSettingsPath()
-	expected := filepath.Join(tmpDir, ".config", "tmux-intray", "settings.toml")
+	expected := filepath.Join(tmpDir, ".config", "tmux-intray", "tui.toml")
 	assert.Equal(t, expected, path)
+}
+
+func TestGetSettingsPathWithOverride(t *testing.T) {
+	tmpDir := t.TempDir()
+	customPath := filepath.Join(tmpDir, "custom", "override.toml")
+	t.Setenv("TMUX_INTRAY_TUI_SETTINGS_PATH", customPath)
+	config.Load()
+
+	path := getSettingsPath()
+	assert.Equal(t, customPath, path)
+}
+
+func TestLegacySettingsMigration(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+	t.Setenv("HOME", tmpDir)
+
+	config.Load()
+
+	configDir := filepath.Join(tmpDir, "tmux-intray")
+	require.NoError(t, os.MkdirAll(configDir, 0755))
+	legacyPath := filepath.Join(configDir, "settings.toml")
+	newPath := filepath.Join(configDir, "tui.toml")
+
+	customSettings := &Settings{
+		SortBy:    SortByLevel,
+		SortOrder: SortOrderAsc,
+	}
+
+	data, err := toml.Marshal(customSettings)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(legacyPath, data, 0644))
+
+	loaded, err := Load()
+	require.NoError(t, err)
+	require.Equal(t, SortByLevel, loaded.SortBy)
+	require.Equal(t, SortOrderAsc, loaded.SortOrder)
+
+	_, err = os.Stat(newPath)
+	require.NoError(t, err)
+	_, err = os.Stat(legacyPath)
+	require.True(t, os.IsNotExist(err))
+}
+
+func TestLegacySettingsMigrationSkippedWhenTUIExists(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+	t.Setenv("HOME", tmpDir)
+
+	config.Load()
+
+	configDir := filepath.Join(tmpDir, "tmux-intray")
+	require.NoError(t, os.MkdirAll(configDir, 0755))
+	legacyPath := filepath.Join(configDir, "settings.toml")
+	newPath := filepath.Join(configDir, "tui.toml")
+
+	legacySettings := &Settings{SortBy: SortByState}
+	legacyData, err := toml.Marshal(legacySettings)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(legacyPath, legacyData, 0644))
+
+	newSettings := &Settings{SortBy: SortByLevel}
+	newData, err := toml.Marshal(newSettings)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(newPath, newData, 0644))
+
+	loaded, err := Load()
+	require.NoError(t, err)
+	require.Equal(t, SortByLevel, loaded.SortBy)
+
+	_, err = os.Stat(legacyPath)
+	require.NoError(t, err)
 }
 
 func TestSettingsTOMLMarshaling(t *testing.T) {
@@ -633,7 +705,7 @@ func TestInitWithExistingFile(t *testing.T) {
 	configDir := filepath.Join(tmpDir, "tmux-intray")
 	require.NoError(t, os.MkdirAll(configDir, 0755))
 
-	settingsPath := filepath.Join(configDir, "settings.toml")
+	settingsPath := filepath.Join(configDir, "tui.toml")
 	customSettings := &Settings{
 		SortBy:             SortByLevel,
 		SortOrder:          SortOrderAsc,
@@ -665,7 +737,7 @@ func TestReset(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 
 	// Create and save custom settings
-	settingsPath := filepath.Join(tmpDir, "tmux-intray", "settings.toml")
+	settingsPath := filepath.Join(tmpDir, "tmux-intray", "tui.toml")
 	customSettings := &Settings{
 		SortBy:             SortByLevel,
 		SortOrder:          SortOrderAsc,

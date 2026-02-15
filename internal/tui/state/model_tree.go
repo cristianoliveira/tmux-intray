@@ -61,7 +61,7 @@ func getTreeLevel(node *model.TreeNode) int {
 	case model.NodeKindPane:
 		return 2
 	case model.NodeKindMessage:
-		return 0
+		return 3
 	default:
 		return 0
 	}
@@ -363,29 +363,25 @@ func (m *Model) nodeExpansionKey(node *model.TreeNode) string {
 	if node == nil || node.Kind == model.NodeKindNotification || node.Kind == model.NodeKindRoot {
 		return ""
 	}
-	// For group nodes, construct the key from the node's own properties
-	// This is simpler than traversing the tree for each node
-	switch node.Kind {
-	case model.NodeKindSession:
-		return serializeNodeExpansionPath(model.NodeKindSession, node.Title)
-	case model.NodeKindWindow:
-		// For window nodes, we need the session name too
-		// This is a simplified approach - the full implementation would track parent references
-		return serializeNodeExpansionPath(model.NodeKindWindow, node.Title)
-	case model.NodeKindPane:
-		// Similar to window nodes
-		return serializeNodeExpansionPath(model.NodeKindPane, node.Title)
-	default:
-		return ""
-	}
+	return m.ensureTreeService().GetNodeIdentifier(node)
 }
 
 func (m *Model) nodeExpansionLegacyKey(node *model.TreeNode) string {
 	if node == nil || node.Kind == model.NodeKindNotification || node.Kind == model.NodeKindRoot {
 		return ""
 	}
-	// Use the same logic as the new key for now
-	return m.nodeExpansionKey(node)
+	switch node.Kind {
+	case model.NodeKindSession:
+		return serializeLegacyNodeExpansionPath(model.NodeKindSession, node.Title)
+	case model.NodeKindWindow:
+		return serializeLegacyNodeExpansionPath(model.NodeKindWindow, node.Title)
+	case model.NodeKindPane:
+		return serializeLegacyNodeExpansionPath(model.NodeKindPane, node.Title)
+	case model.NodeKindMessage:
+		return serializeLegacyNodeExpansionPath(model.NodeKindMessage, node.Title)
+	default:
+		return ""
+	}
 }
 
 func serializeNodeExpansionPath(kind model.NodeKind, parts ...string) string {

@@ -6,22 +6,21 @@ The `settings` package provides TUI user preferences persistence for tmux-intray
 
 ## Settings Structure
 
-Settings are persisted to `~/.config/tmux-intray/settings.json` as JSON:
+Settings are persisted to `~/.config/tmux-intray/tui.toml` as TOML:
 
-```json
-{
-  "columns": ["id", "timestamp", "state", "level", "session", "window", "pane", "message"],
-  "sortBy": "timestamp",
-  "sortOrder": "desc",
-  "filters": {
-    "level": "",
-    "state": "",
-    "session": "",
-    "window": "",
-    "pane": ""
-  },
-  "viewMode": "grouped"
-}
+```toml
+columns = ["id", "timestamp", "state", "level", "session", "window", "pane", "message"]
+sortBy = "timestamp"
+sortOrder = "desc"
+
+[filters]
+level = ""
+state = ""
+session = ""
+window = ""
+pane = ""
+
+viewMode = "grouped"
 ```
 
 ## API

@@ -20,6 +20,7 @@ All configuration options are controlled by environment variables with the `TMUX
 |----------|---------|-------------|
 | `TMUX_INTRAY_STATE_DIR` | `$XDG_STATE_HOME/tmux-intray` (`~/.local/state/tmux-intray`) | Directory where notification data is stored. Follows XDG Base Directory Specification. |
 | `TMUX_INTRAY_CONFIG_DIR` | `$XDG_CONFIG_HOME/tmux-intray` (`~/.config/tmux-intray`) | Directory for configuration files and hooks. |
+| `TMUX_INTRAY_TUI_SETTINGS_PATH` | *unset* (defaults to `$TMUX_INTRAY_CONFIG_DIR/tui.toml`) | Optional override for the TUI settings file location. |
 | `TMUX_INTRAY_STORAGE_BACKEND` | `sqlite` | Storage backend (only `sqlite` is supported). |
 | `TMUX_INTRAY_MAX_NOTIFICATIONS` | `1000` | Maximum number of notifications to keep (oldest are automatically cleaned up). |
 | `TMUX_INTRAY_AUTO_CLEANUP_DAYS` | `30` | Automatically clean up notifications that have been dismissed for more than this many days. |
@@ -139,7 +140,9 @@ The TUI (Terminal User Interface) automatically saves your preferences when you 
 
 ### Settings File Location
 
-Settings are stored at `~/.config/tmux-intray/settings.toml` (or `$XDG_CONFIG_HOME/tmux-intray/settings.toml` if XDG_CONFIG_HOME is set).
+Settings are stored at `~/.config/tmux-intray/tui.toml` (or `$XDG_CONFIG_HOME/tmux-intray/tui.toml` if XDG_CONFIG_HOME is set). Older releases used `settings.toml`; tmux-intray automatically migrates that legacy file to `tui.toml` on startup.
+
+To move the file elsewhere, set `TMUX_INTRAY_TUI_SETTINGS_PATH` (or the `tui_settings_path` key in `config.toml`).
 
 ### Available Settings
 
@@ -197,7 +200,7 @@ critical = "\u001b[0;31m"
 | `groupHeader.showSourceAggregation` | bool | Show aggregated pane/source info | `false` | `true`, `false` |
 | `groupHeader.badgeColors` | table | ANSI color codes per level (`info`, `warning`, `error`, `critical`) | defaults shown above | Strings containing ANSI escape sequences |
 
-`filters.read` lets you persist whether the TUI should show only read, only unread, or all notifications. At runtime you can toggle the same preference via the TUI; the change is saved back to `settings.toml` automatically.
+`filters.read` lets you persist whether the TUI should show only read, only unread, or all notifications. At runtime you can toggle the same preference via the TUI; the change is saved back to `tui.toml` automatically.
 
 `groupBy` controls the depth of grouped view hierarchy:
 
@@ -272,7 +275,7 @@ tmux-intray settings reset
 tmux-intray settings reset --force
 ```
 
-This command deletes the `settings.toml` file. The TUI will use defaults on the next launch.
+This command deletes the `tui.toml` file. The TUI will use defaults on the next launch.
 
 #### Manually Edit Settings
 
@@ -280,7 +283,7 @@ You can edit the settings file directly with any text editor:
 
 ```bash
 # Open settings file
-vim ~/.config/tmux-intray/settings.toml
+vim ~/.config/tmux-intray/tui.toml
 ```
 
 After editing, the TUI will load the new settings on the next launch.
@@ -365,4 +368,4 @@ This ensures that a corrupted settings file doesn't prevent the TUI from running
 - Empty string values for filters mean "no filter" (show all)
 - Use the TUI to change `filters.read` on the fly without editing the file
 - Empty or missing `columns` array uses the default column order
-- For XDG Base Directory compliance, the file location is `$XDG_CONFIG_HOME/tmux-intray/settings.toml`
+- For XDG Base Directory compliance, the file location is `$XDG_CONFIG_HOME/tmux-intray/tui.toml`

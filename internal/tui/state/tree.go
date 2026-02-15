@@ -53,32 +53,48 @@ func BuildTree(notifications []notification.Notification, groupBy string) *Node 
 	paneNodes := make(map[string]*Node)
 	messageNodes := make(map[string]*Node)
 
+	includeSession := resolvedGroupBy == settings.GroupBySession ||
+		resolvedGroupBy == settings.GroupByWindow ||
+		resolvedGroupBy == settings.GroupByPane ||
+		resolvedGroupBy == settings.GroupByMessage
+	includeWindow := resolvedGroupBy == settings.GroupByWindow ||
+		resolvedGroupBy == settings.GroupByPane ||
+		resolvedGroupBy == settings.GroupByMessage
+	includePane := resolvedGroupBy == settings.GroupByPane ||
+		resolvedGroupBy == settings.GroupByMessage
+	groupByMessage := resolvedGroupBy == settings.GroupByMessage
+
 	for _, notif := range notifications {
 		current := notif
 		parent := root
+		paneKey := ""
 
-		if resolvedGroupBy == settings.GroupBySession || resolvedGroupBy == settings.GroupByWindow || resolvedGroupBy == settings.GroupByPane {
+		if includeSession {
 			sessionNode := getOrCreateGroupNode(root, sessionNodes, NodeKindSession, current.Session)
 			incrementGroupStats(sessionNode, current)
 			parent = sessionNode
 		}
 
-		if resolvedGroupBy == settings.GroupByWindow || resolvedGroupBy == settings.GroupByPane {
+		if includeWindow {
 			windowKey := current.Session + "\x00" + current.Window
 			windowNode := getOrCreateGroupNode(parent, windowNodes, NodeKindWindow, windowKey, current.Window)
 			incrementGroupStats(windowNode, current)
 			parent = windowNode
 		}
 
-		if resolvedGroupBy == settings.GroupByPane {
-			paneKey := current.Session + "\x00" + current.Window + "\x00" + current.Pane
+		if includePane {
+			paneKey = current.Session + "\x00" + current.Window + "\x00" + current.Pane
 			paneNode := getOrCreateGroupNode(parent, paneNodes, NodeKindPane, paneKey, current.Pane)
 			incrementGroupStats(paneNode, current)
 			parent = paneNode
 		}
 
-		if resolvedGroupBy == settings.GroupByMessage {
-			messageNode := getOrCreateGroupNode(root, messageNodes, NodeKindMessage, current.Message, current.Message)
+		if groupByMessage {
+			messageKey := paneKey + "\x00" + current.Message
+			if paneKey == "" {
+				messageKey = current.Session + "\x00" + current.Window + "\x00" + current.Pane + "\x00" + current.Message
+			}
+			messageNode := getOrCreateGroupNode(parent, messageNodes, NodeKindMessage, messageKey, current.Message)
 			incrementGroupStats(messageNode, current)
 			parent = messageNode
 		}
