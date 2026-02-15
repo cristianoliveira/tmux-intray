@@ -13,9 +13,9 @@ import (
 
 	"github.com/cristianoliveira/tmux-intray/cmd"
 
-	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/dedupconfig"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
+	"github.com/cristianoliveira/tmux-intray/internal/format"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
@@ -33,15 +33,6 @@ func notificationsToValues(notifs []*domain.Notification) []domain.Notification 
 		values[i] = *n
 	}
 	return values
-}
-
-// notificationsToPointers converts a slice of notification values to pointers.
-func notificationsToPointers(notifs []domain.Notification) []*domain.Notification {
-	ptrs := make([]*domain.Notification, len(notifs))
-	for i := range notifs {
-		ptrs[i] = &notifs[i]
-	}
-	return ptrs
 }
 
 const listCommandLong = `List notifications with filters and formats.
@@ -329,28 +320,19 @@ func printNotifications(notifications []*domain.Notification, opts FilterOptions
 		} else {
 			groupResult = domain.GroupNotifications(notificationsValues, domain.GroupByMode(opts.GroupBy))
 		}
-		if opts.GroupCount {
-			printGroupCounts(groupResult, w, opts.Format)
-		} else {
-			printGrouped(groupResult, w, opts.Format)
+		formatter := format.GetFormatter(opts.Format, opts.GroupCount)
+		err := formatter.FormatGroups(groupResult, w)
+		if err != nil {
+			_, _ = fmt.Fprintf(w, "list: formatting error: %v\n", err)
 		}
 		return
 	}
 
-	// Print based on format
-	switch opts.Format {
-	case "simple":
-		printSimple(notifications, w)
-	case "legacy":
-		printLegacy(notifications, w)
-	case "table":
-		printTable(notifications, w)
-	case "compact":
-		printCompact(notifications, w)
-	case "json":
-		_, _ = fmt.Fprintln(w, "JSON format not yet implemented")
-	default:
-		_, _ = fmt.Fprintf(w, "list: unknown format: %s\n", opts.Format)
+	// No grouping, use appropriate formatter
+	formatter := format.GetFormatter(opts.Format, false)
+	err := formatter.FormatNotifications(notifications, w)
+	if err != nil {
+		_, _ = fmt.Fprintf(w, "list: formatting error: %v\n", err)
 	}
 }
 
@@ -374,88 +356,6 @@ func orderUnreadFirst(notifs []*domain.Notification) []*domain.Notification {
 	})
 
 	return ordered
-}
-
-// printGroupCounts prints only group counts.
-func printGroupCounts(groupResult domain.GroupResult, w io.Writer, format string) {
-	// Groups are already sorted by display name
-	for _, group := range groupResult.Groups {
-		_, _ = fmt.Fprintf(w, "Group: %s (%d)\n", group.DisplayName, group.Count)
-	}
-}
-
-// printGrouped prints grouped notifications with headers.
-func printGrouped(groupResult domain.GroupResult, w io.Writer, format string) {
-	// Groups are already sorted by display name
-	for _, group := range groupResult.Groups {
-		_, _ = fmt.Fprintf(w, "=== %s (%d) ===\n", group.DisplayName, group.Count)
-		notifs := notificationsToPointers(group.Notifications)
-		switch format {
-		case "simple":
-			printSimple(notifs, w)
-		case "legacy":
-			printLegacy(notifs, w)
-		case "table":
-			printTable(notifs, w)
-		case "compact":
-			printCompact(notifs, w)
-		default:
-			printLegacy(notifs, w)
-		}
-	}
-}
-
-// printLegacy prints only messages (one per line).
-func printLegacy(notifs []*domain.Notification, w io.Writer) {
-	for _, n := range notifs {
-		_, _ = fmt.Fprintln(w, n.Message)
-	}
-}
-
-// printSimple prints a simple format: ID DATE - Message.
-// Optimized for quick scanning with ID, timestamp, and message on one line.
-func printSimple(notifs []*domain.Notification, w io.Writer) {
-	for _, n := range notifs {
-		// Truncate message for display (50 chars max)
-		displayMsg := n.Message
-		if len(displayMsg) > 50 {
-			displayMsg = displayMsg[:47] + "..."
-		}
-		_, _ = fmt.Fprintf(w, "%-4d  %-25s  - %s\n", n.ID, n.Timestamp, displayMsg)
-	}
-}
-
-// printTable prints a formatted table with ID, Timestamp, Message, and optional context (Session Window Pane).
-// Format: ID DATE - Message (Session Window Pane)
-// Optimized for readability with ID first for easy copying.
-func printTable(notifs []*domain.Notification, w io.Writer) {
-	if len(notifs) == 0 {
-		return
-	}
-	headerColor := colors.Blue
-	reset := colors.Reset
-	_, _ = fmt.Fprintf(w, "%sID    DATE                   - Message%s\n", headerColor, reset)
-	_, _ = fmt.Fprintf(w, "%s----  ---------------------  - --------------------------------%s\n", headerColor, reset)
-	for _, n := range notifs {
-		// Truncate message for display (32 chars max)
-		displayMsg := n.Message
-		if len(displayMsg) > 32 {
-			displayMsg = displayMsg[:29] + "..."
-		}
-		_, _ = fmt.Fprintf(w, "%-4d  %-23s  - %s\n", n.ID, n.Timestamp, displayMsg)
-	}
-}
-
-// printCompact prints a compact format with Message only.
-func printCompact(notifs []*domain.Notification, w io.Writer) {
-	for _, n := range notifs {
-		// Truncate message for display
-		displayMsg := n.Message
-		if len(displayMsg) > 60 {
-			displayMsg = displayMsg[:57] + "..."
-		}
-		_, _ = fmt.Fprintln(w, displayMsg)
-	}
 }
 
 func init() {
