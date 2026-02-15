@@ -1565,6 +1565,49 @@ func TestBuildFilteredTreeGroupCounts(t *testing.T) {
 	assert.Equal(t, 1, pane2.Count)
 }
 
+func TestBuildFilteredTreeMessageGroupingMaintainsHierarchy(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Repeated", Timestamp: "2024-01-01T10:00:00Z"},
+		{ID: 2, Session: "$1", Window: "@1", Pane: "%2", Message: "Repeated", Timestamp: "2024-01-01T11:00:00Z"},
+		{ID: 3, Session: "$2", Window: "@2", Pane: "%3", Message: "Unique", Timestamp: "2024-01-02T10:00:00Z"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByMessage)
+	model.uiState.SetExpansionState(map[string]bool{})
+
+	model.applySearchFilter()
+	model.resetCursor()
+
+	root := model.getTreeRootForTest()
+	require.NotNil(t, root)
+	sessionOne := findChildByTitle(root, uimodel.NodeKindSession, "$1")
+	require.NotNil(t, sessionOne)
+	windowOne := findChildByTitle(sessionOne, uimodel.NodeKindWindow, "@1")
+	require.NotNil(t, windowOne)
+	paneOne := findChildByTitle(windowOne, uimodel.NodeKindPane, "%1")
+	paneTwo := findChildByTitle(windowOne, uimodel.NodeKindPane, "%2")
+	require.NotNil(t, paneOne)
+	require.NotNil(t, paneTwo)
+	messageOne := findChildByTitle(paneOne, uimodel.NodeKindMessage, "Repeated")
+	messageTwo := findChildByTitle(paneTwo, uimodel.NodeKindMessage, "Repeated")
+	require.NotNil(t, messageOne)
+	require.NotNil(t, messageTwo)
+	assert.Len(t, messageOne.Children, 1)
+	assert.Len(t, messageTwo.Children, 1)
+
+	sessionTwo := findChildByTitle(root, uimodel.NodeKindSession, "$2")
+	require.NotNil(t, sessionTwo)
+	windowTwo := findChildByTitle(sessionTwo, uimodel.NodeKindWindow, "@2")
+	require.NotNil(t, windowTwo)
+	paneThree := findChildByTitle(windowTwo, uimodel.NodeKindPane, "%3")
+	require.NotNil(t, paneThree)
+	uniqueMessage := findChildByTitle(paneThree, uimodel.NodeKindMessage, "Unique")
+	require.NotNil(t, uniqueMessage)
+	assert.Equal(t, 1, uniqueMessage.Count)
+}
+
 func TestModelUpdateHandlesCommandMode(t *testing.T) {
 	tmpDir := t.TempDir()
 	setupConfig(t, tmpDir)

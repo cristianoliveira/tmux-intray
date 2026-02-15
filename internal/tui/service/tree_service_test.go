@@ -208,6 +208,14 @@ func TestBuildTreeWithMessageGrouping(t *testing.T) {
 			Pane:      "pane-1",
 			Message:   "warning issued",
 		},
+		{
+			ID:        4,
+			Timestamp: "2025-01-01T10:03:00Z",
+			Session:   "session-a",
+			Window:    "window-1",
+			Pane:      "pane-1",
+			Message:   "error occurred",
+		},
 	}
 
 	err := service.BuildTree(notifs, settings.GroupByMessage)
@@ -215,34 +223,38 @@ func TestBuildTreeWithMessageGrouping(t *testing.T) {
 
 	root := service.GetTreeRoot()
 	require.NotNil(t, root)
-	require.Len(t, root.Children, 2) // Two unique messages
+	require.Len(t, root.Children, 2) // Two sessions
 
-	// Find message groups
-	var errorGroup *model.TreeNode
-	var warningGroup *model.TreeNode
-	for _, child := range root.Children {
-		if child.Kind == model.NodeKindMessage {
-			switch child.Title {
-			case "error occurred":
-				errorGroup = child
-			case "warning issued":
-				warningGroup = child
-			}
-		}
-	}
+	sessionA := findTreeChild(root, model.NodeKindSession, "session-a")
+	require.NotNil(t, sessionA)
+	sessionB := findTreeChild(root, model.NodeKindSession, "session-b")
+	require.NotNil(t, sessionB)
 
+	windowA := findTreeChild(sessionA, model.NodeKindWindow, "window-1")
+	require.NotNil(t, windowA)
+	paneA := findTreeChild(windowA, model.NodeKindPane, "pane-1")
+	require.NotNil(t, paneA)
+
+	errorGroup := findTreeChild(paneA, model.NodeKindMessage, "error occurred")
+	warningGroup := findTreeChild(paneA, model.NodeKindMessage, "warning issued")
 	require.NotNil(t, errorGroup)
 	require.NotNil(t, warningGroup)
 
-	// Verify error group has 2 notifications
 	assert.Equal(t, 2, errorGroup.Count)
-	assert.Equal(t, 2, len(errorGroup.Children))
+	assert.Len(t, errorGroup.Children, 2)
 	assert.Equal(t, 2, errorGroup.UnreadCount)
 
-	// Verify warning group has 1 notification
 	assert.Equal(t, 1, warningGroup.Count)
-	assert.Equal(t, 1, len(warningGroup.Children))
+	assert.Len(t, warningGroup.Children, 1)
 	assert.Equal(t, 1, warningGroup.UnreadCount)
+
+	windowB := findTreeChild(sessionB, model.NodeKindWindow, "window-2")
+	require.NotNil(t, windowB)
+	paneB := findTreeChild(windowB, model.NodeKindPane, "pane-2")
+	require.NotNil(t, paneB)
+	messageInB := findTreeChild(paneB, model.NodeKindMessage, "error occurred")
+	require.NotNil(t, messageInB)
+	assert.Len(t, messageInB.Children, 1)
 }
 
 func TestBuildTreeWithMessageGroupingAndReadNotifications(t *testing.T) {
@@ -262,9 +274,9 @@ func TestBuildTreeWithMessageGroupingAndReadNotifications(t *testing.T) {
 		{
 			ID:        2,
 			Timestamp: "2025-01-01T10:01:00Z",
-			Session:   "session-b",
-			Window:    "window-2",
-			Pane:      "pane-2",
+			Session:   "session-a",
+			Window:    "window-1",
+			Pane:      "pane-1",
 			Message:   "error occurred", // Same message, unread
 		},
 	}
@@ -274,12 +286,16 @@ func TestBuildTreeWithMessageGroupingAndReadNotifications(t *testing.T) {
 
 	root := service.GetTreeRoot()
 	require.NotNil(t, root)
-	require.Len(t, root.Children, 1) // One unique message
-
-	errorGroup := root.Children[0]
-	assert.Equal(t, model.NodeKindMessage, errorGroup.Kind)
+	session := findTreeChild(root, model.NodeKindSession, "session-a")
+	require.NotNil(t, session)
+	window := findTreeChild(session, model.NodeKindWindow, "window-1")
+	require.NotNil(t, window)
+	pane := findTreeChild(window, model.NodeKindPane, "pane-1")
+	require.NotNil(t, pane)
+	errorGroup := findTreeChild(pane, model.NodeKindMessage, "error occurred")
+	require.NotNil(t, errorGroup)
 	assert.Equal(t, 2, errorGroup.Count)
-	assert.Equal(t, 1, errorGroup.UnreadCount) // Only one is unread
+	assert.Equal(t, 1, errorGroup.UnreadCount)
 }
 
 func TestTreeServiceTracksExtendedGroupStats(t *testing.T) {
@@ -323,7 +339,45 @@ func TestGetTreeLevelWithMessageNode(t *testing.T) {
 	}
 
 	level := service.GetTreeLevel(messageNode)
-	assert.Equal(t, 0, level)
+	assert.Equal(t, 3, level)
+}
+
+func TestNodeIdentifiersIncludeMessageHierarchy(t *testing.T) {
+	service := NewTreeService(model.GroupByPane).(*DefaultTreeService)
+
+	notifs := []notification.Notification{
+		{ID: 1, Session: "s1", Window: "w1", Pane: "p1", Message: "duplicate"},
+		{ID: 2, Session: "s1", Window: "w1", Pane: "p2", Message: "duplicate"},
+	}
+
+	require.NoError(t, service.BuildTree(notifs, settings.GroupByMessage))
+	root := service.GetTreeRoot()
+	require.NotNil(t, root)
+	session := findTreeChild(root, model.NodeKindSession, "s1")
+	require.NotNil(t, session)
+	window := findTreeChild(session, model.NodeKindWindow, "w1")
+	require.NotNil(t, window)
+	paneOne := findTreeChild(window, model.NodeKindPane, "p1")
+	paneTwo := findTreeChild(window, model.NodeKindPane, "p2")
+	require.NotNil(t, paneOne)
+	require.NotNil(t, paneTwo)
+	msgOne := findTreeChild(paneOne, model.NodeKindMessage, "duplicate")
+	msgTwo := findTreeChild(paneTwo, model.NodeKindMessage, "duplicate")
+	require.NotNil(t, msgOne)
+	require.NotNil(t, msgTwo)
+	assert.NotEqual(t, service.GetNodeIdentifier(msgOne), service.GetNodeIdentifier(msgTwo))
+}
+
+func findTreeChild(node *model.TreeNode, kind model.NodeKind, title string) *model.TreeNode {
+	if node == nil {
+		return nil
+	}
+	for _, child := range node.Children {
+		if child.Kind == kind && child.Title == title {
+			return child
+		}
+	}
+	return nil
 }
 
 func TestGroupByCommandHandlerWithMessage(t *testing.T) {

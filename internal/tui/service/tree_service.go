@@ -2,7 +2,6 @@
 package service
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
@@ -42,32 +41,48 @@ func (s *DefaultTreeService) BuildTree(notifications []notification.Notification
 	paneNodes := make(map[string]*model.TreeNode)
 	messageNodes := make(map[string]*model.TreeNode)
 
+	includeSession := resolvedGroupBy == settings.GroupBySession ||
+		resolvedGroupBy == settings.GroupByWindow ||
+		resolvedGroupBy == settings.GroupByPane ||
+		resolvedGroupBy == settings.GroupByMessage
+	includeWindow := resolvedGroupBy == settings.GroupByWindow ||
+		resolvedGroupBy == settings.GroupByPane ||
+		resolvedGroupBy == settings.GroupByMessage
+	includePane := resolvedGroupBy == settings.GroupByPane ||
+		resolvedGroupBy == settings.GroupByMessage
+	groupByMessage := resolvedGroupBy == settings.GroupByMessage
+
 	for _, notif := range notifications {
 		current := notif
 		parent := root
+		paneKey := ""
 
-		if resolvedGroupBy == settings.GroupBySession || resolvedGroupBy == settings.GroupByWindow || resolvedGroupBy == settings.GroupByPane {
+		if includeSession {
 			sessionNode := s.getOrCreateGroupNode(root, sessionNodes, model.NodeKindSession, current.Session)
 			s.incrementGroupStats(sessionNode, current)
 			parent = sessionNode
 		}
 
-		if resolvedGroupBy == settings.GroupByWindow || resolvedGroupBy == settings.GroupByPane {
+		if includeWindow {
 			windowKey := current.Session + "\x00" + current.Window
 			windowNode := s.getOrCreateGroupNode(parent, windowNodes, model.NodeKindWindow, windowKey, current.Window)
 			s.incrementGroupStats(windowNode, current)
 			parent = windowNode
 		}
 
-		if resolvedGroupBy == settings.GroupByPane {
-			paneKey := current.Session + "\x00" + current.Window + "\x00" + current.Pane
+		if includePane {
+			paneKey = current.Session + "\x00" + current.Window + "\x00" + current.Pane
 			paneNode := s.getOrCreateGroupNode(parent, paneNodes, model.NodeKindPane, paneKey, current.Pane)
 			s.incrementGroupStats(paneNode, current)
 			parent = paneNode
 		}
 
-		if resolvedGroupBy == settings.GroupByMessage {
-			messageNode := s.getOrCreateGroupNode(root, messageNodes, model.NodeKindMessage, current.Message, current.Message)
+		if groupByMessage {
+			messageKey := paneKey + "\x00" + current.Message
+			if paneKey == "" {
+				messageKey = current.Session + "\x00" + current.Window + "\x00" + current.Pane + "\x00" + current.Message
+			}
+			messageNode := s.getOrCreateGroupNode(parent, messageNodes, model.NodeKindMessage, messageKey, current.Message)
 			s.incrementGroupStats(messageNode, current)
 			parent = messageNode
 		}
@@ -125,66 +140,6 @@ func (s *DefaultTreeService) GetTreeRoot() *model.TreeNode {
 	return s.treeRoot
 }
 
-// FindNotificationPath locates a notification in the tree and returns the path.
-func (s *DefaultTreeService) FindNotificationPath(root *model.TreeNode, notif notification.Notification) ([]*model.TreeNode, error) {
-	if root == nil {
-		return nil, fmt.Errorf("root node cannot be nil")
-	}
-
-	path, ok := s.findNotificationPathRecursive(root, notif)
-	if !ok {
-		return nil, fmt.Errorf("notification not found in tree")
-	}
-
-	return path, nil
-}
-
-// findNotificationPathRecursive is a helper that recursively searches for a notification.
-func (s *DefaultTreeService) findNotificationPathRecursive(node *model.TreeNode, notif notification.Notification) ([]*model.TreeNode, bool) {
-	if node == nil {
-		return nil, false
-	}
-	if node.Kind == model.NodeKindNotification && s.notificationNodeMatches(node, notif) {
-		return []*model.TreeNode{node}, true
-	}
-	for _, child := range node.Children {
-		childPath, ok := s.findNotificationPathRecursive(child, notif)
-		if !ok {
-			continue
-		}
-		return append([]*model.TreeNode{node}, childPath...), true
-	}
-	return nil, false
-}
-
-// FindNodeByID finds a tree node by its unique identifier.
-func (s *DefaultTreeService) FindNodeByID(root *model.TreeNode, identifier string) *model.TreeNode {
-	if root == nil {
-		return nil
-	}
-
-	return s.findNodeByIDRecursive(root, identifier)
-}
-
-// findNodeByIDRecursive is a helper that recursively searches for a node by identifier.
-func (s *DefaultTreeService) findNodeByIDRecursive(node *model.TreeNode, identifier string) *model.TreeNode {
-	if node == nil {
-		return nil
-	}
-
-	if s.GetNodeIdentifier(node) == identifier {
-		return node
-	}
-
-	for _, child := range node.Children {
-		if found := s.findNodeByIDRecursive(child, identifier); found != nil {
-			return found
-		}
-	}
-
-	return nil
-}
-
 // GetVisibleNodes returns all nodes that should be visible in the UI.
 func (s *DefaultTreeService) GetVisibleNodes() []*model.TreeNode {
 	if s.cacheValid {
@@ -230,22 +185,6 @@ func (s *DefaultTreeService) InvalidateCache() {
 	s.visibleNodes = nil
 	s.visibleNodesCache = nil
 	s.cacheValid = false
-}
-
-// GetNodeIdentifier returns a stable identifier for a node.
-func (s *DefaultTreeService) GetNodeIdentifier(node *model.TreeNode) string {
-	if node == nil {
-		return ""
-	}
-	if node.Kind == model.NodeKindNotification && node.Notification != nil {
-		return fmt.Sprintf("notif:%d", node.Notification.ID)
-	}
-	// For group nodes, use the node kind and title
-	// This is a simplified version - the full implementation needs path tracking
-	if node.Kind == model.NodeKindRoot {
-		return "root"
-	}
-	return fmt.Sprintf("%s:%s", node.Kind, node.Title)
 }
 
 // PruneEmptyGroups removes group nodes with no children from the tree.
@@ -359,7 +298,7 @@ func (s *DefaultTreeService) GetTreeLevel(node *model.TreeNode) int {
 	case model.NodeKindPane:
 		return 2
 	case model.NodeKindMessage:
-		return 0
+		return 3
 	default:
 		return 0
 	}
@@ -480,19 +419,4 @@ func (s *DefaultTreeService) expandAllGroups(node *model.TreeNode) {
 	for _, child := range node.Children {
 		s.expandAllGroups(child)
 	}
-}
-
-// notificationNodeMatches checks if a notification node matches the given notification.
-func (s *DefaultTreeService) notificationNodeMatches(node *model.TreeNode, notif notification.Notification) bool {
-	if node == nil || node.Kind != model.NodeKindNotification || node.Notification == nil {
-		return false
-	}
-	if node.Notification.ID == notif.ID {
-		return true
-	}
-	return node.Notification.Timestamp == notif.Timestamp &&
-		node.Notification.Message == notif.Message &&
-		node.Notification.Session == notif.Session &&
-		node.Notification.Window == notif.Window &&
-		node.Notification.Pane == notif.Pane
 }
