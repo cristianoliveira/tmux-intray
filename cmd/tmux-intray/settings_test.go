@@ -142,6 +142,7 @@ func TestSettingsDefaults(t *testing.T) {
 	// Verify default filters are empty
 	require.Equal(t, "", defaults.Filters.Level)
 	require.Equal(t, "", defaults.Filters.State)
+	require.Equal(t, "", defaults.Filters.Read)
 	require.Equal(t, "", defaults.Filters.Session)
 	require.Equal(t, "", defaults.Filters.Window)
 	require.Equal(t, "", defaults.Filters.Pane)

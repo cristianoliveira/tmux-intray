@@ -335,7 +335,15 @@ The `tmux-intray tui` command provides an interactive terminal user interface fo
 - Jump to source panes
 - Notifications sorted by most recent first
 - **Settings persistence**: TUI preferences (column order, sort order, filters, view mode) are automatically saved on exit and restored on startup
+- Footer shows the active read/unread filter; adjust it live with `:filter-read <read|unread|all>` and the preference is saved automatically
 - Settings file location: `~/.config/tmux-intray/settings.json`
+
+**Command Mode Commands:**
+- `:w` – Save settings manually
+- `:group-by <none|session|window|pane|message>` – Change grouping strategy
+- `:expand-level <0|1|2|3>` – Set default tree expansion depth
+- `:toggle-view` – Switch between detailed and grouped layouts
+- `:filter-read <read|unread|all>` – Show only read/unread notifications or all and persist the choice
 
 ### Status Bar Integration
 

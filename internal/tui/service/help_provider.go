@@ -76,6 +76,7 @@ func (p *DefaultHelpProvider) registerDefaultHelp() {
 	p.registerGroupByHelp()
 	p.registerExpandLevelHelp()
 	p.registerToggleViewHelp()
+	p.registerFilterReadHelp()
 }
 
 // registerQuitHelp registers help for the quit command.
@@ -155,5 +156,26 @@ func (p *DefaultHelpProvider) registerToggleViewHelp() {
 		Usage:       "toggle-view",
 		Arguments:   []model.ArgumentHelp{},
 		Examples:    []string{":toggle-view"},
+	}
+}
+
+// registerFilterReadHelp registers help for the filter-read command.
+func (p *DefaultHelpProvider) registerFilterReadHelp() {
+	p.commands["filter-read"] = &model.CommandHelp{
+		Name:        "filter-read",
+		Description: "Filter notifications by read/unread status",
+		Usage:       "filter-read <read|unread|all>",
+		Arguments: []model.ArgumentHelp{
+			{
+				Name:        "status",
+				Description: "Read status to display",
+				Required:    true,
+				Options:     []string{"read", "unread", "all"},
+			},
+		},
+		Examples: []string{
+			":filter-read unread",
+			":filter-read all",
+		},
 	}
 }

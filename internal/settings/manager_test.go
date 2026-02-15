@@ -42,6 +42,7 @@ func TestFromSettings(t *testing.T) {
 				Filters: Filter{
 					Level:   LevelFilterWarning,
 					State:   StateFilterActive,
+					Read:    ReadFilterUnread,
 					Session: "my-session",
 					Window:  "@1",
 					Pane:    "%1",
@@ -60,6 +61,7 @@ func TestFromSettings(t *testing.T) {
 				Filters: Filter{
 					Level:   LevelFilterWarning,
 					State:   StateFilterActive,
+					Read:    ReadFilterUnread,
 					Session: "my-session",
 					Window:  "@1",
 					Pane:    "%1",
@@ -140,6 +142,7 @@ func TestToSettings(t *testing.T) {
 				Filters: Filter{
 					Level:   LevelFilterWarning,
 					State:   StateFilterActive,
+					Read:    ReadFilterUnread,
 					Session: "my-session",
 					Window:  "@1",
 					Pane:    "%1",
@@ -159,6 +162,7 @@ func TestToSettings(t *testing.T) {
 				Filters: Filter{
 					Level:   LevelFilterWarning,
 					State:   StateFilterActive,
+					Read:    ReadFilterUnread,
 					Session: "my-session",
 					Window:  "@1",
 					Pane:    "%1",
@@ -264,6 +268,13 @@ func TestIsEmpty(t *testing.T) {
 			want: false,
 		},
 		{
+			name: "has read filter",
+			state: TUIState{
+				Filters: Filter{Read: ReadFilterUnread},
+			},
+			want: false,
+		},
+		{
 			name: "has filter session",
 			state: TUIState{
 				Filters: Filter{Session: "my-session"},
@@ -333,6 +344,7 @@ func TestRoundTripConversion(t *testing.T) {
 				Filters: Filter{
 					Level:   LevelFilterWarning,
 					State:   StateFilterActive,
+					Read:    ReadFilterUnread,
 					Session: "my-session",
 					Window:  "@1",
 					Pane:    "%1",
@@ -381,6 +393,7 @@ func TestPartialTUIStateConversion(t *testing.T) {
 		Filters: Filter{
 			Level:   LevelFilterWarning,
 			State:   StateFilterActive,
+			Read:    ReadFilterUnread,
 			Session: "my-session",
 		},
 		ViewMode:           ViewModeDetailed,
@@ -406,6 +419,7 @@ func TestPartialTUIStateConversion(t *testing.T) {
 	state.Filters.Session = ""
 	state.Filters.Window = "@1"
 	state.Filters.Pane = "%1"
+	state.Filters.Read = ReadFilterRead
 	state.ExpansionState = map[string]bool{}
 
 	// Convert back to Settings
@@ -417,6 +431,7 @@ func TestPartialTUIStateConversion(t *testing.T) {
 	assert.Equal(t, original.SortOrder, result.SortOrder)
 	assert.Equal(t, original.Filters.Level, result.Filters.Level)
 	assert.Equal(t, original.Filters.State, result.Filters.State)
+	assert.Equal(t, ReadFilterRead, result.Filters.Read)
 	assert.Equal(t, "", result.Filters.Session)
 	assert.Equal(t, "@1", result.Filters.Window)
 	assert.Equal(t, "%1", result.Filters.Pane)
@@ -434,6 +449,7 @@ func TestExtractFromModel(t *testing.T) {
 		Filters: Filter{
 			Level:   LevelFilterWarning,
 			State:   StateFilterActive,
+			Read:    ReadFilterUnread,
 			Session: "session-1",
 		},
 		ViewMode: ViewModeDetailed,

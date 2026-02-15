@@ -154,6 +154,9 @@ func (s *DefaultCommandService) registerDefaultHandlers() {
 
 	// Toggle view command
 	s.handlers["toggle-view"] = &ToggleViewCommandHandler{model: s.model, errorHandler: s.errorHandler}
+
+	// Read filter command
+	s.handlers["filter-read"] = &FilterReadCommandHandler{model: s.model, errorHandler: s.errorHandler}
 }
 
 // QuitCommandHandler handles the quit command.
@@ -373,4 +376,75 @@ func (h *ToggleViewCommandHandler) Validate(args []string) error {
 
 func (h *ToggleViewCommandHandler) Complete(args []string) []string {
 	return []string{} // No completion for toggle-view
+}
+
+// FilterReadCommandHandler handles the filter-read command.
+type FilterReadCommandHandler struct {
+	model        ModelInterface
+	errorHandler errors.ErrorHandler
+}
+
+func (h *FilterReadCommandHandler) Execute(args []string) (*model.CommandResult, error) {
+	if len(args) != 1 {
+		return &model.CommandResult{Error: true, Message: "Invalid usage: filter-read <read|unread|all>"}, nil
+	}
+
+	normalized, label, err := normalizeReadFilterArg(args[0])
+	if err != nil {
+		return &model.CommandResult{Error: true, Message: err.Error()}, nil
+	}
+
+	if h.model.GetReadFilter() == normalized {
+		return &model.CommandResult{Message: fmt.Sprintf("Read filter: %s (already set)", label)}, nil
+	}
+
+	if err := h.model.SetReadFilter(normalized); err != nil {
+		return &model.CommandResult{Error: true, Message: fmt.Sprintf("Failed to set read filter: %v", err)}, nil
+	}
+
+	h.model.ApplySearchFilter()
+	h.model.ResetCursor()
+
+	if err := h.model.SaveSettings(); err != nil {
+		h.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+	}
+
+	return &model.CommandResult{Message: fmt.Sprintf("Read filter: %s", label)}, nil
+}
+
+func (h *FilterReadCommandHandler) Validate(args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("invalid usage: filter-read <read|unread|all>")
+	}
+	_, _, err := normalizeReadFilterArg(args[0])
+	return err
+}
+
+func (h *FilterReadCommandHandler) Complete(args []string) []string {
+	if len(args) == 0 {
+		return []string{"all", settings.ReadFilterUnread, settings.ReadFilterRead}
+	}
+	if len(args) == 1 {
+		var suggestions []string
+		for _, candidate := range []string{"all", settings.ReadFilterUnread, settings.ReadFilterRead} {
+			if strings.HasPrefix(candidate, strings.ToLower(args[0])) {
+				suggestions = append(suggestions, candidate)
+			}
+		}
+		return suggestions
+	}
+	return []string{}
+}
+
+func normalizeReadFilterArg(raw string) (value string, label string, err error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "all", "":
+		return "", "all", nil
+	case settings.ReadFilterRead:
+		return settings.ReadFilterRead, settings.ReadFilterRead, nil
+	case settings.ReadFilterUnread:
+		return settings.ReadFilterUnread, settings.ReadFilterUnread, nil
+	default:
+		return "", "", fmt.Errorf("invalid read filter value: %s (expected read|unread|all)", raw)
+	}
 }

@@ -2297,6 +2297,7 @@ func TestToState(t *testing.T) {
 				filters: settings.Filter{
 					Level:   settings.LevelFilterWarning,
 					State:   settings.StateFilterActive,
+					Read:    settings.ReadFilterUnread,
 					Session: "my-session",
 					Window:  "@1",
 					Pane:    "%1",
@@ -2309,6 +2310,7 @@ func TestToState(t *testing.T) {
 				Filters: settings.Filter{
 					Level:   settings.LevelFilterWarning,
 					State:   settings.StateFilterActive,
+					Read:    settings.ReadFilterUnread,
 					Session: "my-session",
 					Window:  "@1",
 					Pane:    "%1",
@@ -2405,6 +2407,7 @@ func TestFromState(t *testing.T) {
 				Filters: settings.Filter{
 					Level:   settings.LevelFilterWarning,
 					State:   settings.StateFilterActive,
+					Read:    settings.ReadFilterUnread,
 					Session: "my-session",
 					Window:  "@1",
 					Pane:    "%1",
@@ -2428,6 +2431,7 @@ func TestFromState(t *testing.T) {
 				assert.Equal(t, map[string]bool{"window:@1": true}, m.uiState.GetExpansionState())
 				assert.Equal(t, settings.LevelFilterWarning, m.filters.Level)
 				assert.Equal(t, settings.StateFilterActive, m.filters.State)
+				assert.Equal(t, settings.ReadFilterUnread, m.filters.Read)
 				assert.Equal(t, "my-session", m.filters.Session)
 				assert.Equal(t, "@1", m.filters.Window)
 				assert.Equal(t, "%1", m.filters.Pane)
@@ -2475,6 +2479,7 @@ func TestFromState(t *testing.T) {
 				filters: settings.Filter{
 					Level:   settings.LevelFilterError,
 					State:   settings.StateFilterActive,
+					Read:    settings.ReadFilterUnread,
 					Session: "old-session",
 					Window:  "old-session",
 					Pane:    "old-session",
@@ -2483,6 +2488,7 @@ func TestFromState(t *testing.T) {
 			state: settings.TUIState{
 				Filters: settings.Filter{
 					Level:   settings.LevelFilterWarning,
+					Read:    settings.ReadFilterRead,
 					Session: "new-session",
 				},
 				ExpansionState: map[string]bool{},
@@ -2491,6 +2497,7 @@ func TestFromState(t *testing.T) {
 			verifyFn: func(t *testing.T, m *Model) {
 				assert.Equal(t, settings.LevelFilterWarning, m.filters.Level)
 				assert.Equal(t, settings.StateFilterActive, m.filters.State)
+				assert.Equal(t, settings.ReadFilterRead, m.filters.Read)
 				assert.Equal(t, "new-session", m.filters.Session)
 				// Fields not set in state preserve their old values
 				assert.Equal(t, "old-session", m.filters.Window)
@@ -2532,6 +2539,15 @@ func TestFromState(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSetReadFilter(t *testing.T) {
+	m := &Model{}
+	require.NoError(t, m.SetReadFilter(settings.ReadFilterUnread))
+	assert.Equal(t, settings.ReadFilterUnread, m.GetReadFilter())
+
+	err := m.SetReadFilter("invalid")
+	require.Error(t, err)
 }
 
 func TestModelWithNegativeDimensions(t *testing.T) {
