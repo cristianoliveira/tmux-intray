@@ -113,7 +113,10 @@ func GroupNotificationsWithDedup(notifs []Notification, mode GroupByMode, dedupO
 
 	// Sort groups by display name
 	sort.Slice(groups, func(i, j int) bool {
-		return groups[i].DisplayName < groups[j].DisplayName
+		if groups[i].DisplayName != groups[j].DisplayName {
+			return groups[i].DisplayName < groups[j].DisplayName
+		}
+		return groups[i].Key < groups[j].Key
 	})
 
 	return GroupResult{
