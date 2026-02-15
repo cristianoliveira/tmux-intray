@@ -81,6 +81,7 @@ const (
 	GroupBySession = "session"
 	GroupByWindow  = "window"
 	GroupByPane    = "pane"
+	GroupByMessage = "message"
 )
 
 // Expansion level limits.
@@ -174,7 +175,7 @@ type Settings struct {
 	// Empty string means use default view mode (grouped).
 	ViewMode string
 
-	// GroupBy specifies the grouping mode: "none", "session", "window", or "pane".
+	// GroupBy specifies the grouping mode: "none", "session", "window", "pane", or "message".
 	// Empty string means use default grouping (none).
 	GroupBy string
 
@@ -458,7 +459,7 @@ func Validate(settings *Settings) error {
 // IsValidGroupBy returns true if groupBy is a supported grouping mode.
 func IsValidGroupBy(groupBy string) bool {
 	switch groupBy {
-	case GroupByNone, GroupBySession, GroupByWindow, GroupByPane:
+	case GroupByNone, GroupBySession, GroupByWindow, GroupByPane, GroupByMessage:
 		return true
 	default:
 		return false

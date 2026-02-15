@@ -227,12 +227,12 @@ type GroupByCommandHandler struct {
 
 func (h *GroupByCommandHandler) Execute(args []string) (*model.CommandResult, error) {
 	if len(args) != 1 {
-		return &model.CommandResult{Error: true, Message: "Invalid usage: group-by <none|session|window|pane>"}, nil
+		return &model.CommandResult{Error: true, Message: "Invalid usage: group-by <none|session|window|pane|message>"}, nil
 	}
 
 	groupBy := strings.ToLower(args[0])
 	if !settings.IsValidGroupBy(groupBy) {
-		msg := fmt.Sprintf("Invalid group-by value: %s (expected one of: none, session, window, pane)", args[0])
+		msg := fmt.Sprintf("Invalid group-by value: %s (expected one of: none, session, window, pane, message)", args[0])
 		return &model.CommandResult{Error: true, Message: msg}, nil
 	}
 
@@ -258,12 +258,12 @@ func (h *GroupByCommandHandler) Execute(args []string) (*model.CommandResult, er
 
 func (h *GroupByCommandHandler) Validate(args []string) error {
 	if len(args) != 1 {
-		return fmt.Errorf("invalid usage: group-by <none|session|window|pane>")
+		return fmt.Errorf("invalid usage: group-by <none|session|window|pane|message>")
 	}
 
 	groupBy := strings.ToLower(args[0])
 	if !settings.IsValidGroupBy(groupBy) {
-		return fmt.Errorf("invalid group-by value: %s (expected one of: none, session, window, pane)", args[0])
+		return fmt.Errorf("invalid group-by value: %s (expected one of: none, session, window, pane, message)", args[0])
 	}
 
 	return nil
@@ -271,7 +271,7 @@ func (h *GroupByCommandHandler) Validate(args []string) error {
 
 func (h *GroupByCommandHandler) Complete(args []string) []string {
 	if len(args) == 0 {
-		return []string{"none", "session", "window", "pane"}
+		return []string{"none", "session", "window", "pane", "message"}
 	}
 	return []string{}
 }

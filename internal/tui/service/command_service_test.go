@@ -380,6 +380,7 @@ func TestGroupByCommandHandler(t *testing.T) {
 	assert.Contains(t, suggestions, "session")
 	assert.Contains(t, suggestions, "window")
 	assert.Contains(t, suggestions, "pane")
+	assert.Contains(t, suggestions, "message")
 }
 
 func TestExpandLevelCommandHandler(t *testing.T) {
