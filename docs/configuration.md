@@ -176,7 +176,7 @@ expansionState = {}
 | `filters.window` | string | Filter by tmux window | `""` (no filter) | Window ID or `""` |
 | `filters.pane` | string | Filter by tmux pane | `""` (no filter) | Pane ID or `""` |
 | `viewMode` | string | Display layout | `"grouped"` | `"compact"`, `"detailed"`, `"grouped"` |
-| `groupBy` | string | Group notifications in the TUI | `"none"` | `"none"`, `"session"`, `"window"`, `"pane"` |
+| `groupBy` | string | Group notifications in the TUI | `"none"` | `"none"`, `"session"`, `"window"`, `"pane"`, `"message"` |
 | `defaultExpandLevel` | number | Default grouping expansion depth | `1` | `0`-`3` |
 | `expansionState` | object | Explicit expansion overrides by node path | `{}` | Object of string to boolean |
 
@@ -186,6 +186,7 @@ expansionState = {}
 - `session`: session groups with notifications directly under each session
 - `window`: session -> window -> notification
 - `pane`: session -> window -> pane -> notification
+- `message`: groups notifications by message text (exact match)
 
 ### Default Settings
 
