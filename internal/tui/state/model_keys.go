@@ -56,24 +56,22 @@ func (m *Model) handleConfirmation(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Cancel confirmation and quit
 		m.uiState.SetConfirmationMode(false)
 		return m.handleCtrlC()
-	case tea.KeyEsc:
-		// Cancel confirmation
+	case tea.KeyEsc, tea.KeyEnter:
+		// Cancel confirmation (Enter defaults to N)
 		m.uiState.SetConfirmationMode(false)
 		return m, nil
-	case tea.KeyEnter:
-		// Confirm action
-		return m, m.executeConfirmedAction()
 	case tea.KeyRunes:
-		// Handle y/Y for yes, n/N for no
 		if len(msg.Runes) == 0 {
 			return m, nil
 		}
-		switch msg.Runes[0] {
-		case 'y', 'Y':
-			return m, m.executeConfirmedAction()
-		case 'n', 'N':
-			m.uiState.SetConfirmationMode(false)
-			return m, nil
+		if len(msg.Runes) == 1 {
+			switch msg.Runes[0] {
+			case 'y', 'Y':
+				return m, m.executeConfirmedAction()
+			case 'n', 'N':
+				m.uiState.SetConfirmationMode(false)
+				return m, nil
+			}
 		}
 	}
 	return m, nil

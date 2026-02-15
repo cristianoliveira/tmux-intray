@@ -85,3 +85,15 @@ func TestUIStateWithModel(t *testing.T) {
 	assert.True(t, model.uiState.IsSearchMode())
 	assert.Equal(t, "test", model.uiState.GetSearchQuery())
 }
+
+func TestSetConfirmationModeResetsState(t *testing.T) {
+	uiState := NewUIState()
+
+	uiState.SetConfirmationMode(true)
+	assert.True(t, uiState.IsConfirmationMode())
+
+	uiState.SetPendingAction(PendingAction{Type: ActionDismissGroup})
+	uiState.SetConfirmationMode(false)
+	assert.False(t, uiState.IsConfirmationMode())
+	assert.Equal(t, PendingAction{}, uiState.GetPendingAction())
+}
