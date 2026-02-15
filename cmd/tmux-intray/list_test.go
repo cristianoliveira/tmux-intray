@@ -295,6 +295,28 @@ func TestPrintListGroupByLevel(t *testing.T) {
 	}
 }
 
+func TestPrintListGroupByMessage(t *testing.T) {
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
+		return "1\t2025-01-01T10:00:00Z\tactive\tsess1\twin1\tpane1\trepeated message\t123\tinfo\t\n" +
+			"2\t2025-01-01T11:00:00Z\tactive\tsess1\twin1\tpane2\trepeated message\t124\twarning\t\n" +
+			"3\t2025-01-01T12:00:00Z\tactive\tsess2\twin2\tpane3\tunique message\t125\terror\t\n"
+	}
+	defer restoreMock()
+
+	var buf bytes.Buffer
+	listOutputWriter = &buf
+	defer func() { listOutputWriter = nil }()
+
+	PrintList(FilterOptions{GroupBy: "message", Format: "legacy"})
+	output := buf.String()
+	if !strings.Contains(output, "=== repeated message (2) ===") {
+		t.Error("Missing repeated message group header")
+	}
+	if !strings.Contains(output, "=== unique message (1) ===") {
+		t.Error("Missing unique message group header")
+	}
+}
+
 func TestPrintListGroupCount(t *testing.T) {
 	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
 		return mockLines()
@@ -823,6 +845,11 @@ func TestListCmdRunEFlagCombinations(t *testing.T) {
 			flags:          map[string]string{"filter": "unread"},
 			wantState:      "active",
 			wantReadFilter: "unread",
+		},
+		{
+			name:      "group-by message",
+			flags:     map[string]string{"group-by": "message"},
+			wantState: "active",
 		},
 	}
 	for _, tt := range tests {

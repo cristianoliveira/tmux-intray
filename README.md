@@ -254,7 +254,7 @@ tmux-intray's `list` command supports powerful filtering options to help you fin
 - `--session <id>` / `--window <id>` / `--pane <id>` – filter by tmux context
 - `--older-than <days>` / `--newer-than <days>` – time‑based filtering
 - `--search <pattern>` – substring search in messages (use `--regex` for regular expressions)
-- `--group-by <field>` – group notifications by session, window, pane, or level
+- `--group-by <field>` – group notifications by session, window, pane, level, or message
 - `--group-count` – show only group counts (requires `--group-by`)
 
 **Examples:**
