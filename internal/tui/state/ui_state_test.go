@@ -86,34 +86,14 @@ func TestUIStateWithModel(t *testing.T) {
 	assert.Equal(t, "test", model.uiState.GetSearchQuery())
 }
 
-func TestConfirmationInputHelpers(t *testing.T) {
-	uiState := NewUIState()
-
-	uiState.AppendConfirmationInput([]rune{' '})
-	assert.Equal(t, "", uiState.GetConfirmationInput())
-
-	uiState.AppendConfirmationInput([]rune{'y', 'e'})
-	assert.Equal(t, "ye", uiState.GetConfirmationInput())
-
-	uiState.BackspaceConfirmationInput()
-	assert.Equal(t, "y", uiState.GetConfirmationInput())
-
-	uiState.ResetConfirmationInput()
-	assert.Equal(t, "", uiState.GetConfirmationInput())
-}
-
 func TestSetConfirmationModeResetsState(t *testing.T) {
 	uiState := NewUIState()
 
-	uiState.AppendConfirmationInput([]rune{'a'})
 	uiState.SetConfirmationMode(true)
 	assert.True(t, uiState.IsConfirmationMode())
-	assert.Equal(t, "", uiState.GetConfirmationInput())
 
 	uiState.SetPendingAction(PendingAction{Type: ActionDismissGroup})
-	uiState.AppendConfirmationInput([]rune{'x'})
 	uiState.SetConfirmationMode(false)
 	assert.False(t, uiState.IsConfirmationMode())
-	assert.Equal(t, "", uiState.GetConfirmationInput())
 	assert.Equal(t, PendingAction{}, uiState.GetPendingAction())
 }

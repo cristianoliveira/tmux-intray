@@ -1,8 +1,6 @@
 package state
 
 import (
-	"unicode"
-
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
@@ -48,9 +46,8 @@ type UIState struct {
 	pendingKey string
 
 	// Confirmation state for actions requiring user confirmation
-	confirmationMode  bool
-	confirmationInput string
-	pendingAction     PendingAction
+	confirmationMode bool
+	pendingAction    PendingAction
 
 	// View mode management
 	viewMode model.ViewMode
@@ -187,52 +184,10 @@ func (u *UIState) IsConfirmationMode() bool {
 
 // SetConfirmationMode activates or deactivates confirmation mode.
 func (u *UIState) SetConfirmationMode(active bool) {
-	if u.confirmationMode != active {
-		u.ResetConfirmationInput()
-	}
 	u.confirmationMode = active
 	if !active {
 		u.pendingAction = PendingAction{}
 	}
-}
-
-// ResetConfirmationInput clears the confirmation input buffer.
-func (u *UIState) ResetConfirmationInput() { u.confirmationInput = "" }
-
-// AppendConfirmationInput appends runes to the confirmation buffer, ignoring whitespace-only input.
-func (u *UIState) AppendConfirmationInput(runes []rune) {
-	if len(runes) == 0 {
-		return
-	}
-	whitespaceOnly := true
-	for _, r := range runes {
-		if !unicode.IsSpace(r) {
-			whitespaceOnly = false
-			break
-		}
-	}
-	if whitespaceOnly {
-		return
-	}
-	u.confirmationInput += string(runes)
-}
-
-// BackspaceConfirmationInput removes the last rune from the confirmation buffer.
-func (u *UIState) BackspaceConfirmationInput() {
-	if u.confirmationInput == "" {
-		return
-	}
-	runes := []rune(u.confirmationInput)
-	if len(runes) == 0 {
-		u.confirmationInput = ""
-		return
-	}
-	u.confirmationInput = string(runes[:len(runes)-1])
-}
-
-// GetConfirmationInput returns the current confirmation input buffer.
-func (u *UIState) GetConfirmationInput() string {
-	return u.confirmationInput
 }
 
 // GetPendingAction returns the current pending action for confirmation.
