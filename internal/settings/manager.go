@@ -31,6 +31,9 @@ type TUIState struct {
 	// AutoExpandUnread controls whether groups with unread notifications are auto-expanded.
 	AutoExpandUnread bool `json:"autoExpandUnread"`
 
+	// ShowHelp controls whether help text is shown in footer.
+	ShowHelp bool `json:"showHelp"`
+
 	// ExpansionState stores explicit expansion overrides by node path.
 	ExpansionState map[string]bool `json:"expansionState"`
 }
@@ -50,6 +53,7 @@ func FromSettings(s *Settings) TUIState {
 		DefaultExpandLevel:    s.DefaultExpandLevel,
 		DefaultExpandLevelSet: true,
 		AutoExpandUnread:      s.AutoExpandUnread,
+		ShowHelp:              s.ShowHelp,
 		ExpansionState:        s.ExpansionState,
 	}
 }
@@ -71,6 +75,7 @@ func (t TUIState) ToSettings() *Settings {
 		GroupBy:            t.GroupBy,
 		DefaultExpandLevel: defaultExpandLevel,
 		AutoExpandUnread:   t.AutoExpandUnread,
+		ShowHelp:           t.ShowHelp,
 		ExpansionState:     t.ExpansionState,
 	}
 }

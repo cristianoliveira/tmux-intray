@@ -185,6 +185,9 @@ func (m *Model) handleKeyBinding(key string) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "q":
 		return m.handleQuit()
+	case "?":
+		m.toggleShowHelp()
+		return m, nil
 	}
 	return m, nil
 }
@@ -324,6 +327,13 @@ func (m *Model) handleExpandNode() {
 		m.treeService.ExpandNode(node)
 		m.invalidateCache()
 		m.updateViewportContent()
+	}
+}
+
+func (m *Model) toggleShowHelp() {
+	m.uiState.SetShowHelp(!m.uiState.ShowHelp())
+	if err := m.saveSettings(); err != nil {
+		m.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
 	}
 }
 

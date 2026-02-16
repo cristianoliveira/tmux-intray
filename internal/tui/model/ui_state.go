@@ -152,6 +152,9 @@ type UIDTO struct {
 	// ExpansionState maps node identifiers to their expanded state.
 	ExpansionState map[string]bool
 
+	// ShowHelp controls whether help text is shown in footer.
+	ShowHelp bool
+
 	// Columns are the columns to display in detailed view.
 	Columns []string
 

@@ -241,7 +241,7 @@ func NewGroupCountFormatter(formatter Formatter) *GroupCountFormatter {
 
 // FormatNotifications is not applicable for GroupCountFormatter.
 func (f *GroupCountFormatter) FormatNotifications(notifications []*domain.Notification, writer io.Writer) error {
-	return fmt.Errorf("format notifications not supported for GroupCountFormatter")
+	return fmt.Errorf("formatNotifications not supported for GroupCountFormatter")
 }
 
 // FormatGroups formats only group counts.
