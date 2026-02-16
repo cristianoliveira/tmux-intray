@@ -10,12 +10,16 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# PROJECT_ROOT is the parent of scripts/ directory
-# Handle both normal case (scripts is a subdirectory) and special cases
-PROJECT_ROOT="${SCRIPT_DIR%/scripts}"
-if [[ "$PROJECT_ROOT" == "$SCRIPT_DIR" ]]; then
-    # scripts dir not in path, try one level up
-    PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+# Try to get project root via git rev-parse (most accurate)
+if git rev-parse --show-toplevel &>/dev/null; then
+    PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+else
+    # Fallback: parent of scripts/ directory
+    PROJECT_ROOT="${SCRIPT_DIR%/scripts}"
+    if [[ "$PROJECT_ROOT" == "$SCRIPT_DIR" ]]; then
+        # scripts dir not in path, try one level up
+        PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+    fi
 fi
 
 # Colors for output (matching project style)
@@ -37,6 +41,100 @@ CAMEL_CASE_PATTERN='[a-z][a-z0-9]*[A-Z]'
 
 # PascalCase pattern: starts uppercase
 PASCAL_CASE_PATTERN='^[A-Z]'
+
+# Helper function to validate a single segment (key or section part)
+# Arguments:
+#   $1 = segment text (without quotes)
+#   $2 = line number
+#   $3 = context (e.g., "Key", "Section")
+validate_segment() {
+    local segment="$1"
+    local line_num="$2"
+    local context="$3"
+
+    # Check if segment matches snake_case pattern
+    if [[ "$segment" =~ $SNAKE_CASE_PATTERN ]]; then
+        return 0
+    fi
+
+    # Determine violation type and suggest correction
+    local suggestion=""
+    if [[ "$segment" =~ $CAMEL_CASE_PATTERN ]] || [[ "$segment" =~ $PASCAL_CASE_PATTERN ]]; then
+        suggestion=" (camelCase/PascalCase detected, use snake_case)"
+    elif [[ "$segment" == *"-"* ]]; then
+        # Replace hyphens with underscores for suggestion
+        local corrected="${segment//-/_}"
+        suggestion=" (kebab-case detected, use snake_case: '$corrected')"
+    else
+        # Other invalid characters (spaces, special chars, etc.)
+        suggestion=" (invalid characters, use snake_case: only lowercase letters, digits, underscores)"
+    fi
+
+    echo -e "${YELLOW}  Line $line_num: $context '$segment' should use snake_case$suggestion${NC}"
+    return 1
+}
+
+# Helper to parse a TOML key expression (bare, quoted, or dotted) into segments
+# Arguments:
+#   $1 = raw key expression (string up to '=')
+# Output: prints segments separated by newlines (use process substitution)
+parse_key_expression() {
+    local expr="$1"
+    # Remove leading/trailing whitespace
+    expr="$(echo -n "$expr" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    # Initialize array (bash 4+)
+    local segments=()
+    local segment=""
+    local inside_quotes=""
+    local quote_char=""
+
+    # Simple state machine to parse bare/quoted segments separated by '.'
+    while [[ -n "$expr" ]]; do
+        local char="${expr:0:1}"
+        local remaining="${expr:1}"
+
+        if [[ -z "$inside_quotes" ]]; then
+            if [[ "$char" == "." ]]; then
+                # End of segment
+                segments+=("$segment")
+                segment=""
+                expr="$remaining"
+                continue
+            elif [[ "$char" == "\"" || "$char" == "'" ]]; then
+                inside_quotes=1
+                quote_char="$char"
+                expr="$remaining"
+                continue
+            else
+                segment+="$char"
+                expr="$remaining"
+                continue
+            fi
+        else
+            if [[ "$char" == "$quote_char" ]]; then
+                # Closing quote
+                inside_quotes=""
+                quote_char=""
+                expr="$remaining"
+                continue
+            else
+                segment+="$char"
+                expr="$remaining"
+                continue
+            fi
+        fi
+    done
+
+    # Add last segment
+    if [[ -n "$segment" ]]; then
+        segments+=("$segment")
+    fi
+
+    # Print each segment on a new line
+    for seg in "${segments[@]}"; do
+        echo "$seg"
+    done
+}
 
 # check_toml_file validates a single TOML file for naming conventions
 # Arguments:
@@ -63,37 +161,38 @@ check_toml_file() {
             continue
         fi
 
+        # Strip inline comments (simple - assumes '#' not inside strings)
+        line="${line%%#*}"
         # Skip empty lines and comments
         [[ -z "${line// /}" ]] && continue
-        [[ "$line" =~ ^[[:space:]]*# ]] && continue
 
         # Handle [section] headers - must be snake_case
-        if [[ "$line" =~ ^[[:space:]]*\[([a-zA-Z0-9_\.\-]+)\][[:space:]]*$ ]]; then
+        if [[ "$line" =~ ^[[:space:]]*\[([^]]+)\][[:space:]]*$ ]]; then
             local section="${BASH_REMATCH[1]}"
-            # Replace dots with underscores for nested sections (group_header becomes valid)
-            local section_normalized="${section//./_}"
-
-            # Check if section follows snake_case (after normalizing dots)
-            if ! [[ "$section_normalized" =~ $SNAKE_CASE_PATTERN ]]; then
-                if [[ "$section_normalized" =~ $CAMEL_CASE_PATTERN ]] || [[ "$section_normalized" =~ $PASCAL_CASE_PATTERN ]]; then
-                    echo -e "${YELLOW}  Line $line_num: Section '[$section]' should use snake_case${NC}"
-                    file_violations=$((file_violations + 1))
+            # Parse section expression (may contain dots, quoted parts)
+            while IFS= read -r segment; do
+                if [[ -n "$segment" ]]; then
+                    if ! validate_segment "$segment" "$line_num" "Section"; then
+                        file_violations=$((file_violations + 1))
+                    fi
                 fi
-            fi
+            done < <(parse_key_expression "$section")
             continue
         fi
 
         # Handle key = value assignments - key must be snake_case
-        if [[ "$line" =~ ^[[:space:]]*([a-zA-Z_][a-zA-Z0-9_\-]*)[[:space:]]*= ]]; then
-            local key="${BASH_REMATCH[1]}"
-
-            # Check if key follows snake_case
-            if ! [[ "$key" =~ $SNAKE_CASE_PATTERN ]]; then
-                if [[ "$key" =~ $CAMEL_CASE_PATTERN ]] || [[ "$key" =~ $PASCAL_CASE_PATTERN ]]; then
-                    echo -e "${YELLOW}  Line $line_num: Key '$key' should use snake_case${NC}"
-                    file_violations=$((file_violations + 1))
+        if [[ "$line" =~ ^[[:space:]]*([^=]+)= ]]; then
+            local raw_key="${BASH_REMATCH[1]}"
+            # Remove trailing whitespace before =
+            raw_key="${raw_key%"${raw_key##*[![:space:]]}"}"
+            # Parse key expression (may contain dots, quoted parts)
+            while IFS= read -r segment; do
+                if [[ -n "$segment" ]]; then
+                    if ! validate_segment "$segment" "$line_num" "Key"; then
+                        file_violations=$((file_violations + 1))
+                    fi
                 fi
-            fi
+            done < <(parse_key_expression "$raw_key")
         fi
     done < <(grep -n . "$file")
 
@@ -110,25 +209,31 @@ check_toml_file() {
 main() {
     echo "Checking TOML file naming conventions..."
 
-    # Find all TOML files in the project
-    # Note: We exclude specific dot-directories to avoid excluding the project itself if it's inside .gwt
-    local toml_files
-    toml_files=$(find "$PROJECT_ROOT" \
-        -type f \
-        -name "*.toml" \
-        -not -path "*/.git/*" \
-        -not -path "*/.tmp/*" \
-        -not -path "*/_tmp/*" \
-        -not -path "*/.bv/*" \
-        -not -path "*/.local/*" \
-        -not -path "*/tmp/*" \
-        -not -path "*/vendor/*" \
-        -not -path "*/.direnv/*" \
-        -not -path "*/.beads/*" \
-        -not -path "*/tests/fixtures/*" \
-        2>/dev/null || true)
+    # If files are provided as arguments, check only those
+    local toml_files_newline
+    if [[ $# -gt 0 ]]; then
+        # Convert arguments to newline-separated list
+        toml_files_newline=$(printf '%s\n' "$@")
+    else
+        # Find all TOML files in the project
+        # Note: We exclude specific dot-directories to avoid excluding the project itself if it's inside .gwt
+        toml_files_newline=$(find "$PROJECT_ROOT" \
+            -type f \
+            -name "*.toml" \
+            -not -path "*/.git/*" \
+            -not -path "*/.tmp/*" \
+            -not -path "*/_tmp/*" \
+            -not -path "*/.bv/*" \
+            -not -path "*/.local/*" \
+            -not -path "*/tmp/*" \
+            -not -path "*/vendor/*" \
+            -not -path "*/.direnv/*" \
+            -not -path "*/.beads/*" \
+            -not -path "*/tests/fixtures/*" \
+            2>/dev/null || true)
+    fi
 
-    if [[ -z "$toml_files" ]]; then
+    if [[ -z "$toml_files_newline" ]]; then
         echo -e "${GREEN}✓ No TOML files found to check${NC}"
         return 0
     fi
@@ -145,7 +250,7 @@ main() {
             echo -e "${GREEN}✓ $toml_file${NC}"
             files_passed=$((files_passed + 1))
         fi
-    done <<<"$toml_files"
+    done <<<"$toml_files_newline"
 
     echo ""
     if [[ $files_checked -eq 0 ]]; then
