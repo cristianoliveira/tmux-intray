@@ -17,11 +17,7 @@ check_file_length() {
     local warning_lines=300
     local fail=0
     # Grandfathered large files (to be split eventually)
-    local exclude_files=(
-        "./internal/tui/state/model_tree.go"
-        "./internal/storage/sqlite/storage.go"
-        "./cmd/tmux-intray/status-panel.go"
-    )
+    local exclude_files=()
     while IFS= read -r -d '' file; do
         # Skip grandfathered large files
         if [[ " ${exclude_files[*]} " == *" $file "* ]]; then
