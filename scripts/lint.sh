@@ -22,7 +22,6 @@ check_file_length() {
         "./internal/storage/sqlite/storage.go"
         "./internal/tui/state/model_keys.go"
         "./cmd/tmux-intray/status-panel.go"
-        "./internal/tmux/client.go"
     )
     while IFS= read -r -d '' file; do
         # Skip grandfathered large files
