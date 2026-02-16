@@ -20,7 +20,6 @@ check_file_length() {
     local exclude_files=(
         "./internal/tui/state/model_tree.go"
         "./internal/storage/sqlite/storage.go"
-        "./internal/tui/state/model_keys.go"
         "./cmd/tmux-intray/status-panel.go"
     )
     while IFS= read -r -d '' file; do

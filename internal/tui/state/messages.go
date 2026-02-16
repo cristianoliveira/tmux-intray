@@ -2,6 +2,9 @@
 package state
 
 import (
+	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
@@ -108,4 +111,14 @@ type saveSettingsFailedMsg struct {
 // SaveSettingsFailedMsg is exported version of saveSettingsFailedMsg.
 type SaveSettingsFailedMsg struct {
 	saveSettingsFailedMsg
+}
+
+// errorMsg is sent when an error message should be cleared after a duration.
+type errorMsg struct{}
+
+// errorMsgAfter returns a tea.Cmd that sends an errorMsg after the specified duration.
+func errorMsgAfter(d time.Duration) tea.Cmd {
+	return tea.Tick(d, func(t time.Time) tea.Msg {
+		return errorMsg{}
+	})
 }
