@@ -347,6 +347,19 @@ func TestJumpToPane(t *testing.T) {
 - `Init()` to start, `Shutdown()` to stop
 - `WaitForPendingHooks()` to flush on exit
 
+### TOML Configuration Naming Conventions
+- All TOML configuration files must use **snake_case** for keys and section names
+- Examples: `config_dir`, `max_notifications`, `auto_cleanup_days`, not `configDir` or `config-dir`
+- This convention is enforced by the automated linting script `scripts/lint-toml.sh`
+- The linting script is automatically run as part of `make lint` and CI/CD pipeline
+- To manually check TOML files for naming violations, run: `./scripts/lint-toml.sh` or `./scripts/lint-toml.sh path/to/file.toml`
+- The linter detects and reports:
+  - **camelCase** violations (e.g., `configDir` → should be `config_dir`)
+  - **PascalCase** violations (e.g., `ConfigDir` → should be `config_dir`)
+  - **kebab-case** violations (e.g., `config-dir` → should be `config_dir`)
+  - Violations in both bare and quoted keys
+- For detailed information, see [Project Philosophy](./docs/philosophy.md#why-toml) and [Configuration Guide](./docs/configuration.md)
+
 ## Development Workflow
 
 ```bash
