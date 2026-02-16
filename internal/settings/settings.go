@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/config"
@@ -14,146 +15,74 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
-// File permission constants
-const (
-	// FileModeDir is the permission for directories (rwxr-xr-x)
-	// Owner: read/write/execute, Group/others: read/execute
-	FileModeDir os.FileMode = 0755
-	// FileModeFile is the permission for data files (rw-r--r--)
-	// Owner: read/write, Group/others: read only
-	FileModeFile os.FileMode = 0644
-
-	// FileExtTOML is the file extension for TOML files.
-	// Used for user settings persistence.
-	FileExtTOML = ".toml"
-)
-
-// Default column values.
-const (
-	ColumnID          = "id"
-	ColumnTimestamp   = "timestamp"
-	ColumnState       = "state"
-	ColumnSession     = "session"
-	ColumnWindow      = "window"
-	ColumnPane        = "pane"
-	ColumnMessage     = "message"
-	ColumnPaneCreated = "pane_created"
-	ColumnLevel       = "level"
-)
-
-// Default column order for TUI display.
-var DefaultColumns = []string{
-	ColumnID,
-	ColumnTimestamp,
-	ColumnState,
-	ColumnLevel,
-	ColumnSession,
-	ColumnWindow,
-	ColumnPane,
-	ColumnMessage,
+// convertCamelToSnake replaces known camelCase keys with snake_case in TOML data.
+func convertCamelToSnake(data []byte) []byte {
+	replacements := map[string]string{
+		"sortBy":                "sort_by",
+		"sortOrder":             "sort_order",
+		"viewMode":              "view_mode",
+		"groupBy":               "group_by",
+		"defaultExpandLevel":    "default_expand_level",
+		"autoExpandUnread":      "auto_expand_unread",
+		"expansionState":        "expansion_state",
+		"groupHeader":           "group_header",
+		"showTimeRange":         "show_time_range",
+		"showLevelBadges":       "show_level_badges",
+		"showSourceAggregation": "show_source_aggregation",
+		"badgeColors":           "badge_colors",
+	}
+	result := string(data)
+	for old, new := range replacements {
+		result = strings.ReplaceAll(result, old+" =", new+" =")
+		result = strings.ReplaceAll(result, "["+old+"]", "["+new+"]")
+	}
+	return []byte(result)
 }
-
-// Sort direction constants.
-const (
-	SortOrderAsc  = "asc"
-	SortOrderDesc = "desc"
-)
-
-// Sort by constants.
-const (
-	SortByID        = "id"
-	SortByTimestamp = "timestamp"
-	SortByState     = "state"
-	SortByLevel     = "level"
-	SortBySession   = "session"
-)
-
-// View mode constants.
-const (
-	ViewModeCompact  = "compact"
-	ViewModeDetailed = "detailed"
-	ViewModeGrouped  = "grouped"
-)
-
-// Group by constants.
-const (
-	GroupByNone    = "none"
-	GroupBySession = "session"
-	GroupByWindow  = "window"
-	GroupByPane    = "pane"
-	GroupByMessage = "message"
-)
-
-// Expansion level limits.
-const (
-	MinExpandLevel = 0
-	MaxExpandLevel = 3
-)
-
-// State filter constants.
-const (
-	StateFilterActive    = "active"
-	StateFilterDismissed = "dismissed"
-)
-
-// Level filter constants.
-const (
-	LevelFilterInfo     = "info"
-	LevelFilterWarning  = "warning"
-	LevelFilterError    = "error"
-	LevelFilterCritical = "critical"
-)
-
-// Read filter constants.
-const (
-	ReadFilterRead   = "read"
-	ReadFilterUnread = "unread"
-)
 
 // Filter defines active filter criteria for notification display.
 type Filter struct {
 	// Level filters notifications by severity level.
 	// Empty string means no filter (show all levels).
 	// Valid values: "info", "warning", "error", "critical", "".
-	Level string
+	Level string `toml:"level"`
 
 	// State filters notifications by state.
 	// Empty string means no filter (show all states).
 	// Valid values: "active", "dismissed", "".
-	State string
+	State string `toml:"state"`
 
 	// Read filters notifications by read status.
 	// Empty string means no filter (show all notifications).
 	// Valid values: "read", "unread", "".
-	Read string
+	Read string `toml:"read"`
 
 	// Session filters notifications by tmux session name.
 	// Empty string means no filter (show all sessions).
-	Session string
+	Session string `toml:"session"`
 
 	// Window filters notifications by tmux window ID.
 	// Empty string means no filter (show all windows).
-	Window string
+	Window string `toml:"window"`
 
 	// Pane filters notifications by tmux pane ID.
 	// Empty string means no filter (show all panes).
-	Pane string
+	Pane string `toml:"pane"`
 }
 
 // GroupHeaderOptions controls how group headers render additional context.
 type GroupHeaderOptions struct {
 	// ShowTimeRange toggles whether grouped nodes display earliest/latest ages.
-	ShowTimeRange bool `toml:"showTimeRange"`
+	ShowTimeRange bool `toml:"show_time_range"`
 
 	// ShowLevelBadges toggles whether grouped nodes display level badges.
-	ShowLevelBadges bool `toml:"showLevelBadges"`
+	ShowLevelBadges bool `toml:"show_level_badges"`
 
 	// ShowSourceAggregation toggles whether grouped nodes display source info.
-	ShowSourceAggregation bool `toml:"showSourceAggregation"`
+	ShowSourceAggregation bool `toml:"show_source_aggregation"`
 
 	// BadgeColors defines ANSI color codes per level key.
 	// Keys: info, warning, error, critical.
-	BadgeColors map[string]string `toml:"badgeColors"`
+	BadgeColors map[string]string `toml:"badge_colors"`
 }
 
 // DefaultGroupHeaderOptions returns default rendering options for group headers.
@@ -244,40 +173,44 @@ type Settings struct {
 	// Columns defines which columns are displayed and their order.
 	// Empty slice means use default column order.
 	// Valid column names: "id", "timestamp", "state", "session", "window", "pane", "message", "pane_created", "level".
-	Columns []string
+	Columns []string `toml:"columns"`
 
 	// SortBy specifies which column to sort by.
 	// Empty string means use default sort (timestamp).
 	// Valid values: "id", "timestamp", "state", "level", "session".
-	SortBy string
+	SortBy string `toml:"sort_by"`
 
 	// SortOrder specifies sort direction: "asc" or "desc".
 	// Empty string means use default sort order (desc).
-	SortOrder string
+	SortOrder string `toml:"sort_order"`
 
 	// Filters contains active filter criteria.
-	Filters Filter
+	Filters Filter `toml:"filters"`
 
 	// ViewMode specifies the display layout: "compact", "detailed", or "grouped".
 	// Empty string means use default view mode (grouped).
-	ViewMode string
+	ViewMode string `toml:"view_mode"`
 
 	// GroupBy specifies the grouping mode: "none", "session", "window", "pane", or "message".
 	// Empty string means use default grouping (none).
-	GroupBy string
+	GroupBy string `toml:"group_by"`
 
 	// DefaultExpandLevel controls the default grouping expansion level (0-3).
 	// Use 0 to collapse all groups by default.
-	DefaultExpandLevel int
+	DefaultExpandLevel int `toml:"default_expand_level"`
 
 	// AutoExpandUnread controls whether groups with unread notifications are auto-expanded.
-	AutoExpandUnread bool
+	AutoExpandUnread bool `toml:"auto_expand_unread"`
 
 	// ExpansionState stores explicit expansion overrides by node path.
-	ExpansionState map[string]bool
+	ExpansionState map[string]bool `toml:"expansion_state"`
 
 	// GroupHeader configures group header rendering.
-	GroupHeader GroupHeaderOptions `toml:"groupHeader"`
+	GroupHeader GroupHeaderOptions `toml:"group_header"`
+
+	// ShowHelp controls whether to show help text in the footer.
+	// Defaults to true for backward compatibility.
+	ShowHelp bool `toml:"show_help"`
 }
 
 // DefaultSettings returns settings with all default values.
@@ -300,6 +233,7 @@ func DefaultSettings() *Settings {
 		AutoExpandUnread:   false, // Default to false to avoid unexpected behavior
 		ExpansionState:     map[string]bool{},
 		GroupHeader:        DefaultGroupHeaderOptions(),
+		ShowHelp:           true,
 	}
 }
 
@@ -331,6 +265,8 @@ func Load() (*Settings, error) {
 			loadErr = fmt.Errorf("failed to read settings file: %w", err)
 			return loadErr
 		}
+		// Convert camelCase keys to snake_case for backward compatibility
+		data = convertCamelToSnake(data)
 
 		settings = DefaultSettings()
 		if err := toml.Unmarshal(data, settings); err != nil {

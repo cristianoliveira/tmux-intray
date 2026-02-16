@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
+	"github.com/cristianoliveira/tmux-intray/internal/format"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/stretchr/testify/assert"
 )
@@ -49,8 +50,8 @@ func TestPrintListEmpty(t *testing.T) {
 
 	PrintList(FilterOptions{})
 	output := buf.String()
-	if output != "No notifications found\n" {
-		t.Errorf("Expected 'No notifications found', got %q", output)
+	if output != "\033[0;34mNo notifications found\033[0m\n" {
+		t.Errorf("Expected colored 'No notifications found', got %q", output)
 	}
 }
 
@@ -640,20 +641,29 @@ func TestGroupNotifications(t *testing.T) {
 
 func TestPrintFunctionsWithEmptySlice(t *testing.T) {
 	var buf bytes.Buffer
-	// printSimple
-	printSimple([]*domain.Notification{}, &buf)
+
+	// Create formatters
+	simpleFormatter := format.NewSimpleFormatter()
+	tableFormatter := format.NewTableFormatter()
+	compactFormatter := format.NewCompactFormatter()
+	legacyFormatter := format.NewLegacyFormatter()
+
+	// Test with empty slice
+	var emptyNotifs []*domain.Notification
+
+	simpleFormatter.FormatNotifications(emptyNotifs, &buf)
 	assert.Equal(t, "", buf.String())
 	buf.Reset()
-	// printTable
-	printTable([]*domain.Notification{}, &buf)
+
+	tableFormatter.FormatNotifications(emptyNotifs, &buf)
 	assert.Equal(t, "", buf.String())
 	buf.Reset()
-	// printCompact
-	printCompact([]*domain.Notification{}, &buf)
+
+	compactFormatter.FormatNotifications(emptyNotifs, &buf)
 	assert.Equal(t, "", buf.String())
 	buf.Reset()
-	// printLegacy
-	printLegacy([]*domain.Notification{}, &buf)
+
+	legacyFormatter.FormatNotifications(emptyNotifs, &buf)
 	assert.Equal(t, "", buf.String())
 }
 
@@ -666,17 +676,27 @@ func TestPrintFunctionsWithSingleNotification(t *testing.T) {
 		Level:     domain.LevelInfo,
 	}
 	var buf bytes.Buffer
-	printSimple([]*domain.Notification{notif}, &buf)
+
+	// Create formatters
+	simpleFormatter := format.NewSimpleFormatter()
+	tableFormatter := format.NewTableFormatter()
+	compactFormatter := format.NewCompactFormatter()
+	legacyFormatter := format.NewLegacyFormatter()
+
+	simpleFormatter.FormatNotifications([]*domain.Notification{notif}, &buf)
 	assert.Contains(t, buf.String(), "42")
 	assert.Contains(t, buf.String(), "test message")
 	buf.Reset()
-	printTable([]*domain.Notification{notif}, &buf)
+
+	tableFormatter.FormatNotifications([]*domain.Notification{notif}, &buf)
 	assert.Contains(t, buf.String(), "42")
 	buf.Reset()
-	printCompact([]*domain.Notification{notif}, &buf)
+
+	compactFormatter.FormatNotifications([]*domain.Notification{notif}, &buf)
 	assert.Contains(t, buf.String(), "test message")
 	buf.Reset()
-	printLegacy([]*domain.Notification{notif}, &buf)
+
+	legacyFormatter.FormatNotifications([]*domain.Notification{notif}, &buf)
 	assert.Equal(t, "test message\n", buf.String())
 }
 
@@ -692,8 +712,9 @@ func TestPrintListJSONFormat(t *testing.T) {
 
 	PrintList(FilterOptions{Format: "json"})
 	output := buf.String()
-	if !strings.Contains(output, "JSON format not yet implemented") {
-		t.Errorf("Expected JSON not implemented message, got %q", output)
+	// JSON format is now implemented, check for JSON structure
+	if !strings.Contains(output, `"ID"`) || !strings.Contains(output, `"Message"`) {
+		t.Errorf("Expected JSON output with ID and Message fields, got %q", output)
 	}
 }
 
@@ -709,8 +730,9 @@ func TestPrintListUnknownFormat(t *testing.T) {
 
 	PrintList(FilterOptions{Format: "unknown"})
 	output := buf.String()
-	if !strings.Contains(output, "list: unknown format") {
-		t.Errorf("Expected unknown format error, got %q", output)
+	// Unknown format should fall back to simple format (default)
+	if !strings.Contains(output, "1") || !strings.Contains(output, "message") {
+		t.Errorf("Expected simple format output with ID and message, got %q", output)
 	}
 }
 

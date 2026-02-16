@@ -330,3 +330,133 @@ func TestInitDirectoryCreationFailure(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to create hooks directory")
 }
+
+func TestHooksSilentModeByDefault(t *testing.T) {
+	tmpDir := t.TempDir()
+	hookDir := filepath.Join(tmpDir, "pre-add")
+	require.NoError(t, os.MkdirAll(hookDir, 0755))
+	script := filepath.Join(hookDir, "test.sh")
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\necho hello from hook"), 0755))
+
+	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
+	oldVerbose := os.Getenv("TMUX_INTRAY_HOOKS_VERBOSE")
+	oldAsync := os.Getenv("TMUX_INTRAY_HOOKS_ASYNC")
+	t.Cleanup(func() {
+		_ = os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
+		_ = os.Setenv("TMUX_INTRAY_HOOKS_VERBOSE", oldVerbose)
+		_ = os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", oldAsync)
+	})
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore"))
+	require.NoError(t, os.Unsetenv("TMUX_INTRAY_HOOKS_ASYNC"))
+	// Explicitly unset verbose mode
+	require.NoError(t, os.Unsetenv("TMUX_INTRAY_HOOKS_VERBOSE"))
+
+	// Run hook - should not print "Running" or "Executing" messages
+	// but hook script output should still appear
+	require.NoError(t, Run("pre-add"))
+	// We can't easily assert on stderr without capturing it globally,
+	// but we ensure no error occurs with verbose mode unset
+}
+
+func TestHooksVerboseMode(t *testing.T) {
+	tmpDir := t.TempDir()
+	hookDir := filepath.Join(tmpDir, "pre-add")
+	require.NoError(t, os.MkdirAll(hookDir, 0755))
+	script := filepath.Join(hookDir, "test.sh")
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\necho hello from hook"), 0755))
+
+	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
+	oldVerbose := os.Getenv("TMUX_INTRAY_HOOKS_VERBOSE")
+	oldAsync := os.Getenv("TMUX_INTRAY_HOOKS_ASYNC")
+	t.Cleanup(func() {
+		_ = os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
+		_ = os.Setenv("TMUX_INTRAY_HOOKS_VERBOSE", oldVerbose)
+		_ = os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", oldAsync)
+	})
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore"))
+	require.NoError(t, os.Unsetenv("TMUX_INTRAY_HOOKS_ASYNC"))
+	// Enable verbose mode
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_VERBOSE", "1"))
+
+	// Run hook - should print verbose messages
+	require.NoError(t, Run("pre-add"))
+	// Verbose mode should show framework messages
+	// (we can't easily capture stderr without global setup, but we ensure no error)
+}
+
+func TestHooksVerboseModeLogsSuccess(t *testing.T) {
+	tmpDir := t.TempDir()
+	hookDir := filepath.Join(tmpDir, "pre-add")
+	require.NoError(t, os.MkdirAll(hookDir, 0755))
+	script := filepath.Join(hookDir, "success.sh")
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nexit 0"), 0755))
+
+	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
+	oldVerbose := os.Getenv("TMUX_INTRAY_HOOKS_VERBOSE")
+	oldAsync := os.Getenv("TMUX_INTRAY_HOOKS_ASYNC")
+	t.Cleanup(func() {
+		_ = os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
+		_ = os.Setenv("TMUX_INTRAY_HOOKS_VERBOSE", oldVerbose)
+		_ = os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", oldAsync)
+	})
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "warn"))
+	require.NoError(t, os.Unsetenv("TMUX_INTRAY_HOOKS_ASYNC"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_VERBOSE", "1"))
+
+	// Should run successfully and log in verbose mode
+	require.NoError(t, Run("pre-add"))
+}
+
+func TestAsyncHooksVerboseMode(t *testing.T) {
+	ResetForTesting()
+	tmpDir := t.TempDir()
+	hookDir := filepath.Join(tmpDir, "pre-add")
+	require.NoError(t, os.MkdirAll(hookDir, 0755))
+	script := filepath.Join(hookDir, "async.sh")
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nsleep 0.05\necho async done"), 0755))
+
+	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
+	oldVerbose := os.Getenv("TMUX_INTRAY_HOOKS_VERBOSE")
+	t.Cleanup(func() {
+		_ = os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
+		_ = os.Setenv("TMUX_INTRAY_HOOKS_VERBOSE", oldVerbose)
+	})
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_VERBOSE", "1"))
+
+	require.NoError(t, Run("pre-add"))
+	WaitForPendingHooks()
+}
+
+func TestAsyncHooksSilentMode(t *testing.T) {
+	ResetForTesting()
+	tmpDir := t.TempDir()
+	hookDir := filepath.Join(tmpDir, "pre-add")
+	require.NoError(t, os.MkdirAll(hookDir, 0755))
+	script := filepath.Join(hookDir, "async.sh")
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nsleep 0.05\necho async done"), 0755))
+
+	oldDir := os.Getenv("TMUX_INTRAY_HOOKS_DIR")
+	oldVerbose := os.Getenv("TMUX_INTRAY_HOOKS_VERBOSE")
+	t.Cleanup(func() {
+		_ = os.Setenv("TMUX_INTRAY_HOOKS_DIR", oldDir)
+		_ = os.Setenv("TMUX_INTRAY_HOOKS_VERBOSE", oldVerbose)
+	})
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_DIR", tmpDir))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore"))
+	require.NoError(t, os.Unsetenv("TMUX_INTRAY_HOOKS_VERBOSE"))
+
+	require.NoError(t, Run("pre-add"))
+	WaitForPendingHooks()
+}

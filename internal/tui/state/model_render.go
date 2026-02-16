@@ -6,11 +6,25 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/render"
 )
+
+// ansiColorNumber extracts the color number from an ANSI escape sequence.
+// Example: "\033[0;34m" -> "34"
+func ansiColorNumber(ansi string) string {
+	if len(ansi) < 2 {
+		return ""
+	}
+	lastSemicolon := strings.LastIndex(ansi, ";")
+	if lastSemicolon == -1 {
+		return ""
+	}
+	return ansi[lastSemicolon+1 : len(ansi)-1]
+}
 
 // Constants for confirmation dialog rendering
 const (
@@ -49,6 +63,13 @@ func (m *Model) View() string {
 	s.WriteString("\n")
 	s.WriteString(m.uiState.GetViewport().View())
 
+	// Error message above footer
+	if m.errorMessage != "" {
+		s.WriteString("\n")
+		errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ansiColorNumber(colors.Red)))
+		s.WriteString(errorStyle.Render("Error: " + m.errorMessage))
+	}
+
 	// Footer
 	s.WriteString("\n")
 	s.WriteString(render.Footer(render.FooterState{
@@ -59,6 +80,7 @@ func (m *Model) View() string {
 		Width:        m.uiState.GetWidth(),
 		ErrorMessage: m.errorMessage,
 		ReadFilter:   m.filters.Read,
+		ShowHelp:     m.uiState.ShowHelp(),
 	}))
 
 	return s.String()
@@ -110,7 +132,7 @@ func (m *Model) renderConfirmationDialog() string {
 	content.WriteString("\n\n")
 	content.WriteString(messageStyle.Render(action.Message))
 	content.WriteString("\n\n")
-	content.WriteString(hintStyle.Render("(y/N) to confirm, ESC to cancel"))
+	content.WriteString(hintStyle.Render("(y/N) to confirm, Enter/Esc to cancel"))
 
 	// Render dialog
 	dialog := borderStyle.Width(dialogWidth).Render(content.String())

@@ -5,34 +5,37 @@ package settings
 // This DTO pattern avoids tight coupling between internal/settings and cmd/tmux-intray packages.
 type TUIState struct {
 	// Columns defines which columns are displayed and their order.
-	Columns []string `json:"columns"`
+	Columns []string `toml:"columns"`
 
 	// SortBy specifies which column to sort by.
-	SortBy string `json:"sortBy"`
+	SortBy string `toml:"sort_by"`
 
 	// SortOrder specifies sort direction: "asc" or "desc".
-	SortOrder string `json:"sortOrder"`
+	SortOrder string `toml:"sort_order"`
 
 	// Filters contains active filter criteria.
-	Filters Filter `json:"filters"`
+	Filters Filter `toml:"filters"`
 
 	// ViewMode specifies the display layout: "compact", "detailed", or "grouped".
-	ViewMode string `json:"viewMode"`
+	ViewMode string `toml:"view_mode"`
 
 	// GroupBy specifies the grouping mode: "none", "session", "window", or "pane".
-	GroupBy string `json:"groupBy"`
+	GroupBy string `toml:"group_by"`
 
 	// DefaultExpandLevel controls the default grouping expansion level (0-3).
-	DefaultExpandLevel int `json:"defaultExpandLevel"`
+	DefaultExpandLevel int `toml:"default_expand_level"`
 
 	// DefaultExpandLevelSet indicates DefaultExpandLevel was explicitly provided.
-	DefaultExpandLevelSet bool `json:"-"`
+	DefaultExpandLevelSet bool `toml:"-"`
 
 	// AutoExpandUnread controls whether groups with unread notifications are auto-expanded.
-	AutoExpandUnread bool `json:"autoExpandUnread"`
+	AutoExpandUnread bool `toml:"auto_expand_unread"`
+
+	// ShowHelp controls whether help text is shown in footer.
+	ShowHelp bool `toml:"show_help"`
 
 	// ExpansionState stores explicit expansion overrides by node path.
-	ExpansionState map[string]bool `json:"expansionState"`
+	ExpansionState map[string]bool `toml:"expansion_state"`
 }
 
 // FromSettings converts Settings to TUIState.
@@ -50,6 +53,7 @@ func FromSettings(s *Settings) TUIState {
 		DefaultExpandLevel:    s.DefaultExpandLevel,
 		DefaultExpandLevelSet: true,
 		AutoExpandUnread:      s.AutoExpandUnread,
+		ShowHelp:              s.ShowHelp,
 		ExpansionState:        s.ExpansionState,
 	}
 }
@@ -71,6 +75,7 @@ func (t TUIState) ToSettings() *Settings {
 		GroupBy:            t.GroupBy,
 		DefaultExpandLevel: defaultExpandLevel,
 		AutoExpandUnread:   t.AutoExpandUnread,
+		ShowHelp:           t.ShowHelp,
 		ExpansionState:     t.ExpansionState,
 	}
 }

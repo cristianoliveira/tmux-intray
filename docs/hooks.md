@@ -115,6 +115,70 @@ mkdir -p "$(dirname "$LOG_FILE")"
 - Asynchronous hooks minimize impact but lose error feedback
 - Consider batching external calls in hooks that run frequently
 
+## Silent vs Verbose Mode
+
+By default, the hooks system operates in **silent mode** - hooks execute without displaying internal framework messages to the user. This keeps your terminal clean and focused on the actual notification output.
+
+### Silent Mode (Default)
+
+In silent mode:
+- Hook script output (stdout/stderr) is still visible
+- No internal framework messages about hook execution are shown
+- Only critical errors are displayed to the user
+- Perfect for production use and clean terminal output
+
+Example:
+```bash
+$ tmux-intray add "Test message"
+# Only script output appears here (if any)
+```
+
+### Verbose Mode
+
+Enable verbose mode with the `TMUX_INTRAY_HOOKS_VERBOSE` environment variable to see detailed hook execution information:
+
+```bash
+$ TMUX_INTRAY_HOOKS_VERBOSE=1 tmux-intray add "Test message"
+Running pre-add hooks (2 script(s))
+  Executing hook: 01-validate.sh
+  Hook completed in 0.02s
+  Executing hook: 02-enrich.sh
+  Hook completed in 0.01s
+# Script output appears here
+```
+
+In verbose mode, you'll see:
+- Hook point name and number of scripts
+- Individual hook execution messages
+- Hook execution timing information
+- Framework warnings and debug messages
+- Async hook completion status
+
+This is useful for:
+- Debugging hook issues
+- Understanding hook execution flow
+- Monitoring hook performance
+- Troubleshooting integration problems
+
+### Enabling Verbose Mode
+
+**Temporary (single command)**:
+```bash
+TMUX_INTRAY_HOOKS_VERBOSE=1 tmux-intray add "message"
+```
+
+**Persistent (in your shell configuration)**:
+```bash
+# In ~/.bashrc, ~/.zshrc, or similar
+export TMUX_INTRAY_HOOKS_VERBOSE=1
+```
+
+**Per-session (in config file)**:
+```bash
+# In ~/.config/tmux-intray/config.sh
+TMUX_INTRAY_HOOKS_VERBOSE=1
+```
+
 ## Configuration
 
 Hooks are configured via environment variables or the configuration file:
@@ -130,6 +194,9 @@ TMUX_INTRAY_HOOKS_FAILURE_MODE="ignore"
 
 # Run hooks asynchronously (0=sync, 1=async)
 TMUX_INTRAY_HOOKS_ASYNC=0
+
+# Enable verbose output for hooks (0=silent, 1=verbose)
+TMUX_INTRAY_HOOKS_VERBOSE=0
 
 # Per-hook configuration
 TMUX_INTRAY_HOOKS_ENABLED_pre_add=1

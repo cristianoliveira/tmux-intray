@@ -2820,3 +2820,20 @@ func TestCtrlJKNavigationBoundary(t *testing.T) {
 	model = updated.(*Model)
 	assert.Equal(t, 2, model.uiState.GetCursor())
 }
+
+func TestToggleShowHelp(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{})
+	// Default ShowHelp should be true
+	assert.True(t, model.uiState.ShowHelp())
+
+	// Press '?' key
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'?'}}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	assert.False(t, model.uiState.ShowHelp())
+
+	// Press '?' again
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.True(t, model.uiState.ShowHelp())
+}
