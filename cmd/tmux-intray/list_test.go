@@ -50,8 +50,8 @@ func TestPrintListEmpty(t *testing.T) {
 
 	PrintList(FilterOptions{})
 	output := buf.String()
-	if output != "No notifications found\n" {
-		t.Errorf("Expected 'No notifications found', got %q", output)
+	if output != "\033[0;34mNo notifications found\033[0m\n" {
+		t.Errorf("Expected colored 'No notifications found', got %q", output)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 )
 
@@ -73,7 +74,7 @@ func ParsePaneCounts(lines string) map[string]int {
 // If active is 0, writes "No active notifications\n"
 func FormatSummary(w io.Writer, active int, info, warning, error, critical int) error {
 	if active == 0 {
-		_, err := fmt.Fprintf(w, "No active notifications\n")
+		_, err := fmt.Fprintf(w, "%sNo active notifications%s\n", colors.Blue, colors.Reset)
 		return err
 	}
 	_, err := fmt.Fprintf(w, "Active notifications: %d\n", active)
