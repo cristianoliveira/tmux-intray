@@ -1363,3 +1363,106 @@ func TestDefaultClientGetSessionNameSuccess(t *testing.T) {
 		})
 	}
 }
+
+// TestListWindows tests the ListWindows function.
+func TestListWindows(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Skip if tmux not running
+	_, err := exec.Command("tmux", "has-session").CombinedOutput()
+	if err != nil {
+		t.Skip("tmux not running, skipping integration test")
+	}
+
+	client := NewDefaultClient()
+
+	// Call ListWindows
+	windows, err := client.ListWindows()
+
+	// Should succeed
+	require.NoError(t, err, "ListWindows should succeed")
+
+	// Should return a non-nil map
+	assert.NotNil(t, windows, "windows map should not be nil")
+
+	// Windows may be empty if no windows exist, but the map should be valid
+	assert.IsType(t, map[string]string{}, windows, "should return map[string]string")
+
+	// If windows exist, verify the format
+	for windowID, windowName := range windows {
+		assert.NotEmpty(t, windowID, "window ID should not be empty")
+		assert.Greater(t, len(windowID), 0, "window ID should have content")
+		t.Logf("Found window %s with name: %s", windowID, windowName)
+	}
+}
+
+// TestListPanes tests the ListPanes function.
+func TestListPanes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Skip if tmux not running
+	_, err := exec.Command("tmux", "has-session").CombinedOutput()
+	if err != nil {
+		t.Skip("tmux not running, skipping integration test")
+	}
+
+	client := NewDefaultClient()
+
+	// Call ListPanes
+	panes, err := client.ListPanes()
+
+	// Should succeed
+	require.NoError(t, err, "ListPanes should succeed")
+
+	// Should return a non-nil map
+	assert.NotNil(t, panes, "panes map should not be nil")
+
+	// Panes may be empty if no panes exist, but the map should be valid
+	assert.IsType(t, map[string]string{}, panes, "should return map[string]string")
+
+	// If panes exist, verify the format
+	for paneID, paneName := range panes {
+		assert.NotEmpty(t, paneID, "pane ID should not be empty")
+		assert.Greater(t, len(paneID), 0, "pane ID should have content")
+		t.Logf("Found pane %s with title: %s", paneID, paneName)
+	}
+}
+
+// TestListWindowsAndPanesStructure tests that ListWindows and ListPanes return properly formatted data.
+func TestListWindowsAndPanesStructure(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Skip if tmux not running
+	_, err := exec.Command("tmux", "has-session").CombinedOutput()
+	if err != nil {
+		t.Skip("tmux not running, skipping integration test")
+	}
+
+	client := NewDefaultClient()
+
+	// Test ListWindows structure
+	windows, err := client.ListWindows()
+	require.NoError(t, err)
+
+	// Verify all window IDs match expected format (start with @)
+	for windowID, windowName := range windows {
+		assert.True(t, strings.HasPrefix(windowID, "@") || windowID == "", "window ID should start with @ or be empty")
+		t.Logf("Window: ID=%s, Name=%s", windowID, windowName)
+	}
+
+	// Test ListPanes structure
+	panes, err := client.ListPanes()
+	require.NoError(t, err)
+
+	// Verify all pane IDs match expected format (start with %)
+	for paneID, paneName := range panes {
+		assert.True(t, strings.HasPrefix(paneID, "%") || paneID == "", "pane ID should start with %% or be empty")
+		t.Logf("Pane: ID=%s, Title=%s", paneID, paneName)
+	}
+}
