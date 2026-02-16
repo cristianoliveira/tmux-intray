@@ -16,17 +16,7 @@ check_file_length() {
     local max_lines=500
     local warning_lines=300
     local fail=0
-    # Grandfathered large files (to be split eventually)
-    local exclude_files=(
-        "./internal/tui/state/model_keys.go"
-        "./internal/tmux/client.go"
-    )
     while IFS= read -r -d '' file; do
-        # Skip grandfathered large files
-        if [[ " ${exclude_files[*]} " == *" $file "* ]]; then
-            echo "Info: Skipping grandfathered large file: $file"
-            continue
-        fi
         lines=$(wc -l <"$file")
         if [[ $lines -gt $max_lines ]]; then
             echo "Error: $file has $lines lines (exceeds maximum $max_lines)"
