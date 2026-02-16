@@ -13,6 +13,7 @@ import (
 
 	"github.com/cristianoliveira/tmux-intray/cmd"
 
+	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/dedupconfig"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/format"
@@ -223,14 +224,14 @@ func printList(opts FilterOptions, w io.Writer) {
 		return
 	}
 	if lines == "" {
-		_, _ = fmt.Fprintln(w, "No notifications found")
+		fmt.Fprintf(w, "%s%s%s\n", colors.Blue, "No notifications found", colors.Reset)
 		return
 	}
 
 	searchProvider := getSearchProvider(opts)
 	notifications := parseAndFilterNotifications(lines, searchProvider, opts.Search)
 	if len(notifications) == 0 {
-		_, _ = fmt.Fprintln(w, "No notifications found")
+		fmt.Fprintf(w, "%s%s%s\n", colors.Blue, "No notifications found", colors.Reset)
 		return
 	}
 

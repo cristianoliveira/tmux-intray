@@ -141,7 +141,7 @@ func TestFormatSummary(t *testing.T) {
 		{
 			name:     "zero active",
 			active:   0,
-			expected: "No active notifications\n",
+			expected: "\033[0;34mNo active notifications\033[0m\n",
 		},
 		{
 			name:     "active with all levels",
