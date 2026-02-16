@@ -1,0 +1,29 @@
+# Invalid TOML file - contains quoted keys with naming violations
+# Quoted keys should be validated (quotes stripped) and violations detected
+
+# Quoted kebab-case keys
+"quoted-kebab-key" = "value"
+'quoted-kebab-key2' = "value"
+
+# Quoted camelCase keys
+"camelKey" = "value"
+"anotherCamelKey" = "value"
+
+# Quoted PascalCase keys
+"PascalKey" = "value"
+"AnotherPascalKey" = "value"
+
+# Quoted sections with violations
+["quoted-section"]
+key = "value"
+
+["camelSection"]
+key = "value"
+
+# Mixed dotted quoted keys
+"quoted_part".another_part = "value"  # first segment quoted but valid
+"quoted-part".another_part = "value"  # first segment quoted kebab-case
+valid_section."quoted-key" = "value"  # second segment quoted kebab-case
+
+# Edge case: quoted empty string (should not happen, but ensure no crash)
+"" = "empty"  # invalid anyway

@@ -144,8 +144,8 @@ func TestLoadPartialSettings(t *testing.T) {
 	require.NoError(t, os.MkdirAll(configDir, 0755))
 
 	settingsPath := filepath.Join(configDir, "tui.toml")
-	partialTOML := `sortBy = "level"
-viewMode = "detailed"
+	partialTOML := `sort_by = "level"
+view_mode = "detailed"
 `
 	require.NoError(t, os.WriteFile(settingsPath, []byte(partialTOML), 0644))
 	t.Cleanup(func() { _ = os.Remove(settingsPath) })
@@ -208,9 +208,9 @@ func TestLoadInvalidExpansionStateType(t *testing.T) {
 	require.NoError(t, os.MkdirAll(configDir, 0755))
 
 	settingsPath := filepath.Join(configDir, "tui.toml")
-	invalidTOML := `viewMode = "grouped"
-groupBy = "window"
-[expansionState]
+	invalidTOML := `view_mode = "grouped"
+group_by = "window"
+[expansion_state]
 "window:$1:@1" = "collapsed"
 `
 	require.NoError(t, os.WriteFile(settingsPath, []byte(invalidTOML), 0644))

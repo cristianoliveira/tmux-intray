@@ -142,14 +142,6 @@ func formatDetailed(total, info, warning, error, critical int) string {
 	return result
 }
 
-// formatCountOnly returns count-only format output.
-func formatCountOnly(total int) string {
-	if total == 0 {
-		return ""
-	}
-	return fmt.Sprintf("%d", total)
-}
-
 // Run executes the status-panel command with given options.
 // Returns the formatted output string (may be empty) and any error.
 func Run(opts status.StatusPanelOptions) (string, error) {

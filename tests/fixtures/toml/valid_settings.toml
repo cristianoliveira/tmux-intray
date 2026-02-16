@@ -1,0 +1,33 @@
+# Valid TOML file - all keys use snake_case
+# This is what a valid tui.toml should look like
+
+columns = ["id", "timestamp", "state", "level", "session", "window", "pane", "message"]
+sort_by = "timestamp"
+sort_order = "desc"
+view_mode = "grouped"
+group_by = "none"
+default_expand_level = 1
+auto_expand_unread = false
+show_help = true
+
+[filters]
+level = ""
+state = ""
+read = ""
+session = ""
+window = ""
+pane = ""
+
+[expansion_state]
+# Expansion state entries can vary, but the section name is snake_case
+
+[group_header]
+show_time_range = true
+show_level_badges = true
+show_source_aggregation = false
+
+[group_header.badge_colors]
+info = "\033[0;34m"
+warning = "\033[0;33m"
+error = "\033[0;31m"
+critical = "\033[0;31m"

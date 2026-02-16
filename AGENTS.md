@@ -46,9 +46,9 @@ Detailed development guidelines in [DEVELOPMENT.md](./DEVELOPMENT.md).
 - `bats tests/basic.bats` – Run specific Bats test file
 
 ### Lint
-- `make lint` – Run full linting (Go + shell)
+- `make lint` – Run full linting (Go + shell + TOML)
 - `make go-lint` – Run Go linting (gofmt + go vet)
-- `./scripts/lint.sh` – Run ShellCheck linter
+- `./scripts/lint.sh` – Run comprehensive linting (ShellCheck + TOML + error message format checks)
 - `make security-check` – Run security-focused ShellCheck
 - `gofmt -d .` – Check Go formatting
 - `go vet ./...` – Run Go vet

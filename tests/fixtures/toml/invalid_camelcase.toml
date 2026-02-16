@@ -1,0 +1,20 @@
+# Invalid TOML file - contains camelCase keys (should be snake_case)
+
+columns = ["id", "timestamp"]
+sortBy = "timestamp"  # INVALID: should be sort_by
+sortOrder = "desc"     # INVALID: should be sort_order
+viewMode = "grouped"   # INVALID: should be view_mode
+groupBy = "none"       # INVALID: should be group_by
+defaultExpandLevel = 1 # INVALID: should be default_expand_level
+autoExpandUnread = false # INVALID: should be auto_expand_unread
+showHelp = true        # INVALID: should be show_help
+
+[filters]
+level = ""
+
+[expansionState]       # INVALID: should be expansion_state
+# Empty
+
+[groupHeader]          # INVALID: should be group_header
+showTimeRange = true   # INVALID: should be show_time_range
+showLevelBadges = true # INVALID: should be show_level_badges

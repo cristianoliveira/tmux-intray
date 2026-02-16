@@ -34,6 +34,11 @@ var (
 	pendingHookCount int
 )
 
+// isHooksVerbose checks if verbose mode is enabled via environment variable
+func isHooksVerbose() bool {
+	return os.Getenv("TMUX_INTRAY_HOOKS_VERBOSE") == "1"
+}
+
 var (
 	manager *hookManager
 	once    sync.Once
@@ -158,13 +163,17 @@ func runSyncHook(scriptPath, scriptName string, envMap map[string]string, failur
 		case "abort":
 			return fmt.Errorf("hooks.Run: hook '%s' failed after %.2fs: %v, output: %s", scriptName, duration.Seconds(), err, output)
 		case "warn":
-			fmt.Fprintf(os.Stderr, "warning: hook %s failed after %.2fs: %v, output: %s\n", scriptName, duration.Seconds(), err, output)
+			if isHooksVerbose() {
+				fmt.Fprintf(os.Stderr, "warning: hook %s failed after %.2fs: %v, output: %s\n", scriptName, duration.Seconds(), err, output)
+			}
 		case "ignore":
 			// do nothing
 		}
 	} else {
 		// Success: log duration
-		fmt.Fprintf(os.Stderr, "  Hook completed in %.2fs\n", duration.Seconds())
+		if isHooksVerbose() {
+			fmt.Fprintf(os.Stderr, "  Hook completed in %.2fs\n", duration.Seconds())
+		}
 	}
 	return nil
 }
@@ -184,7 +193,7 @@ func runAsyncHook(scriptPath, scriptName string, envMap map[string]string, failu
 	// Start the command
 	if err := cmd.Start(); err != nil {
 		cancel() // release context resources
-		if failureMode != "ignore" {
+		if failureMode != "ignore" && isHooksVerbose() {
 			fmt.Fprintf(os.Stderr, "warning: async hook %s failed to start: %v\n", scriptName, err)
 		}
 		// Decrement pending count on start failure
@@ -202,7 +211,9 @@ func runAsyncHook(scriptPath, scriptName string, envMap map[string]string, failu
 		// Ensure we always clean up, even on panic
 		defer func() {
 			if r := recover(); r != nil {
-				fmt.Fprintf(os.Stderr, "error: async hook %s panicked: %v\n", scriptName, r)
+				if isHooksVerbose() {
+					fmt.Fprintf(os.Stderr, "error: async hook %s panicked: %v\n", scriptName, r)
+				}
 			}
 			// Always decrement count, even on panic
 			pendingHooksMu.Lock()
@@ -218,14 +229,14 @@ func runAsyncHook(scriptPath, scriptName string, envMap map[string]string, failu
 		duration := time.Since(startTime)
 
 		// Check if hook exceeded timeout (context was canceled)
-		if ctx.Err() == context.DeadlineExceeded {
+		if ctx.Err() == context.DeadlineExceeded && isHooksVerbose() {
 			fmt.Fprintf(os.Stderr, "warning: async hook %s timed out after %.2fs\n", scriptName, duration.Seconds())
 		}
 
 		// Log hook execution result
-		if err != nil && failureMode != "ignore" {
+		if err != nil && failureMode != "ignore" && isHooksVerbose() {
 			fmt.Fprintf(os.Stderr, "warning: async hook %s failed: %v (duration: %.2fs)\n", scriptName, err, duration.Seconds())
-		} else if err == nil {
+		} else if err == nil && isHooksVerbose() {
 			fmt.Fprintf(os.Stderr, "  async hook %s completed in %.2fs\n", scriptName, duration.Seconds())
 		}
 	}()
@@ -247,7 +258,9 @@ func Run(hookPoint string, envVars ...string) error {
 	}
 
 	// Log hook execution (similar to Bash)
-	fmt.Fprintf(os.Stderr, "Running %s hooks (%d script(s))\n", hookPoint, len(scripts))
+	if isHooksVerbose() {
+		fmt.Fprintf(os.Stderr, "Running %s hooks (%d script(s))\n", hookPoint, len(scripts))
+	}
 
 	failureMode := getFailureMode()
 	return executeHooks(scripts, envMap, failureMode, getAsyncEnabled(), getMaxAsyncHooks())
@@ -330,7 +343,9 @@ func collectHookScripts(hookDir string, files []os.DirEntry) []hookScript {
 
 func executeHooks(scripts []hookScript, envMap map[string]string, failureMode string, asyncEnabled bool, maxAsync int) error {
 	for _, script := range scripts {
-		fmt.Fprintf(os.Stderr, "  Executing hook: %s\n", script.name)
+		if isHooksVerbose() {
+			fmt.Fprintf(os.Stderr, "  Executing hook: %s\n", script.name)
+		}
 		if asyncEnabled {
 			tryStartAsyncHook(script, envMap, failureMode, maxAsync)
 			continue
@@ -367,13 +382,17 @@ func tryStartAsyncHook(script hookScript, envMap map[string]string, failureMode 
 	defer pendingHooksMu.Unlock()
 
 	if pendingHookCount >= maxAsync {
-		fmt.Fprintf(os.Stderr, "warning: Too many async hooks pending (max: %d), skipping %s\n", maxAsync, script.name)
+		if isHooksVerbose() {
+			fmt.Fprintf(os.Stderr, "warning: Too many async hooks pending (max: %d), skipping %s\n", maxAsync, script.name)
+		}
 		return false
 	}
 	pendingHookCount++
 	pendingHooks.Add(1)
 	// Start async hook
-	fmt.Fprintf(os.Stderr, "  Starting hook asynchronously: %s\n", script.name)
+	if isHooksVerbose() {
+		fmt.Fprintf(os.Stderr, "  Starting hook asynchronously: %s\n", script.name)
+	}
 	go runAsyncHook(script.path, script.name, envMap, failureMode)
 	return true
 }
