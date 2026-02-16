@@ -143,6 +143,9 @@ func (m *Model) handleKeyBinding(key string) (tea.Model, tea.Cmd) {
 	case "/":
 		m.handleSearchMode()
 		return m, nil
+	case "?":
+		m.uiState.SetShowHelp(!m.uiState.ShowHelp())
+		return m, nil
 	case "d":
 		return m, m.handleDismiss()
 	case "D":
