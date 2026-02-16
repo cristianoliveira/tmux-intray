@@ -10,11 +10,39 @@ import (
 
 	"github.com/cristianoliveira/tmux-intray/cmd"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/config"
+	"github.com/cristianoliveira/tmux-intray/internal/core"
+	"github.com/cristianoliveira/tmux-intray/internal/status"
 	"github.com/spf13/cobra"
 )
 
+// statusPanelClientImpl is the concrete implementation of StatusPanelClient
+// that integrates with the file storage and core.
+type statusPanelClientImpl struct{}
+
+func (s *statusPanelClientImpl) EnsureTmuxRunning() bool {
+	return core.EnsureTmuxRunning()
+}
+
+func (s *statusPanelClientImpl) GetActiveCount() int {
+	return fileStorage.GetActiveCount()
+}
+
+func (s *statusPanelClientImpl) ListNotifications(stateFilter string) string {
+	result, _ := fileStorage.ListNotifications(stateFilter, "", "", "", "", "", "", "")
+	return result
+}
+
+func (s *statusPanelClientImpl) GetConfigBool(key string, defaultValue bool) bool {
+	return config.GetBool(key, defaultValue)
+}
+
+func (s *statusPanelClientImpl) GetConfigString(key, defaultValue string) string {
+	return config.Get(key, defaultValue)
+}
+
 // NewStatusPanelCmd creates the status-panel command with explicit dependencies.
-func NewStatusPanelCmd(client statusPanelClient) *cobra.Command {
+func NewStatusPanelCmd(client status.StatusPanelClient) *cobra.Command {
 	if client == nil {
 		panic("NewStatusPanelCmd: client dependency cannot be nil")
 	}
@@ -40,12 +68,12 @@ DESCRIPTION:
     When clicked, it can trigger the list command (via tmux bindings).`,
 		RunE: func(c *cobra.Command, args []string) error {
 			// Determine format
-			format := statusPanelFormat
+			format := status.Format
 
 			// Determine enabled
 			enabled := true // default
-			if statusPanelEnabled != "" {
-				val := strings.ToLower(statusPanelEnabled)
+			if status.Enabled != "" {
+				val := strings.ToLower(status.Enabled)
 				switch val {
 				case "0", "false", "no", "off":
 					enabled = false
@@ -57,11 +85,11 @@ DESCRIPTION:
 				}
 			}
 
-			opts := StatusPanelOptions{
+			opts := status.StatusPanelOptions{
 				Format:  format,
 				Enabled: enabled,
 			}
-			output, err := RunStatusPanel(client, opts)
+			output, err := status.RunStatusPanel(client, opts)
 			if err != nil {
 				colors.Error(err.Error())
 				os.Exit(1)
@@ -74,14 +102,14 @@ DESCRIPTION:
 		},
 	}
 
-	cmd.Flags().StringVar(&statusPanelFormat, "format", "", "Output format: compact, detailed, count-only")
-	cmd.Flags().StringVar(&statusPanelEnabled, "enabled", "", "Enable/disable status indicator (0 or 1)")
+	cmd.Flags().StringVar(&status.Format, "format", "", "Output format: compact, detailed, count-only")
+	cmd.Flags().StringVar(&status.Enabled, "enabled", "", "Enable/disable status indicator (0 or 1)")
 
 	return cmd
 }
 
 // statusPanelCmd represents the status-panel command
-var statusPanelCmd = NewStatusPanelCmd(&defaultStatusPanelClient{})
+var statusPanelCmd = NewStatusPanelCmd(&statusPanelClientImpl{})
 
 func init() {
 	cmd.RootCmd.AddCommand(statusPanelCmd)
