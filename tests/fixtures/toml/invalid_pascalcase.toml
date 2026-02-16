@@ -1,0 +1,17 @@
+# Invalid TOML file - contains PascalCase keys (should be snake_case)
+
+Columns = ["id", "timestamp"]       # INVALID: should be columns
+SortBy = "timestamp"                # INVALID: should be sort_by
+SortOrder = "desc"                  # INVALID: should be sort_order
+ViewMode = "grouped"                # INVALID: should be view_mode
+GroupBy = "none"                    # INVALID: should be group_by
+DefaultExpandLevel = 1              # INVALID: should be default_expand_level
+AutoExpandUnread = false            # INVALID: should be auto_expand_unread
+
+[Filters]                           # INVALID: should be filters
+Level = ""                          # INVALID: should be level
+
+[GroupHeader]                       # INVALID: should be group_header
+ShowTimeRange = true                # INVALID: should be show_time_range
+ShowLevelBadges = true              # INVALID: should be show_level_badges
+ShowSourceAggregation = false       # INVALID: should be show_source_aggregation

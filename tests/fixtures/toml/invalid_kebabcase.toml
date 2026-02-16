@@ -1,0 +1,25 @@
+# Invalid TOML file - contains kebab-case keys and sections (should be snake_case)
+# All violations should be detected by lint-toml.sh
+
+app-name = "tmux-intray"  # INVALID: should be app_name
+log-level = "info"        # INVALID: should be log_level
+enable-auto-start = false # INVALID: should be enable_auto_start
+max-retry-count = 3       # INVALID: should be max_retry_count
+
+[database-settings]       # INVALID: should be database_settings
+database-path = "~/.config/tmux-intray/intray.db"
+connection-timeout = 5000 # INVALID: should be connection_timeout
+enable-wal = true         # INVALID: should be enable_wal
+
+[notification-preferences] # INVALID: should be notification_preferences
+show-badges = true        # INVALID: should be show_badges
+enable-sounds = false     # INVALID: should be enable_sounds
+sound-volume = 50         # INVALID: should be sound_volume
+
+# Dotted keys with kebab-case segments
+group_header.badge-colors.info = "blue"   # INVALID: badge-colors should be badge_colors
+ui_settings.default-theme = "dark"        # INVALID: default-theme should be default_theme
+
+# Quoted kebab-case keys (should also be detected)
+"another-kebab-key" = "value"
+'yet-another-key' = "value"

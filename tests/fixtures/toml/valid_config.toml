@@ -1,0 +1,27 @@
+# Valid TOML file - example application config
+# All keys and sections use snake_case
+
+app_name = "tmux-intray"
+app_version = "1.0.0"
+debug_mode = false
+log_level = "info"
+
+[database]
+database_path = "~/.config/tmux-intray/intray.db"
+database_timeout = 5000
+enable_wal = true
+
+[tmux_settings]
+default_session = "main"
+enable_auto_start = false
+reconnect_delay = 1000
+
+[storage_options]
+retention_days = 30
+cleanup_interval = 3600
+enable_compression = false
+
+[notification_preferences]
+show_badges = true
+enable_sounds = false
+sound_volume = 50
