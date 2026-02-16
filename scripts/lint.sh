@@ -19,7 +19,6 @@ check_file_length() {
     # Grandfathered large files (to be split eventually)
     local exclude_files=(
         "./internal/tui/state/model_tree.go"
-        "./internal/storage/sqlite/storage.go"
         "./internal/tui/state/model_keys.go"
         "./cmd/tmux-intray/status-panel.go"
         "./internal/tmux/client.go"
