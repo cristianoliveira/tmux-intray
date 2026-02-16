@@ -18,7 +18,6 @@ check_file_length() {
     local fail=0
     # Grandfathered large files (to be split eventually)
     local exclude_files=(
-        "./internal/tui/state/model_tree.go"
         "./internal/tui/state/model_keys.go"
         "./cmd/tmux-intray/status-panel.go"
         "./internal/tmux/client.go"
