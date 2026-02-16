@@ -10,6 +10,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
 	"github.com/cristianoliveira/tmux-intray/internal/format"
+	"github.com/cristianoliveira/tmux-intray/internal/status"
 )
 
 // statusPanelEnsureTmuxRunningFunc is the function used to ensure tmux is running. Can be changed for testing.
@@ -141,9 +142,17 @@ func formatDetailed(total, info, warning, error, critical int) string {
 	return result
 }
 
+// formatCountOnly returns count-only format output.
+func formatCountOnly(total int) string {
+	if total == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d", total)
+}
+
 // Run executes the status-panel command with given options.
 // Returns the formatted output string (may be empty) and any error.
-func Run(opts StatusPanelOptions) (string, error) {
+func Run(opts status.StatusPanelOptions) (string, error) {
 	// If disabled, return empty output
 	if !opts.Enabled {
 		return "", nil

@@ -1,7 +1,9 @@
 /*
 Copyright © 2026 Cristian Oliveira <license@cristianoliveira.dev>
 */
-package main
+
+// Package status provides status panel functionality for tmux-intray.
+package status
 
 import (
 	"fmt"
@@ -24,7 +26,8 @@ type StatusPanelOptions struct {
 	Enabled bool   // true to enable output
 }
 
-type statusPanelClient interface {
+// StatusPanelClient defines the interface for status panel operations.
+type StatusPanelClient interface {
 	EnsureTmuxRunning() bool
 	GetActiveCount() int
 	ListNotifications(stateFilter string) string
@@ -33,37 +36,39 @@ type statusPanelClient interface {
 }
 
 var (
-	statusPanelFormat  string
-	statusPanelEnabled string
+	// Format holds the output format flag value
+	Format string
+	// Enabled holds the enabled flag value
+	Enabled string
 )
 
-// defaultStatusPanelClient is the default implementation.
-type defaultStatusPanelClient struct{}
+// DefaultClient is a placeholder that implements StatusPanelClient.
+// Real implementations should be created with proper storage injection.
+type DefaultClient struct{}
 
-func (d *defaultStatusPanelClient) EnsureTmuxRunning() bool {
+func (d *DefaultClient) EnsureTmuxRunning() bool {
 	return core.EnsureTmuxRunning()
 }
 
-func (d *defaultStatusPanelClient) GetActiveCount() int {
-	return fileStorage.GetActiveCount()
+func (d *DefaultClient) GetActiveCount() int {
+	return 0
 }
 
-func (d *defaultStatusPanelClient) ListNotifications(stateFilter string) string {
-	result, _ := fileStorage.ListNotifications(stateFilter, "", "", "", "", "", "", "")
-	return result
+func (d *DefaultClient) ListNotifications(stateFilter string) string {
+	return ""
 }
 
-func (d *defaultStatusPanelClient) GetConfigBool(key string, defaultValue bool) bool {
+func (d *DefaultClient) GetConfigBool(key string, defaultValue bool) bool {
 	return config.GetBool(key, defaultValue)
 }
 
-func (d *defaultStatusPanelClient) GetConfigString(key, defaultValue string) string {
+func (d *DefaultClient) GetConfigString(key, defaultValue string) string {
 	return config.Get(key, defaultValue)
 }
 
 // RunStatusPanel executes the status-panel command with given options.
 // Returns the formatted output string (may be empty) and any error.
-func RunStatusPanel(client statusPanelClient, opts StatusPanelOptions) (string, error) {
+func RunStatusPanel(client StatusPanelClient, opts StatusPanelOptions) (string, error) {
 	// If disabled, return empty output
 	if !opts.Enabled {
 		return "", nil
@@ -106,7 +111,7 @@ func RunStatusPanel(client statusPanelClient, opts StatusPanelOptions) (string, 
 }
 
 // getCountsByLevelWithClient returns counts of active notifications per level using the client.
-func getCountsByLevelWithClient(client statusPanelClient) (info, warning, error, critical int, err error) {
+func getCountsByLevelWithClient(client StatusPanelClient) (info, warning, error, critical int, err error) {
 	lines := client.ListNotifications("active")
 	if lines == "" {
 		return 0, 0, 0, 0, nil
@@ -115,7 +120,7 @@ func getCountsByLevelWithClient(client statusPanelClient) (info, warning, error,
 }
 
 // parseLevelColorsWithClient parses the level_colors config using the client.
-func parseLevelColorsWithClient(client statusPanelClient) map[string]string {
+func parseLevelColorsWithClient(client StatusPanelClient) map[string]string {
 	colorsStr := client.GetConfigString("level_colors", "info:green,warning:yellow,error:red,critical:magenta")
 	m := make(map[string]string)
 	pairs := strings.Split(colorsStr, ",")
@@ -131,7 +136,7 @@ func parseLevelColorsWithClient(client statusPanelClient) map[string]string {
 }
 
 // getLevelColorWithClient returns the tmux color code for a level using the client.
-func getLevelColorWithClient(client statusPanelClient, level string) string {
+func getLevelColorWithClient(client StatusPanelClient, level string) string {
 	m := parseLevelColorsWithClient(client)
 	color, ok := m[level]
 	if !ok {
@@ -141,7 +146,7 @@ func getLevelColorWithClient(client statusPanelClient, level string) string {
 }
 
 // formatCompactWithColors returns compact format output using client for colors.
-func formatCompactWithColors(client statusPanelClient, total, info, warning, error, critical int) string {
+func formatCompactWithColors(client StatusPanelClient, total, info, warning, error, critical int) string {
 	if total == 0 {
 		return ""
 	}
@@ -163,7 +168,7 @@ func formatCompactWithColors(client statusPanelClient, total, info, warning, err
 }
 
 // formatDetailedWithColors returns detailed format output using client for colors.
-func formatDetailedWithColors(client statusPanelClient, total, info, warning, error, critical int) string {
+func formatDetailedWithColors(client StatusPanelClient, total, info, warning, error, critical int) string {
 	if total == 0 {
 		return ""
 	}
