@@ -1,3 +1,6 @@
+// File: tmux.go
+// Purpose: Provides tmux client integration for syncing notification status to
+// tmux environment variables.
 package sqlite
 
 import (

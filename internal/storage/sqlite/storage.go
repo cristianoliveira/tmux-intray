@@ -1,4 +1,6 @@
-// Package sqlite provides a SQLite-backed storage implementation.
+// File: storage.go
+// Purpose: Provides core CRUD operations, database initialization, validation,
+// and utility functions for notification storage.
 package sqlite
 
 import (

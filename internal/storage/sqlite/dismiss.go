@@ -1,3 +1,6 @@
+// File: dismiss.go
+// Purpose: Implements notification dismissal logic with hook integration,
+// supporting single dismissals and filtered bulk operations.
 package sqlite
 
 import (

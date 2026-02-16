@@ -1,3 +1,6 @@
+// File: cleanup.go
+// Purpose: Handles removal of old notifications based on age thresholds with
+// optional dry-run support and hook integration.
 package sqlite
 
 import (

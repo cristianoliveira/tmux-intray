@@ -1,3 +1,6 @@
+// File: read.go
+// Purpose: Manages read/unread state transitions for notifications with
+// timestamp tracking and validation.
 package sqlite
 
 import (

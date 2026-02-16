@@ -1,3 +1,6 @@
+// File: errors.go
+// Purpose: Defines custom error types and validation rules used across the
+// storage package.
 package sqlite
 
 import "errors"
