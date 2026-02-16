@@ -224,14 +224,14 @@ func printList(opts FilterOptions, w io.Writer) {
 		return
 	}
 	if lines == "" {
-		fmt.Fprintf(w, "%s%s%s\n", colors.Blue, "No notifications found", colors.Reset)
+		_, _ = fmt.Fprintf(w, "%s%s%s\n", colors.Blue, "No notifications found", colors.Reset)
 		return
 	}
 
 	searchProvider := getSearchProvider(opts)
 	notifications := parseAndFilterNotifications(lines, searchProvider, opts.Search)
 	if len(notifications) == 0 {
-		fmt.Fprintf(w, "%s%s%s\n", colors.Blue, "No notifications found", colors.Reset)
+		_, _ = fmt.Fprintf(w, "%s%s%s\n", colors.Blue, "No notifications found", colors.Reset)
 		return
 	}
 
