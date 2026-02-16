@@ -189,6 +189,7 @@ func buildMinimalSearchModeItems(state FooterState) []string {
 	items = append(items, "ESC: exit search")
 	items = append(items, "Ctrl+j/k: navigate")
 	items = append(items, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
+	items = append(items, "?: toggle help")
 	return items
 }
 
@@ -197,6 +198,7 @@ func buildMinimalNormalModeItems(state FooterState) []string {
 	var items []string
 	items = append(items, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
 	items = append(items, "j/k: move")
+	items = append(items, "?: toggle help")
 	return items
 }
 
@@ -204,6 +206,7 @@ func buildMinimalNormalModeItems(state FooterState) []string {
 func Footer(state FooterState) string {
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	searchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ansiColorNumber(colors.Blue))).Bold(true)
+	hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 
 	var items []string
 	// Error message is rendered above the footer, not included here
@@ -224,6 +227,8 @@ func Footer(state FooterState) string {
 	for _, item := range items {
 		if strings.HasPrefix(item, "Search: ") {
 			styledParts = append(styledParts, searchStyle.Render(item))
+		} else if item == "?: toggle help" && !state.ShowHelp {
+			styledParts = append(styledParts, hintStyle.Render(item))
 		} else {
 			styledParts = append(styledParts, helpStyle.Render(item))
 		}

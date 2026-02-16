@@ -274,7 +274,7 @@ func TestFooterSearchModeWithoutHelp(t *testing.T) {
 	assert.NotContains(t, footer, "d: dismiss")
 	assert.NotContains(t, footer, "Enter:")
 	assert.NotContains(t, footer, "q: quit")
-	assert.NotContains(t, footer, "?: toggle help")
+	assert.Contains(t, footer, "?: toggle help")
 
 }
 
@@ -296,6 +296,7 @@ func TestFooterMinimalHelp(t *testing.T) {
 	footer := Footer(FooterState{ViewMode: settings.ViewModeCompact, ShowHelp: false})
 	assert.Contains(t, footer, "mode: [C]")
 	assert.Contains(t, footer, "j/k: move")
+	assert.Contains(t, footer, "?: toggle help")
 	// Should not contain other help items
 	assert.NotContains(t, footer, "read:")
 	assert.NotContains(t, footer, "gg/G:")
