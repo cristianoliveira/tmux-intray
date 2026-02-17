@@ -223,3 +223,94 @@ func TestColorConstants(t *testing.T) {
 		t.Error("Color constants should not be empty")
 	}
 }
+
+// mockLogger is a test implementation of the Logger interface.
+type mockLogger struct {
+	calls []call
+}
+
+type call struct {
+	level string
+	msg   string
+	args  []any
+}
+
+func (m *mockLogger) Debug(msg string, args ...any) {
+	m.calls = append(m.calls, call{"debug", msg, args})
+}
+
+func (m *mockLogger) Info(msg string, args ...any) {
+	m.calls = append(m.calls, call{"info", msg, args})
+}
+
+func (m *mockLogger) Warn(msg string, args ...any) {
+	m.calls = append(m.calls, call{"warn", msg, args})
+}
+
+func (m *mockLogger) Error(msg string, args ...any) {
+	m.calls = append(m.calls, call{"error", msg, args})
+}
+
+func (m *mockLogger) With(args ...any) Logger {
+	// For simplicity, return same logger (test doesn't need With)
+	return m
+}
+
+func (m *mockLogger) Shutdown() error {
+	return nil
+}
+
+func TestColorsLogging(t *testing.T) {
+	// Create mock logger
+	mock := &mockLogger{}
+	// Set it as the global logger
+	SetLogger(mock)
+	defer SetLogger(nil) // reset after test
+
+	// Test each color function
+	Error("error message")
+	Success("success message")
+	Warning("warning message")
+	Info("info message")
+	LogInfo("log info message")
+	SetDebug(true)
+	defer SetDebug(false)
+	Debug("debug message")
+
+	// Verify calls
+	expected := []call{
+		{"error", "error message", nil},
+		{"info", "success message", []any{"type", "success"}},
+		{"warn", "warning message", nil},
+		{"info", "info message", nil},
+		{"info", "log info message", nil},
+		{"debug", "debug message", nil},
+	}
+
+	if len(mock.calls) != len(expected) {
+		t.Errorf("expected %d log calls, got %d", len(expected), len(mock.calls))
+		// Print calls for debugging
+		for i, c := range mock.calls {
+			t.Logf("call %d: level=%s msg=%q args=%v", i, c.level, c.msg, c.args)
+		}
+		return
+	}
+
+	for i, exp := range expected {
+		got := mock.calls[i]
+		if got.level != exp.level || got.msg != exp.msg {
+			t.Errorf("call %d: got level=%s msg=%q, want level=%s msg=%q",
+				i, got.level, got.msg, exp.level, exp.msg)
+		}
+		// Compare args length
+		if len(got.args) != len(exp.args) {
+			t.Errorf("call %d: args length mismatch: got %d, want %d", i, len(got.args), len(exp.args))
+		} else {
+			for j := range got.args {
+				if got.args[j] != exp.args[j] {
+					t.Errorf("call %d arg %d: got %v, want %v", i, j, got.args[j], exp.args[j])
+				}
+			}
+		}
+	}
+}
