@@ -8,9 +8,12 @@ import (
 	"os"
 
 	"github.com/cristianoliveira/tmux-intray/internal/hooks"
+	"github.com/cristianoliveira/tmux-intray/internal/logging"
 	"github.com/cristianoliveira/tmux-intray/internal/version"
 	"github.com/spf13/cobra"
 )
+
+var logFilePath string
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
@@ -70,6 +73,14 @@ func init() {
 	// Ensure default help command is enabled (since we removed custom help)
 	RootCmd.InitDefaultHelpCmd()
 
+	// Log file flag
+	RootCmd.PersistentFlags().StringVar(&logFilePath, "log-file", "", "log file path (default empty, logs to stderr)")
+	RootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		if logFilePath != "" {
+			os.Setenv("TMUX_INTRAY_LOG_FILE", logFilePath)
+		}
+	}
+
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags which, if defined here,
 	// will be global for your application.
@@ -88,6 +99,11 @@ func Execute() error {
 	if err := hooks.Init(); err != nil {
 		return err
 	}
+	// Initialize structured logging (if enabled via config)
+	if err := logging.InitGlobal(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to initialize logging: %v\n", err)
+	}
+	defer logging.ShutdownGlobal()
 
 	args := os.Args[1:]
 

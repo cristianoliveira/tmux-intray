@@ -256,6 +256,33 @@ Commands fail with “No tmux session running”.
 - Start a tmux session (`tmux new -s mysession`) or attach to an existing one (`tmux attach`).
 - If you need to run tmux-intray outside tmux (e.g., from a cron job), use the `--no-associate` flag with `add` and set `TMUX_INTRAY_STATUS_ENABLED=0`.
 
+### Structured logging issues
+
+**Symptoms:**  
+- No log files are being created.  
+- Log files are not rotating.  
+- Sensitive data appears in logs.
+
+**Causes & Solutions:**  
+
+1. **Logs not being written**  
+   - Ensure `TMUX_INTRAY_LOGGING_ENABLED=true`.  
+   - Verify the log directory is writable (`{state_dir}/logs`).  
+   - Check log level (`TMUX_INTRAY_LOGGING_LEVEL`) – if set to `error`, only errors are logged.  
+   - Run with `TMUX_INTRAY_DEBUG=1` to see logging initialization errors.
+
+2. **Log files not rotating**  
+   - Check `TMUX_INTRAY_LOGGING_MAX_FILES` (default 10). Set to `0` to disable rotation (not recommended).  
+   - Ensure the process has permission to delete old log files.  
+   - Rotation only affects files matching `tmux-intray_*.log`.
+
+3. **Sensitive data in logs**  
+   - The system redacts keys containing: `secret`, `password`, `token`, `key`, `auth`, `credential`.  
+   - Keys must contain these words as separate segments (e.g., `api_token` redacts, `apitoken` does not).  
+   - If you need additional redaction, modify `internal/logging/redactor.go`.
+
+For more details, see the [Structured Logging](./logging.md) documentation.
+
 ---
 
 ## Still stuck?

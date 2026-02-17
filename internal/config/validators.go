@@ -139,6 +139,17 @@ func initValidators() {
 	RegisterValidator("hooks_enabled_cleanup", boolValidator)
 	RegisterValidator("hooks_enabled_post_cleanup", boolValidator)
 
+	// Logging validators
+	RegisterValidator("logging_enabled", boolValidator)
+	RegisterValidator("logging_level", EnumValidator(map[string]bool{
+		"debug": true,
+		"info":  true,
+		"warn":  true,
+		"error": true,
+	}))
+	RegisterValidator("logging_max_files", PositiveIntValidator())
+	// log_file has no validator (any string)
+
 	registerDedupValidators()
 }
 
