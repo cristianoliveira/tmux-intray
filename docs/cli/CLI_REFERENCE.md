@@ -32,8 +32,9 @@ Available Commands:
   version      Show version information
 
 Flags:
-  -h, --help      help for tmux-intray
-  -v, --version   version for tmux-intray
+  -h, --help               help for tmux-intray
+  -v, --version            version for tmux-intray
+      --log-file string    log file path (default empty, logs to stderr)
 
 Use "tmux-intray [command] --help" for more information about a command.
 ```

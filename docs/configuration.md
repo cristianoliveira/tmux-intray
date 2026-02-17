@@ -81,6 +81,9 @@ With the configuration above, `tmux-intray` only collapses notifications when th
 |----------|---------|-------------|
 | `TMUX_INTRAY_DEBUG` | *unset* | Enable debug output when set to `1`, `true`, `yes`, or `on`. Debug messages are printed to stderr. |
 | `TMUX_INTRAY_QUIET` | *unset* | Suppress non‑error output when set to `1`, `true`, `yes`, or `on`. |
+| `TMUX_INTRAY_LOGGING_ENABLED` | `false` | Enable structured file logging when set to `true`. See [Structured Logging](./logging.md) for details. |
+| `TMUX_INTRAY_LOGGING_LEVEL` | `info` | Minimum log level to record (`debug`, `info`, `warn`, `error`). |
+| `TMUX_INTRAY_LOGGING_MAX_FILES` | `10` | Maximum number of log files to retain (older files are rotated out). |
 
 ## Sample Configuration File
 
@@ -120,6 +123,11 @@ hooks_enabled_pre_dismiss = true
 hooks_enabled_post_dismiss = true
 hooks_enabled_cleanup = true
 hooks_enabled_post_cleanup = true
+
+# Logging
+logging_enabled = false
+logging_level = "info"
+logging_max_files = 10
 
 # Debugging
 debug = false

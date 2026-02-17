@@ -20,10 +20,20 @@ const (
 
 const checkmark = "✓"
 
+// Logger defines the interface for structured logging.
+type Logger interface {
+	Debug(msg string, args ...any)
+	Info(msg string, args ...any)
+	Warn(msg string, args ...any)
+	Error(msg string, args ...any)
+}
+
 var (
 	debugEnabled    = false
 	inErrorHandling = false
 	errorMutex      sync.RWMutex
+	logger          Logger
+	loggerMu        sync.RWMutex
 )
 
 func init() {
@@ -37,6 +47,13 @@ func SetDebug(enabled bool) {
 	debugEnabled = enabled
 }
 
+// SetLogger sets the structured logger to mirror console output.
+func SetLogger(l Logger) {
+	loggerMu.Lock()
+	defer loggerMu.Unlock()
+	logger = l
+}
+
 // errorFallback logs an error message without using colors to avoid recursion.
 func errorFallback(msg string) {
 	// Direct write to stderr, ignore errors
@@ -46,6 +63,13 @@ func errorFallback(msg string) {
 // Error outputs an error message to stderr.
 func Error(msgs ...string) {
 	msg := strings.Join(msgs, " ")
+	// Mirror to structured logger if set
+	loggerMu.RLock()
+	l := logger
+	loggerMu.RUnlock()
+	if l != nil {
+		l.Error(msg)
+	}
 	_, err := fmt.Fprintf(os.Stderr, "%sError:%s %s%s\n", Red, Reset, msg, Reset)
 	if err != nil {
 		errorMutex.RLock()
@@ -72,6 +96,13 @@ func Error(msgs ...string) {
 // Success outputs a success message to stdout.
 func Success(msgs ...string) {
 	msg := strings.Join(msgs, " ")
+	// Mirror to structured logger if set
+	loggerMu.RLock()
+	l := logger
+	loggerMu.RUnlock()
+	if l != nil {
+		l.Info(msg, "type", "success")
+	}
 	_, err := fmt.Fprintf(os.Stdout, "%s%s%s %s%s\n", Green, checkmark, Reset, msg, Reset)
 	if err != nil {
 		errorMutex.RLock()
@@ -98,6 +129,13 @@ func Success(msgs ...string) {
 // Warning outputs a warning message to stderr.
 func Warning(msgs ...string) {
 	msg := strings.Join(msgs, " ")
+	// Mirror to structured logger if set
+	loggerMu.RLock()
+	l := logger
+	loggerMu.RUnlock()
+	if l != nil {
+		l.Warn(msg)
+	}
 	_, err := fmt.Fprintf(os.Stderr, "%sWarning:%s %s%s\n", Yellow, Reset, msg, Reset)
 	if err != nil {
 		errorMutex.RLock()
@@ -124,6 +162,13 @@ func Warning(msgs ...string) {
 // Info outputs an informational message to stdout.
 func Info(msgs ...string) {
 	msg := strings.Join(msgs, " ")
+	// Mirror to structured logger if set
+	loggerMu.RLock()
+	l := logger
+	loggerMu.RUnlock()
+	if l != nil {
+		l.Info(msg)
+	}
 	_, err := fmt.Fprintf(os.Stdout, "%s%s%s\n", Blue, msg, Reset)
 	if err != nil {
 		errorMutex.RLock()
@@ -150,6 +195,13 @@ func Info(msgs ...string) {
 // LogInfo outputs a log informational message to stderr.
 func LogInfo(msgs ...string) {
 	msg := strings.Join(msgs, " ")
+	// Mirror to structured logger if set
+	loggerMu.RLock()
+	l := logger
+	loggerMu.RUnlock()
+	if l != nil {
+		l.Info(msg)
+	}
 	_, err := fmt.Fprintf(os.Stderr, "%s%s%s\n", Blue, msg, Reset)
 	if err != nil {
 		errorMutex.RLock()
@@ -179,6 +231,13 @@ func Debug(msgs ...string) {
 		return
 	}
 	msg := strings.Join(msgs, " ")
+	// Mirror to structured logger if set
+	loggerMu.RLock()
+	l := logger
+	loggerMu.RUnlock()
+	if l != nil {
+		l.Debug(msg)
+	}
 	_, err := fmt.Fprintf(os.Stderr, "%sDebug:%s %s%s\n", Cyan, Reset, msg, Reset)
 	if err != nil {
 		errorMutex.RLock()

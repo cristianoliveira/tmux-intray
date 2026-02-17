@@ -108,6 +108,10 @@ func setDefaults() {
 	setDefault("hooks_enabled_post_cleanup", "true")
 	setDefault("debug", "false")
 	setDefault("quiet", "false")
+	setDefault("logging_enabled", "false")
+	setDefault("logging_level", "info")
+	setDefault("logging_max_files", "10")
+	setDefault("log_file", "")
 	setDedupDefaults()
 }
 
@@ -250,6 +254,24 @@ func validate() {
 			config[key] = normalizedValue
 		}
 	}
+	adjustLoggingLevel()
+}
+
+// adjustLoggingLevel applies mapping from debug/quiet to logging level.
+func adjustLoggingLevel() {
+	// If quiet is true, force logging level to error (or higher)
+	if config["quiet"] == "true" {
+		config["logging_level"] = "error"
+		// Ensure logging is enabled when quiet forces error level?
+		// Keep logging_enabled as configured (default false)
+	}
+	// If debug is true, enable debug level (overrides quiet if both true?)
+	if config["debug"] == "true" {
+		config["logging_level"] = "debug"
+		// Automatically enable logging if debug is true?
+		// Keep logging_enabled as configured
+	}
+	// Note: If both quiet and debug are true, debug wins (last applied).
 }
 
 // valueToInterface converts a configuration value to appropriate type for TOML.
