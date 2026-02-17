@@ -2837,3 +2837,492 @@ func TestToggleShowHelp(t *testing.T) {
 	model = updated.(*Model)
 	assert.True(t, model.uiState.ShowHelp())
 }
+
+// ========== CONFIRMATION MODE TESTS ==========
+
+func TestConfirmationMode(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{})
+
+	// Initially not in confirmation mode
+	assert.False(t, model.uiState.IsConfirmationMode())
+
+	// Set confirmation mode
+	action := PendingAction{
+		Type:    ActionDismissGroup,
+		Message: "Dismiss test group?",
+	}
+	model.uiState.SetPendingAction(action)
+	model.uiState.SetConfirmationMode(true)
+
+	// Now in confirmation mode
+	assert.True(t, model.uiState.IsConfirmationMode())
+	assert.Equal(t, ActionDismissGroup, model.uiState.GetPendingAction().Type)
+	assert.Equal(t, "Dismiss test group?", model.uiState.GetPendingAction().Message)
+}
+
+func TestConfirmationCancel_Esc(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{})
+
+	// Set up confirmation mode
+	action := PendingAction{
+		Type:    ActionDismissGroup,
+		Message: "Test action?",
+	}
+	model.uiState.SetPendingAction(action)
+	model.uiState.SetConfirmationMode(true)
+
+	// Press Esc to cancel
+	msg := tea.KeyMsg{Type: tea.KeyEsc}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+
+	// Should exit confirmation mode
+	assert.False(t, model.uiState.IsConfirmationMode())
+	// Pending action should be cleared
+	assert.Equal(t, "", model.uiState.GetPendingAction().Message)
+}
+
+func TestConfirmationCancel_N(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{})
+
+	// Set up confirmation mode
+	action := PendingAction{
+		Type:    ActionDismissGroup,
+		Message: "Test action?",
+	}
+	model.uiState.SetPendingAction(action)
+	model.uiState.SetConfirmationMode(true)
+
+	// Press 'n' to reject
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+
+	// Should exit confirmation mode
+	assert.False(t, model.uiState.IsConfirmationMode())
+}
+
+func TestConfirmationCancel_CapitalN(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{})
+
+	// Set up confirmation mode
+	action := PendingAction{
+		Type:    ActionDismissGroup,
+		Message: "Test action?",
+	}
+	model.uiState.SetPendingAction(action)
+	model.uiState.SetConfirmationMode(true)
+
+	// Press 'N' to reject
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'N'}}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+
+	// Should exit confirmation mode
+	assert.False(t, model.uiState.IsConfirmationMode())
+}
+
+func TestExecuteConfirmedAction_DismissGroup(t *testing.T) {
+	setupStorage(t)
+
+	// Create notification for model
+	notif := notification.Notification{
+		ID:      1,
+		Session: "$1",
+		Window:  "@1",
+		Pane:    "%1",
+		Message: "test notification",
+	}
+
+	model := newTestModel(t, []notification.Notification{notif})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByPane)
+	disableModelGroupOptions(model)
+	model.applySearchFilter()
+	model.resetCursor()
+
+	// Set up confirmation action
+	action := PendingAction{
+		Type:     ActionDismissGroup,
+		Session:  "$1",
+		Window:   "@1",
+		Pane:     "%1",
+		Count:    1,
+		Message:  "Dismiss 1 notification?",
+		NodeKind: uimodel.NodeKindPane,
+	}
+	model.uiState.SetPendingAction(action)
+	model.uiState.SetConfirmationMode(true)
+
+	// Execute confirmed action
+	cmd := model.executeConfirmedAction()
+
+	// Should exit confirmation mode
+	assert.False(t, model.uiState.IsConfirmationMode())
+
+	// Cmd may be nil or non-nil depending on storage state
+	// Just verify the action executed without panic
+	assert.NotPanics(t, func() {
+		if cmd != nil {
+			_ = cmd()
+		}
+	})
+}
+
+func TestExecuteConfirmedAction_UnknownAction(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{})
+
+	// Set up unknown action type
+	action := PendingAction{
+		Type:    ActionType("unknown"),
+		Message: "Unknown action?",
+	}
+	model.uiState.SetPendingAction(action)
+	model.uiState.SetConfirmationMode(true)
+
+	// Execute should handle unknown action gracefully
+	cmd := model.executeConfirmedAction()
+
+	// Should exit confirmation mode
+	assert.False(t, model.uiState.IsConfirmationMode())
+
+	// Command should be nil for unknown action
+	assert.Nil(t, cmd)
+}
+
+func TestHandleConfirmation_Enter(t *testing.T) {
+	setupStorage(t)
+	notif := notification.Notification{
+		ID:      1,
+		Session: "$1",
+		Window:  "@1",
+		Pane:    "%1",
+		Message: "test",
+	}
+
+	model := newTestModel(t, []notification.Notification{notif})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByPane)
+	disableModelGroupOptions(model)
+	model.applySearchFilter()
+	model.resetCursor()
+
+	action := PendingAction{
+		Type:     ActionDismissGroup,
+		Session:  "$1",
+		Window:   "@1",
+		Pane:     "%1",
+		Count:    1,
+		NodeKind: uimodel.NodeKindPane,
+	}
+	model.uiState.SetPendingAction(action)
+	model.uiState.SetConfirmationMode(true)
+
+	// Press Enter to confirm
+	msg := tea.KeyMsg{Type: tea.KeyEnter}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+
+	// Should exit confirmation mode
+	assert.False(t, model.uiState.IsConfirmationMode())
+}
+
+func TestHandleConfirmation_Y(t *testing.T) {
+	setupStorage(t)
+	notif := notification.Notification{
+		ID:      1,
+		Session: "$1",
+		Window:  "@1",
+		Pane:    "%1",
+		Message: "test",
+	}
+
+	model := newTestModel(t, []notification.Notification{notif})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByPane)
+	disableModelGroupOptions(model)
+	model.applySearchFilter()
+	model.resetCursor()
+
+	action := PendingAction{
+		Type:     ActionDismissGroup,
+		Session:  "$1",
+		Window:   "@1",
+		Pane:     "%1",
+		Count:    1,
+		NodeKind: uimodel.NodeKindPane,
+	}
+	model.uiState.SetPendingAction(action)
+	model.uiState.SetConfirmationMode(true)
+
+	// Press 'y' to confirm
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+
+	// Should exit confirmation mode
+	assert.False(t, model.uiState.IsConfirmationMode())
+}
+
+// ========== DISMISS GROUP TESTS ==========
+
+func TestHandleDismissGroup_Success(t *testing.T) {
+	setupStorage(t)
+
+	// Add multiple notifications
+	notif1 := notification.Notification{
+		ID:      1,
+		Session: "$1",
+		Window:  "@1",
+		Pane:    "%1",
+		Message: "test1",
+	}
+	notif2 := notification.Notification{
+		ID:      2,
+		Session: "$1",
+		Window:  "@1",
+		Pane:    "%1",
+		Message: "test2",
+	}
+
+	model := newTestModel(t, []notification.Notification{notif1, notif2})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByPane)
+	disableModelGroupOptions(model)
+	model.applySearchFilter()
+	model.resetCursor()
+
+	// Select first node (pane group)
+	visibleNodes := model.treeService.GetVisibleNodes()
+	require.Greater(t, len(visibleNodes), 2) // Need at least session, window, pane
+
+	// Find a pane node
+	var paneNodeIndex int
+	for i, node := range visibleNodes {
+		if node.Kind == uimodel.NodeKindPane {
+			paneNodeIndex = i
+			break
+		}
+	}
+
+	model.uiState.SetCursor(paneNodeIndex)
+
+	// Press 'D' to dismiss group
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'D'}}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+
+	// Should enter confirmation mode
+	assert.True(t, model.uiState.IsConfirmationMode())
+	assert.Equal(t, ActionDismissGroup, model.uiState.GetPendingAction().Type)
+}
+
+func TestHandleDismissGroup_EmptyGroup(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByPane)
+	disableModelGroupOptions(model)
+	model.applySearchFilter()
+	model.resetCursor()
+
+	// Press 'D' when no notifications
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'D'}}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+
+	// Should not enter confirmation mode
+	assert.False(t, model.uiState.IsConfirmationMode())
+}
+
+func TestHandleDismissGroup_ListMode(t *testing.T) {
+	setupStorage(t)
+	notif := notification.Notification{
+		ID:      1,
+		Session: "$1",
+		Window:  "@1",
+		Pane:    "%1",
+		Message: "test",
+	}
+
+	model := newTestModel(t, []notification.Notification{notif})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	// In list mode (not grouped)
+	model.uiState.SetViewMode(settings.ViewModeCompact)
+	disableModelGroupOptions(model)
+	model.applySearchFilter()
+	model.resetCursor()
+
+	// Press 'D' in list mode
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'D'}}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+
+	// Should not enter confirmation mode (only for grouped view)
+	assert.False(t, model.uiState.IsConfirmationMode())
+}
+
+func TestHandleDismissByFilter_Success(t *testing.T) {
+	setupStorage(t)
+
+	// Add test notification
+	notif := notification.Notification{
+		ID:      1,
+		Session: "$1",
+		Window:  "@1",
+		Pane:    "%1",
+		Message: "test",
+	}
+
+	model := newTestModel(t, []notification.Notification{notif})
+
+	// Execute dismiss by filter (test just the logic path)
+	cmd := model.handleDismissByFilter("$1", "@1", "%1")
+
+	// Command execution should not panic
+	// The command may be nil if no error handler is set
+	assert.NotPanics(t, func() {
+		if cmd != nil {
+			_ = cmd()
+		}
+	})
+}
+
+func TestHandleDismissByFilter_NoMatches(t *testing.T) {
+	setupStorage(t)
+
+	// Add test notification
+	notif := notification.Notification{
+		ID:      1,
+		Session: "$1",
+		Window:  "@1",
+		Pane:    "%1",
+		Message: "test",
+	}
+
+	model := newTestModel(t, []notification.Notification{notif})
+
+	// Try to dismiss with non-matching filter
+	// This should execute successfully but not match any notifications
+	cmd := model.handleDismissByFilter("$999", "@999", "%999")
+
+	// Command execution should not panic
+	assert.NotPanics(t, func() {
+		if cmd != nil {
+			_ = cmd()
+		}
+	})
+}
+
+// ========== SETTINGS API TESTS ==========
+
+func TestGetSetGroupBy(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{})
+
+	// Get default value
+	defaultGroupBy := model.GetGroupBy()
+	assert.NotEmpty(t, defaultGroupBy)
+
+	// Set new value
+	err := model.SetGroupBy(settings.GroupByWindow)
+	assert.NoError(t, err)
+	assert.Equal(t, settings.GroupByWindow, model.GetGroupBy())
+
+	// Set to same value (should be idempotent)
+	err = model.SetGroupBy(settings.GroupByWindow)
+	assert.NoError(t, err)
+
+	// Set invalid value
+	err = model.SetGroupBy("invalid_group")
+	assert.Error(t, err)
+}
+
+func TestGetSetExpandLevel(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{})
+
+	// Get default value
+	defaultLevel := model.GetExpandLevel()
+	assert.Equal(t, 1, defaultLevel) // Default expand level from ui_state const
+
+	// Set new value
+	err := model.SetExpandLevel(2)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, model.GetExpandLevel())
+
+	// Set to same value (should be idempotent)
+	err = model.SetExpandLevel(2)
+	assert.NoError(t, err)
+
+	// Set below minimum
+	err = model.SetExpandLevel(-1)
+	assert.Error(t, err)
+
+	// Set above maximum
+	err = model.SetExpandLevel(4)
+	assert.Error(t, err)
+}
+
+func TestGetSetReadFilter(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{})
+
+	// Get default value
+	defaultFilter := model.GetReadFilter()
+	assert.Empty(t, defaultFilter)
+
+	// Set to read filter
+	err := model.SetReadFilter(settings.ReadFilterRead)
+	assert.NoError(t, err)
+	assert.Equal(t, settings.ReadFilterRead, model.GetReadFilter())
+
+	// Set to unread filter
+	err = model.SetReadFilter(settings.ReadFilterUnread)
+	assert.NoError(t, err)
+	assert.Equal(t, settings.ReadFilterUnread, model.GetReadFilter())
+
+	// Set to empty (show all)
+	err = model.SetReadFilter("")
+	assert.NoError(t, err)
+	assert.Equal(t, "", model.GetReadFilter())
+
+	// Set invalid value
+	err = model.SetReadFilter("invalid_filter")
+	assert.Error(t, err)
+
+	// Case insensitive
+	err = model.SetReadFilter("READ")
+	assert.NoError(t, err)
+	assert.Equal(t, settings.ReadFilterRead, model.GetReadFilter())
+}
+
+func TestSaveSettings_Success(t *testing.T) {
+	setupStorage(t)
+
+	model := newTestModel(t, []notification.Notification{})
+
+	// Change settings
+	err := model.SetGroupBy(settings.GroupByWindow)
+	require.NoError(t, err)
+	err = model.SetExpandLevel(2)
+	require.NoError(t, err)
+	err = model.SetReadFilter(settings.ReadFilterRead)
+	require.NoError(t, err)
+
+	// Verify the settings were applied to the model
+	assert.Equal(t, settings.GroupByWindow, model.GetGroupBy())
+	assert.Equal(t, 2, model.GetExpandLevel())
+	assert.Equal(t, settings.ReadFilterRead, model.GetReadFilter())
+
+	// Save settings
+	err = model.SaveSettings()
+	assert.NoError(t, err)
+}
