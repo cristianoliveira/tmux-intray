@@ -36,15 +36,15 @@ func NewTUICmd(client tuiClient) *cobra.Command {
 USAGE:
     tmux-intray tui
 
-KEY BINDINGS:
-    j/k         Move up/down in the list
-    /           Enter search mode
+			KEY BINDINGS:
+			    j/k         Move up/down in the list
+			    /           Enter search mode
 
-    v           Cycle view mode (compact/detailed/grouped)
-    ESC         Exit search mode, or quit TUI
-    d           Dismiss selected notification
-    r           Mark selected notification as read
-    u           Mark selected notification as unread
+			    v           Cycle view mode (compact/detailed/grouped/search)
+			    ESC         Exit search mode, or quit TUI
+			    d           Dismiss selected notification
+			    r           Mark selected notification as read
+			    u           Mark selected notification as unread
     Enter       Jump to pane
     :w          Save settings
     q           Quit TUI`,

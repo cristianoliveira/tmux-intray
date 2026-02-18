@@ -37,6 +37,11 @@ func (m *Model) FromState(state settings.TUIState) error {
 		return err
 	}
 
+	// If the persisted view mode is search, start with the search input active.
+	if m.uiState.GetViewMode() == model.ViewModeSearch {
+		m.uiState.SetSearchMode(true)
+	}
+
 	m.applySearchFilter()
 	m.resetCursor()
 	return nil

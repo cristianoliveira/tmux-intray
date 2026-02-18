@@ -16,9 +16,19 @@ func (m *Model) IsGroupedView() bool {
 	return m.isGroupedView()
 }
 
-// cycleViewMode cycles through available view modes (compact → detailed → grouped).
+// cycleViewMode cycles through available view modes (compact → detailed → grouped → search).
 func (m *Model) cycleViewMode() {
+	prevMode := m.uiState.GetViewMode()
 	m.uiState.CycleViewMode()
+	nextMode := m.uiState.GetViewMode()
+
+	// Search view mode implies search input should be active.
+	if nextMode == model.ViewModeSearch {
+		m.uiState.SetSearchMode(true)
+	} else if prevMode == model.ViewModeSearch {
+		// Leaving search view mode should exit the search input.
+		m.uiState.SetSearchMode(false)
+	}
 	m.applySearchFilter()
 	m.resetCursor()
 
