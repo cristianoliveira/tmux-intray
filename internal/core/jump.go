@@ -4,6 +4,7 @@ package core
 import (
 	"fmt"
 
+	"github.com/cristianoliveira/tmux-intray/internal/logging"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
@@ -74,53 +75,115 @@ func (s *JumpService) JumpToNotificationParsed(notif *notification.Notification)
 
 // jumpToNotificationInternal contains the core logic for jumping to a notification.
 func (s *JumpService) jumpToNotificationInternal(notif *notification.Notification) (*JumpResult, error) {
-	// 1. Validate tmux context fields
+	result := s.validateNotificationContext(notif)
+	if result != nil {
+		return result, nil
+	}
+
+	result, err := s.checkTmuxRunningForJump()
+	if result != nil || err != nil {
+		return result, err
+	}
+
+	paneExists, err := s.validateNotificationPaneExists(notif)
+	if err != nil {
+		return nil, err
+	}
+
+	if paneExists {
+		return s.jumpToNotificationPane(notif)
+	}
+
+	return s.jumpToNotificationWindow(notif)
+}
+
+func (s *JumpService) validateNotificationContext(notif *notification.Notification) *JumpResult {
+	logging.StructuredDebug("core/jump", "jump_to_notification", "started", nil, "", map[string]interface{}{
+		"session": notif.Session,
+		"window":  notif.Window,
+		"pane":    notif.Pane,
+		"level":   notif.Level,
+	})
 	if notif.Session == "" {
 		return &JumpResult{
 			Success: false,
 			Message: "notification has no tmux session context",
-		}, nil
+		}
 	}
+	return nil
+}
 
-	// 2. Check tmux is running
+func (s *JumpService) checkTmuxRunningForJump() (*JumpResult, error) {
+	logging.StructuredDebug("core/jump", "check_tmux_running", "started", nil, "", nil)
 	running, err := s.tmuxClient.HasSession()
 	if err != nil {
+		logging.StructuredError("core/jump", "check_tmux_running", "error", err, "", nil)
 		return nil, fmt.Errorf("check tmux running: %w", err)
 	}
 	if !running {
+		logging.StructuredDebug("core/jump", "check_tmux_running", "tmux_not_running", nil, "", nil)
 		return &JumpResult{
 			Success: false,
 			Message: "tmux not running",
 		}, nil
 	}
+	return nil, nil
+}
 
-	// 3. Validate pane exists
+func (s *JumpService) validateNotificationPaneExists(notif *notification.Notification) (bool, error) {
+	logging.StructuredDebug("core/jump", "validate_pane_exists", "started", nil, "", map[string]interface{}{
+		"session": notif.Session,
+		"window":  notif.Window,
+		"pane":    notif.Pane,
+	})
 	paneExists, err := s.tmuxClient.ValidatePaneExists(notif.Session, notif.Window, notif.Pane)
 	if err != nil {
-		return nil, fmt.Errorf("validate pane exists: %w", err)
+		logging.StructuredError("core/jump", "validate_pane_exists", "error", err, "", nil)
+		return false, fmt.Errorf("validate pane exists: %w", err)
 	}
+	logging.StructuredDebug("core/jump", "validate_pane_exists", "result", nil, "", map[string]interface{}{
+		"pane_exists": paneExists,
+	})
+	return paneExists, nil
+}
 
-	if paneExists {
-		// 4a. Jump to pane
-		success, err := s.tmuxClient.JumpToPane(notif.Session, notif.Window, notif.Pane)
-		if err != nil {
-			return nil, fmt.Errorf("jump to pane: %w", err)
-		}
-		return &JumpResult{
-			Success:      success,
-			JumpedToPane: true,
-			Session:      notif.Session,
-			Window:       notif.Window,
-			Pane:         notif.Pane,
-			Message:      fmt.Sprintf("Jumped to %s:%s.%s", notif.Session, notif.Window, notif.Pane),
-		}, nil
+func (s *JumpService) jumpToNotificationPane(notif *notification.Notification) (*JumpResult, error) {
+	logging.StructuredDebug("core/jump", "jump_to_pane", "started", nil, "", map[string]interface{}{
+		"session": notif.Session,
+		"window":  notif.Window,
+		"pane":    notif.Pane,
+	})
+	success, err := s.tmuxClient.JumpToPane(notif.Session, notif.Window, notif.Pane)
+	if err != nil {
+		logging.StructuredError("core/jump", "jump_to_pane", "error", err, "", nil)
+		return nil, fmt.Errorf("jump to pane: %w", err)
 	}
+	logging.StructuredInfo("core/jump", "jump_to_pane", "success", nil, "", map[string]interface{}{
+		"success": success,
+	})
+	return &JumpResult{
+		Success:      success,
+		JumpedToPane: true,
+		Session:      notif.Session,
+		Window:       notif.Window,
+		Pane:         notif.Pane,
+		Message:      fmt.Sprintf("Jumped to %s:%s.%s", notif.Session, notif.Window, notif.Pane),
+	}, nil
+}
 
-	// 4b. Fallback: jump to window only
+func (s *JumpService) jumpToNotificationWindow(notif *notification.Notification) (*JumpResult, error) {
+	logging.StructuredDebug("core/jump", "jump_to_window", "started", nil, "", map[string]interface{}{
+		"session": notif.Session,
+		"window":  notif.Window,
+	})
 	success, err := s.tmuxClient.JumpToPane(notif.Session, notif.Window, "")
 	if err != nil {
+		logging.StructuredError("core/jump", "jump_to_window", "error", err, "", nil)
 		return nil, fmt.Errorf("jump to window: %w", err)
 	}
+	logging.StructuredInfo("core/jump", "jump_to_window", "success", nil, "", map[string]interface{}{
+		"success": success,
+	})
 	return &JumpResult{
 		Success:      success,
 		JumpedToPane: false,
