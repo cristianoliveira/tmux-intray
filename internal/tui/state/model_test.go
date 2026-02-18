@@ -1693,6 +1693,22 @@ func TestModelViewWithNoNotifications(t *testing.T) {
 	assert.Contains(t, view, "No notifications found")
 }
 
+func TestModelViewRendersSuccessMessageWithoutErrorPrefix(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{})
+	model.uiState.SetWidth(80)
+	model.uiState.SetHeight(24)
+	model.updateViewportContent()
+
+	model.statusMessage = "Notifications dismissed"
+	model.statusMessageType = errors.MessageTypeSuccess
+	model.hasStatusMessage = true
+
+	view := model.View()
+
+	assert.Contains(t, view, "Success: Notifications dismissed")
+	assert.NotContains(t, view, "Error: Notifications dismissed")
+}
+
 func TestModelViewRendersCurrentViewModeInFooter(t *testing.T) {
 	model := newTestModel(t, []notification.Notification{})
 	model.uiState.SetWidth(80)
