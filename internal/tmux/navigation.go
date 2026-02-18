@@ -9,7 +9,21 @@ import (
 )
 
 // jumpToPane is the private implementation that accepts a custom error handler.
-func (c *DefaultClient) jumpToPane(sessionID, windowID, paneID string, handler errors.ErrorHandler) (bool, error) {
+func (c *DefaultClient) jumpToPane(sessionID, windowID, paneID string, handler errors.ErrorHandler) (ok bool, err error) {
+	fields := map[string]interface{}{
+		"session_id": sessionID,
+		"window_id":  windowID,
+		"pane_id":    paneID,
+	}
+	colors.StructuredInfo("tmux", "jump", "started", nil, "", fields)
+	defer func() {
+		if err != nil {
+			colors.StructuredError("tmux", "jump", "failed", err, "", fields)
+			return
+		}
+		colors.StructuredInfo("tmux", "jump", "completed", nil, "", fields)
+	}()
+
 	// Validate required fields (sessionID and windowID)
 	if sessionID == "" || windowID == "" {
 		return false, ErrInvalidTarget

@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/errors"
 )
 
@@ -90,6 +91,12 @@ func NewDefaultClient(opts ...ClientOption) *DefaultClient {
 // runCommand executes a tmux command with the given arguments.
 // It returns stdout, stderr, and any error that occurred.
 func (c *DefaultClient) runCommand(args ...string) (string, string, error) {
+	start := time.Now()
+	command := ""
+	if len(args) > 0 {
+		command = args[0]
+	}
+	colors.StructuredDebug("tmux", "run", "started", nil, command, map[string]interface{}{"args_count": len(args)})
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
@@ -105,6 +112,12 @@ func (c *DefaultClient) runCommand(args ...string) (string, string, error) {
 	cmd.Stderr = &stderr
 
 	err := cmd.Run()
+	duration := time.Since(start).Seconds()
+	if err != nil {
+		colors.StructuredError("tmux", "run", "failed", err, command, map[string]interface{}{"args_count": len(args), "duration_seconds": duration})
+	} else {
+		colors.StructuredDebug("tmux", "run", "completed", nil, command, map[string]interface{}{"args_count": len(args), "duration_seconds": duration})
+	}
 	return stdout.String(), stderr.String(), err
 }
 
