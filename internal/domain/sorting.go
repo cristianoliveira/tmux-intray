@@ -223,3 +223,47 @@ func ParseSortOrder(order string) (SortOrder, error) {
 	}
 	return o, nil
 }
+
+// SortWithUnreadFirst sorts notifications with unread messages first, then applies the given sort options.
+// This function first partitions notifications into unread and read groups, then sorts each group
+// according to the provided options before recombining them.
+// Returns a new sorted slice without modifying the original.
+func SortWithUnreadFirst(notifs []Notification, opts SortOptions) []Notification {
+	if len(notifs) == 0 {
+		return notifs
+	}
+
+	opts = normalizeSortOptions(opts)
+
+	// Create a copy to avoid modifying the original
+	sorted := make([]Notification, len(notifs))
+	copy(sorted, notifs)
+
+	// Partition into unread and read notifications
+	unread := make([]Notification, 0, len(sorted))
+	read := make([]Notification, 0, len(sorted))
+
+	for _, n := range sorted {
+		if n.IsRead() {
+			read = append(read, n)
+		} else {
+			unread = append(unread, n)
+		}
+	}
+
+	// Sort each partition independently
+	sort.SliceStable(unread, func(i, j int) bool {
+		return compareNotifications(unread[i], unread[j], opts) < 0
+	})
+
+	sort.SliceStable(read, func(i, j int) bool {
+		return compareNotifications(read[i], read[j], opts) < 0
+	})
+
+	// Recombine: unread first, then read
+	result := make([]Notification, 0, len(sorted))
+	result = append(result, unread...)
+	result = append(result, read...)
+
+	return result
+}

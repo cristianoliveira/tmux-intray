@@ -365,3 +365,108 @@ func TestParseSortOrder(t *testing.T) {
 		})
 	}
 }
+
+func TestSortWithUnreadFirst(t *testing.T) {
+	t.Run("unread first with timestamp desc", func(t *testing.T) {
+		notifs := []Notification{
+			{ID: 1, Timestamp: "2024-01-03T12:00:00Z", ReadTimestamp: "2024-01-04T12:00:00Z"}, // read
+			{ID: 2, Timestamp: "2024-01-01T12:00:00Z", ReadTimestamp: ""},                     // unread
+			{ID: 3, Timestamp: "2024-01-02T12:00:00Z", ReadTimestamp: "2024-01-05T12:00:00Z"}, // read
+			{ID: 4, Timestamp: "2024-01-04T12:00:00Z", ReadTimestamp: ""},                     // unread
+		}
+		opts := SortOptions{Field: SortByTimestampField, Order: SortOrderDesc}
+		result := SortWithUnreadFirst(notifs, opts)
+
+		// Verify unread items come first
+		assert.False(t, result[0].IsRead())
+		assert.False(t, result[1].IsRead())
+		assert.True(t, result[2].IsRead())
+		assert.True(t, result[3].IsRead())
+
+		// Verify timestamp order within each group (descending)
+		// Unread: ID 4 (2024-01-04) comes before ID 2 (2024-01-01)
+		assert.Equal(t, 4, result[0].ID)
+		assert.Equal(t, 2, result[1].ID)
+		// Read: ID 1 (2024-01-03) comes before ID 3 (2024-01-02)
+		assert.Equal(t, 1, result[2].ID)
+		assert.Equal(t, 3, result[3].ID)
+	})
+
+	t.Run("unread first with timestamp asc", func(t *testing.T) {
+		notifs := []Notification{
+			{ID: 1, Timestamp: "2024-01-03T12:00:00Z", ReadTimestamp: "2024-01-04T12:00:00Z"}, // read
+			{ID: 2, Timestamp: "2024-01-01T12:00:00Z", ReadTimestamp: ""},                     // unread
+			{ID: 3, Timestamp: "2024-01-02T12:00:00Z", ReadTimestamp: "2024-01-05T12:00:00Z"}, // read
+			{ID: 4, Timestamp: "2024-01-04T12:00:00Z", ReadTimestamp: ""},                     // unread
+		}
+		opts := SortOptions{Field: SortByTimestampField, Order: SortOrderAsc}
+		result := SortWithUnreadFirst(notifs, opts)
+
+		// Verify unread items come first
+		assert.False(t, result[0].IsRead())
+		assert.False(t, result[1].IsRead())
+		assert.True(t, result[2].IsRead())
+		assert.True(t, result[3].IsRead())
+
+		// Verify timestamp order within each group (ascending)
+		// Unread: ID 2 (2024-01-01) comes before ID 4 (2024-01-04)
+		assert.Equal(t, 2, result[0].ID)
+		assert.Equal(t, 4, result[1].ID)
+		// Read: ID 3 (2024-01-02) comes before ID 1 (2024-01-03)
+		assert.Equal(t, 3, result[2].ID)
+		assert.Equal(t, 1, result[3].ID)
+	})
+
+	t.Run("unread first with id desc", func(t *testing.T) {
+		notifs := []Notification{
+			{ID: 1, ReadTimestamp: "2024-01-04T12:00:00Z"}, // read
+			{ID: 2, ReadTimestamp: ""},                     // unread
+			{ID: 3, ReadTimestamp: "2024-01-05T12:00:00Z"}, // read
+			{ID: 4, ReadTimestamp: ""},                     // unread
+		}
+		opts := SortOptions{Field: SortByIDField, Order: SortOrderDesc}
+		result := SortWithUnreadFirst(notifs, opts)
+
+		// Verify unread items come first, sorted by ID desc
+		assert.Equal(t, 4, result[0].ID) // unread, larger ID
+		assert.Equal(t, 2, result[1].ID) // unread, smaller ID
+		assert.Equal(t, 3, result[2].ID) // read, larger ID
+		assert.Equal(t, 1, result[3].ID) // read, smaller ID
+	})
+
+	t.Run("all unread notifications", func(t *testing.T) {
+		notifs := []Notification{
+			{ID: 3, Timestamp: "2024-01-03T12:00:00Z", ReadTimestamp: ""},
+			{ID: 1, Timestamp: "2024-01-01T12:00:00Z", ReadTimestamp: ""},
+			{ID: 2, Timestamp: "2024-01-02T12:00:00Z", ReadTimestamp: ""},
+		}
+		opts := SortOptions{Field: SortByTimestampField, Order: SortOrderDesc}
+		result := SortWithUnreadFirst(notifs, opts)
+
+		// All are unread, should be sorted by timestamp descending
+		assert.Equal(t, 3, result[0].ID)
+		assert.Equal(t, 2, result[1].ID)
+		assert.Equal(t, 1, result[2].ID)
+	})
+
+	t.Run("all read notifications", func(t *testing.T) {
+		notifs := []Notification{
+			{ID: 3, Timestamp: "2024-01-03T12:00:00Z", ReadTimestamp: "2024-01-03T13:00:00Z"},
+			{ID: 1, Timestamp: "2024-01-01T12:00:00Z", ReadTimestamp: "2024-01-01T13:00:00Z"},
+			{ID: 2, Timestamp: "2024-01-02T12:00:00Z", ReadTimestamp: "2024-01-02T13:00:00Z"},
+		}
+		opts := SortOptions{Field: SortByTimestampField, Order: SortOrderDesc}
+		result := SortWithUnreadFirst(notifs, opts)
+
+		// All are read, should be sorted by timestamp descending
+		assert.Equal(t, 3, result[0].ID)
+		assert.Equal(t, 2, result[1].ID)
+		assert.Equal(t, 1, result[2].ID)
+	})
+
+	t.Run("empty notifications", func(t *testing.T) {
+		opts := SortOptions{Field: SortByTimestampField, Order: SortOrderDesc}
+		result := SortWithUnreadFirst([]Notification{}, opts)
+		assert.Len(t, result, 0)
+	})
+}

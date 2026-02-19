@@ -21,6 +21,7 @@ func TestDefaultSettings(t *testing.T) {
 	// Check sort settings
 	assert.Equal(t, SortByTimestamp, s.SortBy)
 	assert.Equal(t, SortOrderDesc, s.SortOrder)
+	assert.True(t, s.UnreadFirst) // Should default to true
 
 	// Check filters
 	assert.Equal(t, "", s.Filters.Level)
@@ -802,4 +803,112 @@ func TestValidateExported(t *testing.T) {
 	err = Validate(invalidSettings)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid column name")
+}
+
+func TestUnreadFirstField(t *testing.T) {
+	t.Run("default is true", func(t *testing.T) {
+		s := DefaultSettings()
+		assert.True(t, s.UnreadFirst)
+	})
+
+	t.Run("load and persist unread_first true", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", tmpDir)
+		t.Setenv("HOME", tmpDir)
+
+		// Create settings file with unread_first = true
+		configDir := filepath.Join(tmpDir, "tmux-intray")
+		require.NoError(t, os.MkdirAll(configDir, 0755))
+
+		settingsPath := filepath.Join(configDir, "tui.toml")
+		customTOML := `unread_first = true
+sort_by = "timestamp"
+sort_order = "desc"
+`
+		require.NoError(t, os.WriteFile(settingsPath, []byte(customTOML), 0644))
+		t.Cleanup(func() { _ = os.Remove(settingsPath) })
+
+		// Load settings
+		settings, err := Load()
+		require.NoError(t, err)
+		assert.True(t, settings.UnreadFirst)
+		assert.Equal(t, SortByTimestamp, settings.SortBy)
+		assert.Equal(t, SortOrderDesc, settings.SortOrder)
+	})
+
+	t.Run("load and persist unread_first false", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", tmpDir)
+		t.Setenv("HOME", tmpDir)
+
+		// Create settings file with unread_first = false
+		configDir := filepath.Join(tmpDir, "tmux-intray")
+		require.NoError(t, os.MkdirAll(configDir, 0755))
+
+		settingsPath := filepath.Join(configDir, "tui.toml")
+		customTOML := `unread_first = false
+sort_by = "level"
+sort_order = "asc"
+`
+		require.NoError(t, os.WriteFile(settingsPath, []byte(customTOML), 0644))
+		t.Cleanup(func() { _ = os.Remove(settingsPath) })
+
+		// Load settings
+		settings, err := Load()
+		require.NoError(t, err)
+		assert.False(t, settings.UnreadFirst)
+		assert.Equal(t, SortByLevel, settings.SortBy)
+		assert.Equal(t, SortOrderAsc, settings.SortOrder)
+	})
+
+	t.Run("backward compatibility: missing unread_first defaults to true", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", tmpDir)
+		t.Setenv("HOME", tmpDir)
+
+		// Create settings file without unread_first field (old format)
+		configDir := filepath.Join(tmpDir, "tmux-intray")
+		require.NoError(t, os.MkdirAll(configDir, 0755))
+
+		settingsPath := filepath.Join(configDir, "tui.toml")
+		oldTOML := `sort_by = "timestamp"
+sort_order = "desc"
+view_mode = "grouped"
+`
+		require.NoError(t, os.WriteFile(settingsPath, []byte(oldTOML), 0644))
+		t.Cleanup(func() { _ = os.Remove(settingsPath) })
+
+		// Load settings - should default UnreadFirst to true
+		settings, err := Load()
+		require.NoError(t, err)
+		assert.True(t, settings.UnreadFirst) // Default to true for backward compatibility
+		assert.Equal(t, SortByTimestamp, settings.SortBy)
+		assert.Equal(t, SortOrderDesc, settings.SortOrder)
+	})
+
+	t.Run("save and reload unread_first setting", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", tmpDir)
+		t.Setenv("HOME", tmpDir)
+
+		// Create and save settings with unread_first = false
+		settings := &Settings{
+			Columns:     []string{ColumnID, ColumnMessage},
+			SortBy:      SortByLevel,
+			SortOrder:   SortOrderAsc,
+			UnreadFirst: false,
+			ViewMode:    ViewModeCompact,
+			GroupBy:     GroupByNone,
+		}
+
+		err := Save(settings)
+		require.NoError(t, err)
+
+		// Load and verify
+		loaded, err := Load()
+		require.NoError(t, err)
+		assert.False(t, loaded.UnreadFirst)
+		assert.Equal(t, SortByLevel, loaded.SortBy)
+		assert.Equal(t, SortOrderAsc, loaded.SortOrder)
+	})
 }

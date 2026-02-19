@@ -2,12 +2,12 @@
 package service
 
 import (
-	"sort"
 	"strings"
 
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
+	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
 
@@ -15,6 +15,7 @@ import (
 type DefaultNotificationService struct {
 	searchProvider search.Provider
 	nameResolver   model.NameResolver
+	settings       *settings.Settings
 	notifications  []notification.Notification
 	filtered       []notification.Notification
 }
@@ -24,9 +25,16 @@ func NewNotificationService(provider search.Provider, resolver model.NameResolve
 	return &DefaultNotificationService{
 		searchProvider: provider,
 		nameResolver:   resolver,
+		settings:       nil, // Will be set later
 		notifications:  []notification.Notification{},
 		filtered:       []notification.Notification{},
 	}
+}
+
+// SetSettings updates the settings used by the service.
+// This allows the service to apply configurable sorting based on user settings.
+func (s *DefaultNotificationService) SetSettings(setts *settings.Settings) {
+	s.settings = setts
 }
 
 // convertToDomain converts a slice of notification.Notification to domain.Notification values.
@@ -127,6 +135,7 @@ func (s *DefaultNotificationService) FilterByPane(notifications []notification.N
 }
 
 // SortNotifications sorts notifications by the specified field and order.
+// Uses the service's settings to determine whether to apply unread-first grouping.
 func (s *DefaultNotificationService) SortNotifications(notifications []notification.Notification, sortBy, sortOrder string) []notification.Notification {
 	if len(notifications) == 0 {
 		return notifications
@@ -154,29 +163,27 @@ func (s *DefaultNotificationService) SortNotifications(notifications []notificat
 		copy(result, notifications)
 		return result
 	}
-	sorted := domain.SortNotifications(domainNotifs, opts)
-	return orderUnreadFirst(s.convertFromDomain(sorted))
-}
 
-func orderUnreadFirst(notifications []notification.Notification) []notification.Notification {
-	if len(notifications) == 0 {
-		return notifications
+	// Apply sorting with or without unread-first based on settings
+	var sorted []domain.Notification
+	unreadFirst := s.shouldApplyUnreadFirst()
+	if unreadFirst {
+		sorted = domain.SortWithUnreadFirst(domainNotifs, opts)
+	} else {
+		sorted = domain.SortNotifications(domainNotifs, opts)
 	}
 
-	ordered := make([]notification.Notification, len(notifications))
-	copy(ordered, notifications)
+	return s.convertFromDomain(sorted)
+}
 
-	sort.SliceStable(ordered, func(i, j int) bool {
-		iUnread := !ordered[i].IsRead()
-		jUnread := !ordered[j].IsRead()
-		if iUnread == jUnread {
-			return false
-		}
-
-		return iUnread && !jUnread
-	})
-
-	return ordered
+// shouldApplyUnreadFirst determines whether to apply unread-first grouping.
+// Returns true if settings are configured to use unread-first sorting.
+func (s *DefaultNotificationService) shouldApplyUnreadFirst() bool {
+	if s.settings == nil {
+		// Default to true for backward compatibility
+		return true
+	}
+	return s.settings.UnreadFirst
 }
 
 // GetUnreadCount returns the number of unread notifications.

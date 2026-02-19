@@ -152,6 +152,7 @@ func (o GroupHeaderOptions) Validate() error {
 //	  "columns": ["id", "timestamp", "state", "level", "session", "window", "pane", "message"],
 //	  "sortBy": "timestamp",
 //	  "sortOrder": "desc",
+//	  "unreadFirst": true,
 //	  "filters": {
 //	    "level": "",
 //	    "state": "",
@@ -183,6 +184,12 @@ type Settings struct {
 	// SortOrder specifies sort direction: "asc" or "desc".
 	// Empty string means use default sort order (desc).
 	SortOrder string `toml:"sort_order"`
+
+	// UnreadFirst controls whether unread notifications are sorted first.
+	// When true, unread notifications appear before read notifications,
+	// and then the configured sort_by and sort_order are applied within each group.
+	// Defaults to true for backward compatibility.
+	UnreadFirst bool `toml:"unread_first"`
 
 	// Filters contains active filter criteria.
 	Filters Filter `toml:"filters"`
@@ -216,9 +223,10 @@ type Settings struct {
 // DefaultSettings returns settings with all default values.
 func DefaultSettings() *Settings {
 	return &Settings{
-		Columns:   DefaultColumns,
-		SortBy:    SortByTimestamp,
-		SortOrder: SortOrderDesc,
+		Columns:     DefaultColumns,
+		SortBy:      SortByTimestamp,
+		SortOrder:   SortOrderDesc,
+		UnreadFirst: true, // Default to true to maintain current behavior (unread first)
 		Filters: Filter{
 			Level:   "",
 			State:   "",
