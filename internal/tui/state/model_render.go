@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/errors"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
@@ -63,11 +64,27 @@ func (m *Model) View() string {
 	s.WriteString("\n")
 	s.WriteString(m.uiState.GetViewport().View())
 
-	// Error message above footer
-	if m.errorMessage != "" {
+	// Status message above footer
+	if m.hasStatusMessage {
 		s.WriteString("\n")
-		errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ansiColorNumber(colors.Red)))
-		s.WriteString(errorStyle.Render("Error: " + m.errorMessage))
+		prefix := ""
+		color := colors.Red
+		switch m.statusMessageType {
+		case errors.MessageTypeWarning:
+			prefix = "Warning: "
+			color = colors.Yellow
+		case errors.MessageTypeInfo:
+			prefix = "Info: "
+			color = colors.Blue
+		case errors.MessageTypeSuccess:
+			prefix = "Success: "
+			color = colors.Green
+		default:
+			prefix = "Error: "
+			color = colors.Red
+		}
+		style := lipgloss.NewStyle().Foreground(lipgloss.Color(ansiColorNumber(color)))
+		s.WriteString(style.Render(prefix + m.statusMessage))
 	}
 
 	// Footer
@@ -78,7 +95,7 @@ func (m *Model) View() string {
 		Grouped:      m.isGroupedView(),
 		ViewMode:     string(m.uiState.GetViewMode()),
 		Width:        m.uiState.GetWidth(),
-		ErrorMessage: m.errorMessage,
+		ErrorMessage: m.statusMessage,
 		ReadFilter:   m.filters.Read,
 		ShowHelp:     m.uiState.ShowHelp(),
 	}))

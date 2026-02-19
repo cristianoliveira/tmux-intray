@@ -27,9 +27,11 @@ const (
 // Model represents the TUI model for bubbletea.
 type Model struct {
 	// Core state
-	uiState      *UIState           // Extracted UI state management
-	errorHandler *errors.TUIHandler // Error handler for TUI messages
-	errorMessage string             // Current error message to display
+	uiState           *UIState           // Extracted UI state management
+	errorHandler      *errors.TUIHandler // Error handler for TUI messages
+	statusMessage     string             // Current status message to display
+	statusMessageType errors.MessageType // Message type for styling/prefix
+	hasStatusMessage  bool               // Whether a status message is set
 
 	// Legacy mirrors retained for backward-compatible tests.
 	notifications []notification.Notification
@@ -76,7 +78,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		return m.handleWindowSizeMsg(msg)
 	case errorMsg:
-		m.errorMessage = ""
+		m.statusMessage = ""
+		m.statusMessageType = errors.MessageTypeError
+		m.hasStatusMessage = false
 		return m, nil
 	}
 	return m, nil
@@ -109,7 +113,9 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 
 	m := Model{
 		uiState:             uiState,
-		errorMessage:        "",
+		statusMessage:       "",
+		statusMessageType:   errors.MessageTypeError,
+		hasStatusMessage:    false,
 		runtimeCoordinator:  runtimeCoordinator,
 		treeService:         treeService,
 		notificationService: notificationService,
@@ -126,7 +132,9 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 
 	// Initialize error handler with callback that sets error message
 	m.errorHandler = errors.NewTUIHandler(func(msg errors.Message) {
-		m.errorMessage = msg.Text
+		m.statusMessage = msg.Text
+		m.statusMessageType = msg.Type
+		m.hasStatusMessage = msg.Text != ""
 		// Note: The tick command to clear the error is handled by the caller
 	})
 
