@@ -904,6 +904,8 @@ func TestModelUpdateSearchModeDoesNotUseVimNavigationMappings(t *testing.T) {
 
 func TestModelUpdateHandlesSearch(t *testing.T) {
 	stubSessionFetchers(t)
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
 
 	model := newTestModel(t, []notification.Notification{
 		{ID: 1, Message: "Error: file not found"},
@@ -912,6 +914,7 @@ func TestModelUpdateHandlesSearch(t *testing.T) {
 	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(settings.ViewModeDetailed)
 
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}}
 	updated, _ := model.Update(msg)
@@ -919,6 +922,7 @@ func TestModelUpdateHandlesSearch(t *testing.T) {
 
 	assert.True(t, model.uiState.IsSearchMode())
 	assert.Equal(t, "", model.uiState.GetSearchQuery())
+	assert.Equal(t, settings.ViewModeSearch, string(model.uiState.GetViewMode()))
 	assert.Equal(t, 0, model.uiState.GetCursor())
 	assert.Len(t, model.filtered, 3)
 
@@ -941,24 +945,6 @@ func TestModelUpdateHandlesSearch(t *testing.T) {
 	model.resetCursor()
 
 	assert.Len(t, model.filtered, 3)
-}
-
-func TestModelUpdateCtrlFSwitchesToSearchViewModeAndFocusesSearch(t *testing.T) {
-	tmpDir := t.TempDir()
-	setupConfig(t, tmpDir)
-
-	model := newTestModel(t, []notification.Notification{
-		{ID: 1, Message: "First"},
-	})
-	model.uiState.SetWidth(80)
-	model.uiState.GetViewport().Width = 80
-
-	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlF})
-	model = updated.(*Model)
-
-	assert.Nil(t, cmd)
-	assert.Equal(t, settings.ViewModeSearch, string(model.uiState.GetViewMode()))
-	assert.True(t, model.uiState.IsSearchMode())
 }
 
 func TestModelUpdateSearchViewModeEnterJumpsWhileSearchActive(t *testing.T) {
@@ -1729,7 +1715,8 @@ func TestModelViewRendersContent(t *testing.T) {
 	assert.Contains(t, view, "AGE")
 	assert.Contains(t, view, "Test notification")
 	assert.Contains(t, view, "j/k: move")
-	assert.Contains(t, view, "Ctrl+f: search view")
+	assert.Contains(t, view, "/: search view")
+	assert.NotContains(t, view, "Ctrl+f")
 	assert.Contains(t, view, "q: quit")
 }
 

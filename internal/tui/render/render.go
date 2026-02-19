@@ -168,8 +168,7 @@ func buildFullHelpNormalModeItems(state FooterState) []string {
 	items = append(items, fmt.Sprintf("read: %s", readFilterIndicator(state.ReadFilter)))
 	items = append(items, "j/k: move")
 	items = append(items, "gg/G: top/bottom")
-	items = append(items, "/: search")
-	items = append(items, "Ctrl+f: search view")
+	items = append(items, "/: search view")
 	items = append(items, "v: cycle view mode")
 	if state.Grouped {
 		items = append(items, "h/l: collapse/expand")

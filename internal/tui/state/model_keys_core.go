@@ -90,9 +90,6 @@ func (m *Model) handleKeyType(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyCtrlC:
 		return m.handleCtrlC()
-	case tea.KeyCtrlF:
-		m.handleSearchViewMode()
-		return m, nil
 	case tea.KeyEsc:
 		return m.handleEsc()
 	case tea.KeyEnter:
@@ -154,7 +151,7 @@ func (m *Model) handleKeyBinding(key string) (tea.Model, tea.Cmd) {
 			m.uiState.SetPendingKey("g")
 		})
 	case "/":
-		m.handleSearchMode()
+		m.handleSearchViewMode()
 		return m, nil
 	case "?":
 		m.uiState.SetShowHelp(!m.uiState.ShowHelp())
