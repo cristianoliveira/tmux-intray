@@ -151,7 +151,7 @@ func (m *Model) handleKeyBinding(key string) (tea.Model, tea.Cmd) {
 			m.uiState.SetPendingKey("g")
 		})
 	case "/":
-		m.handleSearchMode()
+		m.handleSearchViewMode()
 		return m, nil
 	case "?":
 		m.uiState.SetShowHelp(!m.uiState.ShowHelp())
