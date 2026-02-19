@@ -244,6 +244,7 @@ func TestFooterGroupedHelpText(t *testing.T) {
 	assert.Contains(t, footer, "h/l: collapse/expand")
 	assert.Contains(t, footer, "za: toggle fold")
 	assert.Contains(t, footer, "Enter: toggle/jump")
+	assert.Contains(t, footer, "Ctrl+f: search view")
 }
 
 func TestFooterSearchModeHelpText(t *testing.T) {

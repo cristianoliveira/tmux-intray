@@ -943,6 +943,48 @@ func TestModelUpdateHandlesSearch(t *testing.T) {
 	assert.Len(t, model.filtered, 3)
 }
 
+func TestModelUpdateCtrlFSwitchesToSearchViewModeAndFocusesSearch(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlF})
+	model = updated.(*Model)
+
+	assert.Nil(t, cmd)
+	assert.Equal(t, settings.ViewModeSearch, string(model.uiState.GetViewMode()))
+	assert.True(t, model.uiState.IsSearchMode())
+}
+
+func TestModelUpdateSearchViewModeEnterJumpsWhileSearchActive(t *testing.T) {
+	setupStorage(t)
+
+	model := newTestModelWithOptions(t, []notification.Notification{
+		{ID: 1, Message: "First", Session: "$1", Window: "@1", Pane: "%1"},
+	}, func(m *Model) {
+		m.runtimeCoordinator = &testRuntimeCoordinator{
+			ensureTmuxRunningFn: func() bool { return true },
+			jumpToPaneFn:        func(sessionID, windowID, paneID string) bool { return true },
+		}
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(settings.ViewModeSearch)
+	model.uiState.SetSearchMode(true)
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(*Model)
+
+	assert.NotNil(t, cmd)
+	assert.Equal(t, settings.ViewModeSearch, string(model.uiState.GetViewMode()))
+	assert.True(t, model.uiState.IsSearchMode())
+}
+
 func TestModelUpdateCyclesViewModesWithPersistence(t *testing.T) {
 	tmpDir := t.TempDir()
 	setupConfig(t, tmpDir)
@@ -1672,7 +1714,7 @@ func TestModelViewRendersContent(t *testing.T) {
 		{ID: 1, Message: "Test notification", Timestamp: "2024-01-01T12:00:00Z", Level: "info", State: "active"},
 	})
 	model.uiState.SetCursor(0)
-	model.uiState.SetWidth(180)
+	model.uiState.SetWidth(400)
 	model.uiState.SetHeight(24)
 	model.updateViewportContent()
 
@@ -1687,6 +1729,7 @@ func TestModelViewRendersContent(t *testing.T) {
 	assert.Contains(t, view, "AGE")
 	assert.Contains(t, view, "Test notification")
 	assert.Contains(t, view, "j/k: move")
+	assert.Contains(t, view, "Ctrl+f: search view")
 	assert.Contains(t, view, "q: quit")
 }
 

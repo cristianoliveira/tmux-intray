@@ -90,6 +90,9 @@ func (m *Model) handleKeyType(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyCtrlC:
 		return m.handleCtrlC()
+	case tea.KeyCtrlF:
+		m.handleSearchViewMode()
+		return m, nil
 	case tea.KeyEsc:
 		return m.handleEsc()
 	case tea.KeyEnter:

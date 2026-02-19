@@ -148,9 +148,12 @@ func buildFullHelpSearchModeItems(state FooterState) []string {
 	items = append(items, "r: read")
 	items = append(items, "u: unread")
 	items = append(items, "d: dismiss")
-	enterHelp := "Enter: jump"
-	if state.Grouped {
-		enterHelp = "Enter: toggle/jump"
+	enterHelp := "Enter: exit search"
+	if state.ViewMode == settings.ViewModeSearch {
+		enterHelp = "Enter: jump"
+		if state.Grouped {
+			enterHelp = "Enter: toggle/jump"
+		}
 	}
 	items = append(items, enterHelp)
 	items = append(items, "q: quit")
@@ -166,6 +169,7 @@ func buildFullHelpNormalModeItems(state FooterState) []string {
 	items = append(items, "j/k: move")
 	items = append(items, "gg/G: top/bottom")
 	items = append(items, "/: search")
+	items = append(items, "Ctrl+f: search view")
 	items = append(items, "v: cycle view mode")
 	if state.Grouped {
 		items = append(items, "h/l: collapse/expand")

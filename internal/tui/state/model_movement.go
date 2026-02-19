@@ -1,5 +1,11 @@
 package state
 
+import (
+	"fmt"
+
+	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
+)
+
 // handleMoveDown moves the cursor down by one position.
 func (m *Model) handleMoveDown() {
 	listLen := m.currentListLen()
@@ -43,6 +49,20 @@ func (m *Model) handleSearchMode() {
 	m.uiState.SetSearchMode(true)
 	m.applySearchFilter()
 	m.uiState.ResetCursor()
+}
+
+// handleSearchViewMode switches to search view mode and focuses the search input.
+func (m *Model) handleSearchViewMode() {
+	m.uiState.SetViewMode(model.ViewModeSearch)
+	m.uiState.SetSearchMode(true)
+
+	// Reset cursor before rendering filtered list, so highlight stays in sync.
+	m.resetCursor()
+	m.applySearchFilter()
+
+	if err := m.saveSettings(); err != nil {
+		m.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+	}
 }
 
 // handleCollapseNode collapses the currently selected tree node.
