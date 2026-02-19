@@ -18,6 +18,10 @@ func (m *Model) SetLoadedSettings(loaded *settings.Settings) {
 	m.loadedSettings = loaded
 	if loaded != nil {
 		m.groupHeaderOptions = loaded.GroupHeader.Clone()
+		// Pass settings to notification service for configurable sorting
+		if notifSvc, ok := m.notificationService.(*service.DefaultNotificationService); ok {
+			notifSvc.SetSettings(loaded)
+		}
 	} else {
 		m.groupHeaderOptions = settings.DefaultGroupHeaderOptions()
 	}
