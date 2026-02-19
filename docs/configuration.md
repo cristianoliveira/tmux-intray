@@ -218,7 +218,7 @@ critical = "\u001b[0;31m"
 | `filters.session` | string | Filter by tmux session | `""` (no filter) | Session name or `""` |
 | `filters.window` | string | Filter by tmux window | `""` (no filter) | Window ID or `""` |
 | `filters.pane` | string | Filter by tmux pane | `""` (no filter) | Pane ID or `""` |
-| `viewMode` | string | Display layout | `"grouped"` | `"compact"`, `"detailed"`, `"grouped"` |
+| `viewMode` | string | Display layout | `"grouped"` | `"compact"`, `"detailed"`, `"grouped"`, `"search"` |
 | `groupBy` | string | Group notifications in the TUI | `"none"` | `"none"`, `"session"`, `"window"`, `"pane"`, `"message"` |
 | `defaultExpandLevel` | number | Default grouping expansion depth | `1` | `0`-`3` |
 | `expansionState` | object | Explicit expansion overrides by node path | `{}` | Object of string to boolean |

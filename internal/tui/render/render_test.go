@@ -312,6 +312,7 @@ func TestViewModeIndicator(t *testing.T) {
 	assert.Equal(t, "[C]", viewModeIndicator(settings.ViewModeCompact))
 	assert.Equal(t, "[D]", viewModeIndicator(settings.ViewModeDetailed))
 	assert.Equal(t, "[G]", viewModeIndicator(settings.ViewModeGrouped))
+	assert.Equal(t, "[S]", viewModeIndicator(settings.ViewModeSearch))
 	assert.Equal(t, "[?]", viewModeIndicator("unknown"))
 }
 

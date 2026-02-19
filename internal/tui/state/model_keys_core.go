@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
 
 // handleKeyMsg processes keyboard input for the TUI.
@@ -11,6 +12,15 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Handle confirmation mode first
 	if m.uiState.IsConfirmationMode() {
 		return m.handleConfirmation(msg)
+	}
+
+	// In search view mode we want `v` to keep cycling view modes.
+	// This is a special case because normal search mode treats runes as input.
+	if m.uiState.IsSearchMode() && m.uiState.GetViewMode() == model.ViewModeSearch {
+		if msg.Type == tea.KeyRunes && msg.String() == "v" {
+			m.cycleViewMode()
+			return m, nil
+		}
 	}
 
 	if handled, cmd := m.handlePendingKey(msg); handled {

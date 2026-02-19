@@ -226,7 +226,7 @@ Rendering helpers:
 - Pure view construction (state in, view out)
 - No file, network, or tmux I/O
 - Rendering decisions are deterministic and testable
-- Supports different view modes (compact, detailed, grouped)
+- Supports different view modes (compact, detailed, grouped, search)
 
 ### `internal/tui/follow` (planned)
 

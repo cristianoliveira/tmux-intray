@@ -972,7 +972,16 @@ func TestModelUpdateCyclesViewModesWithPersistence(t *testing.T) {
 
 	updated, _ = model.Update(msg)
 	model = updated.(*Model)
+	assert.Equal(t, settings.ViewModeSearch, string(model.uiState.GetViewMode()))
+	assert.True(t, model.uiState.IsSearchMode())
+	loaded, err = settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.ViewModeSearch, loaded.ViewMode)
+
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
 	assert.Equal(t, settings.ViewModeCompact, string(model.uiState.GetViewMode()))
+	assert.False(t, model.uiState.IsSearchMode())
 	loaded, err = settings.Load()
 	require.NoError(t, err)
 	assert.Equal(t, settings.ViewModeCompact, loaded.ViewMode)
@@ -1719,6 +1728,19 @@ func TestModelViewRendersCurrentViewModeInFooter(t *testing.T) {
 	view := model.View()
 
 	assert.Contains(t, view, "mode: [G]")
+}
+
+func TestModelViewRendersSearchViewModeInFooter(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{})
+	model.uiState.SetWidth(80)
+	model.uiState.SetHeight(24)
+	model.uiState.SetViewMode(settings.ViewModeSearch)
+	model.uiState.SetSearchMode(true)
+	model.updateViewportContent()
+
+	view := model.View()
+
+	assert.Contains(t, view, "mode: [S]")
 }
 
 func TestUpdateViewportContentGroupedViewWithEmptyTree(t *testing.T) {
@@ -2481,6 +2503,18 @@ func TestFromState(t *testing.T) {
 				assert.Equal(t, "my-session", m.filters.Session)
 				assert.Equal(t, "@1", m.filters.Window)
 				assert.Equal(t, "%1", m.filters.Pane)
+			},
+		},
+		{
+			name:  "search view mode enables search input",
+			model: &Model{uiState: NewUIState()},
+			state: settings.TUIState{
+				ViewMode: settings.ViewModeSearch,
+			},
+			wantErr: false,
+			verifyFn: func(t *testing.T, m *Model) {
+				assert.Equal(t, settings.ViewModeSearch, string(m.uiState.GetViewMode()))
+				assert.True(t, m.uiState.IsSearchMode())
 			},
 		},
 		{
