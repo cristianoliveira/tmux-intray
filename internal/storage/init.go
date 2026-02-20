@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/config"
@@ -31,6 +32,8 @@ var (
 // Init initializes storage directories.
 // Returns an error if initialization fails. Safe for concurrent calls.
 func Init() error {
+	start := time.Now()
+	colors.StructuredInfo("storage", "init", "started", nil, "", nil)
 	var err error
 	initOnce.Do(func() {
 		// Load configuration
@@ -64,6 +67,7 @@ func Init() error {
 
 	// Return any initialization error from first call
 	if err != nil {
+		colors.StructuredError("storage", "init", "failed", err, "", map[string]interface{}{"duration_seconds": time.Since(start).Seconds()})
 		return err
 	}
 
@@ -71,6 +75,11 @@ func Init() error {
 	initMu.RLock()
 	err = initErr
 	initMu.RUnlock()
+	if err != nil {
+		colors.StructuredError("storage", "init", "failed", err, "", map[string]interface{}{"duration_seconds": time.Since(start).Seconds()})
+		return err
+	}
+	colors.StructuredInfo("storage", "init", "completed", nil, "", map[string]interface{}{"duration_seconds": time.Since(start).Seconds()})
 	return err
 }
 

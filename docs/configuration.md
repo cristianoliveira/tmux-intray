@@ -179,6 +179,7 @@ The settings file uses the following TOML schema:
 columns = ["id", "timestamp", "state", "level", "session", "window", "pane", "message"]
 sortBy = "timestamp"
 sortOrder = "desc"
+unreadFirst = true
 
 [filters]
 level = ""
@@ -212,13 +213,14 @@ critical = "\u001b[0;31m"
 | `columns` | array | Column display order | All columns in default order | `["id", "timestamp", "state", "level", "session", "window", "pane", "message", "pane_created"]` |
 | `sortBy` | string | Column to sort by | `"timestamp"` | `"id"`, `"timestamp"`, `"state"`, `"level"`, `"session"` |
 | `sortOrder` | string | Sort direction | `"desc"` | `"asc"`, `"desc"` |
+| `unreadFirst` | bool | Group unread notifications first before applying sort | `true` | `true`, `false` |
 | `filters.level` | string | Filter by severity level | `""` (no filter) | `"info"`, `"warning"`, `"error"`, `"critical"`, `""` |
 | `filters.state` | string | Filter by state | `""` (no filter) | `"active"`, `"dismissed"`, `""` |
 | `filters.read` | string | Filter by read/unread status | `""` (all notifications) | `"read"`, `"unread"`, `""` |
 | `filters.session` | string | Filter by tmux session | `""` (no filter) | Session name or `""` |
 | `filters.window` | string | Filter by tmux window | `""` (no filter) | Window ID or `""` |
 | `filters.pane` | string | Filter by tmux pane | `""` (no filter) | Pane ID or `""` |
-| `viewMode` | string | Display layout | `"grouped"` | `"compact"`, `"detailed"`, `"grouped"` |
+| `viewMode` | string | Display layout | `"grouped"` | `"compact"`, `"detailed"`, `"grouped"`, `"search"` |
 | `groupBy` | string | Group notifications in the TUI | `"none"` | `"none"`, `"session"`, `"window"`, `"pane"`, `"message"`, `"pane_message"` |
 | `defaultExpandLevel` | number | Default grouping expansion depth | `1` | `0`-`3` |
 | `expansionState` | object | Explicit expansion overrides by node path | `{}` | Object of string to boolean |
@@ -228,6 +230,44 @@ critical = "\u001b[0;31m"
 | `groupHeader.badgeColors` | table | ANSI color codes per level (`info`, `warning`, `error`, `critical`) | defaults shown above | Strings containing ANSI escape sequences |
 
 `filters.read` lets you persist whether the TUI should show only read, only unread, or all notifications. At runtime you can toggle the same preference with the `:filter-read <read|unread|all>` command; the change is saved back to `tui.toml` automatically.
+
+#### Sorting with Unread-First Grouping
+
+`unreadFirst` controls whether unread notifications are visually separated and displayed first, regardless of the sort order:
+
+- **`true` (default)**: Unread notifications appear first as a group, followed by read notifications. Within each group, notifications are sorted by `sortBy` and `sortOrder`. This is useful for keeping attention on unread items while maintaining a predictable sort order within each read status group.
+- **`false`**: All notifications are sorted without grouping by read status, using only the `sortBy` and `sortOrder` settings.
+
+**Example with `unreadFirst = true`** (sort by timestamp descending):
+```
+[Unread notifications - newest first]
+- 14:35 - Error: Connection timeout (unread)
+- 14:20 - Warning: High memory usage (unread)
+
+[Read notifications - newest first]
+- 13:50 - Info: Backup completed (read)
+- 13:10 - Info: Job finished (read)
+```
+
+**Example with `unreadFirst = false`** (sort by timestamp descending):
+```
+- 14:35 - Error: Connection timeout (unread)
+- 14:20 - Warning: High memory usage (unread)
+- 13:50 - Info: Backup completed (read)
+- 13:10 - Info: Job finished (read)
+```
+
+To disable unread-first grouping, add this to your `~/.config/tmux-intray/tui.toml`:
+
+```toml
+unreadFirst = false
+```
+
+Or using the environment variable:
+
+```bash
+export TMUX_INTRAY_TUI_UNREAD_FIRST=false
+```
 
 `groupBy` controls the depth of grouped view hierarchy:
 
@@ -262,6 +302,7 @@ If the settings file doesn't exist or is corrupted, the TUI uses these defaults:
 columns = ["id", "timestamp", "state", "level", "session", "window", "pane", "message"]
 sortBy = "timestamp"
 sortOrder = "desc"
+unreadFirst = true
 
 [filters]
 level = ""
@@ -379,6 +420,28 @@ defaultExpandLevel = 2
 [expansionState]
 "session:work" = true
 
+**Disable unread-first grouping, sort all by timestamp descending:**
+
+```toml
+columns = ["timestamp", "level", "message", "session"]
+sortBy = "timestamp"
+sortOrder = "desc"
+unreadFirst = false
+
+[filters]
+level = ""
+state = ""
+read = ""
+session = ""
+window = ""
+pane = ""
+
+viewMode = "grouped"
+groupBy = "none"
+defaultExpandLevel = 1
+expansionState = {}
+```
+
 **Customize group headers:**
 
 ```toml
@@ -392,7 +455,6 @@ info = "\u001b[0;36m"
 warning = "\u001b[1;33m"
 error = "\u001b[0;31m"
 critical = "\u001b[0;31m"
-```
 ```
 
 ### Error Handling

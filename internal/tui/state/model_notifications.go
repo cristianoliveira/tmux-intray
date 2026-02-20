@@ -18,6 +18,10 @@ func (m *Model) SetLoadedSettings(loaded *settings.Settings) {
 	m.loadedSettings = loaded
 	if loaded != nil {
 		m.groupHeaderOptions = loaded.GroupHeader.Clone()
+		// Pass settings to notification service for configurable sorting
+		if notifSvc, ok := m.notificationService.(*service.DefaultNotificationService); ok {
+			notifSvc.SetSettings(loaded)
+		}
 	} else {
 		m.groupHeaderOptions = settings.DefaultGroupHeaderOptions()
 	}
@@ -35,6 +39,11 @@ func (m *Model) ToState() settings.TUIState {
 func (m *Model) FromState(state settings.TUIState) error {
 	if err := m.ensureSettingsService().fromState(state, m.uiState, &m.columns, &m.sortBy, &m.sortOrder, &m.filters); err != nil {
 		return err
+	}
+
+	// If the persisted view mode is search, start with the search input active.
+	if m.uiState.GetViewMode() == model.ViewModeSearch {
+		m.uiState.SetSearchMode(true)
 	}
 
 	m.applySearchFilter()

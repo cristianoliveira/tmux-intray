@@ -904,6 +904,8 @@ func TestModelUpdateSearchModeDoesNotUseVimNavigationMappings(t *testing.T) {
 
 func TestModelUpdateHandlesSearch(t *testing.T) {
 	stubSessionFetchers(t)
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
 
 	model := newTestModel(t, []notification.Notification{
 		{ID: 1, Message: "Error: file not found"},
@@ -912,6 +914,7 @@ func TestModelUpdateHandlesSearch(t *testing.T) {
 	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(settings.ViewModeDetailed)
 
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}}
 	updated, _ := model.Update(msg)
@@ -919,6 +922,7 @@ func TestModelUpdateHandlesSearch(t *testing.T) {
 
 	assert.True(t, model.uiState.IsSearchMode())
 	assert.Equal(t, "", model.uiState.GetSearchQuery())
+	assert.Equal(t, settings.ViewModeSearch, string(model.uiState.GetViewMode()))
 	assert.Equal(t, 0, model.uiState.GetCursor())
 	assert.Len(t, model.filtered, 3)
 
@@ -941,6 +945,30 @@ func TestModelUpdateHandlesSearch(t *testing.T) {
 	model.resetCursor()
 
 	assert.Len(t, model.filtered, 3)
+}
+
+func TestModelUpdateSearchViewModeEnterJumpsWhileSearchActive(t *testing.T) {
+	setupStorage(t)
+
+	model := newTestModelWithOptions(t, []notification.Notification{
+		{ID: 1, Message: "First", Session: "$1", Window: "@1", Pane: "%1"},
+	}, func(m *Model) {
+		m.runtimeCoordinator = &testRuntimeCoordinator{
+			ensureTmuxRunningFn: func() bool { return true },
+			jumpToPaneFn:        func(sessionID, windowID, paneID string) bool { return true },
+		}
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(settings.ViewModeSearch)
+	model.uiState.SetSearchMode(true)
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(*Model)
+
+	assert.NotNil(t, cmd)
+	assert.Equal(t, settings.ViewModeSearch, string(model.uiState.GetViewMode()))
+	assert.True(t, model.uiState.IsSearchMode())
 }
 
 func TestModelUpdateCyclesViewModesWithPersistence(t *testing.T) {
@@ -972,7 +1000,16 @@ func TestModelUpdateCyclesViewModesWithPersistence(t *testing.T) {
 
 	updated, _ = model.Update(msg)
 	model = updated.(*Model)
+	assert.Equal(t, settings.ViewModeSearch, string(model.uiState.GetViewMode()))
+	assert.True(t, model.uiState.IsSearchMode())
+	loaded, err = settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.ViewModeSearch, loaded.ViewMode)
+
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
 	assert.Equal(t, settings.ViewModeCompact, string(model.uiState.GetViewMode()))
+	assert.False(t, model.uiState.IsSearchMode())
 	loaded, err = settings.Load()
 	require.NoError(t, err)
 	assert.Equal(t, settings.ViewModeCompact, loaded.ViewMode)
@@ -1663,7 +1700,7 @@ func TestModelViewRendersContent(t *testing.T) {
 		{ID: 1, Message: "Test notification", Timestamp: "2024-01-01T12:00:00Z", Level: "info", State: "active"},
 	})
 	model.uiState.SetCursor(0)
-	model.uiState.SetWidth(180)
+	model.uiState.SetWidth(400)
 	model.uiState.SetHeight(24)
 	model.updateViewportContent()
 
@@ -1678,6 +1715,8 @@ func TestModelViewRendersContent(t *testing.T) {
 	assert.Contains(t, view, "AGE")
 	assert.Contains(t, view, "Test notification")
 	assert.Contains(t, view, "j/k: move")
+	assert.Contains(t, view, "/: search view")
+	assert.NotContains(t, view, "Ctrl+f")
 	assert.Contains(t, view, "q: quit")
 }
 
@@ -1693,6 +1732,22 @@ func TestModelViewWithNoNotifications(t *testing.T) {
 	assert.Contains(t, view, "No notifications found")
 }
 
+func TestModelViewRendersSuccessMessageWithoutErrorPrefix(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{})
+	model.uiState.SetWidth(80)
+	model.uiState.SetHeight(24)
+	model.updateViewportContent()
+
+	model.statusMessage = "Notifications dismissed"
+	model.statusMessageType = errors.MessageTypeSuccess
+	model.hasStatusMessage = true
+
+	view := model.View()
+
+	assert.Contains(t, view, "Success: Notifications dismissed")
+	assert.NotContains(t, view, "Error: Notifications dismissed")
+}
+
 func TestModelViewRendersCurrentViewModeInFooter(t *testing.T) {
 	model := newTestModel(t, []notification.Notification{})
 	model.uiState.SetWidth(80)
@@ -1703,6 +1758,19 @@ func TestModelViewRendersCurrentViewModeInFooter(t *testing.T) {
 	view := model.View()
 
 	assert.Contains(t, view, "mode: [G]")
+}
+
+func TestModelViewRendersSearchViewModeInFooter(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{})
+	model.uiState.SetWidth(80)
+	model.uiState.SetHeight(24)
+	model.uiState.SetViewMode(settings.ViewModeSearch)
+	model.uiState.SetSearchMode(true)
+	model.updateViewportContent()
+
+	view := model.View()
+
+	assert.Contains(t, view, "mode: [S]")
 }
 
 func TestUpdateViewportContentGroupedViewWithEmptyTree(t *testing.T) {
@@ -2465,6 +2533,18 @@ func TestFromState(t *testing.T) {
 				assert.Equal(t, "my-session", m.filters.Session)
 				assert.Equal(t, "@1", m.filters.Window)
 				assert.Equal(t, "%1", m.filters.Pane)
+			},
+		},
+		{
+			name:  "search view mode enables search input",
+			model: &Model{uiState: NewUIState()},
+			state: settings.TUIState{
+				ViewMode: settings.ViewModeSearch,
+			},
+			wantErr: false,
+			verifyFn: func(t *testing.T, m *Model) {
+				assert.Equal(t, settings.ViewModeSearch, string(m.uiState.GetViewMode()))
+				assert.True(t, m.uiState.IsSearchMode())
 			},
 		},
 		{

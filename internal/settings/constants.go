@@ -62,6 +62,7 @@ const (
 	ViewModeCompact  = "compact"
 	ViewModeDetailed = "detailed"
 	ViewModeGrouped  = "grouped"
+	ViewModeSearch   = "search"
 )
 
 // Group by constants.

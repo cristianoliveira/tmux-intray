@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
 
 // handleCtrlC handles Ctrl+C to exit the TUI.
@@ -30,7 +31,14 @@ func (m *Model) handleEsc() (tea.Model, tea.Cmd) {
 // handleEnter handles Enter to confirm search or jump to pane.
 func (m *Model) handleEnter() (tea.Model, tea.Cmd) {
 	if m.uiState.IsSearchMode() {
+		// In search view mode, Enter should immediately perform jump.
+		if m.uiState.GetViewMode() == model.ViewModeSearch {
+			return m, m.handleJump()
+		}
+		// In other view modes, Enter confirms/exits search input.
 		m.uiState.SetSearchMode(false)
+		m.applySearchFilter()
+		m.uiState.ResetCursor()
 		return m, nil
 	}
 	if m.isGroupedView() && m.toggleNodeExpansion() {

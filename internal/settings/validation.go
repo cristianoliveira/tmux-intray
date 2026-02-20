@@ -84,7 +84,7 @@ func validateViewMode(mode string) error {
 		return nil
 	}
 	switch mode {
-	case ViewModeCompact, ViewModeDetailed, ViewModeGrouped:
+	case ViewModeCompact, ViewModeDetailed, ViewModeGrouped, ViewModeSearch:
 		return nil
 	default:
 		return fmt.Errorf("invalid viewMode value: %s", mode)

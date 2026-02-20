@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/hooks"
 	"github.com/cristianoliveira/tmux-intray/internal/version"
 	"github.com/spf13/cobra"
@@ -84,12 +85,13 @@ func init() {
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() error {
+	args := os.Args[1:]
+	colors.StructuredInfo("cli/root", "execute", "started", nil, "", map[string]interface{}{"arg_count": len(args)})
 	defer hooks.WaitForPendingHooks()
 	if err := hooks.Init(); err != nil {
+		colors.StructuredError("cli/root", "execute", "hooks_init_failed", err, "", nil)
 		return err
 	}
-
-	args := os.Args[1:]
 
 	// DEBUG: print commands
 	// fmt.Fprintf(os.Stderr, "DEBUG: commands: %v\n", RootCmd.Commands())
@@ -97,22 +99,53 @@ func Execute() error {
 	// No args? show help by routing through cobra help command
 	if len(args) == 0 {
 		RootCmd.SetArgs([]string{"help"})
-		return RootCmd.Execute()
+		colors.StructuredInfo("cli/command", "execute", "started", nil, "help", map[string]interface{}{"arg_count": 0})
+		err := RootCmd.Execute()
+		if err != nil {
+			colors.StructuredError("cli/root", "execute", "help_command_failed", err, "", nil)
+			colors.StructuredError("cli/command", "execute", "failed", err, "help", nil)
+		} else {
+			colors.StructuredInfo("cli/root", "execute", "help_completed", nil, "", nil)
+			colors.StructuredInfo("cli/command", "execute", "completed", nil, "help", nil)
+		}
+		return err
 	}
 
 	// Pass explicit help flags through cobra
 	if args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
 		RootCmd.SetArgs(args)
-		return RootCmd.Execute()
+		colors.StructuredInfo("cli/command", "execute", "started", nil, "help", map[string]interface{}{"arg_count": len(args)})
+		err := RootCmd.Execute()
+		if err != nil {
+			colors.StructuredError("cli/root", "execute", "help_flag_failed", err, "", nil)
+			colors.StructuredError("cli/command", "execute", "failed", err, "help", nil)
+		} else {
+			colors.StructuredInfo("cli/root", "execute", "help_flag_completed", nil, "", nil)
+			colors.StructuredInfo("cli/command", "execute", "completed", nil, "help", nil)
+		}
+		return err
 	}
 
 	// Check if the command exists (including aliases)
 	targetCmd, _, err := RootCmd.Find(args)
 	if err == nil && targetCmd != nil {
 		RootCmd.SetArgs(args)
-		return RootCmd.Execute()
+		commandPath := targetCmd.CommandPath()
+		colors.StructuredInfo("cli/command", "execute", "started", nil, commandPath, map[string]interface{}{"arg_count": len(args)})
+		err := RootCmd.Execute()
+		if err != nil {
+			colors.StructuredError("cli/root", "execute", "command_failed", err, "", map[string]interface{}{"command": commandPath})
+			colors.StructuredError("cli/command", "execute", "failed", err, commandPath, nil)
+		} else {
+			colors.StructuredInfo("cli/root", "execute", "command_completed", nil, "", map[string]interface{}{"command": commandPath})
+			colors.StructuredInfo("cli/command", "execute", "completed", nil, commandPath, nil)
+		}
+		return err
 	}
 
+	// Unknown command
+	colors.StructuredError("cli/root", "execute", "unknown_command", nil, "", map[string]interface{}{"command": args[0]})
+	colors.StructuredError("cli/command", "execute", "unknown", nil, args[0], nil)
 	fmt.Fprintf(os.Stderr, "Unknown command '%s'\n", args[0])
 	os.Exit(1)
 	return nil

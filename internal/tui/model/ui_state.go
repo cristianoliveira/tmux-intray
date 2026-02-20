@@ -113,6 +113,9 @@ const (
 
 	// ViewModeGrouped shows notifications in a hierarchical tree.
 	ViewModeGrouped ViewMode = "grouped"
+
+	// ViewModeSearch starts focused in the search input.
+	ViewModeSearch ViewMode = "search"
 )
 
 // GroupBy represents the grouping mode for notifications.

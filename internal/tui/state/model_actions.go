@@ -136,8 +136,7 @@ func (m *Model) handleDismissByFilter(session, window, pane string) tea.Cmd {
 
 	// Show success message
 	m.errorHandler.Success("Notifications dismissed")
-
-	return nil
+	return errorMsgAfter(errorClearDuration)
 }
 
 // markSelectedRead marks the selected notification as read.
