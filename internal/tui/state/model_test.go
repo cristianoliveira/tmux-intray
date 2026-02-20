@@ -1382,6 +1382,102 @@ func TestCtrlJKNavigationInSearchMode(t *testing.T) {
 	assert.Equal(t, 1, model.uiState.GetCursor())
 }
 
+func TestCtrlJKNavigationInSearchViewModeWithoutSearchInput(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+		{ID: 2, Message: "Second"},
+		{ID: 3, Message: "Third"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetCursor(0)
+	model.uiState.SetViewMode(settings.ViewModeSearch)
+	model.uiState.SetSearchMode(false)
+
+	msg := tea.KeyMsg{Type: tea.KeyCtrlJ}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 1, model.uiState.GetCursor())
+
+	msg = tea.KeyMsg{Type: tea.KeyCtrlK}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+}
+
+func TestCtrlBindingsAllowDismissInSearchMode(t *testing.T) {
+	setupStorage(t)
+	mockClient := stubSessionFetchers(t)
+
+	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "", "", "", "1234", "info")
+	require.NoError(t, err)
+	require.NotEmpty(t, id)
+
+	model, err := NewModel(mockClient)
+	require.NoError(t, err)
+	require.Len(t, model.filtered, 1)
+
+	model.uiState.SetSearchMode(true)
+	model.uiState.SetSearchQuery("")
+
+	msg := tea.KeyMsg{Type: tea.KeyCtrlD}
+	updated, cmd := model.Update(msg)
+	model = updated.(*Model)
+
+	assert.Nil(t, cmd)
+	assert.Empty(t, model.filtered)
+}
+
+func TestCtrlBindingsAllowDismissInSearchViewMode(t *testing.T) {
+	setupStorage(t)
+	mockClient := stubSessionFetchers(t)
+
+	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "", "", "", "1234", "info")
+	require.NoError(t, err)
+	require.NotEmpty(t, id)
+
+	model, err := NewModel(mockClient)
+	require.NoError(t, err)
+	require.Len(t, model.filtered, 1)
+
+	model.uiState.SetViewMode(settings.ViewModeSearch)
+	model.uiState.SetSearchMode(false)
+
+	msg := tea.KeyMsg{Type: tea.KeyCtrlD}
+	updated, cmd := model.Update(msg)
+	model = updated.(*Model)
+
+	assert.Nil(t, cmd)
+	assert.Empty(t, model.filtered)
+}
+
+func TestCtrlBindingsAllowDismissWhenSearchStartedWithSlash(t *testing.T) {
+	tmpDir := setupStorage(t)
+	setupConfig(t, tmpDir)
+	mockClient := stubSessionFetchers(t)
+
+	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "", "", "", "1234", "info")
+	require.NoError(t, err)
+	require.NotEmpty(t, id)
+
+	model, err := NewModel(mockClient)
+	require.NoError(t, err)
+	require.Len(t, model.filtered, 1)
+
+	model.uiState.SetViewMode(settings.ViewModeDetailed)
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	model = updated.(*Model)
+	require.True(t, model.uiState.IsSearchMode())
+	require.Equal(t, settings.ViewModeSearch, string(model.uiState.GetViewMode()))
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlD})
+	model = updated.(*Model)
+
+	assert.Nil(t, cmd)
+	assert.Empty(t, model.filtered)
+}
+
 // TestCtrlHLInSearchMode tests that Ctrl+h and Ctrl+l are handled gracefully in search mode.
 func TestCtrlHLInSearchMode(t *testing.T) {
 	model := newTestModel(t, []notification.Notification{
