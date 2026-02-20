@@ -440,6 +440,17 @@ func TestValidateValidSettings(t *testing.T) {
 				DefaultExpandLevel: 1,
 			},
 		},
+		{
+			name: "group by pane message",
+			settings: &Settings{
+				Columns:            DefaultColumns,
+				SortBy:             SortByTimestamp,
+				SortOrder:          SortOrderDesc,
+				ViewMode:           ViewModeGrouped,
+				GroupBy:            GroupByPaneMessage,
+				DefaultExpandLevel: 1,
+			},
+		},
 	}
 
 	for _, tt := range tests {

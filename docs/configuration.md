@@ -219,7 +219,7 @@ critical = "\u001b[0;31m"
 | `filters.window` | string | Filter by tmux window | `""` (no filter) | Window ID or `""` |
 | `filters.pane` | string | Filter by tmux pane | `""` (no filter) | Pane ID or `""` |
 | `viewMode` | string | Display layout | `"grouped"` | `"compact"`, `"detailed"`, `"grouped"` |
-| `groupBy` | string | Group notifications in the TUI | `"none"` | `"none"`, `"session"`, `"window"`, `"pane"`, `"message"` |
+| `groupBy` | string | Group notifications in the TUI | `"none"` | `"none"`, `"session"`, `"window"`, `"pane"`, `"message"`, `"pane_message"` |
 | `defaultExpandLevel` | number | Default grouping expansion depth | `1` | `0`-`3` |
 | `expansionState` | object | Explicit expansion overrides by node path | `{}` | Object of string to boolean |
 | `groupHeader.showTimeRange` | bool | Show earliest/latest ages in group headers | `true` | `true`, `false` |
@@ -236,10 +236,11 @@ critical = "\u001b[0;31m"
 - `window`: session -> window -> notification
 - `pane`: session -> window -> pane -> notification
 - `message`: groups notifications by message text (exact match)
+- `pane_message`: session -> window -> pane -> message groups (one row per unique message per pane)
 
 #### Message-Based Grouping
 
-Set `groupBy = "message"` (the same value referred to as `group_by = "message"` in issue #223) to collapse identical notifications into a single group headed by the message text. You can do this in two ways:
+Set `groupBy = "message"` (the same value referred to as `group_by = "message"` in issue #223) to collapse identical notifications into a single group headed by the message text. Use `groupBy = "pane_message"` if you want one unique message per pane (no duplicate rows under the group). You can do this in two ways:
 
 1. **Edit the settings file** – add `groupBy = "message"` to `~/.config/tmux-intray/settings.toml` (or your `$XDG_CONFIG_HOME` variant) alongside your other preferences:
 

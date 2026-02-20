@@ -66,11 +66,12 @@ const (
 
 // Group by constants.
 const (
-	GroupByNone    = "none"
-	GroupBySession = "session"
-	GroupByWindow  = "window"
-	GroupByPane    = "pane"
-	GroupByMessage = "message"
+	GroupByNone        = "none"
+	GroupBySession     = "session"
+	GroupByWindow      = "window"
+	GroupByPane        = "pane"
+	GroupByMessage     = "message"
+	GroupByPaneMessage = "pane_message"
 )
 
 // Expansion level limits.

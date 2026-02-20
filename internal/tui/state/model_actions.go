@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
@@ -253,10 +254,18 @@ func (m *Model) selectedNotification() (notification.Notification, bool) {
 			return notification.Notification{}, false
 		}
 		node := visibleNodes[cursor]
-		if node == nil || node.Notification == nil {
+		if node == nil {
 			return notification.Notification{}, false
 		}
-		return *node.Notification, true
+		if node.Notification != nil {
+			return *node.Notification, true
+		}
+		if node.Kind == model.NodeKindMessage && string(m.uiState.GetGroupBy()) == settings.GroupByPaneMessage {
+			if node.LatestEvent != nil {
+				return *node.LatestEvent, true
+			}
+		}
+		return notification.Notification{}, false
 	}
 
 	if cursor < 0 || cursor >= len(m.filtered) {

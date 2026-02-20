@@ -9,10 +9,10 @@ import (
 )
 
 // TreeService defines the interface for tree building and management operations.
-// It handles the hierarchical organization of notifications by session/window/pane.
+// It handles the hierarchical organization of notifications by session/window/pane/message.
 type TreeService interface {
 	// BuildTree creates a tree structure from a list of notifications.
-	// The groupBy parameter determines the grouping depth (session, window, or pane).
+	// The groupBy parameter determines the grouping depth (session, window, pane, message, or pane_message).
 	// The resulting tree is stored internally by the service.
 	BuildTree(notifications []notification.Notification, groupBy string) error
 

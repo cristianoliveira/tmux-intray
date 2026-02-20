@@ -56,13 +56,18 @@ func BuildTree(notifications []notification.Notification, groupBy string) *Node 
 	includeSession := resolvedGroupBy == settings.GroupBySession ||
 		resolvedGroupBy == settings.GroupByWindow ||
 		resolvedGroupBy == settings.GroupByPane ||
-		resolvedGroupBy == settings.GroupByMessage
+		resolvedGroupBy == settings.GroupByMessage ||
+		resolvedGroupBy == settings.GroupByPaneMessage
 	includeWindow := resolvedGroupBy == settings.GroupByWindow ||
 		resolvedGroupBy == settings.GroupByPane ||
-		resolvedGroupBy == settings.GroupByMessage
+		resolvedGroupBy == settings.GroupByMessage ||
+		resolvedGroupBy == settings.GroupByPaneMessage
 	includePane := resolvedGroupBy == settings.GroupByPane ||
-		resolvedGroupBy == settings.GroupByMessage
-	groupByMessage := resolvedGroupBy == settings.GroupByMessage
+		resolvedGroupBy == settings.GroupByMessage ||
+		resolvedGroupBy == settings.GroupByPaneMessage
+	groupByMessage := resolvedGroupBy == settings.GroupByMessage ||
+		resolvedGroupBy == settings.GroupByPaneMessage
+	appendNotificationLeaves := resolvedGroupBy != settings.GroupByPaneMessage
 
 	for _, notif := range notifications {
 		current := notif
@@ -99,13 +104,15 @@ func BuildTree(notifications []notification.Notification, groupBy string) *Node 
 			parent = messageNode
 		}
 
-		leaf := &Node{
-			Kind:         NodeKindNotification,
-			Title:        current.Message,
-			Display:      current.Message,
-			Notification: &current,
+		if appendNotificationLeaves {
+			leaf := &Node{
+				Kind:         NodeKindNotification,
+				Title:        current.Message,
+				Display:      current.Message,
+				Notification: &current,
+			}
+			parent.Children = append(parent.Children, leaf)
 		}
-		parent.Children = append(parent.Children, leaf)
 
 		incrementGroupStats(root, current)
 	}

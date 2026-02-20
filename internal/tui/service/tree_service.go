@@ -44,13 +44,18 @@ func (s *DefaultTreeService) BuildTree(notifications []notification.Notification
 	includeSession := resolvedGroupBy == settings.GroupBySession ||
 		resolvedGroupBy == settings.GroupByWindow ||
 		resolvedGroupBy == settings.GroupByPane ||
-		resolvedGroupBy == settings.GroupByMessage
+		resolvedGroupBy == settings.GroupByMessage ||
+		resolvedGroupBy == settings.GroupByPaneMessage
 	includeWindow := resolvedGroupBy == settings.GroupByWindow ||
 		resolvedGroupBy == settings.GroupByPane ||
-		resolvedGroupBy == settings.GroupByMessage
+		resolvedGroupBy == settings.GroupByMessage ||
+		resolvedGroupBy == settings.GroupByPaneMessage
 	includePane := resolvedGroupBy == settings.GroupByPane ||
-		resolvedGroupBy == settings.GroupByMessage
-	groupByMessage := resolvedGroupBy == settings.GroupByMessage
+		resolvedGroupBy == settings.GroupByMessage ||
+		resolvedGroupBy == settings.GroupByPaneMessage
+	groupByMessage := resolvedGroupBy == settings.GroupByMessage ||
+		resolvedGroupBy == settings.GroupByPaneMessage
+	appendNotificationLeaves := resolvedGroupBy != settings.GroupByPaneMessage
 
 	var messageKeys []string
 	if groupByMessage {
@@ -90,13 +95,15 @@ func (s *DefaultTreeService) BuildTree(notifications []notification.Notification
 			}
 		}
 
-		leaf := &model.TreeNode{
-			Kind:         model.NodeKindNotification,
-			Title:        current.Message,
-			Display:      current.Message,
-			Notification: &current,
+		if appendNotificationLeaves {
+			leaf := &model.TreeNode{
+				Kind:         model.NodeKindNotification,
+				Title:        current.Message,
+				Display:      current.Message,
+				Notification: &current,
+			}
+			parent.Children = append(parent.Children, leaf)
 		}
-		parent.Children = append(parent.Children, leaf)
 
 		s.incrementGroupStats(root, current)
 	}
@@ -200,9 +207,8 @@ func (s *DefaultTreeService) PruneEmptyGroups() {
 	var filteredChildren []*model.TreeNode
 	for _, child := range s.treeRoot.Children {
 		s.pruneEmptyGroupsNode(child)
-		// Keep the child if it has children (even if it's a leaf with notifications)
-		// or if it's a notification node
-		if len(child.Children) > 0 || child.Kind == model.NodeKindNotification {
+		// Keep the child if it has children, represents notifications, or is a populated group leaf.
+		if len(child.Children) > 0 || child.Kind == model.NodeKindNotification || child.Count > 0 {
 			filteredChildren = append(filteredChildren, child)
 		}
 	}
@@ -218,7 +224,7 @@ func (s *DefaultTreeService) pruneEmptyGroupsNode(root *model.TreeNode) {
 	var filteredChildren []*model.TreeNode
 	for _, child := range root.Children {
 		s.pruneEmptyGroupsNode(child)
-		if len(child.Children) > 0 || child.Kind == model.NodeKindNotification {
+		if len(child.Children) > 0 || child.Kind == model.NodeKindNotification || child.Count > 0 {
 			filteredChildren = append(filteredChildren, child)
 		}
 	}
