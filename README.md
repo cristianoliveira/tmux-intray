@@ -214,7 +214,6 @@ Comprehensive documentation is available:
 - [CLI Reference](docs/cli/CLI_REFERENCE.md) - Complete command reference
 - [Configuration Guide](docs/configuration.md) - All environment variables and settings (including TUI settings persistence)
 - [Troubleshooting Guide](docs/troubleshooting.md) - Common issues and solutions
-- [Release Notes](RELEASE_NOTES.md) - Current rollout status and release communication
 - [Advanced Filtering Example](examples/advanced-filtering.sh) - Complex filter combinations
 - [Man page](man/man1/tmux-intray.1) - Traditional manual page (view with `man -l man/man1/tmux-intray.1`)
 
