@@ -139,6 +139,8 @@ func IsValidGroupBy(groupBy string) bool {
 	switch groupBy {
 	case GroupByNone, GroupBySession, GroupByWindow, GroupByPane, GroupByMessage:
 		return true
+	case GroupByPaneMessage:
+		return true
 	default:
 		return false
 	}

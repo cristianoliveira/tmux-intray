@@ -141,7 +141,7 @@ func (s *treeService) pruneEmptyGroups(node *Node) {
 	filteredChildren := make([]*Node, 0, len(node.Children))
 	for _, child := range node.Children {
 		s.pruneEmptyGroups(child)
-		if len(child.Children) > 0 || child.Kind == NodeKindNotification {
+		if len(child.Children) > 0 || child.Kind == NodeKindNotification || child.Count > 0 {
 			filteredChildren = append(filteredChildren, child)
 		}
 	}

@@ -198,7 +198,7 @@ type Settings struct {
 	// Empty string means use default view mode (grouped).
 	ViewMode string `toml:"view_mode"`
 
-	// GroupBy specifies the grouping mode: "none", "session", "window", "pane", or "message".
+	// GroupBy specifies the grouping mode: "none", "session", "window", "pane", "message", or "pane_message".
 	// Empty string means use default grouping (none).
 	GroupBy string `toml:"group_by"`
 

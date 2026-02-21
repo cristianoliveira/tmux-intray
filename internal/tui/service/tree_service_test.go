@@ -80,6 +80,52 @@ func TestApplyExpansionStateInvalidatesVisibleNodesCache(t *testing.T) {
 	assert.True(t, service.cacheValid)
 }
 
+func TestBuildTreePaneMessageGroupsWithoutLeaves(t *testing.T) {
+	service := NewTreeService(model.GroupByPane).(*DefaultTreeService)
+
+	notifs := []notification.Notification{
+		{
+			ID:        1,
+			Timestamp: "2025-01-01T10:00:00Z",
+			Session:   "session-a",
+			Window:    "window-1",
+			Pane:      "pane-1",
+			Message:   "hello",
+		},
+		{
+			ID:        2,
+			Timestamp: "2025-01-01T10:01:00Z",
+			Session:   "session-a",
+			Window:    "window-1",
+			Pane:      "pane-1",
+			Message:   "hello",
+		},
+	}
+
+	err := service.BuildTree(notifs, settings.GroupByPaneMessage)
+	require.NoError(t, err)
+
+	root := service.GetTreeRoot()
+	require.NotNil(t, root)
+	require.Len(t, root.Children, 1)
+
+	session := root.Children[0]
+	require.Len(t, session.Children, 1)
+
+	window := session.Children[0]
+	require.Len(t, window.Children, 1)
+
+	pane := window.Children[0]
+	require.Len(t, pane.Children, 1)
+
+	message := pane.Children[0]
+	assert.Equal(t, model.NodeKindMessage, message.Kind)
+	assert.Equal(t, "hello", message.Title)
+	assert.Equal(t, 2, message.Count)
+	assert.Empty(t, message.Children)
+	require.NotNil(t, message.LatestEvent)
+}
+
 func TestPruneEmptyGroupsInvalidatesVisibleNodesCache(t *testing.T) {
 	service := NewTreeService(model.GroupByPane).(*DefaultTreeService)
 
