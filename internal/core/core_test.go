@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/cristianoliveira/tmux-intray/internal/storage/sqlite"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
@@ -25,6 +26,21 @@ func containsID(lines, id string) bool {
 		}
 	}
 	return false
+}
+
+type stubSettingsStore struct {
+	loadResult  any
+	loadErr     error
+	resetResult any
+	resetErr    error
+}
+
+func (s *stubSettingsStore) LoadSettings() (any, error) {
+	return s.loadResult, s.loadErr
+}
+
+func (s *stubSettingsStore) ResetSettings() (any, error) {
+	return s.resetResult, s.resetErr
 }
 
 func TestCore(t *testing.T) {
@@ -72,6 +88,21 @@ func TestCore(t *testing.T) {
 		// Filter by dismissed state returns empty
 		items, _ = c.GetTrayItems("dismissed")
 		require.Empty(t, strings.TrimSpace(items))
+	})
+
+	t.Run("NewCoreWithDepsInjectsSettingsStore", func(t *testing.T) {
+		clearNotifications()
+		custom := &settings.Settings{ShowHelp: false}
+		stub := &stubSettingsStore{loadResult: custom, resetResult: custom}
+		c := NewCoreWithDeps(nil, sqliteStorage, stub)
+
+		loaded, err := c.LoadSettings()
+		require.NoError(t, err)
+		require.Same(t, custom, loaded)
+
+		reset, err := c.ResetSettings()
+		require.NoError(t, err)
+		require.Same(t, custom, reset)
 	})
 
 	t.Run("AddTrayItem", func(t *testing.T) {
