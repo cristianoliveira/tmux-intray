@@ -8,9 +8,23 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cristianoliveira/tmux-intray/internal/tmux"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
+
+type mockStatusPublisher struct {
+	mock.Mock
+}
+
+func (m *mockStatusPublisher) HasSession() (bool, error) {
+	args := m.Called()
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *mockStatusPublisher) SetStatusOption(name, value string) error {
+	args := m.Called(name, value)
+	return args.Error(0)
+}
 
 func newTestStorage(t *testing.T) *SQLiteStorage {
 	t.Helper()
@@ -207,7 +221,7 @@ func TestHooksParityForAddDismissAndCleanup(t *testing.T) {
 func TestTmuxStatusParityForActiveCountChanges(t *testing.T) {
 	s := newTestStorage(t)
 
-	mockClient := new(tmux.MockClient)
+	mockClient := new(mockStatusPublisher)
 	mockClient.On("HasSession").Return(true, nil)
 	mockClient.On("SetStatusOption", "@tmux_intray_active_count", "1").Return(nil).Once()
 	mockClient.On("SetStatusOption", "@tmux_intray_active_count", "2").Return(nil).Once()
@@ -216,7 +230,7 @@ func TestTmuxStatusParityForActiveCountChanges(t *testing.T) {
 
 	SetTmuxClient(mockClient)
 	t.Cleanup(func() {
-		SetTmuxClient(tmux.NewDefaultClient())
+		SetTmuxClient(noopStatusPublisher{})
 	})
 
 	id1, err := s.AddNotification("n1", "", "", "", "", "", "info")

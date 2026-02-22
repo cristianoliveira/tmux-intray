@@ -8,10 +8,19 @@ import (
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/ports"
-	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 )
 
-var tmuxClient ports.StatusPublisher = tmux.NewDefaultClient()
+type noopStatusPublisher struct{}
+
+func (noopStatusPublisher) HasSession() (bool, error) {
+	return false, nil
+}
+
+func (noopStatusPublisher) SetStatusOption(name, value string) error {
+	return nil
+}
+
+var tmuxClient ports.StatusPublisher = noopStatusPublisher{}
 
 // SetTmuxClient sets the tmux client used for status updates.
 func SetTmuxClient(client ports.StatusPublisher) {
