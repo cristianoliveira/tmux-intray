@@ -1,4 +1,4 @@
-.PHONY: all tests fmt check-fmt lint clean install install-docker install-npm install-go install-all verify-install security-check docs test sqlc-generate sqlc-check bench-tui check-coverage import-graph
+.PHONY: all tests fmt check-fmt lint clean install install-docker install-npm install-go install-all verify-install security-check docs test sqlc-generate sqlc-check bench-tui check-coverage import-graph check-import-deny-rules
 
 # tmux-intray is a pure Go implementation
 
@@ -109,6 +109,10 @@ import-graph:
 	@echo "Generating Go import graph baseline..."
 	./scripts/generate-import-graph.sh
 	@echo "✓ Import graph baseline generated"
+
+check-import-deny-rules:
+	@echo "Checking dependency deny rules..."
+	./scripts/check-import-deny-rules.sh
 
 sqlc-generate:
 	@echo "Generating SQLite query code with sqlc..."
