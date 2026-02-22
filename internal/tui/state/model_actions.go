@@ -6,7 +6,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
-	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
 
@@ -24,7 +23,7 @@ func (m *Model) handleDismiss() tea.Cmd {
 
 	// Dismiss the notification using storage
 	id := strconv.Itoa(selected.ID)
-	if err := storage.DismissNotification(id); err != nil {
+	if err := m.ensureInteractionController().DismissNotification(id); err != nil {
 		m.errorHandler.Error(fmt.Sprintf("Failed to dismiss notification: %v", err))
 		return errorMsgAfter(errorClearDuration)
 	}
@@ -77,7 +76,6 @@ func (m *Model) handleDismissGroup() tea.Cmd {
 		return nil
 	}
 	// Only session, window, and pane groups can be dismissed
-	// Only session, window, and pane groups can be dismissed
 	if node.Kind != model.NodeKindSession && node.Kind != model.NodeKindWindow && node.Kind != model.NodeKindPane {
 		return nil
 	}
@@ -106,7 +104,7 @@ func (m *Model) handleDismissGroup() tea.Cmd {
 // handleDismissByFilter dismisses notifications matching the provided filters.
 func (m *Model) handleDismissByFilter(session, window, pane string) tea.Cmd {
 	// Dismiss using storage
-	if err := storage.DismissByFilter(session, window, pane); err != nil {
+	if err := m.ensureInteractionController().DismissByFilter(session, window, pane); err != nil {
 		m.errorHandler.Error(fmt.Sprintf("Failed to dismiss notifications: %v", err))
 		return errorMsgAfter(errorClearDuration)
 	}
@@ -153,7 +151,7 @@ func (m *Model) markSelectedRead() tea.Cmd {
 	selectedID := selected.ID
 
 	id := strconv.Itoa(selected.ID)
-	if err := storage.MarkNotificationRead(id); err != nil {
+	if err := m.ensureInteractionController().MarkNotificationRead(id); err != nil {
 		m.errorHandler.Error(fmt.Sprintf("Failed to mark notification read: %v", err))
 		return errorMsgAfter(errorClearDuration)
 	}
@@ -186,7 +184,7 @@ func (m *Model) markSelectedUnread() tea.Cmd {
 	selectedID := selected.ID
 
 	id := strconv.Itoa(selected.ID)
-	if err := storage.MarkNotificationUnread(id); err != nil {
+	if err := m.ensureInteractionController().MarkNotificationUnread(id); err != nil {
 		m.errorHandler.Error(fmt.Sprintf("tui: failed to mark notification unread: %v", err))
 		return errorMsgAfter(errorClearDuration)
 	}
@@ -223,20 +221,20 @@ func (m *Model) handleJump() tea.Cmd {
 	}
 
 	// Ensure tmux is running
-	if !m.runtimeCoordinator.EnsureTmuxRunning() {
+	if !m.ensureInteractionController().EnsureTmuxRunning() {
 		m.errorHandler.Error("tmux not running")
 		return errorMsgAfter(errorClearDuration)
 	}
 
 	// Jump to the pane using RuntimeCoordinator
 	// The error handler (set in NewModel) will capture and display errors in the TUI footer
-	if !m.runtimeCoordinator.JumpToPane(selected.Session, selected.Window, selected.Pane) {
+	if !m.ensureInteractionController().JumpToPane(selected.Session, selected.Window, selected.Pane) {
 		// Error was already handled by m.errorHandler, just return error clear command
 		return errorMsgAfter(errorClearDuration)
 	}
 
 	id := strconv.Itoa(selected.ID)
-	if err := storage.MarkNotificationRead(id); err != nil {
+	if err := m.ensureInteractionController().MarkNotificationRead(id); err != nil {
 		m.errorHandler.Warning(fmt.Sprintf("jump: jumped, but failed to mark notification as read: %v", err))
 	}
 

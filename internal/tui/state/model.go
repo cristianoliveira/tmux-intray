@@ -10,6 +10,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
+	"github.com/cristianoliveira/tmux-intray/internal/tui/controller"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/service"
 )
@@ -51,6 +52,7 @@ type Model struct {
 	treeService         model.TreeService
 	notificationService model.NotificationService
 	runtimeCoordinator  model.RuntimeCoordinator
+	interactionCtrl     model.InteractionController
 	// Legacy fields for backward compatibility
 	client            tmux.TmuxClient
 	sessionNames      map[string]string
@@ -110,6 +112,7 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 		search.WithPaneNames(runtimeCoordinator.GetPaneNames()),
 	)
 	notificationService := service.NewNotificationService(searchProvider, runtimeCoordinator)
+	interactionCtrl := controller.NewInteractionController(runtimeCoordinator)
 
 	m := Model{
 		uiState:             uiState,
@@ -117,6 +120,7 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 		statusMessageType:   errors.MessageTypeError,
 		hasStatusMessage:    false,
 		runtimeCoordinator:  runtimeCoordinator,
+		interactionCtrl:     interactionCtrl,
 		treeService:         treeService,
 		notificationService: notificationService,
 		settingsSvc:         newSettingsService(),
