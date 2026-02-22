@@ -34,3 +34,9 @@ repos:
         entry: scripts/go-pre-commit.sh
         language: system
         files: \.go$
+      - id: check-import-deny-rules
+        name: Check import deny rules
+        entry: make check-import-deny-rules
+        language: system
+        always_run: true
+        pass_filenames: false
