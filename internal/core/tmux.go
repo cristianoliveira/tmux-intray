@@ -30,11 +30,10 @@ type Core struct {
 	settings ports.SettingsStore
 }
 
-// NewCore creates a new Core instance with the given TmuxClient and Storage.
-// If client is nil, a default client will be created.
-// If storage is nil, a default file storage will be created.
+// NewCoreWithDeps creates a new Core instance with injected dependencies.
+// If dependencies are nil, default implementations are used.
 // Panics if storage initialization fails, which is safer than continuing with nil storage.
-func NewCore(client ports.TmuxClient, stor ports.NotificationRepository) *Core {
+func NewCoreWithDeps(client ports.TmuxClient, stor ports.NotificationRepository, settingsStore ports.SettingsStore) *Core {
 	if client == nil {
 		client = tmux.NewDefaultClient()
 	}
@@ -45,7 +44,15 @@ func NewCore(client ports.TmuxClient, stor ports.NotificationRepository) *Core {
 		}
 		stor = fileStor
 	}
-	return &Core{client: client, storage: stor, settings: defaultSettingsStore{}}
+	if settingsStore == nil {
+		settingsStore = defaultSettingsStore{}
+	}
+	return &Core{client: client, storage: stor, settings: settingsStore}
+}
+
+// NewCore creates a new Core instance with backward-compatible defaults.
+func NewCore(client ports.TmuxClient, stor ports.NotificationRepository) *Core {
+	return NewCoreWithDeps(client, stor, nil)
 }
 
 // defaultCore is the default instance for backward compatibility.

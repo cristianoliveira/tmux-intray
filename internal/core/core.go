@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
-	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/cristianoliveira/tmux-intray/internal/version"
 )
 
@@ -52,20 +52,11 @@ func (c *Core) GetTrayItems(stateFilter string) (string, error) {
 		if line == "" {
 			continue
 		}
-		fields := strings.Split(line, "\t")
-		// Normalize fields to ensure proper padding
-		normalized, err := storage.NormalizeFields(fields)
+		notif, err := notification.ParseNotification(line)
 		if err != nil {
-			// Skip malformed lines
 			continue
 		}
-		fields = normalized
-		// Bounds check for fieldMessage
-		if len(fields) <= storage.FieldMessage {
-			continue
-		}
-		message := fields[storage.FieldMessage]
-		messages = append(messages, message)
+		messages = append(messages, notif.Message)
 	}
 	return strings.Join(messages, "\n"), nil
 }
