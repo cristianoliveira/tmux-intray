@@ -22,6 +22,7 @@ The target layering is defined by package groups (prefixes):
    - `github.com/cristianoliveira/tmux-intray/internal/notification`
    - `github.com/cristianoliveira/tmux-intray/internal/search`
    - `github.com/cristianoliveira/tmux-intray/internal/dedup`
+   - `github.com/cristianoliveira/tmux-intray/internal/ports`
 5. `infrastructure`
    - `github.com/cristianoliveira/tmux-intray/internal/storage*`
    - `github.com/cristianoliveira/tmux-intray/internal/tmux`
@@ -80,3 +81,8 @@ Regenerate with either command:
 Validate the snapshot is up to date:
 
 - `./scripts/generate-import-graph.sh && git diff --exit-code docs/design/import-graph-baseline.tsv`
+
+Run dependency deny-rules guard locally:
+
+- `./scripts/check-import-deny-rules.sh`
+- `make check-import-deny-rules`
