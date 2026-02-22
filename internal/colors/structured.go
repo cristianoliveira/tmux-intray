@@ -6,12 +6,18 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 var (
-	structuredMu sync.Mutex
+	structuredMu             sync.Mutex
+	structuredLoggingEnabled atomic.Bool
 )
+
+func init() {
+	structuredLoggingEnabled.Store(true)
+}
 
 // StructuredLogLevel represents log level for structured logs.
 type StructuredLogLevel string
@@ -35,11 +41,26 @@ type StructuredLogEntry struct {
 	Fields    map[string]interface{} `json:"fields,omitempty"`
 }
 
+// DisableStructuredLogging disables structured logging output.
+// This is useful for commands like TUI where JSON logs interfere with the display.
+func DisableStructuredLogging() {
+	structuredLoggingEnabled.Store(false)
+}
+
+// EnableStructuredLogging enables structured logging output.
+func EnableStructuredLogging() {
+	structuredLoggingEnabled.Store(true)
+}
+
 // StructuredLog writes a structured log entry to stderr.
 // Redaction of sensitive fields should be applied before calling this function.
 func StructuredLog(level StructuredLogLevel, component, action, status string, err error, id string, fields map[string]interface{}) {
 	// Only output debug logs when debug mode is enabled
 	if level == LevelDebug && !debugEnabled {
+		return
+	}
+	// Skip all structured logs if disabled
+	if !structuredLoggingEnabled.Load() {
 		return
 	}
 
