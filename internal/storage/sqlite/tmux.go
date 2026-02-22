@@ -7,13 +7,14 @@ import (
 	"fmt"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/ports"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 )
 
-var tmuxClient tmux.TmuxClient = tmux.NewDefaultClient()
+var tmuxClient ports.StatusPublisher = tmux.NewDefaultClient()
 
 // SetTmuxClient sets the tmux client used for status updates.
-func SetTmuxClient(client tmux.TmuxClient) {
+func SetTmuxClient(client ports.StatusPublisher) {
 	if client == nil {
 		return
 	}

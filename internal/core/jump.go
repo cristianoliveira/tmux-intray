@@ -6,14 +6,15 @@ import (
 
 	"github.com/cristianoliveira/tmux-intray/internal/logging"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/ports"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 )
 
 // JumpService handles jump-to-pane operations with validation and error handling.
 type JumpService struct {
-	tmuxClient tmux.TmuxClient
-	storage    storage.Storage
+	tmuxClient ports.TmuxClient
+	storage    ports.NotificationLookup
 }
 
 // JumpResult contains the result of a jump operation.
@@ -33,7 +34,7 @@ func NewJumpService() *JumpService {
 
 // NewJumpServiceWithDeps creates a JumpService with custom dependencies (for testing).
 // Panics if storage initialization fails, which is safer than continuing with nil storage.
-func NewJumpServiceWithDeps(tmuxClient tmux.TmuxClient, stor storage.Storage) *JumpService {
+func NewJumpServiceWithDeps(tmuxClient ports.TmuxClient, stor ports.NotificationLookup) *JumpService {
 	if tmuxClient == nil {
 		tmuxClient = tmux.NewDefaultClient()
 	}
