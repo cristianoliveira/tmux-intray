@@ -7,19 +7,17 @@ import (
 	"fmt"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/cristianoliveira/tmux-intray/cmd"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
-	"github.com/cristianoliveira/tmux-intray/internal/tmux"
-	"github.com/cristianoliveira/tmux-intray/internal/tui/state"
+	"github.com/cristianoliveira/tmux-intray/internal/tui/app"
 	"github.com/spf13/cobra"
 )
 
 type tuiClient interface {
 	LoadSettings() (*settings.Settings, error)
-	CreateModel() (*state.Model, error)
-	RunProgram(model *state.Model) error
+	CreateModel() (app.Model, error)
+	RunProgram(model app.Model) error
 }
 
 // NewTUICmd creates the tui command with explicit dependencies.
@@ -81,40 +79,8 @@ USAGE:
 	}
 }
 
-// defaultTUIClient is the default implementation.
-type defaultTUIClient struct {
-	tmuxClient tmux.TmuxClient
-}
-
-func (d *defaultTUIClient) LoadSettings() (*settings.Settings, error) {
-	return settings.Load()
-}
-
-func (d *defaultTUIClient) CreateModel() (*state.Model, error) {
-	if d.tmuxClient == nil {
-		d.tmuxClient = tmux.NewDefaultClient()
-	}
-	return state.NewModel(d.tmuxClient)
-}
-
-func (d *defaultTUIClient) RunProgram(model *state.Model) error {
-	p := tea.NewProgram(
-		model,
-		tea.WithAltScreen(),
-		tea.WithMouseCellMotion(),
-	)
-
-	// Start the program
-	_, err := p.Run()
-	if err != nil {
-		colors.Error(fmt.Sprintf("Error running TUI: %v", err))
-		os.Exit(1)
-	}
-	return nil
-}
-
 // tuiCmd represents the tui command
-var tuiCmd = NewTUICmd(&defaultTUIClient{})
+var tuiCmd = NewTUICmd(app.NewDefaultClient(nil))
 
 func init() {
 	cmd.RootCmd.AddCommand(tuiCmd)
