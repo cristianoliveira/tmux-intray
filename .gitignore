@@ -4,6 +4,7 @@
 *.tmp
 .tmp/
 *.tsv
+!docs/design/import-graph-baseline.tsv
 .DS_Store
 
 # Test artifacts
