@@ -7,6 +7,7 @@ import (
 
 	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/cristianoliveira/tmux-intray/internal/storage/sqlite"
+	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 )
 
 const (
@@ -28,6 +29,7 @@ func NewForBackend(backend string) (Storage, error) {
 	switch backend {
 	case BackendSQLite:
 		dbPath := filepath.Join(GetStateDir(), "notifications.db")
+		sqlite.SetTmuxClient(tmux.NewDefaultClient())
 		sqliteStorage, err := sqlite.NewSQLiteStorage(dbPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize sqlite backend: %w", err)
