@@ -8,10 +8,22 @@ import (
 )
 
 func main() {
-	colors.StructuredInfo("startup", "main", "started", nil, "", nil)
+	// Disable structured logging for TUI command to avoid JSON output interfering with display
+	args := os.Args[1:]
+	isTUICommand := len(args) > 0 && args[0] == "tui"
+
+	if !isTUICommand {
+		colors.StructuredInfo("startup", "main", "started", nil, "", nil)
+	}
+
 	if err := cmd.Execute(); err != nil {
-		colors.StructuredError("startup", "main", "failed", err, "", nil)
+		if !isTUICommand {
+			colors.StructuredError("startup", "main", "failed", err, "", nil)
+		}
 		os.Exit(1)
 	}
-	colors.StructuredInfo("startup", "main", "completed", nil, "", nil)
+
+	if !isTUICommand {
+		colors.StructuredInfo("startup", "main", "completed", nil, "", nil)
+	}
 }

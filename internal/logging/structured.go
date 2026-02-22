@@ -11,14 +11,16 @@ import (
 )
 
 var (
-	debugEnabled atomic.Bool
-	structuredMu sync.Mutex
+	debugEnabled             atomic.Bool
+	structuredMu             sync.Mutex
+	structuredLoggingEnabled atomic.Bool
 )
 
 func init() {
 	if val := os.Getenv("TMUX_INTRAY_DEBUG"); val == "true" || val == "1" {
 		debugEnabled.Store(true)
 	}
+	structuredLoggingEnabled.Store(true)
 }
 
 // SetDebug enables or disables debug output.
@@ -29,6 +31,17 @@ func SetDebug(enabled bool) {
 // IsDebugEnabled reports whether debug output is enabled.
 func IsDebugEnabled() bool {
 	return debugEnabled.Load()
+}
+
+// DisableStructuredLogging disables structured logging output.
+// This is useful for commands like TUI where JSON logs interfere with the display.
+func DisableStructuredLogging() {
+	structuredLoggingEnabled.Store(false)
+}
+
+// EnableStructuredLogging enables structured logging output.
+func EnableStructuredLogging() {
+	structuredLoggingEnabled.Store(true)
 }
 
 // StructuredLogLevel represents log level for structured logs.
@@ -57,6 +70,9 @@ type StructuredLogEntry struct {
 // Redaction of sensitive fields should be applied before calling this function.
 func StructuredLog(level StructuredLogLevel, component, action, status string, err error, id string, fields map[string]interface{}) {
 	if level == LevelDebug && !IsDebugEnabled() {
+		return
+	}
+	if !structuredLoggingEnabled.Load() {
 		return
 	}
 
