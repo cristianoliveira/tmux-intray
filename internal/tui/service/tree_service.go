@@ -2,6 +2,8 @@
 package service
 
 import (
+	"sort"
+
 	"github.com/cristianoliveira/tmux-intray/internal/dedup"
 	"github.com/cristianoliveira/tmux-intray/internal/dedupconfig"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
@@ -17,6 +19,9 @@ type DefaultTreeService struct {
 	visibleNodesCache []*model.TreeNode
 	cacheValid        bool
 }
+
+// POC: Hardcoded limit for messages per pane.
+const maxMessagesPerPane = 3
 
 // NewTreeService creates a new DefaultTreeService.
 func NewTreeService(groupBy model.GroupBy) model.TreeService {
@@ -58,6 +63,30 @@ func (s *DefaultTreeService) BuildTree(notifications []notification.Notification
 		messageKeys = dedup.BuildKeys(records, dedupconfig.Load())
 	}
 
+	s.processNotifications(
+		root,
+		notifications,
+		includeSession, includeWindow, includePane, groupByMessage,
+		sessionNodes, windowNodes, paneNodes, messageNodes,
+		messageKeys,
+	)
+
+	s.sortTree(root)
+	s.finalizeTree(root)
+
+	s.treeRoot = root
+	s.InvalidateCache()
+	return nil
+}
+
+// processNotifications processes all notifications and builds the tree structure.
+func (s *DefaultTreeService) processNotifications(
+	root *model.TreeNode,
+	notifications []notification.Notification,
+	includeSession, includeWindow, includePane, groupByMessage bool,
+	sessionNodes, windowNodes, paneNodes, messageNodes map[string]*model.TreeNode,
+	messageKeys []string,
+) {
 	for idx, notif := range notifications {
 		current := notif
 		parent := root
@@ -100,11 +129,44 @@ func (s *DefaultTreeService) BuildTree(notifications []notification.Notification
 
 		s.incrementGroupStats(root, current)
 	}
+}
 
-	s.sortTree(root)
-	s.treeRoot = root
-	s.InvalidateCache()
-	return nil
+// finalizeTree performs final tree processing: limiting messages and updating counts.
+func (s *DefaultTreeService) finalizeTree(root *model.TreeNode) {
+	s.limitMessages(root)
+	s.updateAllGroupCounts(root)
+}
+
+// updateAllGroupCounts updates counts for all group nodes after limiting.
+func (s *DefaultTreeService) updateAllGroupCounts(root *model.TreeNode) {
+	if root == nil {
+		return
+	}
+
+	if root.Kind != model.NodeKindRoot && root.Kind != model.NodeKindNotification {
+		// Recalculate from children
+		newCount := 0
+		newUnreadCount := 0
+		for _, child := range root.Children {
+			if child.Kind == model.NodeKindNotification {
+				// Notification node: count as 1, check if unread
+				newCount++
+				if child.Notification != nil && !child.Notification.IsRead() {
+					newUnreadCount++
+				}
+			} else {
+				// Group node: use its counts
+				newCount += child.Count
+				newUnreadCount += child.UnreadCount
+			}
+		}
+		root.Count = newCount
+		root.UnreadCount = newUnreadCount
+	}
+
+	for _, child := range root.Children {
+		s.updateAllGroupCounts(child)
+	}
 }
 
 // RebuildTreeForFilter rebuilds tree and applies filtering-oriented behavior.
@@ -305,4 +367,86 @@ func (s *DefaultTreeService) GetTreeLevel(node *model.TreeNode) int {
 	default:
 		return 0
 	}
+}
+
+// limitMessages limits the number of messages shown per pane to maxMessagesPerPane.
+// Messages are sorted by unread status (unread first) then timestamp (newest first).
+func (s *DefaultTreeService) limitMessages(node *model.TreeNode) {
+	if node == nil {
+		return
+	}
+
+	totalMessages := len(node.Children)
+
+	// Recursively process ALL nodes
+	for _, child := range node.Children {
+		s.limitMessages(child)
+	}
+
+	// Only limit at window or pane level, not session/root
+	if node.Kind != model.NodeKindWindow && node.Kind != model.NodeKindPane {
+		return
+	}
+
+	if totalMessages <= maxMessagesPerPane {
+		return
+	}
+
+	// Sort all children by timestamp desc (most recent first), prioritizing unread
+	allChildren := make([]*model.TreeNode, len(node.Children))
+	copy(allChildren, node.Children)
+
+	sort.SliceStable(allChildren, func(i, j int) bool {
+		// Unread always first
+		iUnread := allChildren[i].Notification != nil && !allChildren[i].Notification.IsRead()
+		jUnread := allChildren[j].Notification != nil && !allChildren[j].Notification.IsRead()
+		if iUnread != jUnread {
+			return iUnread
+		}
+		// Then sort by timestamp desc
+		ti := allChildren[i].Notification.Timestamp
+		tj := allChildren[j].Notification.Timestamp
+		return ti > tj
+	})
+
+	// Take only the first maxMessagesPerPane messages
+	if len(allChildren) > maxMessagesPerPane {
+		allChildren = allChildren[:maxMessagesPerPane]
+	}
+
+	node.Children = allChildren
+
+	// Update node counts to reflect limited children
+	s.updateNodeCountAfterLimit(node)
+}
+
+// updateNodeCountAfterLimit updates Count and UnreadCount after limiting children.
+func (s *DefaultTreeService) updateNodeCountAfterLimit(node *model.TreeNode) {
+	if node == nil {
+		return
+	}
+
+	// Only update for window/pane nodes
+	if node.Kind != model.NodeKindWindow && node.Kind != model.NodeKindPane {
+		return
+	}
+
+	// Recalculate counts from current children
+	newCount := 0
+	newUnreadCount := 0
+	for _, child := range node.Children {
+		if child.Kind == model.NodeKindNotification {
+			newCount++
+			if child.Notification != nil && !child.Notification.IsRead() {
+				newUnreadCount++
+			}
+		} else {
+			// For group children, add their counts
+			newCount += child.Count
+			newUnreadCount += child.UnreadCount
+		}
+	}
+
+	node.Count = newCount
+	node.UnreadCount = newUnreadCount
 }
