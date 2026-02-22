@@ -7,6 +7,7 @@ import (
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/errors"
+	"github.com/cristianoliveira/tmux-intray/internal/ports"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 )
@@ -24,15 +25,16 @@ type TmuxContext struct {
 
 // Core provides core tmux interaction functionality with injected TmuxClient and Storage.
 type Core struct {
-	client  tmux.TmuxClient
-	storage storage.Storage
+	client   ports.TmuxClient
+	storage  ports.NotificationRepository
+	settings ports.SettingsStore
 }
 
 // NewCore creates a new Core instance with the given TmuxClient and Storage.
 // If client is nil, a default client will be created.
 // If storage is nil, a default file storage will be created.
 // Panics if storage initialization fails, which is safer than continuing with nil storage.
-func NewCore(client tmux.TmuxClient, stor storage.Storage) *Core {
+func NewCore(client ports.TmuxClient, stor ports.NotificationRepository) *Core {
 	if client == nil {
 		client = tmux.NewDefaultClient()
 	}
@@ -43,7 +45,7 @@ func NewCore(client tmux.TmuxClient, stor storage.Storage) *Core {
 		}
 		stor = fileStor
 	}
-	return &Core{client: client, storage: stor}
+	return &Core{client: client, storage: stor, settings: defaultSettingsStore{}}
 }
 
 // defaultCore is the default instance for backward compatibility.
