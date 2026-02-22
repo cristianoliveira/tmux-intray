@@ -107,14 +107,17 @@ func (s *DefaultTreeService) BuildTree(notifications []notification.Notification
 	}
 
 	s.sortTree(root)
-	s.limitMessages(root)
-
-	// Update all group counts after limiting children
-	s.updateAllGroupCounts(root)
+	s.finalizeTree(root)
 
 	s.treeRoot = root
 	s.InvalidateCache()
 	return nil
+}
+
+// finalizeTree performs final tree processing: limiting messages and updating counts.
+func (s *DefaultTreeService) finalizeTree(root *model.TreeNode) {
+	s.limitMessages(root)
+	s.updateAllGroupCounts(root)
 }
 
 // updateAllGroupCounts updates counts for all group nodes after limiting.
