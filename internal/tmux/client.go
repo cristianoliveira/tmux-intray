@@ -11,15 +11,11 @@ import (
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/errors"
+	"github.com/cristianoliveira/tmux-intray/internal/ports"
 )
 
 // TmuxContext captures the current tmux session/window/pane context.
-type TmuxContext struct {
-	SessionID string
-	WindowID  string
-	PaneID    string
-	PanePID   string
-}
+type TmuxContext = ports.TmuxContext
 
 // TmuxClient is an interface that abstracts all tmux operations.
 type TmuxClient interface {

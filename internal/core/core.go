@@ -10,6 +10,16 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/version"
 )
 
+type defaultSettingsStore struct{}
+
+func (defaultSettingsStore) LoadSettings() (any, error) {
+	return settings.Load()
+}
+
+func (defaultSettingsStore) ResetSettings() (any, error) {
+	return settings.Reset()
+}
+
 // GetTrayItems returns tray items for a given state filter.
 // Returns newline-separated messages (unescaped).
 func GetTrayItems(stateFilter string) (string, error) {
@@ -227,7 +237,18 @@ func DismissAll() error {
 
 // ResetSettings resets settings to defaults.
 func (c *Core) ResetSettings() (*settings.Settings, error) {
-	return settings.Reset()
+	if c.settings == nil {
+		c.settings = defaultSettingsStore{}
+	}
+	v, err := c.settings.ResetSettings()
+	if err != nil {
+		return nil, err
+	}
+	reset, ok := v.(*settings.Settings)
+	if !ok {
+		return nil, fmt.Errorf("reset settings: unexpected settings type %T", v)
+	}
+	return reset, nil
 }
 
 // ResetSettings resets settings to defaults using the default core instance.
@@ -237,7 +258,18 @@ func ResetSettings() (*settings.Settings, error) {
 
 // LoadSettings loads current settings.
 func (c *Core) LoadSettings() (*settings.Settings, error) {
-	return settings.Load()
+	if c.settings == nil {
+		c.settings = defaultSettingsStore{}
+	}
+	v, err := c.settings.LoadSettings()
+	if err != nil {
+		return nil, err
+	}
+	loaded, ok := v.(*settings.Settings)
+	if !ok {
+		return nil, fmt.Errorf("load settings: unexpected settings type %T", v)
+	}
+	return loaded, nil
 }
 
 // LoadSettings loads current settings using the default core instance.

@@ -10,6 +10,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
 	"github.com/cristianoliveira/tmux-intray/internal/format"
+	"github.com/cristianoliveira/tmux-intray/internal/ports"
 )
 
 // Field indices matching storage package (some constants defined in jump.go)
@@ -28,8 +29,7 @@ type statusPanelClient interface {
 	EnsureTmuxRunning() bool
 	GetActiveCount() int
 	ListNotifications(stateFilter string) string
-	GetConfigBool(key string, defaultValue bool) bool
-	GetConfigString(key, defaultValue string) string
+	ports.ConfigProvider
 }
 
 var (
