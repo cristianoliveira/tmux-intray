@@ -86,3 +86,20 @@ Run dependency deny-rules guard locally:
 
 - `./scripts/check-import-deny-rules.sh`
 - `make check-import-deny-rules`
+- `make lint-strict` (includes `check-import-deny-rules`)
+
+The CI lint job also executes `make check-import-deny-rules` as an explicit
+dependency guardrails step.
+
+## Updating Guardrail Rules
+
+When architecture rules change, update both guardrail sources:
+
+1. Layer mapping and denied edges in `scripts/check-import-deny-rules.sh`
+2. Package-level deny rules in `.golangci.yml` (`linters.settings.depguard.rules`)
+
+After updating rules:
+
+- Run `make check-import-deny-rules`
+- Run `golangci-lint run`
+- If package boundaries moved, regenerate baseline with `make import-graph`

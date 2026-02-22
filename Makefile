@@ -96,7 +96,7 @@ lint: check-fmt go-lint go-complexity-lint
 	@echo "Running linter..."
 	./scripts/lint.sh
 
-lint-strict: check-fmt go-lint go-complexity-lint-strict
+lint-strict: check-fmt go-lint go-complexity-lint-strict check-import-deny-rules
 	@echo "Running strict linter..."
 	./scripts/lint.sh
 
