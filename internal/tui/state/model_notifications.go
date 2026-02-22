@@ -2,12 +2,11 @@ package state
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
-	"github.com/cristianoliveira/tmux-intray/internal/storage"
+	"github.com/cristianoliveira/tmux-intray/internal/tui/controller"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/service"
 )
@@ -95,6 +94,20 @@ func (m *Model) ensureNotificationService() model.NotificationService {
 	return m.notificationService
 }
 
+func (m *Model) ensureInteractionController() model.InteractionController {
+	if m.interactionCtrl == nil {
+		m.interactionCtrl = controller.NewInteractionController(m.runtimeCoordinator)
+	}
+
+	if syncer, ok := m.interactionCtrl.(interface {
+		SetRuntimeCoordinator(model.RuntimeCoordinator)
+	}); ok {
+		syncer.SetRuntimeCoordinator(m.runtimeCoordinator)
+	}
+
+	return m.interactionCtrl
+}
+
 // applySearchFilter filters notifications based on the search query.
 // This function only updates the filtered notifications; cursor management
 // should be handled separately by resetCursor() or restoreCursor().
@@ -169,11 +182,11 @@ func (m *Model) loadNotifications(preserveCursor bool) error {
 		}
 	}
 
-	lines, err := storage.ListNotifications("active", "", "", "", "", "", "", "")
+	notifications, err := m.ensureInteractionController().LoadActiveNotifications()
 	if err != nil {
 		return fmt.Errorf("failed to load notifications: %w", err)
 	}
-	if lines == "" {
+	if len(notifications) == 0 {
 		m.ensureNotificationService().SetNotifications([]notification.Notification{})
 		m.syncNotificationMirrors()
 		m.treeService.ClearTree()
@@ -184,18 +197,6 @@ func (m *Model) loadNotifications(preserveCursor bool) error {
 		}
 		m.updateViewportContent()
 		return nil
-	}
-
-	var notifications []notification.Notification
-	for _, line := range strings.Split(lines, "\n") {
-		if line == "" {
-			continue
-		}
-		notif, err := notification.ParseNotification(line)
-		if err != nil {
-			continue
-		}
-		notifications = append(notifications, notif)
 	}
 
 	m.ensureNotificationService().SetNotifications(notifications)
