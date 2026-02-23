@@ -1,0 +1,127 @@
+# Import Layering Map (Target)
+
+This document defines the target package layering for `tmux-intray` and the
+explicit dependency edges that are allowed and denied.
+
+## Architecture Overview
+
+```mermaid
+graph TD
+    CLI["CLI (cmd/)"]
+    Presentation["Presentation (internal/tui/, format, status)"]
+    Application["Application (internal/core, tmuxintray)"]
+    Domain["Domain (internal/domain, ports)"]
+    Infrastructure["Infrastructure (storage, tmux, config, hooks)"]
+
+    CLI --> Presentation
+    CLI --> Application
+    CLI --> Domain
+    CLI --> Infrastructure
+    Presentation --> Application
+    Presentation --> Domain
+    Presentation --> Infrastructure
+    Application --> Domain
+    Application --> Infrastructure
+    Infrastructure --> Domain
+```
+
+## Layer Definitions
+
+The target layering is defined by package groups (prefixes):
+
+1. `cli`
+   - `github.com/cristianoliveira/tmux-intray/cmd`
+   - `github.com/cristianoliveira/tmux-intray/cmd/tmux-intray`
+2. `presentation`
+   - `github.com/cristianoliveira/tmux-intray/internal/tui/*`
+   - `github.com/cristianoliveira/tmux-intray/internal/format`
+   - `github.com/cristianoliveira/tmux-intray/internal/status`
+3. `application`
+   - `github.com/cristianoliveira/tmux-intray/internal/core`
+   - `github.com/cristianoliveira/tmux-intray/internal/tmuxintray`
+4. `domain`
+   - `github.com/cristianoliveira/tmux-intray/internal/domain`
+   - `github.com/cristianoliveira/tmux-intray/internal/notification`
+   - `github.com/cristianoliveira/tmux-intray/internal/search`
+   - `github.com/cristianoliveira/tmux-intray/internal/dedup`
+   - `github.com/cristianoliveira/tmux-intray/internal/ports`
+5. `infrastructure`
+   - `github.com/cristianoliveira/tmux-intray/internal/storage*`
+   - `github.com/cristianoliveira/tmux-intray/internal/tmux`
+   - `github.com/cristianoliveira/tmux-intray/internal/config`
+   - `github.com/cristianoliveira/tmux-intray/internal/dedupconfig`
+   - `github.com/cristianoliveira/tmux-intray/internal/settings`
+   - `github.com/cristianoliveira/tmux-intray/internal/hooks`
+   - `github.com/cristianoliveira/tmux-intray/internal/colors`
+   - `github.com/cristianoliveira/tmux-intray/internal/errors`
+   - `github.com/cristianoliveira/tmux-intray/internal/logging`
+   - `github.com/cristianoliveira/tmux-intray/internal/version`
+
+## Allowed Edges
+
+Explicitly allowed inter-layer imports:
+
+- `cli -> presentation`
+- `cli -> application`
+- `cli -> domain`
+- `cli -> infrastructure`
+- `presentation -> application`
+- `presentation -> domain`
+- `presentation -> infrastructure`
+- `application -> domain`
+- `application -> infrastructure`
+- `domain -> domain`
+- `infrastructure -> domain`
+- `infrastructure -> infrastructure`
+
+## Denied Edges
+
+The following inter-layer imports are denied in the target architecture:
+
+- `presentation -> cli`
+- `application -> cli`
+- `application -> presentation`
+- `domain -> cli`
+- `domain -> presentation`
+- `domain -> application`
+- `domain -> infrastructure`
+- `infrastructure -> cli`
+- `infrastructure -> presentation`
+- `infrastructure -> application`
+
+## Baseline Artifact and Regeneration
+
+Current baseline snapshot is committed at:
+
+- `docs/design/import-graph-baseline.tsv`
+
+Regenerate with either command:
+
+- `./scripts/generate-import-graph.sh`
+- `make import-graph`
+
+Validate the snapshot is up to date:
+
+- `./scripts/generate-import-graph.sh && git diff --exit-code docs/design/import-graph-baseline.tsv`
+
+Run dependency deny-rules guard locally:
+
+- `./scripts/check-import-deny-rules.sh`
+- `make check-import-deny-rules`
+- `make lint-strict` (includes `check-import-deny-rules`)
+
+The CI lint job also executes `make check-import-deny-rules` as an explicit
+dependency guardrails step.
+
+## Updating Guardrail Rules
+
+When architecture rules change, update both guardrail sources:
+
+1. Layer mapping and denied edges in `scripts/check-import-deny-rules.sh`
+2. Package-level deny rules in `.golangci.yml` (`linters.settings.depguard.rules`)
+
+After updating rules:
+
+- Run `make check-import-deny-rules`
+- Run `golangci-lint run`
+- If package boundaries moved, regenerate baseline with `make import-graph`

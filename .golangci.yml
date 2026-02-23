@@ -11,6 +11,7 @@ linters:
     - nestif       # Nested if statements
     - staticcheck  # Static analysis
     - errcheck     # Error checking
+    - depguard     # Import/dependency guardrails
   disable:
     - govet
     - unused
@@ -26,6 +27,34 @@ linters:
       statements: 50
     nestif:
       min-complexity: 5
+    depguard:
+      rules:
+        domain_no_infra:
+          files:
+            - internal/domain/**/*.go
+          deny:
+            - pkg: github.com/cristianoliveira/tmux-intray/internal/storage
+              desc: domain must not depend on storage
+            - pkg: github.com/cristianoliveira/tmux-intray/internal/storage/sqlite
+              desc: domain must not depend on sqlite adapter
+            - pkg: github.com/cristianoliveira/tmux-intray/internal/tmux
+              desc: domain must not depend on tmux adapter
+
+        cmd_no_sqlite_adapter:
+          files:
+            - cmd/**/*.go
+          deny:
+            - pkg: github.com/cristianoliveira/tmux-intray/internal/storage/sqlite
+              desc: cmd should not import concrete sqlite adapter
+
+        storage_no_new_tmux_edges:
+          files:
+            - internal/storage/**/*.go
+            - '!**/*_test.go'
+            - '!internal/storage/sqlite/tmux.go'
+          deny:
+            - pkg: github.com/cristianoliveira/tmux-intray/internal/tmux
+              desc: storage should not depend on tmux (legacy file exempt during migration)
   exclusions:
     presets: []
     paths:

@@ -63,6 +63,30 @@ func (s *DefaultTreeService) BuildTree(notifications []notification.Notification
 		messageKeys = dedup.BuildKeys(records, dedupconfig.Load())
 	}
 
+	s.processNotifications(
+		root,
+		notifications,
+		includeSession, includeWindow, includePane, groupByMessage,
+		sessionNodes, windowNodes, paneNodes, messageNodes,
+		messageKeys,
+	)
+
+	s.sortTree(root)
+	s.finalizeTree(root)
+
+	s.treeRoot = root
+	s.InvalidateCache()
+	return nil
+}
+
+// processNotifications processes all notifications and builds the tree structure.
+func (s *DefaultTreeService) processNotifications(
+	root *model.TreeNode,
+	notifications []notification.Notification,
+	includeSession, includeWindow, includePane, groupByMessage bool,
+	sessionNodes, windowNodes, paneNodes, messageNodes map[string]*model.TreeNode,
+	messageKeys []string,
+) {
 	for idx, notif := range notifications {
 		current := notif
 		parent := root
@@ -105,16 +129,12 @@ func (s *DefaultTreeService) BuildTree(notifications []notification.Notification
 
 		s.incrementGroupStats(root, current)
 	}
+}
 
-	s.sortTree(root)
+// finalizeTree performs final tree processing: limiting messages and updating counts.
+func (s *DefaultTreeService) finalizeTree(root *model.TreeNode) {
 	s.limitMessages(root)
-
-	// Update all group counts after limiting children
 	s.updateAllGroupCounts(root)
-
-	s.treeRoot = root
-	s.InvalidateCache()
-	return nil
 }
 
 // updateAllGroupCounts updates counts for all group nodes after limiting.
