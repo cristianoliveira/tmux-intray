@@ -18,6 +18,21 @@ type DefaultTreeService struct {
 	cacheValid        bool
 }
 
+type treeBuildOptions struct {
+	includeSession           bool
+	includeWindow            bool
+	includePane              bool
+	groupByMessage           bool
+	appendNotificationLeaves bool
+}
+
+type treeBuildCaches struct {
+	sessionNodes map[string]*model.TreeNode
+	windowNodes  map[string]*model.TreeNode
+	paneNodes    map[string]*model.TreeNode
+	messageNodes map[string]*model.TreeNode
+}
+
 // NewTreeService creates a new DefaultTreeService.
 func NewTreeService(groupBy model.GroupBy) model.TreeService {
 	return &DefaultTreeService{
@@ -28,6 +43,7 @@ func NewTreeService(groupBy model.GroupBy) model.TreeService {
 // BuildTree creates a tree structure from a list of notifications.
 func (s *DefaultTreeService) BuildTree(notifications []notification.Notification, groupBy string) error {
 	resolvedGroupBy := s.resolveGroupBy(groupBy)
+	options := s.newTreeBuildOptions(resolvedGroupBy)
 
 	root := &model.TreeNode{
 		Kind:     model.NodeKindRoot,
@@ -36,82 +52,102 @@ func (s *DefaultTreeService) BuildTree(notifications []notification.Notification
 		Expanded: true,
 	}
 
-	sessionNodes := make(map[string]*model.TreeNode)
-	windowNodes := make(map[string]*model.TreeNode)
-	paneNodes := make(map[string]*model.TreeNode)
-	messageNodes := make(map[string]*model.TreeNode)
-
-	includeSession := resolvedGroupBy == settings.GroupBySession ||
-		resolvedGroupBy == settings.GroupByWindow ||
-		resolvedGroupBy == settings.GroupByPane ||
-		resolvedGroupBy == settings.GroupByMessage ||
-		resolvedGroupBy == settings.GroupByPaneMessage
-	includeWindow := resolvedGroupBy == settings.GroupByWindow ||
-		resolvedGroupBy == settings.GroupByPane ||
-		resolvedGroupBy == settings.GroupByMessage ||
-		resolvedGroupBy == settings.GroupByPaneMessage
-	includePane := resolvedGroupBy == settings.GroupByPane ||
-		resolvedGroupBy == settings.GroupByMessage ||
-		resolvedGroupBy == settings.GroupByPaneMessage
-	groupByMessage := resolvedGroupBy == settings.GroupByMessage ||
-		resolvedGroupBy == settings.GroupByPaneMessage
-	appendNotificationLeaves := resolvedGroupBy != settings.GroupByPaneMessage
-
-	var messageKeys []string
-	if groupByMessage {
-		records := buildNotificationDedupRecords(notifications)
-		messageKeys = dedup.BuildKeys(records, dedupconfig.Load())
-	}
+	caches := newTreeBuildCaches()
+	messageKeys := buildMessageKeys(notifications, options.groupByMessage)
 
 	for idx, notif := range notifications {
-		current := notif
-		parent := root
-
-		paneKey := ""
-
-		if includeSession {
-			sessionNode := s.getOrCreateGroupNode(root, sessionNodes, model.NodeKindSession, current.Session)
-			s.incrementGroupStats(sessionNode, current)
-			parent = sessionNode
-		}
-
-		if includeWindow {
-			windowKey := current.Session + "\x00" + current.Window
-			windowNode := s.getOrCreateGroupNode(parent, windowNodes, model.NodeKindWindow, windowKey, current.Window)
-			s.incrementGroupStats(windowNode, current)
-			parent = windowNode
-		}
-
-		if includePane {
-			paneKey = current.Session + "\x00" + current.Window + "\x00" + current.Pane
-			paneNode := s.getOrCreateGroupNode(parent, paneNodes, model.NodeKindPane, paneKey, current.Pane)
-			s.incrementGroupStats(paneNode, current)
-			parent = paneNode
-		}
-
-		if groupByMessage {
-			if messageNode := s.attachMessageNode(parent, current, idx, messageKeys, paneKey, messageNodes); messageNode != nil {
-				parent = messageNode
-			}
-		}
-
-		if appendNotificationLeaves {
-			leaf := &model.TreeNode{
-				Kind:         model.NodeKindNotification,
-				Title:        current.Message,
-				Display:      current.Message,
-				Notification: &current,
-			}
-			parent.Children = append(parent.Children, leaf)
-		}
-
-		s.incrementGroupStats(root, current)
+		s.addNotificationToTree(root, notif, idx, options, caches, messageKeys)
 	}
 
 	s.sortTree(root)
 	s.treeRoot = root
 	s.InvalidateCache()
 	return nil
+}
+
+func (s *DefaultTreeService) newTreeBuildOptions(groupBy string) treeBuildOptions {
+	includeSession := groupBy == settings.GroupBySession ||
+		groupBy == settings.GroupByWindow ||
+		groupBy == settings.GroupByPane ||
+		groupBy == settings.GroupByMessage ||
+		groupBy == settings.GroupByPaneMessage
+	includeWindow := groupBy == settings.GroupByWindow ||
+		groupBy == settings.GroupByPane ||
+		groupBy == settings.GroupByMessage ||
+		groupBy == settings.GroupByPaneMessage
+	includePane := groupBy == settings.GroupByPane ||
+		groupBy == settings.GroupByMessage ||
+		groupBy == settings.GroupByPaneMessage
+	groupByMessage := groupBy == settings.GroupByMessage || groupBy == settings.GroupByPaneMessage
+
+	return treeBuildOptions{
+		includeSession:           includeSession,
+		includeWindow:            includeWindow,
+		includePane:              includePane,
+		groupByMessage:           groupByMessage,
+		appendNotificationLeaves: groupBy != settings.GroupByPaneMessage,
+	}
+}
+
+func newTreeBuildCaches() treeBuildCaches {
+	return treeBuildCaches{
+		sessionNodes: make(map[string]*model.TreeNode),
+		windowNodes:  make(map[string]*model.TreeNode),
+		paneNodes:    make(map[string]*model.TreeNode),
+		messageNodes: make(map[string]*model.TreeNode),
+	}
+}
+
+func buildMessageKeys(notifications []notification.Notification, groupByMessage bool) []string {
+	if !groupByMessage {
+		return nil
+	}
+
+	records := buildNotificationDedupRecords(notifications)
+	return dedup.BuildKeys(records, dedupconfig.Load())
+}
+
+func (s *DefaultTreeService) addNotificationToTree(root *model.TreeNode, notif notification.Notification, idx int, options treeBuildOptions, caches treeBuildCaches, messageKeys []string) {
+	parent := root
+	paneKey := ""
+
+	if options.includeSession {
+		sessionNode := s.getOrCreateGroupNode(root, caches.sessionNodes, model.NodeKindSession, notif.Session)
+		s.incrementGroupStats(sessionNode, notif)
+		parent = sessionNode
+	}
+
+	if options.includeWindow {
+		windowKey := notif.Session + "\x00" + notif.Window
+		windowNode := s.getOrCreateGroupNode(parent, caches.windowNodes, model.NodeKindWindow, windowKey, notif.Window)
+		s.incrementGroupStats(windowNode, notif)
+		parent = windowNode
+	}
+
+	if options.includePane {
+		paneKey = notif.Session + "\x00" + notif.Window + "\x00" + notif.Pane
+		paneNode := s.getOrCreateGroupNode(parent, caches.paneNodes, model.NodeKindPane, paneKey, notif.Pane)
+		s.incrementGroupStats(paneNode, notif)
+		parent = paneNode
+	}
+
+	if options.groupByMessage {
+		if messageNode := s.attachMessageNode(parent, notif, idx, messageKeys, paneKey, caches.messageNodes); messageNode != nil {
+			parent = messageNode
+		}
+	}
+
+	if options.appendNotificationLeaves {
+		leaf := &model.TreeNode{
+			Kind:         model.NodeKindNotification,
+			Title:        notif.Message,
+			Display:      notif.Message,
+			Notification: &notif,
+		}
+		parent.Children = append(parent.Children, leaf)
+	}
+
+	s.incrementGroupStats(root, notif)
 }
 
 // RebuildTreeForFilter rebuilds tree and applies filtering-oriented behavior.

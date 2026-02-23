@@ -246,27 +246,37 @@ func (m *Model) handleJump() tea.Cmd {
 func (m *Model) selectedNotification() (notification.Notification, bool) {
 	cursor := m.uiState.GetCursor()
 	if m.isGroupedView() {
-		visibleNodes := m.treeService.GetVisibleNodes()
-		if cursor < 0 || cursor >= len(visibleNodes) {
-			return notification.Notification{}, false
-		}
-		node := visibleNodes[cursor]
-		if node == nil {
-			return notification.Notification{}, false
-		}
-		if node.Notification != nil {
-			return *node.Notification, true
-		}
-		if node.Kind == model.NodeKindMessage && string(m.uiState.GetGroupBy()) == settings.GroupByPaneMessage {
-			if node.LatestEvent != nil {
-				return *node.LatestEvent, true
-			}
-		}
-		return notification.Notification{}, false
+		return m.selectedGroupedNotification(cursor)
 	}
 
 	if cursor < 0 || cursor >= len(m.filtered) {
 		return notification.Notification{}, false
 	}
 	return m.filtered[cursor], true
+}
+
+func (m *Model) selectedGroupedNotification(cursor int) (notification.Notification, bool) {
+	visibleNodes := m.treeService.GetVisibleNodes()
+	if cursor < 0 || cursor >= len(visibleNodes) {
+		return notification.Notification{}, false
+	}
+
+	node := visibleNodes[cursor]
+	if node == nil {
+		return notification.Notification{}, false
+	}
+
+	if node.Notification != nil {
+		return *node.Notification, true
+	}
+
+	if node.Kind != model.NodeKindMessage || string(m.uiState.GetGroupBy()) != settings.GroupByPaneMessage {
+		return notification.Notification{}, false
+	}
+
+	if node.LatestEvent == nil {
+		return notification.Notification{}, false
+	}
+
+	return *node.LatestEvent, true
 }
