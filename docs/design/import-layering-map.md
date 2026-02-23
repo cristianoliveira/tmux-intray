@@ -3,6 +3,28 @@
 This document defines the target package layering for `tmux-intray` and the
 explicit dependency edges that are allowed and denied.
 
+## Architecture Overview
+
+```mermaid
+graph TD
+    CLI["CLI (cmd/)"]
+    Presentation["Presentation (internal/tui/, format, status)"]
+    Application["Application (internal/core, tmuxintray)"]
+    Domain["Domain (internal/domain, ports)"]
+    Infrastructure["Infrastructure (storage, tmux, config, hooks)"]
+
+    CLI --> Presentation
+    CLI --> Application
+    CLI --> Domain
+    CLI --> Infrastructure
+    Presentation --> Application
+    Presentation --> Domain
+    Presentation --> Infrastructure
+    Application --> Domain
+    Application --> Infrastructure
+    Infrastructure --> Domain
+```
+
 ## Layer Definitions
 
 The target layering is defined by package groups (prefixes):
