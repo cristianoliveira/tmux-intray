@@ -350,6 +350,42 @@ func TestBuildTreeInvalidGroupByFallsBackToPane(t *testing.T) {
 	assert.Equal(t, NodeKindPane, root.Children[0].Children[0].Children[0].Kind)
 }
 
+func TestBuildTreePaneMessageGroupsWithoutLeaves(t *testing.T) {
+	notifications := []notification.Notification{
+		{
+			ID:        1,
+			Session:   "$1",
+			Window:    "@1",
+			Pane:      "%1",
+			Message:   "Repeated",
+			Timestamp: "2024-01-03T10:00:00Z",
+		},
+		{
+			ID:        2,
+			Session:   "$1",
+			Window:    "@1",
+			Pane:      "%1",
+			Message:   "Repeated",
+			Timestamp: "2024-01-03T10:01:00Z",
+		},
+	}
+
+	root := BuildTree(notifications, settings.GroupByPaneMessage)
+
+	require.NotNil(t, root)
+	require.Len(t, root.Children, 1)
+	require.Len(t, root.Children[0].Children, 1)
+	require.Len(t, root.Children[0].Children[0].Children, 1)
+	require.Len(t, root.Children[0].Children[0].Children[0].Children, 1)
+
+	messageNode := root.Children[0].Children[0].Children[0].Children[0]
+	assert.Equal(t, NodeKindMessage, messageNode.Kind)
+	assert.Equal(t, "Repeated", messageNode.Title)
+	assert.Equal(t, 2, messageNode.Count)
+	assert.Empty(t, messageNode.Children)
+	require.NotNil(t, messageNode.LatestEvent)
+}
+
 func TestFindNotificationPathWithGroupByNone(t *testing.T) {
 	notifications := []notification.Notification{
 		{
