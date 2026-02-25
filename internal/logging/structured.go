@@ -69,7 +69,7 @@ type StructuredLogEntry struct {
 // StructuredLog writes a structured log entry to stderr.
 // Redaction of sensitive fields should be applied before calling this function.
 func StructuredLog(level StructuredLogLevel, component, action, status string, err error, id string, fields map[string]interface{}) {
-	if level == LevelDebug && !IsDebugEnabled() {
+	if !IsDebugEnabled() {
 		return
 	}
 	if !structuredLoggingEnabled.Load() {
