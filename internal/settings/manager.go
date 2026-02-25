@@ -19,7 +19,7 @@ type TUIState struct {
 	// ViewMode specifies the display layout: "compact", "detailed", or "grouped".
 	ViewMode string `toml:"view_mode"`
 
-	// GroupBy specifies the grouping mode: "none", "session", "window", or "pane".
+	// GroupBy specifies the grouping mode: "none", "session", "window", "pane", "message", or "pane_message".
 	GroupBy string `toml:"group_by"`
 
 	// DefaultExpandLevel controls the default grouping expansion level (0-3).

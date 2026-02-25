@@ -2,8 +2,6 @@
 package service
 
 import (
-	"sort"
-
 	"github.com/cristianoliveira/tmux-intray/internal/dedup"
 	"github.com/cristianoliveira/tmux-intray/internal/dedupconfig"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
@@ -20,8 +18,20 @@ type DefaultTreeService struct {
 	cacheValid        bool
 }
 
-// POC: Hardcoded limit for messages per pane.
-const maxMessagesPerPane = 3
+type treeBuildOptions struct {
+	includeSession           bool
+	includeWindow            bool
+	includePane              bool
+	groupByMessage           bool
+	appendNotificationLeaves bool
+}
+
+type treeBuildCaches struct {
+	sessionNodes map[string]*model.TreeNode
+	windowNodes  map[string]*model.TreeNode
+	paneNodes    map[string]*model.TreeNode
+	messageNodes map[string]*model.TreeNode
+}
 
 // NewTreeService creates a new DefaultTreeService.
 func NewTreeService(groupBy model.GroupBy) model.TreeService {
@@ -33,6 +43,7 @@ func NewTreeService(groupBy model.GroupBy) model.TreeService {
 // BuildTree creates a tree structure from a list of notifications.
 func (s *DefaultTreeService) BuildTree(notifications []notification.Notification, groupBy string) error {
 	resolvedGroupBy := s.resolveGroupBy(groupBy)
+	options := s.newTreeBuildOptions(resolvedGroupBy)
 
 	root := &model.TreeNode{
 		Kind:     model.NodeKindRoot,
@@ -41,132 +52,102 @@ func (s *DefaultTreeService) BuildTree(notifications []notification.Notification
 		Expanded: true,
 	}
 
-	sessionNodes := make(map[string]*model.TreeNode)
-	windowNodes := make(map[string]*model.TreeNode)
-	paneNodes := make(map[string]*model.TreeNode)
-	messageNodes := make(map[string]*model.TreeNode)
+	caches := newTreeBuildCaches()
+	messageKeys := buildMessageKeys(notifications, options.groupByMessage)
 
-	includeSession := resolvedGroupBy == settings.GroupBySession ||
-		resolvedGroupBy == settings.GroupByWindow ||
-		resolvedGroupBy == settings.GroupByPane ||
-		resolvedGroupBy == settings.GroupByMessage
-	includeWindow := resolvedGroupBy == settings.GroupByWindow ||
-		resolvedGroupBy == settings.GroupByPane ||
-		resolvedGroupBy == settings.GroupByMessage
-	includePane := resolvedGroupBy == settings.GroupByPane ||
-		resolvedGroupBy == settings.GroupByMessage
-	groupByMessage := resolvedGroupBy == settings.GroupByMessage
-
-	var messageKeys []string
-	if groupByMessage {
-		records := buildNotificationDedupRecords(notifications)
-		messageKeys = dedup.BuildKeys(records, dedupconfig.Load())
+	for idx, notif := range notifications {
+		s.addNotificationToTree(root, notif, idx, options, caches, messageKeys)
 	}
 
-	s.processNotifications(
-		root,
-		notifications,
-		includeSession, includeWindow, includePane, groupByMessage,
-		sessionNodes, windowNodes, paneNodes, messageNodes,
-		messageKeys,
-	)
-
 	s.sortTree(root)
-	s.finalizeTree(root)
-
 	s.treeRoot = root
 	s.InvalidateCache()
 	return nil
 }
 
-// processNotifications processes all notifications and builds the tree structure.
-func (s *DefaultTreeService) processNotifications(
-	root *model.TreeNode,
-	notifications []notification.Notification,
-	includeSession, includeWindow, includePane, groupByMessage bool,
-	sessionNodes, windowNodes, paneNodes, messageNodes map[string]*model.TreeNode,
-	messageKeys []string,
-) {
-	for idx, notif := range notifications {
-		current := notif
-		parent := root
+func (s *DefaultTreeService) newTreeBuildOptions(groupBy string) treeBuildOptions {
+	includeSession := groupBy == settings.GroupBySession ||
+		groupBy == settings.GroupByWindow ||
+		groupBy == settings.GroupByPane ||
+		groupBy == settings.GroupByMessage ||
+		groupBy == settings.GroupByPaneMessage
+	includeWindow := groupBy == settings.GroupByWindow ||
+		groupBy == settings.GroupByPane ||
+		groupBy == settings.GroupByMessage ||
+		groupBy == settings.GroupByPaneMessage
+	includePane := groupBy == settings.GroupByPane ||
+		groupBy == settings.GroupByMessage ||
+		groupBy == settings.GroupByPaneMessage
+	groupByMessage := groupBy == settings.GroupByMessage || groupBy == settings.GroupByPaneMessage
 
-		paneKey := ""
+	return treeBuildOptions{
+		includeSession:           includeSession,
+		includeWindow:            includeWindow,
+		includePane:              includePane,
+		groupByMessage:           groupByMessage,
+		appendNotificationLeaves: groupBy != settings.GroupByPaneMessage,
+	}
+}
 
-		if includeSession {
-			sessionNode := s.getOrCreateGroupNode(root, sessionNodes, model.NodeKindSession, current.Session)
-			s.incrementGroupStats(sessionNode, current)
-			parent = sessionNode
+func newTreeBuildCaches() treeBuildCaches {
+	return treeBuildCaches{
+		sessionNodes: make(map[string]*model.TreeNode),
+		windowNodes:  make(map[string]*model.TreeNode),
+		paneNodes:    make(map[string]*model.TreeNode),
+		messageNodes: make(map[string]*model.TreeNode),
+	}
+}
+
+func buildMessageKeys(notifications []notification.Notification, groupByMessage bool) []string {
+	if !groupByMessage {
+		return nil
+	}
+
+	records := buildNotificationDedupRecords(notifications)
+	return dedup.BuildKeys(records, dedupconfig.Load())
+}
+
+func (s *DefaultTreeService) addNotificationToTree(root *model.TreeNode, notif notification.Notification, idx int, options treeBuildOptions, caches treeBuildCaches, messageKeys []string) {
+	parent := root
+	paneKey := ""
+
+	if options.includeSession {
+		sessionNode := s.getOrCreateGroupNode(root, caches.sessionNodes, model.NodeKindSession, notif.Session)
+		s.incrementGroupStats(sessionNode, notif)
+		parent = sessionNode
+	}
+
+	if options.includeWindow {
+		windowKey := notif.Session + "\x00" + notif.Window
+		windowNode := s.getOrCreateGroupNode(parent, caches.windowNodes, model.NodeKindWindow, windowKey, notif.Window)
+		s.incrementGroupStats(windowNode, notif)
+		parent = windowNode
+	}
+
+	if options.includePane {
+		paneKey = notif.Session + "\x00" + notif.Window + "\x00" + notif.Pane
+		paneNode := s.getOrCreateGroupNode(parent, caches.paneNodes, model.NodeKindPane, paneKey, notif.Pane)
+		s.incrementGroupStats(paneNode, notif)
+		parent = paneNode
+	}
+
+	if options.groupByMessage {
+		if messageNode := s.attachMessageNode(parent, notif, idx, messageKeys, paneKey, caches.messageNodes); messageNode != nil {
+			parent = messageNode
 		}
+	}
 
-		if includeWindow {
-			windowKey := current.Session + "\x00" + current.Window
-			windowNode := s.getOrCreateGroupNode(parent, windowNodes, model.NodeKindWindow, windowKey, current.Window)
-			s.incrementGroupStats(windowNode, current)
-			parent = windowNode
-		}
-
-		if includePane {
-			paneKey = current.Session + "\x00" + current.Window + "\x00" + current.Pane
-			paneNode := s.getOrCreateGroupNode(parent, paneNodes, model.NodeKindPane, paneKey, current.Pane)
-			s.incrementGroupStats(paneNode, current)
-			parent = paneNode
-		}
-
-		if groupByMessage {
-			if messageNode := s.attachMessageNode(parent, current, idx, messageKeys, paneKey, messageNodes); messageNode != nil {
-				parent = messageNode
-			}
-		}
-
+	if options.appendNotificationLeaves {
 		leaf := &model.TreeNode{
 			Kind:         model.NodeKindNotification,
-			Title:        current.Message,
-			Display:      current.Message,
-			Notification: &current,
+			Title:        notif.Message,
+			Display:      notif.Message,
+			Notification: &notif,
 		}
 		parent.Children = append(parent.Children, leaf)
-
-		s.incrementGroupStats(root, current)
-	}
-}
-
-// finalizeTree performs final tree processing: limiting messages and updating counts.
-func (s *DefaultTreeService) finalizeTree(root *model.TreeNode) {
-	s.limitMessages(root)
-	s.updateAllGroupCounts(root)
-}
-
-// updateAllGroupCounts updates counts for all group nodes after limiting.
-func (s *DefaultTreeService) updateAllGroupCounts(root *model.TreeNode) {
-	if root == nil {
-		return
 	}
 
-	if root.Kind != model.NodeKindRoot && root.Kind != model.NodeKindNotification {
-		// Recalculate from children
-		newCount := 0
-		newUnreadCount := 0
-		for _, child := range root.Children {
-			if child.Kind == model.NodeKindNotification {
-				// Notification node: count as 1, check if unread
-				newCount++
-				if child.Notification != nil && !child.Notification.IsRead() {
-					newUnreadCount++
-				}
-			} else {
-				// Group node: use its counts
-				newCount += child.Count
-				newUnreadCount += child.UnreadCount
-			}
-		}
-		root.Count = newCount
-		root.UnreadCount = newUnreadCount
-	}
-
-	for _, child := range root.Children {
-		s.updateAllGroupCounts(child)
-	}
+	s.incrementGroupStats(root, notif)
 }
 
 // RebuildTreeForFilter rebuilds tree and applies filtering-oriented behavior.
@@ -262,9 +243,8 @@ func (s *DefaultTreeService) PruneEmptyGroups() {
 	var filteredChildren []*model.TreeNode
 	for _, child := range s.treeRoot.Children {
 		s.pruneEmptyGroupsNode(child)
-		// Keep the child if it has children (even if it's a leaf with notifications)
-		// or if it's a notification node
-		if len(child.Children) > 0 || child.Kind == model.NodeKindNotification {
+		// Keep the child if it has children, represents notifications, or is a populated group leaf.
+		if len(child.Children) > 0 || child.Kind == model.NodeKindNotification || child.Count > 0 {
 			filteredChildren = append(filteredChildren, child)
 		}
 	}
@@ -280,7 +260,7 @@ func (s *DefaultTreeService) pruneEmptyGroupsNode(root *model.TreeNode) {
 	var filteredChildren []*model.TreeNode
 	for _, child := range root.Children {
 		s.pruneEmptyGroupsNode(child)
-		if len(child.Children) > 0 || child.Kind == model.NodeKindNotification {
+		if len(child.Children) > 0 || child.Kind == model.NodeKindNotification || child.Count > 0 {
 			filteredChildren = append(filteredChildren, child)
 		}
 	}
@@ -367,86 +347,4 @@ func (s *DefaultTreeService) GetTreeLevel(node *model.TreeNode) int {
 	default:
 		return 0
 	}
-}
-
-// limitMessages limits the number of messages shown per pane to maxMessagesPerPane.
-// Messages are sorted by unread status (unread first) then timestamp (newest first).
-func (s *DefaultTreeService) limitMessages(node *model.TreeNode) {
-	if node == nil {
-		return
-	}
-
-	totalMessages := len(node.Children)
-
-	// Recursively process ALL nodes
-	for _, child := range node.Children {
-		s.limitMessages(child)
-	}
-
-	// Only limit at window or pane level, not session/root
-	if node.Kind != model.NodeKindWindow && node.Kind != model.NodeKindPane {
-		return
-	}
-
-	if totalMessages <= maxMessagesPerPane {
-		return
-	}
-
-	// Sort all children by timestamp desc (most recent first), prioritizing unread
-	allChildren := make([]*model.TreeNode, len(node.Children))
-	copy(allChildren, node.Children)
-
-	sort.SliceStable(allChildren, func(i, j int) bool {
-		// Unread always first
-		iUnread := allChildren[i].Notification != nil && !allChildren[i].Notification.IsRead()
-		jUnread := allChildren[j].Notification != nil && !allChildren[j].Notification.IsRead()
-		if iUnread != jUnread {
-			return iUnread
-		}
-		// Then sort by timestamp desc
-		ti := allChildren[i].Notification.Timestamp
-		tj := allChildren[j].Notification.Timestamp
-		return ti > tj
-	})
-
-	// Take only the first maxMessagesPerPane messages
-	if len(allChildren) > maxMessagesPerPane {
-		allChildren = allChildren[:maxMessagesPerPane]
-	}
-
-	node.Children = allChildren
-
-	// Update node counts to reflect limited children
-	s.updateNodeCountAfterLimit(node)
-}
-
-// updateNodeCountAfterLimit updates Count and UnreadCount after limiting children.
-func (s *DefaultTreeService) updateNodeCountAfterLimit(node *model.TreeNode) {
-	if node == nil {
-		return
-	}
-
-	// Only update for window/pane nodes
-	if node.Kind != model.NodeKindWindow && node.Kind != model.NodeKindPane {
-		return
-	}
-
-	// Recalculate counts from current children
-	newCount := 0
-	newUnreadCount := 0
-	for _, child := range node.Children {
-		if child.Kind == model.NodeKindNotification {
-			newCount++
-			if child.Notification != nil && !child.Notification.IsRead() {
-				newUnreadCount++
-			}
-		} else {
-			// For group children, add their counts
-			newCount += child.Count
-			newUnreadCount += child.UnreadCount
-		}
-	}
-
-	node.Count = newCount
-	node.UnreadCount = newUnreadCount
 }
