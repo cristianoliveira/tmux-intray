@@ -8,22 +8,30 @@ import (
 )
 
 func main() {
+	exitCode := run(os.Args[1:], cmd.Execute)
+	if exitCode != 0 {
+		os.Exit(exitCode)
+	}
+}
+
+func run(args []string, execute func() error) int {
 	// Disable structured logging for TUI command to avoid JSON output interfering with display
-	args := os.Args[1:]
 	isTUICommand := len(args) > 0 && args[0] == "tui"
 
 	if !isTUICommand {
-		colors.StructuredInfo("startup", "main", "started", nil, "", nil)
+		colors.StructuredDebug("startup", "main", "started", nil, "", nil)
 	}
 
-	if err := cmd.Execute(); err != nil {
+	if err := execute(); err != nil {
 		if !isTUICommand {
-			colors.StructuredError("startup", "main", "failed", err, "", nil)
+			colors.StructuredDebug("startup", "main", "failed", err, "", nil)
 		}
-		os.Exit(1)
+		return 1
 	}
 
 	if !isTUICommand {
-		colors.StructuredInfo("startup", "main", "completed", nil, "", nil)
+		colors.StructuredDebug("startup", "main", "completed", nil, "", nil)
 	}
+
+	return 0
 }
