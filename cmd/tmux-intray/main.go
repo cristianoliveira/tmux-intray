@@ -13,17 +13,17 @@ func main() {
 	isTUICommand := len(args) > 0 && args[0] == "tui"
 
 	if !isTUICommand {
-		colors.StructuredInfo("startup", "main", "started", nil, "", nil)
+		colors.StructuredDebug("startup", "main", "started", nil, "", nil)
 	}
 
 	if err := cmd.Execute(); err != nil {
 		if !isTUICommand {
-			colors.StructuredError("startup", "main", "failed", err, "", nil)
+			colors.StructuredDebug("startup", "main", "failed", err, "", nil)
 		}
 		os.Exit(1)
 	}
 
 	if !isTUICommand {
-		colors.StructuredInfo("startup", "main", "completed", nil, "", nil)
+		colors.StructuredDebug("startup", "main", "completed", nil, "", nil)
 	}
 }

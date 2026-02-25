@@ -20,7 +20,7 @@ var RootCmd = &cobra.Command{
 	Short: "A quiet inbox for things that happen while you're not looking.",
 	Long:  `A quiet inbox for things that happen while you're not looking.`,
 	// Set custom error messages to match bash implementation
-	SilenceErrors: true,
+	SilenceErrors: false,
 	SilenceUsage:  true,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
