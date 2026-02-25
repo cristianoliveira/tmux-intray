@@ -21,7 +21,7 @@ detect_layer() {
     "$module_path/cmd" | "$module_path/cmd/"*)
         printf 'cli\n'
         ;;
-    "$module_path/internal/tui" | "$module_path/internal/tui/"* | "$module_path/internal/format" | "$module_path/internal/status")
+    "$module_path/internal/tui" | "$module_path/internal/tui/"* | "$module_path/internal/format" | "$module_path/internal/status" | "$module_path/internal/app" | "$module_path/internal/app/"*)
         printf 'presentation\n'
         ;;
     "$module_path/internal/core" | "$module_path/internal/tmuxintray")
