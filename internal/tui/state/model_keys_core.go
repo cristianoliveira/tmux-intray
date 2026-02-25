@@ -164,7 +164,9 @@ func (m *Model) handleKeyBinding(key string, allowInSearch bool) (tea.Model, tea
 			m.uiState.SetPendingKey("g")
 		}, allowInSearch)
 	case "/":
+		viewModeBeforeSearch := m.uiState.GetViewMode()
 		m.handleSearchViewMode()
+		m.uiState.SetViewMode(viewModeBeforeSearch)
 		return m, nil
 	case "?":
 		m.uiState.SetShowHelp(!m.uiState.ShowHelp())
