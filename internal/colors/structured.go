@@ -56,7 +56,7 @@ func EnableStructuredLogging() {
 // Redaction of sensitive fields should be applied before calling this function.
 func StructuredLog(level StructuredLogLevel, component, action, status string, err error, id string, fields map[string]interface{}) {
 	// Only output debug logs when debug mode is enabled
-	if level == LevelDebug && !debugEnabled {
+	if !debugEnabled {
 		return
 	}
 	// Skip all structured logs if disabled
