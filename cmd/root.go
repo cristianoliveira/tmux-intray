@@ -9,6 +9,7 @@ import (
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/hooks"
+	"github.com/cristianoliveira/tmux-intray/internal/logging"
 	"github.com/cristianoliveira/tmux-intray/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -19,7 +20,7 @@ var RootCmd = &cobra.Command{
 	Short: "A quiet inbox for things that happen while you're not looking.",
 	Long:  `A quiet inbox for things that happen while you're not looking.`,
 	// Set custom error messages to match bash implementation
-	SilenceErrors: true,
+	SilenceErrors: false,
 	SilenceUsage:  true,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
@@ -86,15 +87,22 @@ func init() {
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() error {
 	args := os.Args[1:]
+
+	// Disable structured logging for TUI command to avoid JSON output interfering with display
+	isTUICommand := len(args) > 0 && args[0] == "tui"
+	if isTUICommand {
+		colors.DisableStructuredLogging()
+		logging.DisableStructuredLogging()
+		defer colors.EnableStructuredLogging()
+		defer logging.EnableStructuredLogging()
+	}
+
 	colors.StructuredInfo("cli/root", "execute", "started", nil, "", map[string]interface{}{"arg_count": len(args)})
 	defer hooks.WaitForPendingHooks()
 	if err := hooks.Init(); err != nil {
 		colors.StructuredError("cli/root", "execute", "hooks_init_failed", err, "", nil)
 		return err
 	}
-
-	// DEBUG: print commands
-	// fmt.Fprintf(os.Stderr, "DEBUG: commands: %v\n", RootCmd.Commands())
 
 	// No args? show help by routing through cobra help command
 	if len(args) == 0 {

@@ -137,6 +137,9 @@ jobs:
       - name: Run lint
         run: make lint-strict
 
+      - name: Run dependency guardrails
+        run: make check-import-deny-rules
+
       - name: Run security check
         run: make security-check
 

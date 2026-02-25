@@ -33,7 +33,7 @@ var (
 // Returns an error if initialization fails. Safe for concurrent calls.
 func Init() error {
 	start := time.Now()
-	colors.StructuredInfo("storage", "init", "started", nil, "", nil)
+	colors.StructuredDebug("storage", "init", "started", nil, "", nil)
 	var err error
 	initOnce.Do(func() {
 		// Load configuration
@@ -79,7 +79,7 @@ func Init() error {
 		colors.StructuredError("storage", "init", "failed", err, "", map[string]interface{}{"duration_seconds": time.Since(start).Seconds()})
 		return err
 	}
-	colors.StructuredInfo("storage", "init", "completed", nil, "", map[string]interface{}{"duration_seconds": time.Since(start).Seconds()})
+	colors.StructuredDebug("storage", "init", "completed", nil, "", map[string]interface{}{"duration_seconds": time.Since(start).Seconds()})
 	return err
 }
 

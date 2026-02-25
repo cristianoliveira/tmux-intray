@@ -18,8 +18,9 @@ Runs on every push to `main` and `develop` branches, and on pull requests target
    - Ubuntu 22.04
    - Uses `make tests`
 
-2. **code-quality** - Runs linting and security checks:
-   - Lint: `make lint` (includes ShellCheck and formatting check)
+2. **code-quality** - Runs strict linting and security checks:
+   - Lint: `make lint-strict` (includes ShellCheck, formatting check, and dependency guardrails)
+   - Dependency guardrails: `make check-import-deny-rules`
    - Security: `make security-check` (security-focused ShellCheck)
    - Runs on Ubuntu latest
 
@@ -31,10 +32,7 @@ Runs on every push to `main` and `develop` branches, and on pull requests target
 4. **install-linux** - Tests installation methods on Linux:
    - npm installation
    - Go binary build
- 
    - Source installation
-
-
 
 ### Release (`release.yml`)
 
@@ -98,7 +96,8 @@ pre-commit install
 - Environment variables: `TMUX_INTRAY_CONFIG_LOADED=1`, `TMUX_INTRAY_DEBUG=0`
 
 #### Lint/Security Failures
-- Run `make lint` locally to see ShellCheck errors
+- Run `make lint-strict` locally to reproduce CI lint failures
+- Run `make check-import-deny-rules` for dependency layering violations
 - Run `make security-check` for security-specific warnings
 - Use `make fmt` to auto-format shell scripts
 
@@ -106,15 +105,11 @@ pre-commit install
 - npm installation: ensure package.json is valid
 - Go build: check Go version compatibility
 
-
-
 ### Release Failures
 
 #### Version Mismatch
 Error: "Version mismatch between bin/tmux-intray and git tag"
 - Ensure the `VERSION` variable in `bin/tmux-intray` matches the git tag (without leading 'v')
-
-
 
 ## Extending the Pipeline
 
@@ -131,8 +126,6 @@ Error: "Version mismatch between bin/tmux-intray and git tag"
 1. Edit `.github/workflows/release.yml`
 2. Add build steps in `create-release` job
 3. Add artifacts to the `files` list in the "Create GitHub Release" step
-
-
 
 ## Monitoring
 
