@@ -12,6 +12,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
 	"github.com/cristianoliveira/tmux-intray/internal/format"
+	"github.com/cristianoliveira/tmux-intray/internal/formatter"
 	"github.com/cristianoliveira/tmux-intray/internal/ports"
 )
 
@@ -85,38 +86,26 @@ func RunStatusPanel(client StatusPanelClient, opts StatusPanelOptions) (string, 
 		return "", nil
 	}
 
-	// Get counts by level
-	info, warning, error, critical, err := getCountsByLevelWithClient(client)
-	if err != nil {
-		return "", err
-	}
-
 	// Determine format (default to compact if empty)
-	format := opts.Format
-	if format == "" {
-		format = client.GetConfigString("status_format", "compact")
+	formatName := opts.Format
+	if formatName == "" {
+		formatName = client.GetConfigString("status_format", "compact")
 	}
 
-	// Format output
-	switch format {
+	// Build variable context
+	ctx := format.BuildVariableContextForStatusPanel(client)
+
+	// Format output based on format name
+	switch formatName {
 	case "compact":
-		return formatCompactWithColors(client, total, info, warning, error, critical), nil
+		return formatCompactWithColors(client, ctx), nil
 	case "detailed":
-		return formatDetailedWithColors(client, total, info, warning, error, critical), nil
+		return formatDetailedWithColors(client, ctx), nil
 	case "count-only":
-		return formatCountOnly(total), nil
+		return formatCountOnly(ctx.ActiveCount), nil
 	default:
-		return "", fmt.Errorf("unknown format: %s", format)
+		return "", fmt.Errorf("unknown format: %s", formatName)
 	}
-}
-
-// getCountsByLevelWithClient returns counts of active notifications per level using the client.
-func getCountsByLevelWithClient(client StatusPanelClient) (info, warning, error, critical int, err error) {
-	lines := client.ListNotifications("active")
-	if lines == "" {
-		return 0, 0, 0, 0, nil
-	}
-	return format.ParseCountsByLevel(lines)
 }
 
 // parseLevelColorsWithClient parses the level_colors config using the client.
@@ -145,64 +134,64 @@ func getLevelColorWithClient(client StatusPanelClient, level string) string {
 	return color
 }
 
-// formatCompactWithColors returns compact format output using client for colors.
-func formatCompactWithColors(client StatusPanelClient, total, info, warning, error, critical int) string {
-	if total == 0 {
+// formatCompactWithColors returns compact format output using context for colors.
+func formatCompactWithColors(client StatusPanelClient, ctx formatter.VariableContext) string {
+	if ctx.ActiveCount == 0 {
 		return ""
 	}
 	// Determine highest severity level present
 	highestLevel := "info"
-	if critical > 0 {
+	if ctx.CriticalCount > 0 {
 		highestLevel = "critical"
-	} else if error > 0 {
+	} else if ctx.ErrorCount > 0 {
 		highestLevel = "error"
-	} else if warning > 0 {
+	} else if ctx.WarningCount > 0 {
 		highestLevel = "warning"
 	}
 	color := getLevelColorWithClient(client, highestLevel)
 	icon := "🔔"
 	if color != "" {
-		return fmt.Sprintf("#[fg=%s]%s %d#[default]", color, icon, total)
+		return fmt.Sprintf("#[fg=%s]%s %d#[default]", color, icon, ctx.ActiveCount)
 	}
-	return fmt.Sprintf("%s %d", icon, total)
+	return fmt.Sprintf("%s %d", icon, ctx.ActiveCount)
 }
 
-// formatDetailedWithColors returns detailed format output using client for colors.
-func formatDetailedWithColors(client StatusPanelClient, total, info, warning, error, critical int) string {
-	if total == 0 {
+// formatDetailedWithColors returns detailed format output using context for colors.
+func formatDetailedWithColors(client StatusPanelClient, ctx formatter.VariableContext) string {
+	if ctx.ActiveCount == 0 {
 		return ""
 	}
 	var output strings.Builder
-	if info > 0 {
+	if ctx.InfoCount > 0 {
 		color := getLevelColorWithClient(client, "info")
 		if color != "" {
-			output.WriteString(fmt.Sprintf("#[fg=%s]i:%d#[default] ", color, info))
+			output.WriteString(fmt.Sprintf("#[fg=%s]i:%d#[default] ", color, ctx.InfoCount))
 		} else {
-			output.WriteString(fmt.Sprintf("i:%d ", info))
+			output.WriteString(fmt.Sprintf("i:%d ", ctx.InfoCount))
 		}
 	}
-	if warning > 0 {
+	if ctx.WarningCount > 0 {
 		color := getLevelColorWithClient(client, "warning")
 		if color != "" {
-			output.WriteString(fmt.Sprintf("#[fg=%s]w:%d#[default] ", color, warning))
+			output.WriteString(fmt.Sprintf("#[fg=%s]w:%d#[default] ", color, ctx.WarningCount))
 		} else {
-			output.WriteString(fmt.Sprintf("w:%d ", warning))
+			output.WriteString(fmt.Sprintf("w:%d ", ctx.WarningCount))
 		}
 	}
-	if error > 0 {
+	if ctx.ErrorCount > 0 {
 		color := getLevelColorWithClient(client, "error")
 		if color != "" {
-			output.WriteString(fmt.Sprintf("#[fg=%s]e:%d#[default] ", color, error))
+			output.WriteString(fmt.Sprintf("#[fg=%s]e:%d#[default] ", color, ctx.ErrorCount))
 		} else {
-			output.WriteString(fmt.Sprintf("e:%d ", error))
+			output.WriteString(fmt.Sprintf("e:%d ", ctx.ErrorCount))
 		}
 	}
-	if critical > 0 {
+	if ctx.CriticalCount > 0 {
 		color := getLevelColorWithClient(client, "critical")
 		if color != "" {
-			output.WriteString(fmt.Sprintf("#[fg=%s]c:%d#[default] ", color, critical))
+			output.WriteString(fmt.Sprintf("#[fg=%s]c:%d#[default] ", color, ctx.CriticalCount))
 		} else {
-			output.WriteString(fmt.Sprintf("c:%d ", critical))
+			output.WriteString(fmt.Sprintf("c:%d ", ctx.CriticalCount))
 		}
 	}
 	// Trim trailing space

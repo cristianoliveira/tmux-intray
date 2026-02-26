@@ -255,6 +255,10 @@ func TestVariableResolver_AllVariables(t *testing.T) {
 		TotalCount:      8,
 		ActiveCount:     4,
 		DismissedCount:  1,
+		InfoCount:       2,
+		WarningCount:    1,
+		ErrorCount:      1,
+		CriticalCount:   0,
 		LatestMessage:   "Test message",
 		HasUnread:       true,
 		HasActive:       true,
@@ -265,13 +269,17 @@ func TestVariableResolver_AllVariables(t *testing.T) {
 		PaneList:        "pane1",
 	}
 
-	// All 13 template variables
+	// All template variables
 	variables := []string{
 		"unread-count",
 		"total-count",
 		"read-count",
 		"active-count",
 		"dismissed-count",
+		"info-count",
+		"warning-count",
+		"error-count",
+		"critical-count",
 		"latest-message",
 		"has-unread",
 		"has-active",
