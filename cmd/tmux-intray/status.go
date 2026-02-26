@@ -10,7 +10,9 @@ import (
 	"strings"
 
 	"github.com/cristianoliveira/tmux-intray/cmd"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/format"
+	"github.com/cristianoliveira/tmux-intray/internal/formatter"
 	"github.com/spf13/cobra"
 )
 
@@ -37,13 +39,16 @@ USAGE:
     tmux-intray status [OPTIONS]
 
 OPTIONS:
-    --format=<format>    Output format: summary, levels, panes, json (default: summary)
+    --format=<format>    Output format: preset name or custom template (default: compact)
+                         Presets: compact, detailed, json, count-only, levels, panes
+                         Custom: ${variable} syntax, e.g., "${unread-count} unread"
     -h, --help           Show this help
 
 EXAMPLES:
-    tmux-intray status               # Show summary
-    tmux-intray status --format=levels # Show counts by level
-    tmux-intray status --format=panes  # Show counts by pane`,
+    tmux-intray status                           # Show compact format (default)
+    tmux-intray status --format=detailed         # Show detailed format
+    tmux-intray status --format=json             # Show JSON format
+    tmux-intray status --format='${unread-count}' # Custom template`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Ensure tmux is running (mirror bash script behavior)
@@ -52,20 +57,17 @@ EXAMPLES:
 			}
 
 			format := determineStatusFormat(cmd, formatFlag)
-			if err := validateStatusFormat(format); err != nil {
-				return err
-			}
 
 			w := cmd.OutOrStdout()
-			return runStatusCommand(client, format, w)
+			return runStatusCommandWithFormat(client, format, w)
 		},
 	}
 
-	statusCmd.Flags().StringVar(&formatFlag, "format", "summary", "Output format: summary, levels, panes, json")
+	statusCmd.Flags().StringVar(&formatFlag, "format", "compact", "Output format: preset name or custom template")
 	return statusCmd
 }
 
-// determineStatusFormat determines the output format.
+// determineStatusFormat determines the output format, preferring flag over env.
 func determineStatusFormat(cmd *cobra.Command, formatFlag string) string {
 	format := formatFlag
 	if !cmd.Flag("format").Changed {
@@ -74,27 +76,15 @@ func determineStatusFormat(cmd *cobra.Command, formatFlag string) string {
 		}
 	}
 	if format == "" {
-		format = "summary"
+		format = "compact"
 	}
 	return format
 }
 
-// validateStatusFormat validates the status format.
-func validateStatusFormat(format string) error {
-	validFormats := map[string]bool{
-		"summary": true,
-		"levels":  true,
-		"panes":   true,
-		"json":    true,
-	}
-	if !validFormats[format] {
-		return fmt.Errorf("status: unknown format: %s", format)
-	}
-	return nil
-}
-
-// runStatusCommand executes the status command with the given format.
-func runStatusCommand(client statusClient, format string, w io.Writer) error {
+// runStatusCommandWithFormat executes the status command with format support.
+// It handles both preset names and custom templates.
+func runStatusCommandWithFormat(client statusClient, format string, w io.Writer) error {
+	// Handle legacy format names for backward compatibility
 	switch format {
 	case "summary":
 		return formatSummary(client, w)
@@ -104,8 +94,80 @@ func runStatusCommand(client statusClient, format string, w io.Writer) error {
 		return formatPanes(client, w)
 	case "json":
 		return formatJSON(client, w)
-	default:
-		return fmt.Errorf("status: unknown format: %s", format)
+	}
+
+	// Check if it's a formatter preset (new system)
+	registry := formatter.NewPresetRegistry()
+	if preset, err := registry.Get(format); err == nil {
+		// It's a preset, use the template from it
+		return runStatusWithTemplate(client, preset.Template, w)
+	}
+
+	// Otherwise treat it as a custom template
+	return runStatusWithTemplate(client, format, w)
+}
+
+// runStatusWithTemplate executes status with a template string.
+func runStatusWithTemplate(client statusClient, template string, w io.Writer) error {
+	// Create the variable context with current status data
+	ctx := buildVariableContext(client)
+
+	// Create template engine and substitute
+	engine := formatter.NewTemplateEngine()
+	result, err := engine.Substitute(template, ctx)
+	if err != nil {
+		return fmt.Errorf("template substitution error: %w", err)
+	}
+
+	_, err = fmt.Fprintln(w, result)
+	return err
+}
+
+// buildVariableContext creates a VariableContext from current status data.
+func buildVariableContext(client statusClient) formatter.VariableContext {
+	active := countByState(client, "active")
+	dismissed := countByState(client, "dismissed")
+	read := countByState(client, "dismissed") // read items are dismissed
+	infoCount, warningCount, errorCount, criticalCount := countByLevel(client)
+
+	// Get latest message
+	latestMsg := ""
+	lines, _ := client.ListNotifications("active", "", "", "", "", "", "", "")
+	if lines != "" {
+		fields := strings.Split(strings.Split(lines, "\n")[0], "\t")
+		if len(fields) > 6 {
+			latestMsg = fields[6]
+		}
+	}
+
+	// Determine highest severity
+	highestSeverity := domain.LevelInfo
+	if criticalCount > 0 {
+		highestSeverity = domain.LevelCritical
+	} else if errorCount > 0 {
+		highestSeverity = domain.LevelError
+	} else if warningCount > 0 {
+		highestSeverity = domain.LevelWarning
+	}
+
+	return formatter.VariableContext{
+		UnreadCount:     active,
+		TotalCount:      active, // alias for unread
+		ReadCount:       read,
+		ActiveCount:     active,
+		DismissedCount:  dismissed,
+		InfoCount:       infoCount,
+		WarningCount:    warningCount,
+		ErrorCount:      errorCount,
+		CriticalCount:   criticalCount,
+		LatestMessage:   latestMsg,
+		HasUnread:       active > 0,
+		HasActive:       active > 0,
+		HasDismissed:    dismissed > 0,
+		HighestSeverity: highestSeverity,
+		SessionList:     "",
+		WindowList:      "",
+		PaneList:        "",
 	}
 }
 
