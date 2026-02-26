@@ -922,7 +922,7 @@ func TestModelUpdateHandlesSearch(t *testing.T) {
 
 	assert.True(t, model.uiState.IsSearchMode())
 	assert.Equal(t, "", model.uiState.GetSearchQuery())
-	assert.Equal(t, settings.ViewModeSearch, string(model.uiState.GetViewMode()))
+	assert.Equal(t, settings.ViewModeDetailed, string(model.uiState.GetViewMode()))
 	assert.Equal(t, 0, model.uiState.GetCursor())
 	assert.Len(t, model.filtered, 3)
 
@@ -1469,7 +1469,7 @@ func TestCtrlBindingsAllowDismissWhenSearchStartedWithSlash(t *testing.T) {
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
 	model = updated.(*Model)
 	require.True(t, model.uiState.IsSearchMode())
-	require.Equal(t, settings.ViewModeSearch, string(model.uiState.GetViewMode()))
+	require.Equal(t, settings.ViewModeDetailed, string(model.uiState.GetViewMode()))
 
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlD})
 	model = updated.(*Model)
