@@ -76,7 +76,7 @@ func (vr *variableResolver) Resolve(varName string, ctx VariableContext) (string
 	case "dismissed-count":
 		return strconv.Itoa(ctx.DismissedCount), nil
 
-	// Level-specific count variables 
+	// Level-specific count variables
 	case "info-count":
 		return strconv.Itoa(ctx.InfoCount), nil
 
