@@ -18,7 +18,7 @@ type VariableContext struct {
 	ActiveCount    int
 	DismissedCount int
 
-	// Level-specific count variables (for status-panel compatibility)
+	// Level-specific count variables (for backward compatibility)
 	InfoCount     int
 	WarningCount  int
 	ErrorCount    int
@@ -76,7 +76,7 @@ func (vr *variableResolver) Resolve(varName string, ctx VariableContext) (string
 	case "dismissed-count":
 		return strconv.Itoa(ctx.DismissedCount), nil
 
-	// Level-specific count variables (for status-panel)
+	// Level-specific count variables 
 	case "info-count":
 		return strconv.Itoa(ctx.InfoCount), nil
 

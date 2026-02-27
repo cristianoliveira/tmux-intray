@@ -9,8 +9,6 @@ import (
 	"strings"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
-	"github.com/cristianoliveira/tmux-intray/internal/domain"
-	"github.com/cristianoliveira/tmux-intray/internal/formatter"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 )
 
@@ -143,45 +141,4 @@ func FormatJSON(w io.Writer, active int, info, warning, error, critical int, pan
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(data)
-}
-
-// StatusPanelClient interface for status panel operations.
-type StatusPanelClient interface {
-	GetActiveCount() int
-	ListNotifications(stateFilter string) string
-}
-
-// BuildVariableContextForStatusPanel creates a VariableContext for status-panel
-// with level-specific counts populated.
-func BuildVariableContextForStatusPanel(client StatusPanelClient) formatter.VariableContext {
-	total := client.GetActiveCount()
-
-	// Get counts by level
-	info, warning, error, critical := 0, 0, 0, 0
-	if total > 0 {
-		info, warning, error, critical, _ = ParseCountsByLevel(client.ListNotifications("active"))
-	}
-
-	// Determine highest severity
-	highestSeverity := domain.LevelInfo
-	if critical > 0 {
-		highestSeverity = domain.LevelCritical
-	} else if error > 0 {
-		highestSeverity = domain.LevelError
-	} else if warning > 0 {
-		highestSeverity = domain.LevelWarning
-	}
-
-	return formatter.VariableContext{
-		UnreadCount:     total,
-		TotalCount:      total,
-		ActiveCount:     total,
-		InfoCount:       info,
-		WarningCount:    warning,
-		ErrorCount:      error,
-		CriticalCount:   critical,
-		HasUnread:       total > 0,
-		HasActive:       total > 0,
-		HighestSeverity: highestSeverity,
-	}
 }
