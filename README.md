@@ -199,7 +199,7 @@ $ tmux-intray --help
 
 #### Navigation Commands
 - `tmux-intray jump <id>` - Jump to the pane of a notification
-- `tmux-intray status` - Show notification status summary
+- `tmux-intray status` - Show notification status summary with flexible template formatting
 - `tmux-intray follow` - Monitor notifications in real-time
 
 #### Utility Commands
@@ -212,6 +212,7 @@ $ tmux-intray --help
 Comprehensive documentation is available:
 
 - [CLI Reference](docs/cli/CLI_REFERENCE.md) - Complete command reference
+- [Status Command Guide](docs/status-command-guide.md) - Template variables, presets, real-world examples, and troubleshooting
 - [Configuration Guide](docs/configuration.md) - All environment variables and settings (including TUI settings persistence)
 - [Troubleshooting Guide](docs/troubleshooting.md) - Common issues and solutions
 - [Advanced Filtering Example](examples/advanced-filtering.sh) - Complex filter combinations
@@ -232,7 +233,7 @@ See [Configuration Guide](docs/configuration.md) for details on available settin
 
 ### Notification Levels
 
-Notifications can have severity levels: `info` (default), `warning`, `error`, `critical`. Levels are used for filtering and color-coded display.
+Notifications can have severity levels: `info` (default), `warning`, `error`, `critical`. Levels are used for filtering, color-coded display, and severity-based formatting.
 
 ```bash
 # Add a notification with a level
@@ -242,7 +243,32 @@ tmux-intray add --level=error "Something went wrong"
 tmux-intray list --level=error
 
 # The `status` command shows counts per level
-tmux-intray status
+tmux-intray status --format=levels
+# Output: Severity: 2 | Unread: 3
+
+# Or breakdown by severity in custom template
+tmux-intray status --format='C:${critical-count} E:${error-count} W:${warning-count} I:${info-count}'
+# Output: C:1 E:2 W:3 I:0
+```
+
+### Template-Based Status Formatting
+
+The `status` command supports powerful template-based formatting for flexible output:
+
+```bash
+# Use presets for common formats
+tmux-intray status --format=compact        # [3] Latest message
+tmux-intray status --format=detailed       # 3 unread, 2 read | Latest: message
+tmux-intray status --format=json           # {"unread":3,"total":3,...}
+tmux-intray status --format=count-only     # 3
+
+# Custom templates using variables
+tmux-intray status --format='📬 ${unread-count}'               # 📬 3
+tmux-intray status --format='${critical-count} critical'       # 1 critical
+tmux-intray status --format='Latest: ${latest-message}'        # Latest: message
+
+# Full documentation including all 13 variables and 6 presets
+see [Status Command Guide](docs/status-command-guide.md)
 ```
 
 ### Advanced Filtering
@@ -299,8 +325,12 @@ Add to your `.tmux.conf`:
 # Basic setup
 run '~/.local/share/tmux-plugins/tmux-intray/tmux-intray.tmux'
 
-# Optional: Custom status bar configuration
-set -g status-right "#(tmux-intray status-panel) %H:%M"
+# Optional: Custom status bar configuration with flexible templates
+set -g status-right "#(tmux-intray status --format=compact) %H:%M"
+
+# Or use built-in presets: compact, detailed, json, count-only, levels, panes
+# Set default format via environment variable
+export TMUX_INTRAY_STATUS_FORMAT="compact"
 ```
 
 ### Key Bindings
