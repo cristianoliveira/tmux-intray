@@ -13,6 +13,12 @@ type TUIState struct {
 	// SortOrder specifies sort direction: "asc" or "desc".
 	SortOrder string `toml:"sort_order"`
 
+	// UnreadFirst controls whether unread notifications are sorted first.
+	UnreadFirst bool `toml:"unread_first"`
+
+	// ActiveTab stores the selected tab in the notifications list UI.
+	ActiveTab Tab `toml:"active_tab"`
+
 	// Filters contains active filter criteria.
 	Filters Filter `toml:"filters"`
 
@@ -47,6 +53,8 @@ func FromSettings(s *Settings) TUIState {
 		Columns:               s.Columns,
 		SortBy:                s.SortBy,
 		SortOrder:             s.SortOrder,
+		UnreadFirst:           s.UnreadFirst,
+		ActiveTab:             NormalizeTab(string(s.ActiveTab)),
 		Filters:               s.Filters,
 		ViewMode:              s.ViewMode,
 		GroupBy:               s.GroupBy,
@@ -70,6 +78,8 @@ func (t TUIState) ToSettings() *Settings {
 		Columns:            t.Columns,
 		SortBy:             t.SortBy,
 		SortOrder:          t.SortOrder,
+		UnreadFirst:        t.UnreadFirst,
+		ActiveTab:          NormalizeTab(string(t.ActiveTab)),
 		Filters:            t.Filters,
 		ViewMode:           t.ViewMode,
 		GroupBy:            t.GroupBy,
@@ -85,6 +95,7 @@ func (t TUIState) IsEmpty() bool {
 	return len(t.Columns) == 0 &&
 		t.SortBy == "" &&
 		t.SortOrder == "" &&
+		t.ActiveTab == "" &&
 		t.ViewMode == "" &&
 		t.GroupBy == "" &&
 		!t.DefaultExpandLevelSet &&

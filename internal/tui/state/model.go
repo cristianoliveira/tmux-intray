@@ -41,6 +41,7 @@ type Model struct {
 	// Settings fields (non-UI state)
 	sortBy         string
 	sortOrder      string
+	unreadFirst    bool
 	columns        []string
 	filters        settings.Filter
 	loadedSettings *settings.Settings // Track loaded settings for comparison
@@ -124,6 +125,7 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 		treeService:         treeService,
 		notificationService: notificationService,
 		settingsSvc:         newSettingsService(),
+		unreadFirst:         true, // Default to true for backward compatibility
 		// Legacy fields kept for backward compatibility but now using services
 		client:             client,
 		sessionNames:       runtimeCoordinator.GetSessionNames(),

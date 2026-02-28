@@ -20,12 +20,14 @@ func (s *settingsService) setLoadedSettings(loaded *settings.Settings) {
 	s.loadedSettings = loaded
 }
 
-func (s *settingsService) toState(uiState *UIState, columns []string, sortBy string, sortOrder string, filters settings.Filter) settings.TUIState {
+func (s *settingsService) toState(uiState *UIState, columns []string, sortBy string, sortOrder string, unreadFirst bool, filters settings.Filter) settings.TUIState {
 	dto := uiState.ToDTO()
 	return settings.TUIState{
 		Columns:               columns,
 		SortBy:                sortBy,
 		SortOrder:             sortOrder,
+		UnreadFirst:           unreadFirst,
+		ActiveTab:             settings.NormalizeTab(string(dto.ActiveTab)),
 		Filters:               filters,
 		ViewMode:              string(dto.ViewMode),
 		GroupBy:               string(dto.GroupBy),
@@ -36,7 +38,7 @@ func (s *settingsService) toState(uiState *UIState, columns []string, sortBy str
 	}
 }
 
-func (s *settingsService) fromState(state settings.TUIState, uiState *UIState, columns *[]string, sortBy *string, sortOrder *string, filters *settings.Filter) error {
+func (s *settingsService) fromState(state settings.TUIState, uiState *UIState, columns *[]string, sortBy *string, sortOrder *string, unreadFirst *bool, filters *settings.Filter) error {
 	if state.GroupBy != "" && !settings.IsValidGroupBy(state.GroupBy) {
 		return fmt.Errorf("invalid groupBy value: %s", state.GroupBy)
 	}
@@ -55,8 +57,11 @@ func (s *settingsService) fromState(state settings.TUIState, uiState *UIState, c
 	if state.SortOrder != "" {
 		*sortOrder = state.SortOrder
 	}
+	// UnreadFirst is a boolean, so we always update it
+	*unreadFirst = state.UnreadFirst
 
 	dto := model.UIDTO{}
+	dto.ActiveTab = settings.NormalizeTab(string(state.ActiveTab))
 	if state.ViewMode != "" {
 		dto.ViewMode = model.ViewMode(state.ViewMode)
 	}

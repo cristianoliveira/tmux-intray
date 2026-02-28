@@ -4,6 +4,7 @@ package model
 
 import (
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/settings"
 )
 
 // UIState defines the interface for view state management.
@@ -143,6 +144,9 @@ const (
 
 // UIDTO is a data transfer object for UI state persistence.
 type UIDTO struct {
+	// ActiveTab is the current top-level tab selection.
+	ActiveTab settings.Tab
+
 	// ViewMode is the current view mode.
 	ViewMode ViewMode
 

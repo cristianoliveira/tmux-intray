@@ -20,6 +20,7 @@ func convertCamelToSnake(data []byte) []byte {
 	replacements := map[string]string{
 		"sortBy":                "sort_by",
 		"sortOrder":             "sort_order",
+		"activeTab":             "active_tab",
 		"viewMode":              "view_mode",
 		"groupBy":               "group_by",
 		"defaultExpandLevel":    "default_expand_level",
@@ -191,6 +192,11 @@ type Settings struct {
 	// Defaults to true for backward compatibility.
 	UnreadFirst bool `toml:"unread_first"`
 
+	// ActiveTab stores the selected tab in the notifications list UI.
+	// Valid values: "recents", "all".
+	// Empty or invalid values are normalized to "recents".
+	ActiveTab Tab `toml:"active_tab"`
+
 	// Filters contains active filter criteria.
 	Filters Filter `toml:"filters"`
 
@@ -227,6 +233,7 @@ func DefaultSettings() *Settings {
 		SortBy:      SortByTimestamp,
 		SortOrder:   SortOrderDesc,
 		UnreadFirst: true, // Default to true to maintain current behavior (unread first)
+		ActiveTab:   DefaultTab(),
 		Filters: Filter{
 			Level:   "",
 			State:   "",
