@@ -58,6 +58,8 @@ func (m *Model) View() string {
 	}
 
 	// Header
+	s.WriteString(render.Tabs(m.uiState.GetActiveTab(), m.uiState.GetWidth()))
+	s.WriteString("\n")
 	s.WriteString(render.Header(m.uiState.GetWidth()))
 
 	// Viewport with table rows
@@ -94,6 +96,7 @@ func (m *Model) View() string {
 		SearchQuery:  m.uiState.GetSearchQuery(),
 		Grouped:      m.isGroupedView(),
 		ViewMode:     string(m.uiState.GetViewMode()),
+		ActiveTab:    m.uiState.GetActiveTab(),
 		Width:        m.uiState.GetWidth(),
 		ErrorMessage: m.statusMessage,
 		ReadFilter:   m.filters.Read,

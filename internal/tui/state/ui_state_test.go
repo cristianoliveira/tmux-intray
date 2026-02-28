@@ -60,7 +60,7 @@ func TestUIState(t *testing.T) {
 	viewport := uiState.GetViewport()
 	assert.NotNil(t, viewport)
 	assert.Equal(t, 100, viewport.Width)
-	assert.Equal(t, 28, viewport.Height) // height - headerFooterLines
+	assert.Equal(t, 27, viewport.Height) // height - headerFooterLines
 
 	// Test pending key
 	uiState.SetPendingKey("z")

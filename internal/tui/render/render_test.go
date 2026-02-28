@@ -234,24 +234,38 @@ func TestRenderGroupRowDisplaysSources(t *testing.T) {
 	assert.Contains(t, stripANSI(row), "src: pane1,pane2")
 }
 
+func TestTabsRendersActiveIndicator(t *testing.T) {
+	recents := Tabs(settings.TabRecents, 80)
+	assert.Contains(t, stripANSI(recents), "[Recents]")
+	assert.Contains(t, stripANSI(recents), "All")
+
+	all := Tabs(settings.TabAll, 80)
+	assert.Contains(t, stripANSI(all), "Recents")
+	assert.Contains(t, stripANSI(all), "[All]")
+}
+
 func TestFooterGroupedHelpText(t *testing.T) {
-	footer := Footer(FooterState{Grouped: true, ViewMode: settings.ViewModeGrouped, ShowHelp: true})
+	footer := Footer(FooterState{Grouped: true, ViewMode: settings.ViewModeGrouped, ActiveTab: settings.TabRecents, ShowHelp: true})
 
 	assert.Contains(t, footer, "mode: [G]")
+	assert.Contains(t, footer, "tab: [R]ecents")
 	assert.Contains(t, footer, "read: all")
 	assert.Contains(t, footer, "v: cycle view mode")
 	assert.Contains(t, footer, "gg/G: top/bottom")
 	assert.Contains(t, footer, "h/l: collapse/expand")
 	assert.Contains(t, footer, "za: toggle fold")
+	assert.Contains(t, footer, "a: all")
+	assert.Contains(t, footer, "R: read")
 	assert.Contains(t, footer, "Enter: toggle/jump")
 	assert.Contains(t, footer, "/: search view")
 	assert.NotContains(t, footer, "Ctrl+f")
 }
 
 func TestFooterSearchModeHelpText(t *testing.T) {
-	footer := Footer(FooterState{SearchMode: true, SearchQuery: "test", ViewMode: settings.ViewModeDetailed, ShowHelp: true})
+	footer := Footer(FooterState{SearchMode: true, SearchQuery: "test", ViewMode: settings.ViewModeDetailed, ActiveTab: settings.TabAll, ShowHelp: true})
 
 	assert.Contains(t, footer, "mode: [D]")
+	assert.Contains(t, footer, "tab: [A]ll")
 	assert.Contains(t, footer, "read: all")
 	assert.Contains(t, footer, "ESC: exit search")
 	assert.Contains(t, footer, "Ctrl+j/k: navigate")
@@ -276,7 +290,7 @@ func TestFooterSearchViewModeHelpTextShowsToggleJumpWhenGrouped(t *testing.T) {
 }
 
 func TestFooterSearchModeWithoutHelp(t *testing.T) {
-	footer := Footer(FooterState{SearchMode: true, SearchQuery: "test", ViewMode: settings.ViewModeDetailed, ShowHelp: false})
+	footer := Footer(FooterState{SearchMode: true, SearchQuery: "test", ViewMode: settings.ViewModeDetailed, ActiveTab: settings.TabAll, ShowHelp: false})
 
 	// Should contain search query and search help
 	assert.Contains(t, footer, "Search: test")
@@ -284,11 +298,12 @@ func TestFooterSearchModeWithoutHelp(t *testing.T) {
 	assert.Contains(t, footer, "Ctrl+j/k: navigate")
 	// Should contain mode indicator
 	assert.Contains(t, footer, "mode: [D]")
+	assert.Contains(t, footer, "tab: [A]ll")
 	// Should NOT contain regular help items
 	assert.NotContains(t, footer, "read:")
 	assert.NotContains(t, footer, "j/k: move")
 	assert.NotContains(t, footer, "gg/G:")
-	assert.NotContains(t, footer, "r: read")
+	assert.NotContains(t, footer, "R: read")
 	assert.NotContains(t, footer, "u: unread")
 	assert.NotContains(t, footer, "d: dismiss")
 	assert.NotContains(t, footer, "Enter:")
@@ -319,15 +334,15 @@ func TestFooterClampsToWidthAndClearsLine(t *testing.T) {
 }
 
 func TestFooterMinimalHelp(t *testing.T) {
-	footer := Footer(FooterState{ViewMode: settings.ViewModeCompact, ShowHelp: false})
+	footer := Footer(FooterState{ViewMode: settings.ViewModeCompact, ActiveTab: settings.TabRecents, ShowHelp: false})
 	assert.Contains(t, footer, "mode: [C]")
+	assert.Contains(t, footer, "tab: [R]ecents")
 	assert.Contains(t, footer, "j/k: move")
 	assert.Contains(t, footer, "?: toggle help")
 	// Should not contain other help items
 	assert.NotContains(t, footer, "read:")
 	assert.NotContains(t, footer, "gg/G:")
 	assert.NotContains(t, footer, "v:")
-	assert.NotContains(t, footer, "r:")
 	assert.NotContains(t, footer, "u:")
 	assert.NotContains(t, footer, "d:")
 	assert.NotContains(t, footer, "Enter:")

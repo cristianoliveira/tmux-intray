@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
 
@@ -176,6 +177,12 @@ func (m *Model) handleKeyBinding(key string, allowInSearch bool) (tea.Model, tea
 	case "D":
 		return m, m.handleDismissGroup()
 	case "r":
+		m.switchActiveTab(settings.TabRecents)
+		return m, nil
+	case "a":
+		m.switchActiveTab(settings.TabAll)
+		return m, nil
+	case "R":
 		return m, m.markSelectedRead()
 	case "u":
 		return m, m.markSelectedUnread()
