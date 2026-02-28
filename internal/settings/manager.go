@@ -13,6 +13,9 @@ type TUIState struct {
 	// SortOrder specifies sort direction: "asc" or "desc".
 	SortOrder string `toml:"sort_order"`
 
+	// UnreadFirst controls whether unread notifications are sorted first.
+	UnreadFirst bool `toml:"unread_first"`
+
 	// Filters contains active filter criteria.
 	Filters Filter `toml:"filters"`
 
@@ -50,6 +53,7 @@ func FromSettings(s *Settings) TUIState {
 		Columns:               s.Columns,
 		SortBy:                s.SortBy,
 		SortOrder:             s.SortOrder,
+		UnreadFirst:           s.UnreadFirst,
 		Filters:               s.Filters,
 		ViewMode:              s.ViewMode,
 		GroupBy:               s.GroupBy,
@@ -74,6 +78,7 @@ func (t TUIState) ToSettings() *Settings {
 		Columns:            t.Columns,
 		SortBy:             t.SortBy,
 		SortOrder:          t.SortOrder,
+		UnreadFirst:        t.UnreadFirst,
 		Filters:            t.Filters,
 		ViewMode:           t.ViewMode,
 		GroupBy:            t.GroupBy,
