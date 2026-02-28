@@ -565,7 +565,8 @@ func (d *dummyNotificationService) FilterByReadStatus(notifications []notificati
 	return filtered
 }
 
-func (d *dummyNotificationService) ApplyFiltersAndSearch(query, state, level, sessionID, windowID, paneID, readFilter, sortBy, sortOrder string) {
+func (d *dummyNotificationService) ApplyFiltersAndSearch(tab settings.Tab, query, state, level, sessionID, windowID, paneID, readFilter, sortBy, sortOrder string) {
+	_ = tab
 	result := d.notifications
 
 	if state != "" {

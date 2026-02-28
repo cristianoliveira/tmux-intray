@@ -37,6 +37,22 @@ func (m *Model) cycleViewMode() {
 	}
 }
 
+func (m *Model) cycleActiveTab() {
+	current := m.uiState.GetActiveTab()
+	next := settings.TabRecents
+	if current == settings.TabRecents {
+		next = settings.TabAll
+	}
+
+	m.uiState.SetActiveTab(next)
+	m.applySearchFilter()
+	m.resetCursor()
+
+	if err := m.saveSettings(); err != nil {
+		m.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+	}
+}
+
 func (m *Model) computeVisibleNodes() []*model.TreeNode {
 	return m.treeService.GetVisibleNodes()
 }

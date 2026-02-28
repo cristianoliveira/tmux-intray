@@ -115,6 +115,9 @@ func (m *Model) handleKeyType(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return nil, nil
 	case tea.KeyUp, tea.KeyDown:
 		return nil, nil
+	case tea.KeyTab:
+		m.cycleActiveTab()
+		return m, nil
 	case tea.KeyCtrlH:
 		// In search contexts, Ctrl+h moves cursor left (same as normal navigation)
 		if m.isSearchContext() {
