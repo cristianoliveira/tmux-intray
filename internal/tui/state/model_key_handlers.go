@@ -41,9 +41,6 @@ func (m *Model) handleEnter() (tea.Model, tea.Cmd) {
 		m.uiState.ResetCursor()
 		return m, nil
 	}
-	if m.isGroupedView() && m.toggleNodeExpansion() {
-		return m, nil
-	}
 	return m, m.handleJump()
 }
 

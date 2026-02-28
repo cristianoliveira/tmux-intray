@@ -134,6 +134,7 @@ func stubSessionFetchers(t *testing.T) *tmux.MockClient {
 type testRuntimeCoordinator struct {
 	ensureTmuxRunningFn func() bool
 	jumpToPaneFn        func(sessionID, windowID, paneID string) bool
+	jumpToWindowFn      func(sessionID, windowID string) bool
 }
 
 func (t *testRuntimeCoordinator) EnsureTmuxRunning() bool {
@@ -146,6 +147,13 @@ func (t *testRuntimeCoordinator) EnsureTmuxRunning() bool {
 func (t *testRuntimeCoordinator) JumpToPane(sessionID, windowID, paneID string) bool {
 	if t.jumpToPaneFn != nil {
 		return t.jumpToPaneFn(sessionID, windowID, paneID)
+	}
+	return false
+}
+
+func (t *testRuntimeCoordinator) JumpToWindow(sessionID, windowID string) bool {
+	if t.jumpToWindowFn != nil {
+		return t.jumpToWindowFn(sessionID, windowID)
 	}
 	return false
 }
@@ -2321,7 +2329,57 @@ func TestHandleJumpGroupedViewUsesVisibleNodes(t *testing.T) {
 
 	cmd := model.handleJump()
 
-	assert.Nil(t, cmd)
+	assert.NotNil(t, cmd)
+}
+
+func TestHandleJumpFallsBackToWindowWhenPaneMissing(t *testing.T) {
+	model := newTestModelWithOptions(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "", Message: "window jump"},
+	}, func(m *Model) {
+		m.runtimeCoordinator = &testRuntimeCoordinator{
+			ensureTmuxRunningFn: func() bool { return true },
+			jumpToPaneFn: func(sessionID, windowID, paneID string) bool {
+				t.Fatalf("jump to pane should not be called for missing pane target")
+				return false
+			},
+			jumpToWindowFn: func(sessionID, windowID string) bool {
+				return sessionID == "$1" && windowID == "@1"
+			},
+		}
+	})
+
+	model.uiState.SetCursor(0)
+
+	cmd := model.handleJump()
+
+	assert.NotNil(t, cmd)
+}
+
+func TestHandleJumpGroupedWindowNodeUsesWindowJump(t *testing.T) {
+	model := newTestModelWithOptions(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@2", Pane: "%3", Message: "window node jump"},
+	}, func(m *Model) {
+		m.runtimeCoordinator = &testRuntimeCoordinator{
+			ensureTmuxRunningFn: func() bool { return true },
+			jumpToPaneFn: func(sessionID, windowID, paneID string) bool {
+				t.Fatalf("jump to pane should not be called for window nodes")
+				return false
+			},
+			jumpToWindowFn: func(sessionID, windowID string) bool {
+				return sessionID == "$1" && windowID == "@2"
+			},
+		}
+	})
+
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByPane)
+	model.applySearchFilter()
+	model.resetCursor()
+	model.uiState.SetCursor(1)
+
+	cmd := model.handleJump()
+
+	assert.NotNil(t, cmd)
 }
 
 func TestHandleJumpWithEmptyList(t *testing.T) {

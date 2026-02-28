@@ -72,6 +72,19 @@ func (c *DefaultRuntimeCoordinator) JumpToPane(sessionID, windowID, paneID strin
 	return core.JumpToPane(sessionID, windowID, paneID)
 }
 
+// JumpToWindow jumps to a specific window in tmux.
+func (c *DefaultRuntimeCoordinator) JumpToWindow(sessionID, windowID string) bool {
+	success, err := c.client.JumpToPane(sessionID, windowID, "")
+	if err != nil {
+		if c.errorHandler != nil {
+			c.errorHandler.Error(fmt.Sprintf("jump to window: %v", err))
+		}
+		return false
+	}
+
+	return success
+}
+
 // ValidatePaneExists checks if a pane exists in the specified session and window.
 func (c *DefaultRuntimeCoordinator) ValidatePaneExists(sessionID, windowID, paneID string) (bool, error) {
 	if sessionID == "" || windowID == "" || paneID == "" {
