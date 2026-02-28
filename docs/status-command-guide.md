@@ -624,11 +624,11 @@ set -g status-interval 2  # Update every 2 seconds
 set -g @tmux_intray_format "count-only"  # Simplest format
 ```
 
-## Migration from `status-panel`
+## Migration from `status-panel` (deprecated)
 
-The `status-panel` command is now deprecated in favor of `status` with template formatting. Here's how to migrate:
+The `status-panel` command has been removed and replaced with the `status` command with template formatting. If you were using `status-panel`, here's how to migrate:
 
-### Old way (status-panel)
+### Old way (status-panel - no longer available)
 ```bash
 tmux-intray status-panel
 # Output: "3 active | 5 dismissed"

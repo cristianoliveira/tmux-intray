@@ -205,7 +205,7 @@ $ tmux-intray --help
 #### Utility Commands
 - `tmux-intray help` - Show help message
 - `tmux-intray --version` - Show version information
-- `tmux-intray status-panel` - Generate status bar output for tmux integration
+- `tmux-intray status` - Generate status bar output for tmux integration (replaces status-panel)
 
 ## Documentation
 
@@ -370,10 +370,10 @@ The `tmux-intray tui` command provides an interactive terminal user interface fo
 
 ### Status Bar Integration
 
-The plugin updates `@tmux_intray_active_count` and provides `status-panel` command for status bar display. Configure the format in `~/.config/tmux-intray/config.sh`:
+The plugin updates `@tmux_intray_active_count` and provides `status` command with template formatting for status bar display. Configure the format in `~/.config/tmux-intray/config.sh`:
 
 ```bash
-# Status panel formats: compact, detailed, count-only
+# Status formats: compact, detailed, count-only
 export TMUX_INTRAY_STATUS_FORMAT="compact"
 ```
 
@@ -567,7 +567,7 @@ tmux-intray is built with a modular architecture that separates concerns:
 
 1. **Storage Layer**: SQLite database with transactional storage in `~/.local/state/tmux-intray/notifications.db`
 2. **Command Layer**: Individual command implementations in `cmd/*.go`
-3. **Tmux Integration**: Plugin loader in `tmux-intray.tmux` and status panel command (`tmux-intray status-panel`)
+3. **Tmux Integration**: Plugin loader in `tmux-intray.tmux` and status command (`tmux-intray status`)
 
 ### Data Flow
 
@@ -590,7 +590,7 @@ tmux-intray is built with a modular architecture that separates concerns:
 - Reload tmux with `tmux source-file ~/.tmux.conf`
 
 **Notifications not appearing in status bar**
-- Ensure `status-panel` command works: `tmux-intray status-panel`
+- Ensure `status` command works: `tmux-intray status --format=compact`
 - Check status-right configuration in `.tmux.conf`
 
 ### Debug Logging

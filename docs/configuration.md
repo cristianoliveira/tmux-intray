@@ -57,7 +57,7 @@ With the configuration above, `tmux-intray` only collapses notifications when th
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `TMUX_INTRAY_STATUS_ENABLED` | `1` | Enable (1) or disable (0) the status bar indicator. |
-| `TMUX_INTRAY_STATUS_FORMAT` | `compact` | Status panel format (`compact`, `detailed`, `count-only`). |
+| `TMUX_INTRAY_STATUS_FORMAT` | `compact` | Status format (`compact`, `detailed`, `count-only`). |
 | `TMUX_INTRAY_SHOW_LEVELS` | `0` | Show level counts (1) or only total count (0) in status bar. |
 
 ### Hook System

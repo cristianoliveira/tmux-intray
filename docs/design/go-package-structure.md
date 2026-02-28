@@ -32,7 +32,6 @@ github.com/cristianoliveira/tmux-intray/
 │   ├── clear.go               # Clear command
 │   ├── jump.go                # Jump command
 │   ├── status.go              # Status command
-│   ├── status-panel.go        # Status-panel command
 │   ├── follow.go              # Follow command
 │   ├── help.go                # Help command
 │   ├── version.go             # Version command

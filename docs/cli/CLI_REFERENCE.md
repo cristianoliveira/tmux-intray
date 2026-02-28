@@ -27,7 +27,6 @@ Available Commands:
   mark-read    Mark a notification as read
   settings     Manage TUI settings
   status       Show notification status summary
-  status-panel Status bar indicator script (for tmux status-right)
   tui          Interactive terminal UI for notifications
   version      Show version information
 
@@ -165,5 +164,5 @@ See [Status Command Guide](../status-command-guide.md) for:
 - All 6 preset definitions with examples
 - Real-world use cases (status bar integration, scripts, etc.)
 - Troubleshooting section
-- Migration guide from status-panel
+- Migration guide for users of the deprecated `status-panel` command
 - Advanced examples
