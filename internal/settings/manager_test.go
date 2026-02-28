@@ -523,3 +523,20 @@ func TestPartialUpdates(t *testing.T) {
 	assert.Equal(t, "", settingsData.Filters.State)
 	assert.Equal(t, "", settingsData.ViewMode)
 }
+
+func TestFromSettingsPreservesUnreadFirst(t *testing.T) {
+	s := DefaultSettings()
+	s.UnreadFirst = false
+
+	state := FromSettings(s)
+
+	assert.False(t, state.UnreadFirst)
+}
+
+func TestToSettingsPreservesUnreadFirst(t *testing.T) {
+	state := TUIState{UnreadFirst: true}
+
+	s := state.ToSettings()
+
+	assert.True(t, s.UnreadFirst)
+}
