@@ -122,6 +122,7 @@ func (m *Model) applySearchFilter() {
 	}
 
 	notificationService.ApplyFiltersAndSearch(
+		m.uiState.GetActiveTab(),
 		m.uiState.GetSearchQuery(),
 		m.filters.State,
 		m.filters.Level,

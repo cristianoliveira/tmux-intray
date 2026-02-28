@@ -20,6 +20,8 @@ type DefaultNotificationService struct {
 	filtered       []notification.Notification
 }
 
+const recentsDatasetLimit = 20
+
 // NewNotificationService creates a new DefaultNotificationService.
 func NewNotificationService(provider search.Provider, resolver model.NameResolver) model.NotificationService {
 	return &DefaultNotificationService{
@@ -309,9 +311,31 @@ func (s *DefaultNotificationService) FilterByReadStatus(notifications []notifica
 	return s.convertFromDomain(filtered)
 }
 
+func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortBy, sortOrder string) []notification.Notification {
+	activeOnly := make([]notification.Notification, 0, len(s.notifications))
+	for _, n := range s.notifications {
+		if n.State == "" || n.State == "active" {
+			activeOnly = append(activeOnly, n)
+		}
+	}
+
+	if settings.NormalizeTab(string(activeTab)) == settings.TabAll {
+		return activeOnly
+	}
+
+	sorted := s.SortNotifications(activeOnly, sortBy, sortOrder)
+	if len(sorted) <= recentsDatasetLimit {
+		return sorted
+	}
+
+	result := make([]notification.Notification, recentsDatasetLimit)
+	copy(result, sorted[:recentsDatasetLimit])
+	return result
+}
+
 // ApplyFiltersAndSearch applies filters/search/sorting and stores filtered results.
-func (s *DefaultNotificationService) ApplyFiltersAndSearch(query, state, level, sessionID, windowID, paneID, readFilter, sortBy, sortOrder string) {
-	result := s.notifications
+func (s *DefaultNotificationService) ApplyFiltersAndSearch(activeTab settings.Tab, query, state, level, sessionID, windowID, paneID, readFilter, sortBy, sortOrder string) {
+	result := s.selectDataset(activeTab, sortBy, sortOrder)
 	// Apply state filter
 	if state != "" {
 		result = s.FilterByState(result, state)
