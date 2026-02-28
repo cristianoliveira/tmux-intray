@@ -1,8 +1,8 @@
 # BD Status Command Format Extension Plan
 
-**Document Version:** 1.0  
-**Date Created:** February 2026  
-**Status:** Planning Phase  
+**Document Version:** 1.0
+**Date Created:** February 2026
+**Status:** Planning Phase
 **Author:** Implementation Team
 
 ---

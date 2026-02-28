@@ -738,7 +738,7 @@ message=$(echo "$status" | jq -r '.message // ""')
 if [ "$unread" -gt 0 ]; then
   echo "🔔 $(date '+%Y-%m-%d %H:%M:%S'): $unread notifications"
   echo "   Latest: $message"
-  
+
   # Optional: log to file
   echo "$(date '+%Y-%m-%d %H:%M:%S'): $unread - $message" >> ~/.local/state/bd-monitor.log
 else
@@ -972,12 +972,12 @@ export TMUX_INTRAY_STATUS_FORMAT="compact"
 
 The `bd status --format` feature provides:
 
-✅ **13 template variables** for comprehensive status reporting  
-✅ **6 presets** for common use cases  
-✅ **Custom templates** for unlimited flexibility  
-✅ **Real-time updates** suitable for status bars  
-✅ **JSON output** for programmatic consumption  
-✅ **Environment variable** support for defaults  
+✅ **13 template variables** for comprehensive status reporting
+✅ **6 presets** for common use cases
+✅ **Custom templates** for unlimited flexibility
+✅ **Real-time updates** suitable for status bars
+✅ **JSON output** for programmatic consumption
+✅ **Environment variable** support for defaults
 
 **Next steps**:
 1. Try the [Quick Start](#quick-start) examples

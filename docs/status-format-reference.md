@@ -227,7 +227,7 @@ Status: 3 active | Severity: 1 | Archive: 5 | Latest: Build completed successful
 type TemplateEngine interface {
     // Parse returns a list of variables found in the template
     Parse(template string) ([]string, error)
-    
+
     // Substitute replaces variables with values from context
     Substitute(template string, ctx VariableContext) (string, error)
 }
@@ -278,24 +278,24 @@ type VariableContext struct {
     ReadCount      int
     ActiveCount    int
     DismissedCount int
-    
+
     // Level-specific counts
     InfoCount      int
     WarningCount   int
     ErrorCount     int
     CriticalCount  int
-    
+
     // Content
     LatestMessage  string
-    
+
     // Boolean state
     HasUnread      bool
     HasActive      bool
     HasDismissed   bool
-    
+
     // Severity
     HighestSeverity domain.NotificationLevel
-    
+
     // Session/Window/Pane
     SessionList    string
     WindowList     string
@@ -309,10 +309,10 @@ type VariableContext struct {
 type PresetRegistry interface {
     // Get returns a preset by name
     Get(name string) (*Preset, error)
-    
+
     // List returns all available presets
     List() []Preset
-    
+
     // Register adds a new preset
     Register(preset Preset) error
 }
@@ -528,7 +528,7 @@ bd status --format='Items: %{unread-count}...'           # OK
 export TMUX_INTRAY_STATUS_FORMAT="compact"
 ```
 
-**Values**: 
+**Values**:
 - Preset name: `compact`, `detailed`, `json`, `count-only`, `levels`, `panes`
 - Custom template: `%{unread-count} notifications`
 
