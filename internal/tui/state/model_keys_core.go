@@ -152,57 +152,110 @@ func (m *Model) canProcessBinding() bool {
 // handleKeyBinding handles string-based key bindings.
 func (m *Model) handleKeyBinding(key string, allowInSearch bool) (tea.Model, tea.Cmd) {
 	switch key {
+	case "j", "k":
+		return m.handleNavigationKeys(key)
+	case "G", "g":
+		return m.handleGotoKeys(key, allowInSearch)
+	case "/", "?":
+		return m.handleSearchHelpKeys(key)
+	case "d", "D":
+		return m.handleDismissKeys(key)
+	case "r", "a", "R", "u":
+		return m.handleActionKeys(key)
+	case "v", "h", "l":
+		return m.handleViewControlKeys(key, allowInSearch)
+	case "z", "i", "q":
+		return m.handleSpecialKeys(key, allowInSearch)
+	}
+	return m, nil
+}
+
+// handleNavigationKeys handles j/k navigation keys.
+func (m *Model) handleNavigationKeys(key string) (tea.Model, tea.Cmd) {
+	switch key {
 	case "j":
 		m.handleMoveDown()
-		return m, nil
 	case "k":
 		m.handleMoveUp()
-		return m, nil
+	}
+	return m, nil
+}
+
+// handleGotoKeys handles goto navigation keys (G and g).
+func (m *Model) handleGotoKeys(key string, allowInSearch bool) (tea.Model, tea.Cmd) {
+	switch key {
 	case "G":
 		return m.handleBindingWithCheck(m.handleMoveBottom, allowInSearch)
 	case "g":
 		return m.handleBindingWithCheck(func() {
 			m.uiState.SetPendingKey("g")
 		}, allowInSearch)
+	}
+	return m, nil
+}
+
+// handleSearchHelpKeys handles search and help keys.
+func (m *Model) handleSearchHelpKeys(key string) (tea.Model, tea.Cmd) {
+	switch key {
 	case "/":
 		viewModeBeforeSearch := m.uiState.GetViewMode()
 		m.handleSearchViewMode()
 		m.uiState.SetViewMode(viewModeBeforeSearch)
-		return m, nil
 	case "?":
 		m.uiState.SetShowHelp(!m.uiState.ShowHelp())
-		return m, nil
+	}
+	return m, nil
+}
+
+// handleDismissKeys handles dismiss keys.
+func (m *Model) handleDismissKeys(key string) (tea.Model, tea.Cmd) {
+	switch key {
 	case "d":
 		return m, m.handleDismiss()
 	case "D":
 		return m, m.handleDismissGroup()
+	}
+	return m, nil
+}
+
+// handleActionKeys handles action keys (r, a, R, u).
+func (m *Model) handleActionKeys(key string) (tea.Model, tea.Cmd) {
+	switch key {
 	case "r":
 		m.switchActiveTab(settings.TabRecents)
-		return m, nil
 	case "a":
 		m.switchActiveTab(settings.TabAll)
-		return m, nil
 	case "R":
 		return m, m.markSelectedRead()
 	case "u":
 		return m, m.markSelectedUnread()
+	}
+	return m, nil
+}
+
+// handleViewControlKeys handles view control keys (v, h, l).
+func (m *Model) handleViewControlKeys(key string, allowInSearch bool) (tea.Model, tea.Cmd) {
+	switch key {
 	case "v":
 		return m.handleBindingWithCheck(m.cycleViewMode, allowInSearch)
 	case "h":
 		m.handleCollapseNode()
-		return m, nil
 	case "l":
 		m.handleExpandNode()
-		return m, nil
+	}
+	return m, nil
+}
+
+// handleSpecialKeys handles special keys (z, i, q).
+func (m *Model) handleSpecialKeys(key string, allowInSearch bool) (tea.Model, tea.Cmd) {
+	switch key {
 	case "z":
 		if (allowInSearch || m.canProcessBinding()) && m.isGroupedView() {
 			m.uiState.SetPendingKey("z")
 		}
-		return m, nil
 	case "i":
 		// In search mode, 'i' is handled by KeyRunes
 		// This is a no-op but kept for documentation
-		return m, nil
 	case "q":
 		return m.handleQuit()
 	}
