@@ -2478,6 +2478,7 @@ func TestToState(t *testing.T) {
 				DefaultExpandLevelSet: true,
 				ViewMode:              string(uimodel.ViewModeDetailed),
 				GroupBy:               string(uimodel.GroupByNone),
+				ActiveTab:             settings.TabRecents,
 				DefaultExpandLevel:    1,
 				ExpansionState:        map[string]bool{},
 			},
@@ -2511,6 +2512,7 @@ func TestToState(t *testing.T) {
 				},
 				ViewMode:              settings.ViewModeDetailed,
 				GroupBy:               settings.GroupBySession,
+				ActiveTab:             settings.TabAll,
 				DefaultExpandLevel:    2,
 				DefaultExpandLevelSet: true,
 				ExpansionState: map[string]bool{
@@ -2527,6 +2529,7 @@ func TestToState(t *testing.T) {
 				SortBy:                settings.SortByTimestamp,
 				ViewMode:              settings.ViewModeCompact,
 				GroupBy:               settings.GroupByNone,
+				ActiveTab:             settings.TabRecents,
 				DefaultExpandLevel:    1,
 				DefaultExpandLevelSet: true,
 				ExpansionState:        map[string]bool{},
@@ -2542,6 +2545,7 @@ func TestToState(t *testing.T) {
 				tt.model.uiState = NewUIState()
 				tt.model.uiState.SetViewMode(uimodel.ViewMode(settings.ViewModeDetailed))
 				tt.model.uiState.SetGroupBy(uimodel.GroupBy(settings.GroupBySession))
+				tt.model.uiState.SetActiveTab(settings.TabAll)
 				tt.model.uiState.SetExpandLevel(2)
 				tt.model.uiState.SetExpansionState(map[string]bool{"session:$1": true})
 			case "model with partial settings":
@@ -2559,6 +2563,7 @@ func TestToState(t *testing.T) {
 			assert.Equal(t, tt.want.Filters, got.Filters)
 			assert.Equal(t, tt.want.ViewMode, got.ViewMode)
 			assert.Equal(t, tt.want.GroupBy, got.GroupBy)
+			assert.Equal(t, tt.want.ActiveTab, got.ActiveTab)
 			assert.Equal(t, tt.want.DefaultExpandLevel, got.DefaultExpandLevel)
 			assert.Equal(t, tt.want.DefaultExpandLevelSet, got.DefaultExpandLevelSet)
 			assert.Equal(t, tt.want.ExpansionState, got.ExpansionState)
@@ -2608,6 +2613,7 @@ func TestFromState(t *testing.T) {
 				},
 				ViewMode:              settings.ViewModeDetailed,
 				GroupBy:               settings.GroupByWindow,
+				ActiveTab:             settings.TabAll,
 				DefaultExpandLevel:    2,
 				DefaultExpandLevelSet: true,
 				ExpansionState: map[string]bool{
@@ -2621,6 +2627,7 @@ func TestFromState(t *testing.T) {
 				assert.Equal(t, []string{settings.ColumnID, settings.ColumnMessage, settings.ColumnLevel}, m.columns)
 				assert.Equal(t, settings.ViewModeDetailed, string(m.uiState.GetViewMode()))
 				assert.Equal(t, settings.GroupByWindow, string(m.uiState.GetGroupBy()))
+				assert.Equal(t, settings.TabAll, m.uiState.GetActiveTab())
 				assert.Equal(t, 2, m.uiState.GetExpandLevel())
 				assert.Equal(t, map[string]bool{"window:@1": true}, m.uiState.GetExpansionState())
 				assert.Equal(t, settings.LevelFilterWarning, m.filters.Level)
@@ -2669,6 +2676,7 @@ func TestFromState(t *testing.T) {
 				// ViewMode and GroupBy not set in state, so preserve default values
 				assert.Equal(t, settings.ViewModeDetailed, string(m.uiState.GetViewMode()))
 				assert.Equal(t, settings.GroupByNone, string(m.uiState.GetGroupBy()))
+				assert.Equal(t, settings.TabRecents, m.uiState.GetActiveTab())
 				assert.Equal(t, 0, m.uiState.GetExpandLevel())
 			},
 		},
@@ -2711,6 +2719,17 @@ func TestFromState(t *testing.T) {
 				assert.Equal(t, settings.GroupByPane, string(m.uiState.GetGroupBy()))
 				assert.Equal(t, 2, m.uiState.GetExpandLevel())
 				assert.Equal(t, map[string]bool{}, m.uiState.GetExpansionState())
+			},
+		},
+		{
+			name:  "invalid activeTab value normalizes to recents",
+			model: &Model{uiState: NewUIState()},
+			state: settings.TUIState{
+				ActiveTab: settings.Tab("invalid"),
+			},
+			wantErr: false,
+			verifyFn: func(t *testing.T, m *Model) {
+				assert.Equal(t, settings.TabRecents, m.uiState.GetActiveTab())
 			},
 		},
 		{

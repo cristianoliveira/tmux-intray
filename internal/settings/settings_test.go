@@ -36,6 +36,7 @@ func TestDefaultSettings(t *testing.T) {
 
 	// Check grouping settings
 	assert.Equal(t, GroupByNone, s.GroupBy)
+	assert.Equal(t, TabRecents, s.ActiveTab)
 	assert.Equal(t, 1, s.DefaultExpandLevel)
 	assert.Equal(t, map[string]bool{}, s.ExpansionState)
 
@@ -66,6 +67,7 @@ func TestLoadDefaultWhenFileDoesNotExist(t *testing.T) {
 	assert.Equal(t, expected.Filters, settings.Filters)
 	assert.Equal(t, expected.ViewMode, settings.ViewMode)
 	assert.Equal(t, expected.GroupBy, settings.GroupBy)
+	assert.Equal(t, expected.ActiveTab, settings.ActiveTab)
 	assert.Equal(t, expected.DefaultExpandLevel, settings.DefaultExpandLevel)
 	assert.Equal(t, expected.ExpansionState, settings.ExpansionState)
 	assert.Equal(t, expected.GroupHeader, settings.GroupHeader)
@@ -93,6 +95,7 @@ func TestLoadFromExistingFile(t *testing.T) {
 		},
 		ViewMode:           ViewModeDetailed,
 		GroupBy:            GroupByWindow,
+		ActiveTab:          TabAll,
 		DefaultExpandLevel: 2,
 		ExpansionState: map[string]bool{
 			"window:@1": true,
@@ -130,6 +133,7 @@ func TestLoadFromExistingFile(t *testing.T) {
 	assert.Equal(t, "my-session", settings.Filters.Session)
 	assert.Equal(t, ViewModeDetailed, settings.ViewMode)
 	assert.Equal(t, GroupByWindow, settings.GroupBy)
+	assert.Equal(t, TabAll, settings.ActiveTab)
 	assert.Equal(t, 2, settings.DefaultExpandLevel)
 	assert.Equal(t, map[string]bool{"window:@1": true}, settings.ExpansionState)
 	assert.Equal(t, customSettings.GroupHeader, settings.GroupHeader)
@@ -165,9 +169,29 @@ view_mode = "detailed"
 	assert.Equal(t, SortOrderDesc, settings.SortOrder)
 	assert.Equal(t, "", settings.Filters.Level)
 	assert.Equal(t, GroupByNone, settings.GroupBy)
+	assert.Equal(t, TabRecents, settings.ActiveTab)
 	assert.Equal(t, 1, settings.DefaultExpandLevel)
 	assert.Equal(t, map[string]bool{}, settings.ExpansionState)
 	assert.Equal(t, DefaultSettings().GroupHeader, settings.GroupHeader)
+}
+
+func TestLoadInvalidActiveTabFallsBackToDefault(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+	t.Setenv("HOME", tmpDir)
+
+	configDir := filepath.Join(tmpDir, "tmux-intray")
+	require.NoError(t, os.MkdirAll(configDir, 0755))
+
+	settingsPath := filepath.Join(configDir, "tui.toml")
+	invalidTOML := `active_tab = "not-a-tab"
+view_mode = "grouped"
+`
+	require.NoError(t, os.WriteFile(settingsPath, []byte(invalidTOML), 0644))
+
+	loaded, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, TabRecents, loaded.ActiveTab)
 }
 
 func TestLoadInvalidTOML(t *testing.T) {
@@ -196,6 +220,7 @@ func TestLoadInvalidTOML(t *testing.T) {
 	assert.Equal(t, expected.Filters, settings.Filters)
 	assert.Equal(t, expected.ViewMode, settings.ViewMode)
 	assert.Equal(t, expected.GroupBy, settings.GroupBy)
+	assert.Equal(t, expected.ActiveTab, settings.ActiveTab)
 	assert.Equal(t, expected.DefaultExpandLevel, settings.DefaultExpandLevel)
 	assert.Equal(t, expected.ExpansionState, settings.ExpansionState)
 }
@@ -306,6 +331,7 @@ func TestSave(t *testing.T) {
 	assert.Equal(t, settings.Filters, loaded.Filters)
 	assert.Equal(t, settings.ViewMode, loaded.ViewMode)
 	assert.Equal(t, settings.GroupBy, loaded.GroupBy)
+	assert.Equal(t, settings.ActiveTab, loaded.ActiveTab)
 	assert.Equal(t, settings.DefaultExpandLevel, loaded.DefaultExpandLevel)
 	assert.Equal(t, settings.ExpansionState, loaded.ExpansionState)
 	assert.Equal(t, settings.GroupHeader, loaded.GroupHeader)
@@ -386,6 +412,7 @@ func TestValidateValidSettings(t *testing.T) {
 				SortOrder:          SortOrderAsc,
 				ViewMode:           ViewModeDetailed,
 				GroupBy:            GroupBySession,
+				ActiveTab:          TabAll,
 				DefaultExpandLevel: 2,
 			},
 		},
@@ -428,6 +455,13 @@ func TestValidateValidSettings(t *testing.T) {
 				Filters:   Filter{},
 				ViewMode:  "",
 				GroupBy:   "",
+				ActiveTab: TabRecents,
+			},
+		},
+		{
+			name: "invalid activeTab normalizes to default",
+			settings: &Settings{
+				ActiveTab: Tab("invalid"),
 			},
 		},
 		{
@@ -659,6 +693,7 @@ func TestSettingsTOMLMarshaling(t *testing.T) {
 	assert.Equal(t, settings.Filters, loaded.Filters)
 	assert.Equal(t, settings.ViewMode, loaded.ViewMode)
 	assert.Equal(t, settings.GroupBy, loaded.GroupBy)
+	assert.Equal(t, settings.ActiveTab, loaded.ActiveTab)
 	assert.Equal(t, settings.DefaultExpandLevel, loaded.DefaultExpandLevel)
 	// ExpansionState may be nil after unmarshal (empty map doesn't serialize)
 	if loaded.ExpansionState == nil {
@@ -686,6 +721,7 @@ func TestInit(t *testing.T) {
 	assert.Equal(t, DefaultColumns, settings.Columns)
 	assert.Equal(t, SortByTimestamp, settings.SortBy)
 	assert.Equal(t, GroupByNone, settings.GroupBy)
+	assert.Equal(t, TabRecents, settings.ActiveTab)
 	assert.Equal(t, 1, settings.DefaultExpandLevel)
 }
 
@@ -723,6 +759,7 @@ func TestInitWithExistingFile(t *testing.T) {
 		SortOrder:          SortOrderAsc,
 		ViewMode:           ViewModeDetailed,
 		GroupBy:            GroupByWindow,
+		ActiveTab:          TabAll,
 		DefaultExpandLevel: 2,
 	}
 
@@ -740,6 +777,7 @@ func TestInitWithExistingFile(t *testing.T) {
 	assert.Equal(t, SortOrderAsc, settings.SortOrder)
 	assert.Equal(t, ViewModeDetailed, settings.ViewMode)
 	assert.Equal(t, GroupByWindow, settings.GroupBy)
+	assert.Equal(t, TabAll, settings.ActiveTab)
 	assert.Equal(t, 2, settings.DefaultExpandLevel)
 }
 
@@ -755,6 +793,7 @@ func TestReset(t *testing.T) {
 		SortOrder:          SortOrderAsc,
 		ViewMode:           ViewModeDetailed,
 		GroupBy:            GroupByWindow,
+		ActiveTab:          TabAll,
 		DefaultExpandLevel: 2,
 	}
 	err := Save(customSettings)
@@ -779,6 +818,7 @@ func TestReset(t *testing.T) {
 	assert.Equal(t, SortOrderDesc, defaults.SortOrder)
 	assert.Equal(t, ViewModeGrouped, defaults.ViewMode)
 	assert.Equal(t, GroupByNone, defaults.GroupBy)
+	assert.Equal(t, TabRecents, defaults.ActiveTab)
 	assert.Equal(t, 1, defaults.DefaultExpandLevel)
 }
 
@@ -798,6 +838,7 @@ func TestResetWhenFileDoesNotExist(t *testing.T) {
 	assert.Equal(t, SortOrderDesc, defaults.SortOrder)
 	assert.Equal(t, ViewModeGrouped, defaults.ViewMode)
 	assert.Equal(t, GroupByNone, defaults.GroupBy)
+	assert.Equal(t, TabRecents, defaults.ActiveTab)
 	assert.Equal(t, 1, defaults.DefaultExpandLevel)
 }
 

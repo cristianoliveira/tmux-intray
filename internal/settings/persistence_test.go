@@ -35,7 +35,8 @@ func TestSettingsJSONRoundTrip(t *testing.T) {
 			Window:  "@1",
 			Pane:    "%1",
 		},
-		ViewMode: ViewModeDetailed,
+		ViewMode:  ViewModeDetailed,
+		ActiveTab: TabAll,
 	}
 
 	data, err := json.Marshal(original)
@@ -49,6 +50,7 @@ func TestSettingsJSONRoundTrip(t *testing.T) {
 	assert.Equal(t, original.SortOrder, decoded.SortOrder)
 	assert.Equal(t, original.Filters, decoded.Filters)
 	assert.Equal(t, original.ViewMode, decoded.ViewMode)
+	assert.Equal(t, original.ActiveTab, decoded.ActiveTab)
 }
 
 func TestSettingsValidation(t *testing.T) {
@@ -124,7 +126,8 @@ func TestSaveLoad(t *testing.T) {
 		Filters: Filter{
 			Level: LevelFilterError,
 		},
-		ViewMode: ViewModeDetailed,
+		ViewMode:  ViewModeDetailed,
+		ActiveTab: TabAll,
 	}
 
 	require.NoError(t, Save(original))
@@ -136,6 +139,7 @@ func TestSaveLoad(t *testing.T) {
 	assert.Equal(t, original.SortOrder, loaded.SortOrder)
 	assert.Equal(t, original.Filters, loaded.Filters)
 	assert.Equal(t, original.ViewMode, loaded.ViewMode)
+	assert.Equal(t, original.ActiveTab, loaded.ActiveTab)
 }
 
 func TestSaveWithLocking(t *testing.T) {

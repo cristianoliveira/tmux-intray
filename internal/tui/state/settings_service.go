@@ -33,6 +33,7 @@ func (s *settingsService) toState(uiState *UIState, columns []string, sortBy str
 		DefaultExpandLevelSet: true,
 		ExpansionState:        dto.ExpansionState,
 		ShowHelp:              dto.ShowHelp,
+		ActiveTab:             settings.NormalizeTab(string(dto.ActiveTab)),
 	}
 }
 
@@ -71,6 +72,7 @@ func (s *settingsService) fromState(state settings.TUIState, uiState *UIState, c
 		dto.ExpansionState = state.ExpansionState
 	}
 	dto.ShowHelp = state.ShowHelp
+	dto.ActiveTab = settings.NormalizeTab(string(state.ActiveTab))
 
 	if err := uiState.FromDTO(dto); err != nil {
 		return err
