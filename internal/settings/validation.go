@@ -9,6 +9,8 @@ func Validate(settings *Settings) error {
 		return fmt.Errorf("settings cannot be nil")
 	}
 
+	settings.ActiveTab = NormalizeTab(string(settings.ActiveTab))
+
 	settings.GroupHeader.normalize()
 	if err := settings.GroupHeader.Validate(); err != nil {
 		return fmt.Errorf("invalid groupHeader options: %w", err)

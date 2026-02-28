@@ -20,12 +20,13 @@ func (s *settingsService) setLoadedSettings(loaded *settings.Settings) {
 	s.loadedSettings = loaded
 }
 
-func (s *settingsService) toState(uiState *UIState, columns []string, sortBy string, sortOrder string, filters settings.Filter) settings.TUIState {
+func (s *settingsService) toState(uiState *UIState, columns []string, sortBy string, sortOrder string, unreadFirst bool, filters settings.Filter) settings.TUIState {
 	dto := uiState.ToDTO()
 	return settings.TUIState{
 		Columns:               columns,
 		SortBy:                sortBy,
 		SortOrder:             sortOrder,
+		UnreadFirst:           unreadFirst,
 		Filters:               filters,
 		ViewMode:              string(dto.ViewMode),
 		GroupBy:               string(dto.GroupBy),
@@ -33,10 +34,11 @@ func (s *settingsService) toState(uiState *UIState, columns []string, sortBy str
 		DefaultExpandLevelSet: true,
 		ExpansionState:        dto.ExpansionState,
 		ShowHelp:              dto.ShowHelp,
+		ActiveTab:             settings.NormalizeTab(string(dto.ActiveTab)),
 	}
 }
 
-func (s *settingsService) fromState(state settings.TUIState, uiState *UIState, columns *[]string, sortBy *string, sortOrder *string, filters *settings.Filter) error {
+func (s *settingsService) fromState(state settings.TUIState, uiState *UIState, columns *[]string, sortBy *string, sortOrder *string, unreadFirst *bool, filters *settings.Filter) error {
 	if state.GroupBy != "" && !settings.IsValidGroupBy(state.GroupBy) {
 		return fmt.Errorf("invalid groupBy value: %s", state.GroupBy)
 	}
@@ -55,6 +57,7 @@ func (s *settingsService) fromState(state settings.TUIState, uiState *UIState, c
 	if state.SortOrder != "" {
 		*sortOrder = state.SortOrder
 	}
+	*unreadFirst = state.UnreadFirst
 
 	dto := model.UIDTO{}
 	if state.ViewMode != "" {
@@ -71,6 +74,7 @@ func (s *settingsService) fromState(state settings.TUIState, uiState *UIState, c
 		dto.ExpansionState = state.ExpansionState
 	}
 	dto.ShowHelp = state.ShowHelp
+	dto.ActiveTab = settings.NormalizeTab(string(state.ActiveTab))
 
 	if err := uiState.FromDTO(dto); err != nil {
 		return err

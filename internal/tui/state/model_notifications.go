@@ -16,12 +16,14 @@ func (m *Model) SetLoadedSettings(loaded *settings.Settings) {
 	m.ensureSettingsService().setLoadedSettings(loaded)
 	m.loadedSettings = loaded
 	if loaded != nil {
+		m.unreadFirst = loaded.UnreadFirst
 		m.groupHeaderOptions = loaded.GroupHeader.Clone()
 		// Pass settings to notification service for configurable sorting
 		if notifSvc, ok := m.notificationService.(*service.DefaultNotificationService); ok {
 			notifSvc.SetSettings(loaded)
 		}
 	} else {
+		m.unreadFirst = true
 		m.groupHeaderOptions = settings.DefaultGroupHeaderOptions()
 	}
 }
@@ -29,14 +31,14 @@ func (m *Model) SetLoadedSettings(loaded *settings.Settings) {
 // ToState converts the Model to a TUIState DTO for settings persistence.
 // Only persists user-configurable settings (columns, sort, filters, view mode).
 func (m *Model) ToState() settings.TUIState {
-	return m.ensureSettingsService().toState(m.uiState, m.columns, m.sortBy, m.sortOrder, m.filters)
+	return m.ensureSettingsService().toState(m.uiState, m.columns, m.sortBy, m.sortOrder, m.unreadFirst, m.filters)
 }
 
 // FromState applies settings from TUIState to the Model.
 // Supports partial updates - only updates non-empty fields.
 // Returns an error if the settings are invalid.
 func (m *Model) FromState(state settings.TUIState) error {
-	if err := m.ensureSettingsService().fromState(state, m.uiState, &m.columns, &m.sortBy, &m.sortOrder, &m.filters); err != nil {
+	if err := m.ensureSettingsService().fromState(state, m.uiState, &m.columns, &m.sortBy, &m.sortOrder, &m.unreadFirst, &m.filters); err != nil {
 		return err
 	}
 
@@ -120,6 +122,7 @@ func (m *Model) applySearchFilter() {
 	}
 
 	notificationService.ApplyFiltersAndSearch(
+		m.uiState.GetActiveTab(),
 		m.uiState.GetSearchQuery(),
 		m.filters.State,
 		m.filters.Level,
