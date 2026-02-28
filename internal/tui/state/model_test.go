@@ -1193,6 +1193,56 @@ func TestApplySearchFilterReadStatus(t *testing.T) {
 	assert.Equal(t, "Alpha", model.filtered[0].Message)
 }
 
+func TestApplySearchFilterTabSwitchRefreshesVisibleListAndPreservesQuery(t *testing.T) {
+	notifications := make([]notification.Notification, 0, 25)
+	for i := 1; i <= 25; i++ {
+		timestamp := time.Date(2024, time.January, i, 10, 0, 0, 0, time.UTC).Format(time.RFC3339)
+		notifications = append(notifications, notification.Notification{
+			ID:        i,
+			Message:   timestamp,
+			State:     "active",
+			Timestamp: timestamp,
+		})
+	}
+
+	model := newTestModel(t, notifications)
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.sortBy = settings.SortByTimestamp
+	model.sortOrder = settings.SortOrderDesc
+	model.uiState.SetActiveTab(settings.TabRecents)
+	model.uiState.SetSearchQuery("")
+	model.applySearchFilter()
+	require.Len(t, model.filtered, 20)
+
+	present := make(map[int]bool, len(model.filtered))
+	for _, n := range model.filtered {
+		present[n.ID] = true
+	}
+
+	var outside notification.Notification
+	foundOutside := false
+	for _, n := range notifications {
+		if !present[n.ID] {
+			outside = n
+			foundOutside = true
+			break
+		}
+	}
+	require.True(t, foundOutside)
+
+	model.uiState.SetSearchQuery(outside.Message)
+	model.applySearchFilter()
+	require.Empty(t, model.filtered)
+	assert.Equal(t, outside.Message, model.uiState.GetSearchQuery())
+
+	model.uiState.SetActiveTab(settings.TabAll)
+	model.applySearchFilter()
+	require.Len(t, model.filtered, 1)
+	assert.Equal(t, outside.ID, model.filtered[0].ID)
+	assert.Equal(t, outside.Message, model.uiState.GetSearchQuery())
+}
+
 // TestApplySearchFilterWithMockProvider tests that applySearchFilter correctly
 // uses a custom mock search provider when set.
 func TestApplySearchFilterWithMockProvider(t *testing.T) {

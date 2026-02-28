@@ -4,6 +4,7 @@ package model
 
 import (
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/settings"
 )
 
 // NotificationService defines the interface for notification business logic operations.
@@ -18,8 +19,8 @@ type NotificationService interface {
 	// GetFilteredNotifications returns the latest filtered notification view.
 	GetFilteredNotifications() []notification.Notification
 
-	// ApplyFiltersAndSearch applies filters/search/sorting and stores filtered results.
-	ApplyFiltersAndSearch(query, state, level, sessionID, windowID, paneID, readFilter, sortBy, sortOrder string)
+	// ApplyFiltersAndSearch applies tab selection, filters/search/sorting, and stores filtered results.
+	ApplyFiltersAndSearch(activeTab settings.Tab, query, state, level, sessionID, windowID, paneID, readFilter, sortBy, sortOrder string)
 
 	// FilterNotifications filters notifications based on a search query.
 	// Returns a list of matching notifications.
