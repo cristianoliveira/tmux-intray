@@ -47,32 +47,32 @@ func (pr *presetRegistry) registerDefaults() {
 	presets := []Preset{
 		{
 			Name:        "compact",
-			Template:    "[%{unread-count}] %{latest-message}",
+			Template:    "[{{unread-count}}] {{latest-message}}",
 			Description: "Compact format showing unread count and latest message",
 		},
 		{
 			Name:        "detailed",
-			Template:    "%{unread-count} unread, %{read-count} read | Latest: %{latest-message}",
+			Template:    "{{unread-count}} unread, {{read-count}} read | Latest: {{latest-message}}",
 			Description: "Detailed format with counts and latest message",
 		},
 		{
 			Name:        "json",
-			Template:    `{"unread":%{unread-count},"total":%{total-count},"message":"%{latest-message}"}`,
+			Template:    `{"unread":{{unread-count}},"total":{{total-count}},"message":"{{latest-message}}"}`,
 			Description: "JSON format for programmatic consumption",
 		},
 		{
 			Name:        "count-only",
-			Template:    "%{unread-count}",
+			Template:    "{{unread-count}}",
 			Description: "Only unread count",
 		},
 		{
 			Name:        "levels",
-			Template:    "Severity: %{highest-severity} | Unread: %{unread-count}",
+			Template:    "Severity: {{highest-severity}} | Unread: {{unread-count}}",
 			Description: "Format showing severity level and unread count",
 		},
 		{
 			Name:        "panes",
-			Template:    "%{pane-list} (%{unread-count})",
+			Template:    "{{pane-list}} ({{unread-count}})",
 			Description: "Format showing pane list with count",
 		},
 	}

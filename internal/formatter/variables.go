@@ -5,6 +5,7 @@ package formatter
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
 )
@@ -53,6 +54,29 @@ type variableResolver struct{}
 // NewVariableResolver creates a new variable resolver instance.
 func NewVariableResolver() VariableResolver {
 	return &variableResolver{}
+}
+
+// GetAvailableVariables returns a list of all available variable names.
+func GetAvailableVariables() []string {
+	return []string{
+		"unread-count",
+		"total-count", // alias for unread-count
+		"read-count",
+		"active-count",
+		"dismissed-count",
+		"info-count",
+		"warning-count",
+		"error-count",
+		"critical-count",
+		"latest-message",
+		"has-unread",
+		"has-active",
+		"has-dismissed",
+		"highest-severity",
+		"session-list",
+		"window-list",
+		"pane-list",
+	}
 }
 
 // Resolve returns the string value for a variable from the context.
@@ -118,7 +142,8 @@ func (vr *variableResolver) Resolve(varName string, ctx VariableContext) (string
 		return ctx.PaneList, nil
 
 	default:
-		return "", fmt.Errorf("unknown variable: %s", varName)
+		available := GetAvailableVariables()
+		return "", fmt.Errorf("unknown variable: %s\n\nAvailable variables:\n  %s", varName, strings.Join(available, "\n  "))
 	}
 }
 

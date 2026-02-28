@@ -25,7 +25,7 @@ Templates use `${variable-name}` syntax for variable substitution. Variables are
 ### Valid Characters
 - Variables must contain lowercase letters, numbers, and hyphens: `[a-z0-9-]+`
 - Variables are case-sensitive: `${unread-count}` works, `${Unread-Count}` does not
-- Unknown variables are silently replaced with empty strings (no error)
+- Unknown variables produce an error with a list of available variables
 
 ### Example Template
 ```
@@ -35,6 +35,28 @@ You have ${unread-count} active + ${read-count} read = ${total-count} total
 Output:
 ```
 You have 3 active + 5 read = 3 total
+```
+
+## Migration Note (v0.4.0+)
+
+**Behavior Change**: Previously, unknown template variables were silently replaced with empty strings. 
+
+**Current Behavior**: Templates with unknown variables now produce an error that includes a list of all available variables.
+
+**Migration Steps**:
+1. Test your existing custom templates - they will now fail if they contain typos
+2. Check error messages for the exact list of available variables
+3. Update any templates with incorrect variable names
+
+Example of new error output:
+```
+Error: template substitution error: unknown variable: unead-count
+
+Available variables:
+  unread-count
+  read-count
+  dismissed-count
+  ...
 ```
 
 ## Variables Reference
@@ -548,18 +570,37 @@ fi
 2. Check if notifications exist: `tmux-intray list --active`
 3. Verify database file: `ls -l ~/.local/state/tmux-intray/notifications.db`
 
+### Template error with unknown variable
+
+**Symptoms**: Command fails with "unknown variable" error
+
+**Possible causes**:
+- Variable name has typo (case-sensitive: `{{unread-count}}` not `{{Unread-Count}}`)
+- Variable doesn't exist (all available variables are listed in the error)
+
+**Solution**: The error message includes a complete list of available variables:
+```bash
+# Example error output:
+Error: template substitution error: unknown variable: unead-count
+
+Available variables:
+  unread-count
+  read-count
+  dismissed-count
+  latest-message
+  ...
+```
+
 ### Variable shows as empty string
 
-**Symptoms**: Template like `${latest-message}` shows empty output
+**Symptoms**: Template like `{{latest-message}}` shows empty output
 
 **Possible causes**:
 - No active notifications (check `tmux-intray list --active`)
-- Variable name has typo (case-sensitive: `${unread-count}` not `${Unread-Count}`)
-- Variable doesn't exist (unknown variables are silently omitted)
 
-**Solution**: Check available variables in help text:
+**Solution**: Verify notifications exist and are active:
 ```bash
-tmux-intray status --help
+tmux-intray list --active
 ```
 
 ### JSON output not valid JSON
