@@ -1068,21 +1068,6 @@ func TestModelUpdateHandlesKeyBindingsInSearchMode(t *testing.T) {
 	model = updated.(*Model)
 	assert.Equal(t, "", model.uiState.GetPendingKey())
 	assert.Equal(t, "z", model.uiState.GetSearchQuery())
-	// 'r' should stay as search input and not switch tabs
-	model.uiState.SetActiveTab(settings.TabAll)
-	model.uiState.SetSearchQuery("")
-	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}}
-	updated, _ = model.Update(msg)
-	model = updated.(*Model)
-	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab())
-	assert.Equal(t, "r", model.uiState.GetSearchQuery())
-	// 'a' should stay as search input and not switch tabs
-	model.uiState.SetSearchQuery("")
-	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}
-	updated, _ = model.Update(msg)
-	model = updated.(*Model)
-	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab())
-	assert.Equal(t, "a", model.uiState.GetSearchQuery())
 	// 'i' should be no-op (adds to search query)
 	model.uiState.SetSearchQuery("")
 	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}}
@@ -1144,8 +1129,8 @@ func TestModelUpdateHandlesReadUnreadKeys(t *testing.T) {
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetCursor(0)
 
-	// Press 'R' to mark read
-	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'R'}}
+	// Press 'r' to mark read
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}}
 	updated, cmd := model.Update(msg)
 	model = updated.(*Model)
 	assert.Nil(t, cmd) // command may be nil
@@ -1206,38 +1191,6 @@ func TestApplySearchFilterReadStatus(t *testing.T) {
 	model.resetCursor()
 	require.Len(t, model.filtered, 1)
 	assert.Equal(t, "Alpha", model.filtered[0].Message)
-}
-
-func TestModelUpdateSwitchesTabsWithRAKeybindings(t *testing.T) {
-	notifications := make([]notification.Notification, 0, 25)
-	for i := 1; i <= 25; i++ {
-		timestamp := time.Date(2024, time.January, i, 10, 0, 0, 0, time.UTC).Format(time.RFC3339)
-		notifications = append(notifications, notification.Notification{
-			ID:        i,
-			Message:   timestamp,
-			State:     "active",
-			Timestamp: timestamp,
-		})
-	}
-
-	model := newTestModel(t, notifications)
-	model.uiState.SetWidth(80)
-	model.uiState.GetViewport().Width = 80
-	model.sortBy = settings.SortByTimestamp
-	model.sortOrder = settings.SortOrderDesc
-	model.uiState.SetActiveTab(settings.TabRecents)
-	model.applySearchFilter()
-	require.Len(t, model.filtered, 20)
-
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
-	model = updated.(*Model)
-	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab())
-	require.Len(t, model.filtered, 25)
-
-	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
-	model = updated.(*Model)
-	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
-	require.Len(t, model.filtered, 20)
 }
 
 func TestApplySearchFilterTabSwitchRefreshesVisibleListAndPreservesQuery(t *testing.T) {
@@ -1883,7 +1836,7 @@ func TestModelUpdateHandlesWindowSize(t *testing.T) {
 
 	assert.Equal(t, 100, model.uiState.GetWidth())
 	assert.Equal(t, 30, model.uiState.GetHeight())
-	assert.Equal(t, 27, model.uiState.GetViewport().Height)
+	assert.Equal(t, 28, model.uiState.GetViewport().Height)
 }
 
 func TestModelViewRendersContent(t *testing.T) {
