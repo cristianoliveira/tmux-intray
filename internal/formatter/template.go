@@ -79,9 +79,8 @@ func (te *templateEngine) Substitute(template string, ctx VariableContext) (stri
 			varName := match[1]
 			value, err := resolver.Resolve(varName, ctx)
 			if err != nil {
-				// For unknown variables, replace with empty string
-				result = strings.ReplaceAll(result, match[0], "")
-				continue
+				// Return error for unknown variables with available variables list
+				return "", err
 			}
 			result = strings.ReplaceAll(result, match[0], value)
 		}

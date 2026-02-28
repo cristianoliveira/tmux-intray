@@ -173,10 +173,10 @@ func TestTemplateEngine_Substitute(t *testing.T) {
 			wantErr:  false,
 		},
 		{
-			name:     "unknown variable replaced with empty",
+			name:     "unknown variable returns error with available variables",
 			template: "Count: {{unknown-var}}",
-			want:     "Count: ",
-			wantErr:  false,
+			want:     "",
+			wantErr:  true,
 		},
 	}
 

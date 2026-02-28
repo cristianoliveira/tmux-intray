@@ -259,7 +259,13 @@ func TestStatusRunEInvalidVariableReturnsHelpfulError(t *testing.T) {
 	require.NoError(t, cmd.Flags().Set("format", "{{unknown-var}}"))
 
 	err := cmd.RunE(cmd, []string{})
-	require.NoError(t, err)
+	require.Error(t, err)
+
+	// Verify the error contains helpful information
+	errStr := err.Error()
+	assert.Contains(t, errStr, "unknown variable: unknown-var")
+	assert.Contains(t, errStr, "Available variables:")
+	assert.Contains(t, errStr, "unread-count")
 }
 
 func TestStatusRunEInvalidVariableNameReturnsError(t *testing.T) {
