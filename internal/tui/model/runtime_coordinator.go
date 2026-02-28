@@ -14,6 +14,11 @@ type RuntimeCoordinator interface {
 	// Returns true on success, false on failure.
 	JumpToPane(sessionID, windowID, paneID string) bool
 
+	// JumpToWindow jumps to a specific window in tmux.
+	// Requires session ID and window ID.
+	// Returns true on success, false on failure.
+	JumpToWindow(sessionID, windowID string) bool
+
 	// ValidatePaneExists checks if a pane exists in the specified session and window.
 	// Returns true if the pane exists, false otherwise.
 	ValidatePaneExists(sessionID, windowID, paneID string) (bool, error)

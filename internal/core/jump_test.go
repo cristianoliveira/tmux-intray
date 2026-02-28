@@ -244,6 +244,19 @@ func TestJumpService_JumpToContext(t *testing.T) {
 			expectedMessage:    "session id cannot be empty",
 		},
 		{
+			name:      "empty window ID",
+			sessionID: "$0",
+			windowID:  "",
+			paneID:    "%1",
+			setupMock: func(m *tmux.MockClient) {
+				// No tmux calls expected
+			},
+			expectError:        false,
+			expectedSuccess:    false,
+			expectedJumpToPane: false,
+			expectedMessage:    "window id cannot be empty",
+		},
+		{
 			name:      "tmux not running",
 			sessionID: "$0",
 			windowID:  "%0",

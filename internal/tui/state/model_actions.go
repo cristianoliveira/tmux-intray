@@ -10,6 +10,12 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
 
+type jumpTarget struct {
+	session string
+	window  string
+	pane    string
+}
+
 // handleDismiss handles the dismiss action for the selected notification.
 func (m *Model) handleDismiss() tea.Cmd {
 	if m.currentListLen() == 0 {
@@ -209,15 +215,13 @@ func (m *Model) handleJump() tea.Cmd {
 		return nil
 	}
 
-	// Get the selected notification
-	selected, ok := m.selectedNotification()
+	target, selected, ok := m.selectedJumpTarget()
 	if !ok {
 		return nil
 	}
 
-	// Check if notification has valid session, window, pane
-	if selected.Session == "" || selected.Window == "" || selected.Pane == "" {
-		m.errorHandler.Error("jump: notification missing session, window, or pane information")
+	if target.session == "" || target.window == "" {
+		m.errorHandler.Error("jump: notification missing session or window information")
 		return errorMsgAfter(errorClearDuration)
 	}
 
@@ -227,11 +231,15 @@ func (m *Model) handleJump() tea.Cmd {
 		return errorMsgAfter(errorClearDuration)
 	}
 
-	// Jump to the pane using RuntimeCoordinator
-	// The error handler (set in NewModel) will capture and display errors in the TUI footer
-	if !m.ensureInteractionController().JumpToPane(selected.Session, selected.Window, selected.Pane) {
-		// Error was already handled by m.errorHandler, just return error clear command
-		return errorMsgAfter(errorClearDuration)
+	if target.pane != "" {
+		if !m.ensureInteractionController().JumpToPane(target.session, target.window, target.pane) {
+			return errorMsgAfter(errorClearDuration)
+		}
+	} else {
+		m.errorHandler.Warning(fmt.Sprintf("jump: pane unavailable for %s:%s, jumping to window", target.session, target.window))
+		if !m.ensureInteractionController().JumpToWindow(target.session, target.window) {
+			return errorMsgAfter(errorClearDuration)
+		}
 	}
 
 	id := strconv.Itoa(selected.ID)
@@ -240,6 +248,58 @@ func (m *Model) handleJump() tea.Cmd {
 	}
 
 	return tea.Quit
+}
+
+func (m *Model) selectedJumpTarget() (jumpTarget, notification.Notification, bool) {
+	if !m.isGroupedView() {
+		selected, ok := m.selectedNotification()
+		if !ok {
+			return jumpTarget{}, notification.Notification{}, false
+		}
+		return jumpTarget{session: selected.Session, window: selected.Window, pane: selected.Pane}, selected, true
+	}
+
+	node := m.selectedVisibleNode()
+	if node == nil {
+		return jumpTarget{}, notification.Notification{}, false
+	}
+
+	if node.Notification != nil {
+		selected := *node.Notification
+		return jumpTarget{session: selected.Session, window: selected.Window, pane: selected.Pane}, selected, true
+	}
+
+	if node.LatestEvent == nil {
+		if len(node.Sources) == 0 {
+			return jumpTarget{}, notification.Notification{}, false
+		}
+		for _, src := range node.Sources {
+			selected := notification.Notification{Session: src.Session, Window: src.Window, Pane: src.Pane}
+			target := jumpTarget{session: selected.Session, window: selected.Window, pane: selected.Pane}
+			switch node.Kind {
+			case model.NodeKindWindow:
+				target.pane = ""
+			case model.NodeKindSession:
+				target.window = ""
+				target.pane = ""
+			}
+			return target, selected, true
+		}
+		return jumpTarget{}, notification.Notification{}, false
+	}
+
+	selected := *node.LatestEvent
+	target := jumpTarget{session: selected.Session, window: selected.Window, pane: selected.Pane}
+
+	switch node.Kind {
+	case model.NodeKindWindow:
+		target.pane = ""
+	case model.NodeKindSession:
+		target.window = ""
+		target.pane = ""
+	}
+
+	return target, selected, true
 }
 
 // selectedNotification returns the currently selected notification.

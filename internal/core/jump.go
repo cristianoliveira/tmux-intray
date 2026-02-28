@@ -204,6 +204,12 @@ func (s *JumpService) JumpToContext(sessionID, windowID, paneID string) (*JumpRe
 			Message: "session id cannot be empty",
 		}, nil
 	}
+	if windowID == "" {
+		return &JumpResult{
+			Success: false,
+			Message: "window id cannot be empty",
+		}, nil
+	}
 
 	// 2. Check tmux is running
 	running, err := s.tmuxClient.HasSession()
