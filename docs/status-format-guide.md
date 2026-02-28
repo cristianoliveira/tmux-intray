@@ -968,72 +968,6 @@ Add to `~/.bashrc` or `~/.zshrc` to persist across sessions:
 export TMUX_INTRAY_STATUS_FORMAT="compact"
 ```
 
-## Migration from status-panel
-
-The `status-panel` command is now deprecated. Use `status` instead.
-
-### Comparison
-
-| Need | Old (status-panel) | New (status) |
-|------|-------------------|--------------|
-| Simple count | `status-panel` | `status --format=count-only` |
-| Full summary | `status-panel` | `status --format=detailed` |
-| Custom output | (not possible) | `status --format='custom template'` |
-| JSON | (not available) | `status --format=json` |
-| Severity | (not available) | `status --format=levels` |
-
-### Migration Steps
-
-**Step 1: Update `.tmux.conf`**
-
-```bash
-# Old
-set -g status-right "#(bd status-panel) %H:%M"
-
-# New
-set -g status-right "#(bd status --format=compact) %H:%M"
-```
-
-**Step 2: Update shell scripts**
-
-```bash
-# Old
-count=$(bd status-panel | grep -oE '[0-9]+' | head -1)
-
-# New
-count=$(bd status --format=count-only)
-```
-
-**Step 3: Update environment variables** (no change needed!)
-
-```bash
-# This still works
-export TMUX_INTRAY_STATUS_FORMAT="compact"
-
-# Just use with status instead of status-panel
-bd status --format="$TMUX_INTRAY_STATUS_FORMAT"
-```
-
-### Feature Parity
-
-All features from `status-panel` are now available via `status`:
-
-| Feature | status-panel | status | Notes |
-|---------|--------------|--------|-------|
-| Basic count | ✅ | ✅ | Use `count-only` preset |
-| Summary | ✅ | ✅ | Use `detailed` preset |
-| Custom formatting | ❌ | ✅ | New! Use custom templates |
-| JSON output | ❌ | ✅ | New! Use `json` preset |
-| Severity tracking | ❌ | ✅ | New! Use `levels` preset |
-
-### Timeline
-
-- **Current**: Both `status` and `status-panel` work
-- **Future**: `status-panel` will be marked as legacy
-- **Later**: `status-panel` may be removed
-
-**Recommendation**: Start using `status` today for forward compatibility.
-
 ## Summary
 
 The `bd status --format` feature provides:
@@ -1044,7 +978,6 @@ The `bd status --format` feature provides:
 ✅ **Real-time updates** suitable for status bars  
 ✅ **JSON output** for programmatic consumption  
 ✅ **Environment variable** support for defaults  
-✅ **Full backward compatibility** with status-panel  
 
 **Next steps**:
 1. Try the [Quick Start](#quick-start) examples

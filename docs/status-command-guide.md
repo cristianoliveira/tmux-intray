@@ -624,55 +624,6 @@ set -g status-interval 2  # Update every 2 seconds
 set -g @tmux_intray_format "count-only"  # Simplest format
 ```
 
-## Migration from `status-panel` (deprecated)
-
-The `status-panel` command has been removed and replaced with the `status` command with template formatting. If you were using `status-panel`, here's how to migrate:
-
-### Old way (status-panel - no longer available)
-```bash
-tmux-intray status-panel
-# Output: "3 active | 5 dismissed"
-```
-
-### New way (status command)
-```bash
-# Equivalent output with template
-tmux-intray status --format='${unread-count} active | ${read-count} dismissed'
-
-# Or use built-in preset for similar output
-tmux-intray status --format=detailed
-```
-
-### Migration steps
-
-1. **Update `.tmux.conf`**:
-   ```bash
-   # Old
-   set -g status-right "#(tmux-intray status-panel) %H:%M"
-   
-   # New
-   set -g status-right "#(tmux-intray status --format=compact) %H:%M"
-   ```
-
-2. **Update scripts**:
-   ```bash
-   # Old
-   count=$(tmux-intray status-panel | grep -oE '[0-9]+' | head -1)
-   
-   # New
-   count=$(tmux-intray status --format=count-only)
-   ```
-
-3. **Environment variables**:
-   ```bash
-   # Old: TMUX_INTRAY_STATUS_FORMAT=compact
-   # New: Same variable, same values work!
-   export TMUX_INTRAY_STATUS_FORMAT="compact"
-   
-   # Test with:
-   tmux-intray status  # Uses env var
-   ```
-
 ## Advanced Examples
 
 ### Example 1: Scriptable Status JSON with Error Handling
