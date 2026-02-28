@@ -201,6 +201,25 @@ func TestApplyFiltersAndSearchTabScopeUsesActiveNotificationsOnly(t *testing.T) 
 	assert.Empty(t, svc.GetFilteredNotifications())
 }
 
+func TestApplyFiltersAndSearchTabAllPhaseConstraintActiveOnly(t *testing.T) {
+	svc := NewNotificationService(nil, nil)
+	notifications := []notification.Notification{
+		{ID: 1, Message: "active", Timestamp: "2024-01-03T10:00:00Z", State: "active", Level: "info"},
+		{ID: 2, Message: "dismissed", Timestamp: "2024-01-04T10:00:00Z", State: "dismissed", Level: "warning"},
+	}
+	svc.SetNotifications(notifications)
+
+	svc.ApplyFiltersAndSearch(settings.TabRecents, "", "", "", "", "", "", "", "timestamp", "desc")
+	recents := svc.GetFilteredNotifications()
+	require.Len(t, recents, 1)
+	assert.Equal(t, 1, recents[0].ID)
+
+	svc.ApplyFiltersAndSearch(settings.TabAll, "", "", "", "", "", "", "", "timestamp", "desc")
+	all := svc.GetFilteredNotifications()
+	require.Len(t, all, 1)
+	assert.Equal(t, 1, all[0].ID)
+}
+
 func TestApplyFiltersAndSearchTabScopeSearchesWithinTabDataset(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
 	notifications := []notification.Notification{

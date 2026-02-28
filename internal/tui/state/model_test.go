@@ -857,6 +857,39 @@ func TestModelUpdateTabSwitchRefreshesFilterWithSearchQuery(t *testing.T) {
 	assert.Equal(t, 1, model.filtered[0].ID)
 }
 
+func TestModelTabDefaultAndSwitchCycleRemainActiveOnly(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "active newest", Timestamp: "2024-01-03T10:00:00Z", State: "active", Level: "info"},
+		{ID: 2, Message: "dismissed newest", Timestamp: "2024-01-04T10:00:00Z", State: "dismissed", Level: "warning"},
+		{ID: 3, Message: "active older", Timestamp: "2024-01-01T10:00:00Z", State: "active", Level: "error"},
+	})
+
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.applySearchFilter()
+
+	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
+	require.Len(t, model.filtered, 2)
+	assert.Equal(t, []int{1, 3}, []int{model.filtered[0].ID, model.filtered[1].ID})
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(*Model)
+
+	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab())
+	require.Len(t, model.filtered, 2)
+	assert.Equal(t, []int{1, 3}, []int{model.filtered[0].ID, model.filtered[1].ID})
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(*Model)
+
+	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
+	require.Len(t, model.filtered, 2)
+	assert.Equal(t, []int{1, 3}, []int{model.filtered[0].ID, model.filtered[1].ID})
+}
+
 func TestModelUpdateHandlesJumpToBottomWithG(t *testing.T) {
 	model := newTestModel(t, []notification.Notification{
 		{ID: 1, Message: "First"},
@@ -2321,6 +2354,43 @@ func TestHandleJumpMarksNotificationReadOnSuccess(t *testing.T) {
 	loaded, err := notification.ParseNotification(line)
 	require.NoError(t, err)
 	assert.True(t, loaded.IsRead())
+}
+
+func TestModelUpdateEnterJumpsUsingExplicitWindowAndPane(t *testing.T) {
+	setupStorage(t)
+
+	_, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "$1", "@2", "%3", "", "info")
+	require.NoError(t, err)
+
+	mockClient := stubSessionFetchers(t)
+	model, err := NewModel(mockClient)
+	require.NoError(t, err)
+	require.Len(t, model.filtered, 1)
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+
+	called := false
+	var gotSession, gotWindow, gotPane string
+	model.runtimeCoordinator = &testRuntimeCoordinator{
+		ensureTmuxRunningFn: func() bool { return true },
+		jumpToPaneFn: func(sessionID, windowID, paneID string) bool {
+			called = true
+			gotSession = sessionID
+			gotWindow = windowID
+			gotPane = paneID
+			return true
+		},
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(*Model)
+
+	require.NotNil(t, cmd)
+	require.True(t, called)
+	assert.Equal(t, "$1", gotSession)
+	assert.Equal(t, "@2", gotWindow)
+	assert.Equal(t, "%3", gotPane)
+	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
 }
 
 func TestHandleJumpDoesNotMarkReadWhenJumpFails(t *testing.T) {
