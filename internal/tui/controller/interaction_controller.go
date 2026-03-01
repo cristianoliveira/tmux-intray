@@ -85,3 +85,11 @@ func (c *DefaultInteractionController) JumpToPane(sessionID, windowID, paneID st
 	}
 	return c.runtimeCoordinator.JumpToPane(sessionID, windowID, paneID)
 }
+
+// JumpToWindow performs a tmux window jump operation.
+func (c *DefaultInteractionController) JumpToWindow(sessionID, windowID string) bool {
+	if c.runtimeCoordinator == nil {
+		return false
+	}
+	return c.runtimeCoordinator.JumpToWindow(sessionID, windowID)
+}

@@ -134,6 +134,7 @@ func stubSessionFetchers(t *testing.T) *tmux.MockClient {
 type testRuntimeCoordinator struct {
 	ensureTmuxRunningFn func() bool
 	jumpToPaneFn        func(sessionID, windowID, paneID string) bool
+	jumpToWindowFn      func(sessionID, windowID string) bool
 }
 
 type spyNotificationService struct {
@@ -160,6 +161,13 @@ func (t *testRuntimeCoordinator) EnsureTmuxRunning() bool {
 func (t *testRuntimeCoordinator) JumpToPane(sessionID, windowID, paneID string) bool {
 	if t.jumpToPaneFn != nil {
 		return t.jumpToPaneFn(sessionID, windowID, paneID)
+	}
+	return false
+}
+
+func (t *testRuntimeCoordinator) JumpToWindow(sessionID, windowID string) bool {
+	if t.jumpToWindowFn != nil {
+		return t.jumpToWindowFn(sessionID, windowID)
 	}
 	return false
 }
@@ -2372,7 +2380,70 @@ func TestHandleJumpGroupedViewUsesVisibleNodes(t *testing.T) {
 
 	cmd := model.handleJump()
 
-	assert.Nil(t, cmd)
+	assert.NotNil(t, cmd)
+}
+
+func TestHandleJumpUsesWindowJumpWhenPaneMissing(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@2", Pane: "", Message: "window jump"},
+	})
+
+	windowJumpCalled := false
+	model.runtimeCoordinator = &testRuntimeCoordinator{
+		ensureTmuxRunningFn: func() bool { return true },
+		jumpToPaneFn: func(sessionID, windowID, paneID string) bool {
+			t.Fatalf("jump to pane should not be called, got %s:%s.%s", sessionID, windowID, paneID)
+			return false
+		},
+		jumpToWindowFn: func(sessionID, windowID string) bool {
+			windowJumpCalled = true
+			return sessionID == "$1" && windowID == "@2"
+		},
+	}
+	model.interactionCtrl = nil
+
+	cmd := model.handleJump()
+	assert.NotNil(t, cmd)
+	assert.True(t, windowJumpCalled)
+}
+
+func TestHandleJumpGroupedWindowNodeUsesWindowJump(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@2", Pane: "%3", Message: "window grouped"},
+	})
+
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByWindow)
+	model.applySearchFilter()
+	model.resetCursor()
+
+	windowIndex := -1
+	for idx, node := range model.getVisibleNodesForTest() {
+		if node != nil && node.Kind == uimodel.NodeKindWindow {
+			windowIndex = idx
+			break
+		}
+	}
+	require.NotEqual(t, -1, windowIndex)
+	model.uiState.SetCursor(windowIndex)
+
+	windowJumpCalled := false
+	model.runtimeCoordinator = &testRuntimeCoordinator{
+		ensureTmuxRunningFn: func() bool { return true },
+		jumpToPaneFn: func(sessionID, windowID, paneID string) bool {
+			t.Fatalf("jump to pane should not be called, got %s:%s.%s", sessionID, windowID, paneID)
+			return false
+		},
+		jumpToWindowFn: func(sessionID, windowID string) bool {
+			windowJumpCalled = true
+			return sessionID == "$1" && windowID == "@2"
+		},
+	}
+	model.interactionCtrl = nil
+
+	cmd := model.handleJump()
+	assert.NotNil(t, cmd)
+	assert.True(t, windowJumpCalled)
 }
 
 func TestHandleJumpWithEmptyList(t *testing.T) {

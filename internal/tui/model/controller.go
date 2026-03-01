@@ -13,4 +13,5 @@ type InteractionController interface {
 	MarkNotificationUnread(id string) error
 	EnsureTmuxRunning() bool
 	JumpToPane(sessionID, windowID, paneID string) bool
+	JumpToWindow(sessionID, windowID string) bool
 }

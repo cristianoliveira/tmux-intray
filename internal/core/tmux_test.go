@@ -98,7 +98,6 @@ func TestTmuxFunctions(t *testing.T) {
 		// Test failure when select-window fails
 		mockClient = new(tmux.MockClient)
 		mockClient.On("GetCurrentContext").Return(tmux.TmuxContext{SessionID: "$999"}, nil).Once()
-		mockClient.On("ValidatePaneExists", "$999", "1", "%1").Return(true, nil).Once()
 		mockClient.On("Run", []string{"select-window", "-t", "$999:1"}).Return("", "invalid target", tmux.ErrInvalidTarget).Once()
 		c = NewCore(mockClient, nil)
 		result = c.JumpToPane("$999", "1", "%1")
@@ -116,6 +115,17 @@ func TestTmuxFunctions(t *testing.T) {
 		require.False(t, result)
 		mockClient.AssertExpectations(t)
 
+		// Test explicit window jump when pane is empty
+		mockClient = new(tmux.MockClient)
+		mockClient.On("GetCurrentContext").Return(tmux.TmuxContext{SessionID: "$0"}, nil).Once()
+		mockClient.On("Run", []string{"select-window", "-t", "$0:1"}).Return("", "", nil).Once()
+		c = NewCore(mockClient, nil)
+		result = c.JumpToPane("$0", "1", "")
+		require.True(t, result)
+		mockClient.AssertNotCalled(t, "ValidatePaneExists")
+		mockClient.AssertNotCalled(t, "Run", []string{"select-pane", "-t", "$0:1."})
+		mockClient.AssertExpectations(t)
+
 		// Tiger Style: Test that empty parameters are rejected (input validation)
 		mockClient = new(tmux.MockClient)
 		c = NewCore(mockClient, nil)
@@ -123,9 +133,6 @@ func TestTmuxFunctions(t *testing.T) {
 		require.False(t, result)
 
 		result = c.JumpToPane("$1", "", "%1")
-		require.False(t, result)
-
-		result = c.JumpToPane("$1", "1", "")
 		require.False(t, result)
 
 		// Verify no tmux calls were made for invalid parameters
