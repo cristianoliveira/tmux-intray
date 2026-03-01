@@ -251,3 +251,17 @@ func TestApplyFiltersAndSearchScopesFilteringToSelectedTabDataset(t *testing.T) 
 	require.Len(t, filtered, 1)
 	assert.Equal(t, 2, filtered[0].ID)
 }
+
+func TestApplyFiltersAndSearchTabScopeSearchesWithinTabDataset(t *testing.T) {
+	svc := NewNotificationService(nil, nil)
+	notifications := []notification.Notification{
+		{ID: 1, Message: "active alpha", Timestamp: "2024-01-03T10:00:00Z", State: "active", Level: "info"},
+		{ID: 2, Message: "dismissed alpha", Timestamp: "2024-01-04T10:00:00Z", State: "dismissed", Level: "warning"},
+	}
+	svc.SetNotifications(notifications)
+
+	svc.ApplyFiltersAndSearch(settings.TabAll, "alpha", "", "", "", "", "", "", "timestamp", "desc")
+	filtered := svc.GetFilteredNotifications()
+	require.Len(t, filtered, 1)
+	assert.Equal(t, 1, filtered[0].ID)
+}

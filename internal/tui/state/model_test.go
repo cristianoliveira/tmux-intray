@@ -134,6 +134,7 @@ func stubSessionFetchers(t *testing.T) *tmux.MockClient {
 type testRuntimeCoordinator struct {
 	ensureTmuxRunningFn func() bool
 	jumpToPaneFn        func(sessionID, windowID, paneID string) bool
+	jumpToWindowFn      func(sessionID, windowID string) bool
 }
 
 type spyNotificationService struct {
@@ -160,6 +161,13 @@ func (t *testRuntimeCoordinator) EnsureTmuxRunning() bool {
 func (t *testRuntimeCoordinator) JumpToPane(sessionID, windowID, paneID string) bool {
 	if t.jumpToPaneFn != nil {
 		return t.jumpToPaneFn(sessionID, windowID, paneID)
+	}
+	return false
+}
+
+func (t *testRuntimeCoordinator) JumpToWindow(sessionID, windowID string) bool {
+	if t.jumpToWindowFn != nil {
+		return t.jumpToWindowFn(sessionID, windowID)
 	}
 	return false
 }
@@ -1244,56 +1252,6 @@ func TestApplySearchFilterReadStatus(t *testing.T) {
 	assert.Equal(t, "Alpha", model.filtered[0].Message)
 }
 
-func TestApplySearchFilterTabSwitchRefreshesVisibleListAndPreservesQuery(t *testing.T) {
-	notifications := make([]notification.Notification, 0, 25)
-	for i := 1; i <= 25; i++ {
-		timestamp := time.Date(2024, time.January, i, 10, 0, 0, 0, time.UTC).Format(time.RFC3339)
-		notifications = append(notifications, notification.Notification{
-			ID:        i,
-			Message:   timestamp,
-			State:     "active",
-			Timestamp: timestamp,
-		})
-	}
-
-	model := newTestModel(t, notifications)
-	model.uiState.SetWidth(80)
-	model.uiState.GetViewport().Width = 80
-	model.sortBy = settings.SortByTimestamp
-	model.sortOrder = settings.SortOrderDesc
-	model.uiState.SetActiveTab(settings.TabRecents)
-	model.uiState.SetSearchQuery("")
-	model.applySearchFilter()
-	require.Len(t, model.filtered, 20)
-
-	present := make(map[int]bool, len(model.filtered))
-	for _, n := range model.filtered {
-		present[n.ID] = true
-	}
-
-	var outside notification.Notification
-	foundOutside := false
-	for _, n := range notifications {
-		if !present[n.ID] {
-			outside = n
-			foundOutside = true
-			break
-		}
-	}
-	require.True(t, foundOutside)
-
-	model.uiState.SetSearchQuery(outside.Message)
-	model.applySearchFilter()
-	require.Empty(t, model.filtered)
-	assert.Equal(t, outside.Message, model.uiState.GetSearchQuery())
-
-	model.uiState.SetActiveTab(settings.TabAll)
-	model.applySearchFilter()
-	require.Len(t, model.filtered, 1)
-	assert.Equal(t, outside.ID, model.filtered[0].ID)
-	assert.Equal(t, outside.Message, model.uiState.GetSearchQuery())
-}
-
 // TestApplySearchFilterWithMockProvider tests that applySearchFilter correctly
 // uses a custom mock search provider when set.
 func TestApplySearchFilterWithMockProvider(t *testing.T) {
@@ -1887,7 +1845,7 @@ func TestModelUpdateHandlesWindowSize(t *testing.T) {
 
 	assert.Equal(t, 100, model.uiState.GetWidth())
 	assert.Equal(t, 30, model.uiState.GetHeight())
-	assert.Equal(t, 28, model.uiState.GetViewport().Height)
+	assert.Equal(t, 27, model.uiState.GetViewport().Height)
 }
 
 func TestModelViewRendersContent(t *testing.T) {
@@ -2422,7 +2380,70 @@ func TestHandleJumpGroupedViewUsesVisibleNodes(t *testing.T) {
 
 	cmd := model.handleJump()
 
-	assert.Nil(t, cmd)
+	assert.NotNil(t, cmd)
+}
+
+func TestHandleJumpUsesWindowJumpWhenPaneMissing(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@2", Pane: "", Message: "window jump"},
+	})
+
+	windowJumpCalled := false
+	model.runtimeCoordinator = &testRuntimeCoordinator{
+		ensureTmuxRunningFn: func() bool { return true },
+		jumpToPaneFn: func(sessionID, windowID, paneID string) bool {
+			t.Fatalf("jump to pane should not be called, got %s:%s.%s", sessionID, windowID, paneID)
+			return false
+		},
+		jumpToWindowFn: func(sessionID, windowID string) bool {
+			windowJumpCalled = true
+			return sessionID == "$1" && windowID == "@2"
+		},
+	}
+	model.interactionCtrl = nil
+
+	cmd := model.handleJump()
+	assert.NotNil(t, cmd)
+	assert.True(t, windowJumpCalled)
+}
+
+func TestHandleJumpGroupedWindowNodeUsesWindowJump(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@2", Pane: "%3", Message: "window grouped"},
+	})
+
+	model.uiState.SetViewMode(viewModeGrouped)
+	model.uiState.SetGroupBy(settings.GroupByWindow)
+	model.applySearchFilter()
+	model.resetCursor()
+
+	windowIndex := -1
+	for idx, node := range model.getVisibleNodesForTest() {
+		if node != nil && node.Kind == uimodel.NodeKindWindow {
+			windowIndex = idx
+			break
+		}
+	}
+	require.NotEqual(t, -1, windowIndex)
+	model.uiState.SetCursor(windowIndex)
+
+	windowJumpCalled := false
+	model.runtimeCoordinator = &testRuntimeCoordinator{
+		ensureTmuxRunningFn: func() bool { return true },
+		jumpToPaneFn: func(sessionID, windowID, paneID string) bool {
+			t.Fatalf("jump to pane should not be called, got %s:%s.%s", sessionID, windowID, paneID)
+			return false
+		},
+		jumpToWindowFn: func(sessionID, windowID string) bool {
+			windowJumpCalled = true
+			return sessionID == "$1" && windowID == "@2"
+		},
+	}
+	model.interactionCtrl = nil
+
+	cmd := model.handleJump()
+	assert.NotNil(t, cmd)
+	assert.True(t, windowJumpCalled)
 }
 
 func TestHandleJumpWithEmptyList(t *testing.T) {
@@ -2579,7 +2600,6 @@ func TestToState(t *testing.T) {
 				DefaultExpandLevelSet: true,
 				ViewMode:              string(uimodel.ViewModeDetailed),
 				GroupBy:               string(uimodel.GroupByNone),
-				ActiveTab:             settings.TabRecents,
 				DefaultExpandLevel:    1,
 				ExpansionState:        map[string]bool{},
 			},
@@ -2613,7 +2633,6 @@ func TestToState(t *testing.T) {
 				},
 				ViewMode:              settings.ViewModeDetailed,
 				GroupBy:               settings.GroupBySession,
-				ActiveTab:             settings.TabAll,
 				DefaultExpandLevel:    2,
 				DefaultExpandLevelSet: true,
 				ExpansionState: map[string]bool{
@@ -2630,7 +2649,6 @@ func TestToState(t *testing.T) {
 				SortBy:                settings.SortByTimestamp,
 				ViewMode:              settings.ViewModeCompact,
 				GroupBy:               settings.GroupByNone,
-				ActiveTab:             settings.TabRecents,
 				DefaultExpandLevel:    1,
 				DefaultExpandLevelSet: true,
 				ExpansionState:        map[string]bool{},
@@ -2646,7 +2664,6 @@ func TestToState(t *testing.T) {
 				tt.model.uiState = NewUIState()
 				tt.model.uiState.SetViewMode(uimodel.ViewMode(settings.ViewModeDetailed))
 				tt.model.uiState.SetGroupBy(uimodel.GroupBy(settings.GroupBySession))
-				tt.model.uiState.SetActiveTab(settings.TabAll)
 				tt.model.uiState.SetExpandLevel(2)
 				tt.model.uiState.SetExpansionState(map[string]bool{"session:$1": true})
 			case "model with partial settings":
@@ -2664,7 +2681,6 @@ func TestToState(t *testing.T) {
 			assert.Equal(t, tt.want.Filters, got.Filters)
 			assert.Equal(t, tt.want.ViewMode, got.ViewMode)
 			assert.Equal(t, tt.want.GroupBy, got.GroupBy)
-			assert.Equal(t, tt.want.ActiveTab, got.ActiveTab)
 			assert.Equal(t, tt.want.DefaultExpandLevel, got.DefaultExpandLevel)
 			assert.Equal(t, tt.want.DefaultExpandLevelSet, got.DefaultExpandLevelSet)
 			assert.Equal(t, tt.want.ExpansionState, got.ExpansionState)
@@ -2714,7 +2730,6 @@ func TestFromState(t *testing.T) {
 				},
 				ViewMode:              settings.ViewModeDetailed,
 				GroupBy:               settings.GroupByWindow,
-				ActiveTab:             settings.TabAll,
 				DefaultExpandLevel:    2,
 				DefaultExpandLevelSet: true,
 				ExpansionState: map[string]bool{
@@ -2728,7 +2743,6 @@ func TestFromState(t *testing.T) {
 				assert.Equal(t, []string{settings.ColumnID, settings.ColumnMessage, settings.ColumnLevel}, m.columns)
 				assert.Equal(t, settings.ViewModeDetailed, string(m.uiState.GetViewMode()))
 				assert.Equal(t, settings.GroupByWindow, string(m.uiState.GetGroupBy()))
-				assert.Equal(t, settings.TabAll, m.uiState.GetActiveTab())
 				assert.Equal(t, 2, m.uiState.GetExpandLevel())
 				assert.Equal(t, map[string]bool{"window:@1": true}, m.uiState.GetExpansionState())
 				assert.Equal(t, settings.LevelFilterWarning, m.filters.Level)
@@ -2777,7 +2791,6 @@ func TestFromState(t *testing.T) {
 				// ViewMode and GroupBy not set in state, so preserve default values
 				assert.Equal(t, settings.ViewModeDetailed, string(m.uiState.GetViewMode()))
 				assert.Equal(t, settings.GroupByNone, string(m.uiState.GetGroupBy()))
-				assert.Equal(t, settings.TabRecents, m.uiState.GetActiveTab())
 				assert.Equal(t, 0, m.uiState.GetExpandLevel())
 			},
 		},
@@ -2820,17 +2833,6 @@ func TestFromState(t *testing.T) {
 				assert.Equal(t, settings.GroupByPane, string(m.uiState.GetGroupBy()))
 				assert.Equal(t, 2, m.uiState.GetExpandLevel())
 				assert.Equal(t, map[string]bool{}, m.uiState.GetExpansionState())
-			},
-		},
-		{
-			name:  "invalid activeTab value normalizes to recents",
-			model: &Model{uiState: NewUIState()},
-			state: settings.TUIState{
-				ActiveTab: settings.Tab("invalid"),
-			},
-			wantErr: false,
-			verifyFn: func(t *testing.T, m *Model) {
-				assert.Equal(t, settings.TabRecents, m.uiState.GetActiveTab())
 			},
 		},
 		{

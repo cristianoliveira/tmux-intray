@@ -1,5 +1,7 @@
 package settings
 
+import "strings"
+
 // Tab identifies the active notifications lane in the TUI.
 type Tab string
 
@@ -26,10 +28,10 @@ func DefaultTab() Tab {
 	return TabRecents
 }
 
-// NormalizeTab converts a raw value into a valid tab.
+// NormalizeTab converts arbitrary persisted input to a valid tab value.
 // Missing or invalid values always resolve to the default tab.
 func NormalizeTab(raw string) Tab {
-	tab := Tab(raw)
+	tab := Tab(strings.ToLower(strings.TrimSpace(raw)))
 	if tab.IsValid() {
 		return tab
 	}

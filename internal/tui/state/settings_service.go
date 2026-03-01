@@ -57,9 +57,11 @@ func (s *settingsService) fromState(state settings.TUIState, uiState *UIState, c
 	if state.SortOrder != "" {
 		*sortOrder = state.SortOrder
 	}
+	// UnreadFirst is a boolean, so we always update it
 	*unreadFirst = state.UnreadFirst
 
 	dto := model.UIDTO{}
+	dto.ActiveTab = settings.NormalizeTab(string(state.ActiveTab))
 	if state.ViewMode != "" {
 		dto.ViewMode = model.ViewMode(state.ViewMode)
 	}
@@ -74,7 +76,6 @@ func (s *settingsService) fromState(state settings.TUIState, uiState *UIState, c
 		dto.ExpansionState = state.ExpansionState
 	}
 	dto.ShowHelp = state.ShowHelp
-	dto.ActiveTab = settings.NormalizeTab(string(state.ActiveTab))
 
 	if err := uiState.FromDTO(dto); err != nil {
 		return err
