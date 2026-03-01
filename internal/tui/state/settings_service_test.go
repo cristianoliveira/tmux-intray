@@ -8,28 +8,33 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSettingsServiceToStateIncludesNormalizedActiveTab(t *testing.T) {
+func TestSettingsServiceToStatePreservesUnreadFirstAndActiveTab(t *testing.T) {
 	svc := newSettingsService()
 	ui := NewUIState()
 	ui.SetActiveTab(settings.TabAll)
 
-	state := svc.toState(ui, []string{settings.ColumnID}, settings.SortByTimestamp, settings.SortOrderDesc, true, settings.Filter{})
+	state := svc.toState(ui, []string{settings.ColumnID}, settings.SortByTimestamp, settings.SortOrderDesc, false, settings.Filter{})
 
 	assert.Equal(t, settings.TabAll, state.ActiveTab)
 	assert.Equal(t, []string{settings.ColumnID}, state.Columns)
 	assert.Equal(t, settings.SortByTimestamp, state.SortBy)
-	assert.Equal(t, true, state.UnreadFirst)
+	assert.Equal(t, false, state.UnreadFirst)
 }
 
-func TestSettingsServiceFromStateNormalizesActiveTab(t *testing.T) {
+func TestSettingsServiceFromStateAppliesUnreadFirstAndNormalizesTab(t *testing.T) {
 	tests := []struct {
-		name   string
-		tab    settings.Tab
-		expect settings.Tab
+		name        string
+		tab         settings.Tab
+		unreadFirst bool
+		expectTab   settings.Tab
+		expectUF    bool
 	}{
-		{name: "valid", tab: settings.TabAll, expect: settings.TabAll},
-		{name: "missing", tab: "", expect: settings.TabRecents},
-		{name: "invalid", tab: settings.Tab("bad"), expect: settings.TabRecents},
+		{name: "valid tab with unreadFirst true", tab: settings.TabAll, unreadFirst: true, expectTab: settings.TabAll, expectUF: true},
+		{name: "valid tab with unreadFirst false", tab: settings.TabAll, unreadFirst: false, expectTab: settings.TabAll, expectUF: false},
+		{name: "missing tab with unreadFirst true", tab: "", unreadFirst: true, expectTab: settings.TabRecents, expectUF: true},
+		{name: "missing tab with unreadFirst false", tab: "", unreadFirst: false, expectTab: settings.TabRecents, expectUF: false},
+		{name: "invalid tab with unreadFirst true", tab: settings.Tab("bad"), unreadFirst: true, expectTab: settings.TabRecents, expectUF: true},
+		{name: "invalid tab with unreadFirst false", tab: settings.Tab("bad"), unreadFirst: false, expectTab: settings.TabRecents, expectUF: false},
 	}
 
 	for _, tt := range tests {
@@ -41,38 +46,13 @@ func TestSettingsServiceFromStateNormalizesActiveTab(t *testing.T) {
 			columns := []string{}
 			sortBy := ""
 			sortOrder := ""
-			unreadFirst := true
+			unreadFirst := tt.unreadFirst
 			filters := settings.Filter{}
 
-			err := svc.fromState(settings.TUIState{ActiveTab: tt.tab}, ui, &columns, &sortBy, &sortOrder, &unreadFirst, &filters)
+			err := svc.fromState(settings.TUIState{ActiveTab: tt.tab, UnreadFirst: tt.unreadFirst}, ui, &columns, &sortBy, &sortOrder, &unreadFirst, &filters)
 			require.NoError(t, err)
-			assert.Equal(t, tt.expect, ui.GetActiveTab())
+			assert.Equal(t, tt.expectTab, ui.GetActiveTab())
+			assert.Equal(t, tt.expectUF, unreadFirst)
 		})
 	}
-}
-
-func TestSettingsServicePreservesUnreadFirst(t *testing.T) {
-	svc := newSettingsService()
-	ui := NewUIState()
-	ui.SetActiveTab(settings.TabAll)
-
-	// Test with unreadFirst = true
-	state := svc.toState(ui, []string{settings.ColumnID}, settings.SortByTimestamp, settings.SortOrderDesc, true, settings.Filter{})
-	assert.Equal(t, true, state.UnreadFirst)
-
-	// Test with unreadFirst = false
-	state = svc.toState(ui, []string{settings.ColumnID}, settings.SortByTimestamp, settings.SortOrderDesc, false, settings.Filter{})
-	assert.Equal(t, false, state.UnreadFirst)
-
-	// Test fromState preserves UnreadFirst
-	ui = NewUIState()
-	columns := []string{}
-	sortBy := ""
-	sortOrder := ""
-	unreadFirst := false
-	filters := settings.Filter{}
-
-	err := svc.fromState(settings.TUIState{UnreadFirst: true}, ui, &columns, &sortBy, &sortOrder, &unreadFirst, &filters)
-	require.NoError(t, err)
-	assert.Equal(t, true, unreadFirst)
 }

@@ -16,9 +16,6 @@ type TUIState struct {
 	// UnreadFirst controls whether unread notifications are sorted first.
 	UnreadFirst bool `toml:"unread_first"`
 
-	// ActiveTab stores the selected tab in the notifications list UI.
-	ActiveTab Tab `toml:"active_tab"`
-
 	// Filters contains active filter criteria.
 	Filters Filter `toml:"filters"`
 
@@ -39,6 +36,9 @@ type TUIState struct {
 
 	// ShowHelp controls whether help text is shown in footer.
 	ShowHelp bool `toml:"show_help"`
+
+	// ActiveTab identifies the selected tab lane.
+	ActiveTab Tab `toml:"active_tab"`
 
 	// ExpansionState stores explicit expansion overrides by node path.
 	ExpansionState map[string]bool `toml:"expansion_state"`

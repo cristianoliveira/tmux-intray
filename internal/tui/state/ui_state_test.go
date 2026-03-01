@@ -3,6 +3,7 @@ package state
 import (
 	"testing"
 
+	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,6 +15,7 @@ func TestUIState(t *testing.T) {
 	assert.Equal(t, 0, uiState.GetCursor())
 	assert.Equal(t, "", uiState.GetSearchQuery())
 	assert.False(t, uiState.IsSearchMode())
+	assert.Equal(t, settings.TabRecents, uiState.GetActiveTab())
 	assert.Equal(t, defaultViewportWidth, uiState.GetWidth())
 	assert.Equal(t, defaultViewportHeight, uiState.GetHeight())
 
@@ -66,6 +68,12 @@ func TestUIState(t *testing.T) {
 
 	uiState.ClearPendingKey()
 	assert.Equal(t, "", uiState.GetPendingKey())
+
+	uiState.SetActiveTab(settings.TabAll)
+	assert.Equal(t, settings.TabAll, uiState.GetActiveTab())
+
+	uiState.SetActiveTab(settings.Tab("invalid"))
+	assert.Equal(t, settings.TabRecents, uiState.GetActiveTab())
 }
 
 func TestUIStateWithModel(t *testing.T) {

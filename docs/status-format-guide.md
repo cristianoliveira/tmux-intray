@@ -1038,13 +1038,13 @@ All features from `status-panel` are now available via `status`:
 
 The `bd status --format` feature provides:
 
-✅ **13 template variables** for comprehensive status reporting  
-✅ **6 presets** for common use cases  
-✅ **Custom templates** for unlimited flexibility  
-✅ **Real-time updates** suitable for status bars  
-✅ **JSON output** for programmatic consumption  
-✅ **Environment variable** support for defaults  
-✅ **Full backward compatibility** with status-panel  
+✅ **13 template variables** for comprehensive status reporting
+✅ **6 presets** for common use cases
+✅ **Custom templates** for unlimited flexibility
+✅ **Real-time updates** suitable for status bars
+✅ **JSON output** for programmatic consumption
+✅ **Environment variable** support for defaults
+✅ **Full backward compatibility** with status-panel
 
 **Next steps**:
 1. Try the [Quick Start](#quick-start) examples

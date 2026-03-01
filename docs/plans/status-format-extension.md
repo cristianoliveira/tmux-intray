@@ -1,8 +1,8 @@
 # BD Status Command Format Extension Plan
 
-**Document Version:** 1.0  
-**Date Created:** February 2026  
-**Status:** Planning Phase  
+**Document Version:** 1.0
+**Date Created:** February 2026
+**Status:** Planning Phase
 **Author:** Implementation Team
 
 ---
@@ -11,7 +11,7 @@
 
 This document outlines the plan to extend the `bd status` command with a `--format` flag that supports custom template-based formatting. The goal is to decouple the command from tmux-specific output formatting, enabling it to work seamlessly with other CLI tools via pipes, jq, xargs, and other composable utilities.
 
-Currently, the `status-panel` command is tightly coupled to tmux output format. This plan enables creating a general-purpose status query API that any tool can use.
+Currently, the status display command is tightly coupled to tmux output format. This plan enables creating a general-purpose status query API that any tool can use.
 
 ---
 
@@ -33,7 +33,7 @@ Currently, the `status-panel` command is tightly coupled to tmux output format. 
 
 ### Current Situation
 
-The tmux-intray project currently provides a `status-panel` command designed specifically for tmux's status bar. While functional, this implementation has several limitations:
+The tmux-intray project currently provides a `status` command designed specifically for tmux's status bar. While functional, this implementation has several limitations:
 
 1. **Tight Tmux Coupling**: Output format is hardcoded for tmux (uses `#[fg=...]` color syntax and tmux-specific formatting)
 2. **Limited Flexibility**: Cannot easily use notification data in other contexts (monitoring systems, shell scripts, dashboards, HTTP APIs)
@@ -98,7 +98,7 @@ The `--format` flag will support several modes:
    - Example: `--format='#[fg=red]${critical-count}#[default] critical'`
 
 2. **Preset Formats** (convenience shortcuts)
-   - `compact` - Minimal output (default for status-panel compatibility)
+   - `compact` - Minimal output (default for backward compatibility)
    - `detailed` - Full breakdown by level
    - `json` - Structured JSON output
    - `count-only` - Just the number
@@ -373,7 +373,6 @@ Feature: Configuration Continuity
 ```
 
 ---
-
 ### Phase 3: Documentation (Effort: 1-2 days)
 
 Make the feature discoverable and understandable.
@@ -394,8 +393,7 @@ Make the feature discoverable and understandable.
 2. **User Guide**
    - Explain template syntax
    - Document all variables with examples
-   - Show common use cases (tmux, monitoring, scripts)
-   - Document preset formats in detail
+- Show common use cases (tmux, monitoring, scripts)
    - Provide migration path from status-panel
 
 3. **Integration Guides**
@@ -601,7 +599,6 @@ You have notifications
 - [ ] Existing tmux.conf configurations work without modification
 - [ ] Users can optionally switch to `bd status` by updating tmux.conf
 - [ ] No data loss or behavior change in migration
-
 ### Phase 3 Acceptance Criteria
 
 ✅ **Documentation Quality**
@@ -725,7 +722,6 @@ Phase 1 (Core) ──→ Phase 2 (Compat) ──→ Phase 3 (Docs) ──→ Pha
 **Decision Made:** [TO BE DECIDED BY TEAM]
 
 ---
-
 ### Decision 2: Default Format (preset vs template syntax)
 **Question:** What should the default `--format` be if the flag is omitted?
 
@@ -749,34 +745,7 @@ Phase 1 (Core) ──→ Phase 2 (Compat) ──→ Phase 3 (Docs) ──→ Pha
 
 **Decision Made:** [TO BE DECIDED BY TEAM]
 
----
-
-### Decision 3: Removal Timeline for status-panel
-**Question:** Will `status-panel` ever be removed? If so, when?
-
-**Options:**
-- **A) Keep indefinitely** (Recommended for Phase 2)
-  - Pro: Never break user setups
-  - Con: Maintenance burden
-  - Timeline: Aligns with "backward compatibility" principle
-
-- **B) Remove in version 2.0** (Major release only)
-  - Pro: Clear timeline for cleanup
-  - Con: Requires communication plan
-  - Timeline: Future decision (not Phase 2)
-
-- **C) Remove in next minor release** (6 months)
-  - Pro: Forces migration planning
-  - Con: Too aggressive, breaks user trust
-  - Timeline: Not recommended
-
-**Recommendation:** Choose **A** for now. Plan removal strategy in Phase 4.
-
-**Decision Made:** [TO BE DECIDED BY TEAM]
-
----
-
-### Decision 4: Template Syntax for Special Formatting
+---### Decision 4: Template Syntax for Special Formatting
 **Question:** Should templates support conditionals or filters (e.g., color output based on level)?
 
 **Examples of what we're asking about:**

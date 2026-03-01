@@ -19,8 +19,8 @@ type NotificationService interface {
 	// GetFilteredNotifications returns the latest filtered notification view.
 	GetFilteredNotifications() []notification.Notification
 
-	// ApplyFiltersAndSearch applies tab scope, then filters/search/sorting and stores filtered results.
-	ApplyFiltersAndSearch(tab settings.Tab, query, state, level, sessionID, windowID, paneID, readFilter, sortBy, sortOrder string)
+	// ApplyFiltersAndSearch applies tab selection, filters/search/sorting, and stores filtered results.
+	ApplyFiltersAndSearch(activeTab settings.Tab, query, state, level, sessionID, windowID, paneID, readFilter, sortBy, sortOrder string)
 
 	// FilterNotifications filters notifications based on a search query.
 	// Returns a list of matching notifications.

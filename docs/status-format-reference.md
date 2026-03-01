@@ -284,7 +284,6 @@ type VariableContext struct {
     WarningCount   int
     ErrorCount     int
     CriticalCount  int
-    
     // Content
     LatestMessage  string
     
@@ -292,7 +291,6 @@ type VariableContext struct {
     HasUnread      bool
     HasActive      bool
     HasDismissed   bool
-    
     // Severity
     HighestSeverity domain.NotificationLevel
     
@@ -459,19 +457,6 @@ bd status --format=json | jq '
 bd status --format=json | jq -r '.message' | sed 's/^/>>> /'
 ```
 
-### How does it compare to status-panel?
-
-| Feature | status | status-panel |
-|---------|--------|--------------|
-| Presets | 6 | 1 (fixed output) |
-| Custom templates | ✅ | ❌ |
-| JSON output | ✅ | ❌ |
-| Severity tracking | ✅ | ❌ |
-| Count breakdown | ✅ | ✅ |
-| Performance | < 1ms | < 1ms |
-| Backward compatible | ✅ | Deprecated |
-
-**Recommendation**: Use `status` for all new work.
 
 ### What's the maximum template length?
 
@@ -542,7 +527,7 @@ bd status --format='Items: %{unread-count}...'           # OK
 export TMUX_INTRAY_STATUS_FORMAT="compact"
 ```
 
-**Values**: 
+**Values**:
 - Preset name: `compact`, `detailed`, `json`, `count-only`, `levels`, `panes`
 - Custom template: `%{unread-count} notifications`
 
@@ -644,19 +629,6 @@ regexp.MustCompile(`%\{([a-z0-9-]+)\}`)
 
 Matches: `%{variable-name}` where name is lowercase letters, numbers, hyphens.
 
-## Migration Path
-
-**From** `status-panel` **to** `status`:
-
-```bash
-# Old
-tmux-intray status-panel
-
-# New equivalent
-tmux-intray status --format=detailed
-```
-
-All `status-panel` users can migrate to `status` with improved functionality.
 
 ## Summary
 
@@ -665,4 +637,3 @@ All `status-panel` users can migrate to `status` with improved functionality.
 - **Custom templates** for unlimited flexibility
 - **Simple syntax**: `%{variable-name}`
 - **High performance**: < 1ms typical
-- **Backward compatible** with status-panel

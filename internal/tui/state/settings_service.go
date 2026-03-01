@@ -27,7 +27,6 @@ func (s *settingsService) toState(uiState *UIState, columns []string, sortBy str
 		SortBy:                sortBy,
 		SortOrder:             sortOrder,
 		UnreadFirst:           unreadFirst,
-		ActiveTab:             settings.NormalizeTab(string(dto.ActiveTab)),
 		Filters:               filters,
 		ViewMode:              string(dto.ViewMode),
 		GroupBy:               string(dto.GroupBy),
@@ -35,6 +34,7 @@ func (s *settingsService) toState(uiState *UIState, columns []string, sortBy str
 		DefaultExpandLevelSet: true,
 		ExpansionState:        dto.ExpansionState,
 		ShowHelp:              dto.ShowHelp,
+		ActiveTab:             settings.NormalizeTab(string(dto.ActiveTab)),
 	}
 }
 
