@@ -964,3 +964,84 @@ view_mode = "grouped"
 		assert.Equal(t, SortOrderAsc, loaded.SortOrder)
 	})
 }
+
+func TestActiveTabDefaultsAndFallback(t *testing.T) {
+	t.Run("default settings use recents", func(t *testing.T) {
+		s := DefaultSettings()
+		assert.Equal(t, TabRecents, s.ActiveTab)
+	})
+
+	t.Run("missing active_tab falls back to recents", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", tmpDir)
+		t.Setenv("HOME", tmpDir)
+
+		configDir := filepath.Join(tmpDir, "tmux-intray")
+		require.NoError(t, os.MkdirAll(configDir, 0755))
+
+		settingsPath := filepath.Join(configDir, "tui.toml")
+		require.NoError(t, os.WriteFile(settingsPath, []byte("sort_by = \"timestamp\"\n"), 0644))
+
+		loaded, err := Load()
+		require.NoError(t, err)
+		assert.Equal(t, TabRecents, loaded.ActiveTab)
+	})
+
+	t.Run("invalid active_tab falls back to recents", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", tmpDir)
+		t.Setenv("HOME", tmpDir)
+
+		configDir := filepath.Join(tmpDir, "tmux-intray")
+		require.NoError(t, os.MkdirAll(configDir, 0755))
+
+		settingsPath := filepath.Join(configDir, "tui.toml")
+		require.NoError(t, os.WriteFile(settingsPath, []byte("active_tab = \"bad-value\"\n"), 0644))
+
+		loaded, err := Load()
+		require.NoError(t, err)
+		assert.Equal(t, TabRecents, loaded.ActiveTab)
+	})
+}
+
+func TestActiveTabSaveLoadRoundTripPreservesExistingFields(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+	t.Setenv("HOME", tmpDir)
+
+	original := &Settings{
+		Columns:   []string{ColumnID, ColumnMessage, ColumnLevel},
+		SortBy:    SortByLevel,
+		SortOrder: SortOrderAsc,
+		ActiveTab: TabAll,
+		Filters: Filter{
+			Level: LevelFilterWarning,
+		},
+		ViewMode:           ViewModeDetailed,
+		GroupBy:            GroupByWindow,
+		DefaultExpandLevel: 2,
+		AutoExpandUnread:   true,
+		ShowHelp:           false,
+		ExpansionState: map[string]bool{
+			"window:@1": true,
+		},
+		GroupHeader: DefaultGroupHeaderOptions(),
+	}
+
+	require.NoError(t, Save(original))
+
+	loaded, err := Load()
+	require.NoError(t, err)
+
+	assert.Equal(t, TabAll, loaded.ActiveTab)
+	assert.Equal(t, original.Columns, loaded.Columns)
+	assert.Equal(t, original.SortBy, loaded.SortBy)
+	assert.Equal(t, original.SortOrder, loaded.SortOrder)
+	assert.Equal(t, original.Filters, loaded.Filters)
+	assert.Equal(t, original.ViewMode, loaded.ViewMode)
+	assert.Equal(t, original.GroupBy, loaded.GroupBy)
+	assert.Equal(t, original.DefaultExpandLevel, loaded.DefaultExpandLevel)
+	assert.Equal(t, original.AutoExpandUnread, loaded.AutoExpandUnread)
+	assert.Equal(t, original.ShowHelp, loaded.ShowHelp)
+	assert.Equal(t, original.ExpansionState, loaded.ExpansionState)
+}

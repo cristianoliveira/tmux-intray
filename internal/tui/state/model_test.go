@@ -136,6 +136,20 @@ type testRuntimeCoordinator struct {
 	jumpToPaneFn        func(sessionID, windowID, paneID string) bool
 }
 
+type spyNotificationService struct {
+	uimodel.NotificationService
+	applyCalls int
+	lastTab    settings.Tab
+	lastQuery  string
+}
+
+func (s *spyNotificationService) ApplyFiltersAndSearch(tab settings.Tab, query, state, level, sessionID, windowID, paneID, readFilter, sortBy, sortOrder string) {
+	s.applyCalls++
+	s.lastTab = tab
+	s.lastQuery = query
+	s.NotificationService.ApplyFiltersAndSearch(tab, query, state, level, sessionID, windowID, paneID, readFilter, sortBy, sortOrder)
+}
+
 func (t *testRuntimeCoordinator) EnsureTmuxRunning() bool {
 	if t.ensureTmuxRunningFn != nil {
 		return t.ensureTmuxRunningFn()
@@ -800,10 +814,47 @@ func TestModelUpdateHandlesKeyUpKeyDown(t *testing.T) {
 	assert.Equal(t, 1, model.uiState.GetCursor())
 
 	// Unknown key type should be ignored (default case)
-	msg = tea.KeyMsg{Type: tea.KeyTab}
+	msg = tea.KeyMsg{Type: tea.KeyF1}
 	updated, _ = model.Update(msg)
 	model = updated.(*Model)
 	assert.Equal(t, 1, model.uiState.GetCursor())
+}
+
+func TestModelUpdateTabSwitchRefreshesFilterWithSearchQuery(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	notifications := []notification.Notification{
+		{ID: 1, Message: "active alpha", Timestamp: "2024-01-03T10:00:00Z", State: "active", Level: "info"},
+		{ID: 2, Message: "dismissed alpha", Timestamp: "2024-01-04T10:00:00Z", State: "dismissed", Level: "warning"},
+	}
+
+	model := newTestModel(t, notifications)
+	baseService := model.notificationService
+	spyService := &spyNotificationService{NotificationService: baseService}
+	model.notificationService = spyService
+
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetActiveTab(settings.TabRecents)
+	model.uiState.SetSearchQuery("alpha")
+	model.applySearchFilter()
+
+	require.Len(t, model.filtered, 1)
+	assert.Equal(t, 1, model.filtered[0].ID)
+	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
+
+	beforeCalls := spyService.applyCalls
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	model = updated.(*Model)
+
+	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab())
+	assert.Equal(t, "alpha", model.uiState.GetSearchQuery())
+	assert.Greater(t, spyService.applyCalls, beforeCalls)
+	assert.Equal(t, settings.TabAll, spyService.lastTab)
+	assert.Equal(t, "alpha", spyService.lastQuery)
+	require.Len(t, model.filtered, 1)
+	assert.Equal(t, 1, model.filtered[0].ID)
 }
 
 func TestModelUpdateHandlesJumpToBottomWithG(t *testing.T) {
@@ -1129,8 +1180,8 @@ func TestModelUpdateHandlesReadUnreadKeys(t *testing.T) {
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetCursor(0)
 
-	// Press 'r' to mark read
-	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}}
+	// Press 'R' to mark read
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'R'}}
 	updated, cmd := model.Update(msg)
 	model = updated.(*Model)
 	assert.Nil(t, cmd) // command may be nil

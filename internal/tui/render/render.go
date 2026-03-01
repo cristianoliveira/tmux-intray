@@ -33,6 +33,7 @@ type FooterState struct {
 
 	Grouped      bool
 	ViewMode     string
+	ActiveTab    settings.Tab
 	Width        int
 	ErrorMessage string
 	ReadFilter   string
@@ -46,6 +47,25 @@ type RowState struct {
 	Width        int
 	Selected     bool
 	Now          time.Time
+}
+
+// Tabs renders the Recents/All tab controls.
+func Tabs(activeTab settings.Tab, width int) string {
+	inactive := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	active := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(ansiColorNumber(colors.Blue)))
+
+	recents := inactive.Render("Recents")
+	all := inactive.Render("All")
+
+	switch settings.NormalizeTab(string(activeTab)) {
+	case settings.TabAll:
+		all = active.Render("[All]")
+	default:
+		recents = active.Render("[Recents]")
+	}
+
+	line := fmt.Sprintf("Tabs: %s  %s", recents, all)
+	return truncateFooter(line, width)
 }
 
 // Header renders the table header.
@@ -136,6 +156,7 @@ func Row(state RowState) string {
 func buildFullHelpSearchModeItems(state FooterState) []string {
 	var items []string
 	items = append(items, fmt.Sprintf("Search: %s", state.SearchQuery))
+	items = append(items, fmt.Sprintf("tab: %s", tabIndicator(state.ActiveTab)))
 	items = append(items, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
 	items = append(items, fmt.Sprintf("read: %s", readFilterIndicator(state.ReadFilter)))
 	items = append(items, "ESC: exit search")
@@ -145,7 +166,7 @@ func buildFullHelpSearchModeItems(state FooterState) []string {
 	items = append(items, "Ctrl+j/k: navigate")
 	items = append(items, "j/k: move")
 	items = append(items, "gg/G: top/bottom")
-	items = append(items, "r: read")
+	items = append(items, "R: read")
 	items = append(items, "u: unread")
 	items = append(items, "d: dismiss")
 	enterHelp := "Enter: exit search"
@@ -165,6 +186,9 @@ func buildFullHelpSearchModeItems(state FooterState) []string {
 func buildFullHelpNormalModeItems(state FooterState) []string {
 	var items []string
 	items = append(items, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
+	items = append(items, fmt.Sprintf("tab: %s", tabIndicator(state.ActiveTab)))
+	items = append(items, "r: recents")
+	items = append(items, "a: all")
 	items = append(items, fmt.Sprintf("read: %s", readFilterIndicator(state.ReadFilter)))
 	items = append(items, "j/k: move")
 	items = append(items, "gg/G: top/bottom")
@@ -175,7 +199,7 @@ func buildFullHelpNormalModeItems(state FooterState) []string {
 		items = append(items, "za: toggle fold")
 		items = append(items, "D: dismiss group")
 	}
-	items = append(items, "r: read")
+	items = append(items, "R: read")
 	items = append(items, "u: unread")
 	items = append(items, "d: dismiss")
 	enterHelp := "Enter: jump"
@@ -192,6 +216,7 @@ func buildFullHelpNormalModeItems(state FooterState) []string {
 func buildMinimalSearchModeItems(state FooterState) []string {
 	var items []string
 	items = append(items, fmt.Sprintf("Search: %s", state.SearchQuery))
+	items = append(items, fmt.Sprintf("tab: %s", tabIndicator(state.ActiveTab)))
 	items = append(items, "ESC: exit search")
 	items = append(items, "Ctrl+j/k: navigate")
 	if state.ViewMode == settings.ViewModeSearch {
@@ -206,6 +231,9 @@ func buildMinimalSearchModeItems(state FooterState) []string {
 func buildMinimalNormalModeItems(state FooterState) []string {
 	var items []string
 	items = append(items, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
+	items = append(items, fmt.Sprintf("tab: %s", tabIndicator(state.ActiveTab)))
+	items = append(items, "r: recents")
+	items = append(items, "a: all")
 	items = append(items, "j/k: move")
 	items = append(items, "?: toggle help")
 	return items
@@ -282,6 +310,15 @@ func readFilterIndicator(filter string) string {
 		return "unread"
 	default:
 		return "all"
+	}
+}
+
+func tabIndicator(tab settings.Tab) string {
+	switch settings.NormalizeTab(string(tab)) {
+	case settings.TabAll:
+		return "[A]ll"
+	default:
+		return "[R]ecents"
 	}
 }
 
