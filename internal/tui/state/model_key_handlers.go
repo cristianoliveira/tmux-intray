@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
 
@@ -78,6 +79,21 @@ func (m *Model) handleQuit() (tea.Model, tea.Cmd) {
 	}
 	// Quit
 	return m, tea.Quit
+}
+
+func (m *Model) switchActiveTab(tab settings.Tab) {
+	nextTab := settings.NormalizeTab(string(tab))
+	if m.uiState.GetActiveTab() == nextTab {
+		return
+	}
+
+	m.uiState.SetActiveTab(nextTab)
+	m.applySearchFilter()
+	m.resetCursor()
+
+	if err := m.saveSettings(); err != nil {
+		m.errorHandler.Warning(fmt.Sprintf("Failed to save settings: %v", err))
+	}
 }
 
 // handleSaveSettingsSuccess handles successful settings save (no-op).
