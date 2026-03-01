@@ -59,6 +59,22 @@ tmux-intray list --group-by=message --group-count
 
 The CLI shares its grouping implementation with the TUI, so any value that works in one place (including `message`) works in the other.
 
+### tui
+
+```
+tmux-intray tui
+```
+
+Launches the interactive notifications UI.
+
+#### Keybindings
+
+- `r` - switch to Recents tab
+- `a` - switch to All tab
+- `R` - mark selected notification as read
+- `u` - mark selected notification as unread
+- `Enter` - jump to selected notification target (pane when available, window fallback)
+
 ### status
 
 ```

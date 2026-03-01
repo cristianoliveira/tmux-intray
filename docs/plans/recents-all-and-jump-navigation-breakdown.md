@@ -21,14 +21,16 @@ The tabs implementation follows the architecture defined in [Tabs Architecture](
    - First filtered dataset shows active notifications only.
 
 2. Recents/All switching
-   - `Tab` cycles `recents -> all -> recents`.
+   - `r` switches to `recents`; `a` switches to `all`.
    - Search/filter pipeline is reapplied on each switch.
    - Current phase behavior: both tabs operate over the active-only dataset.
+   - Read-mark action moved to `R` so `r` remains dedicated to tab selection.
 
 3. Jump behavior
    - `Enter` in non-grouped views executes jump for selected notification.
-   - Jump requires session, window, and pane identifiers.
-   - Successful jump uses explicit `window` and `pane` targets and marks the notification read.
+   - Jump requires session + window; pane is optional.
+   - If pane exists, jump targets pane; if pane is missing/empty, jump falls back to explicit window target.
+   - Successful jump marks the notification read.
    - Grouped view keeps `Enter` toggle-first on group rows; jumps occur on notification rows.
 
 ## Constraints for This Phase
@@ -39,8 +41,8 @@ The tabs implementation follows the architecture defined in [Tabs Architecture](
 ## Verification Coverage Added
 
 - `internal/tui/state/model_test.go`
-  - validates Recents default + Recents/All tab cycling with active-only results
-  - validates Enter-driven jump passes explicit session/window/pane
+  - validates Recents default + `r`/`a` tab switching with active-only results
+  - validates Enter-driven pane jump and explicit window fallback jump
 - `internal/tui/service/notification_service_test.go`
   - codifies phase constraint that `TabAll` remains active-only
 
@@ -83,5 +85,4 @@ Design principles:
 
 ## CLI Reference Impact
 
-- No user-visible keybinding changes were made for this gate.
-- `docs/cli/CLI_REFERENCE.md` remains unchanged.
+- User-visible keybindings are documented in `docs/cli/CLI_REFERENCE.md` (`r`/`a` tab switch, `R` mark read).

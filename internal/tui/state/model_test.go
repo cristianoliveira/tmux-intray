@@ -865,7 +865,7 @@ func TestModelUpdateTabSwitchRefreshesFilterWithSearchQuery(t *testing.T) {
 	assert.Equal(t, 1, model.filtered[0].ID)
 }
 
-func TestModelTabDefaultAndSwitchCycleRemainActiveOnly(t *testing.T) {
+func TestModelTabDefaultAndSwitchKeysRemainActiveOnly(t *testing.T) {
 	tmpDir := t.TempDir()
 	setupConfig(t, tmpDir)
 
@@ -883,14 +883,14 @@ func TestModelTabDefaultAndSwitchCycleRemainActiveOnly(t *testing.T) {
 	require.Len(t, model.filtered, 2)
 	assert.Equal(t, []int{1, 3}, []int{model.filtered[0].ID, model.filtered[1].ID})
 
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
 	model = updated.(*Model)
 
 	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab())
 	require.Len(t, model.filtered, 2)
 	assert.Equal(t, []int{1, 3}, []int{model.filtered[0].ID, model.filtered[1].ID})
 
-	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
 	model = updated.(*Model)
 
 	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
