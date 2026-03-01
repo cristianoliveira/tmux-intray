@@ -23,7 +23,7 @@ func (m *Model) SetLoadedSettings(loaded *settings.Settings) {
 			notifSvc.SetSettings(loaded)
 		}
 	} else {
-		m.unreadFirst = true // Default to true
+		m.unreadFirst = true
 		m.groupHeaderOptions = settings.DefaultGroupHeaderOptions()
 	}
 }

@@ -185,7 +185,7 @@ func TestStatusRunECustomTemplateVariables(t *testing.T) {
 		listNotificationsResult: statusMockLines(),
 	}
 	cmd := NewStatusCmd(client)
-	require.NoError(t, cmd.Flags().Set("format", "%{critical-count}"))
+	require.NoError(t, cmd.Flags().Set("format", "{{critical-count}}"))
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
 
@@ -200,7 +200,7 @@ func TestStatusRunEMixedCustomTemplateSyntax(t *testing.T) {
 		listNotificationsResult: statusMockLines(),
 	}
 	cmd := NewStatusCmd(client)
-	require.NoError(t, cmd.Flags().Set("format", "critical=%{critical-count} unread={{.UnreadCount}}"))
+	require.NoError(t, cmd.Flags().Set("format", "critical={{critical-count}} unread={{.UnreadCount}}"))
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
 
@@ -215,7 +215,7 @@ func TestStatusRunEResolvesAllTemplateVariables(t *testing.T) {
 		listNotificationsResult: statusMockLines(),
 	}
 	cmd := NewStatusCmd(client)
-	require.NoError(t, cmd.Flags().Set("format", "%{unread-count}|%{total-count}|%{read-count}|%{active-count}|%{dismissed-count}|%{latest-message}|%{has-unread}|%{has-active}|%{has-dismissed}|%{highest-severity}|%{session-list}|%{window-list}|%{pane-list}"))
+	require.NoError(t, cmd.Flags().Set("format", "{{unread-count}}|{{total-count}}|{{read-count}}|{{active-count}}|{{dismissed-count}}|{{latest-message}}|{{has-unread}}|{{has-active}}|{{has-dismissed}}|{{highest-severity}}|{{session-list}}|{{window-list}}|{{pane-list}}"))
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
 
@@ -229,7 +229,7 @@ func TestStatusRunEBooleanVariablesRenderFalseLiterals(t *testing.T) {
 		ensureTmuxRunningResult: true,
 	}
 	cmd := NewStatusCmd(client)
-	require.NoError(t, cmd.Flags().Set("format", "%{has-unread}|%{has-active}|%{has-dismissed}"))
+	require.NoError(t, cmd.Flags().Set("format", "{{has-unread}}|{{has-active}}|{{has-dismissed}}"))
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
 
@@ -244,7 +244,7 @@ func TestStatusRunEPreservesTmuxColorCodes(t *testing.T) {
 		listNotificationsResult: statusMockLines(),
 	}
 	cmd := NewStatusCmd(client)
-	require.NoError(t, cmd.Flags().Set("format", "#[fg=red]%{critical-count}#[default]"))
+	require.NoError(t, cmd.Flags().Set("format", "#[fg=red]{{critical-count}}#[default]"))
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
 
@@ -256,16 +256,22 @@ func TestStatusRunEPreservesTmuxColorCodes(t *testing.T) {
 func TestStatusRunEInvalidVariableReturnsHelpfulError(t *testing.T) {
 	client := &fakeStatusClient{ensureTmuxRunningResult: true}
 	cmd := NewStatusCmd(client)
-	require.NoError(t, cmd.Flags().Set("format", "%{unknown-var}"))
+	require.NoError(t, cmd.Flags().Set("format", "{{unknown-var}}"))
 
 	err := cmd.RunE(cmd, []string{})
-	require.NoError(t, err)
+	require.Error(t, err)
+
+	// Verify the error contains helpful information
+	errStr := err.Error()
+	assert.Contains(t, errStr, "unknown variable: unknown-var")
+	assert.Contains(t, errStr, "Available variables:")
+	assert.Contains(t, errStr, "unread-count")
 }
 
 func TestStatusRunEInvalidVariableNameReturnsError(t *testing.T) {
 	client := &fakeStatusClient{ensureTmuxRunningResult: true}
 	cmd := NewStatusCmd(client)
-	require.NoError(t, cmd.Flags().Set("format", "%{critical_count}"))
+	require.NoError(t, cmd.Flags().Set("format", "{{critical_count}}"))
 
 	err := cmd.RunE(cmd, []string{})
 	require.NoError(t, err)
@@ -291,7 +297,7 @@ func TestStatusRunETmuxNotRunning(t *testing.T) {
 }
 
 func TestStatusRunEEnvironmentFormatOverride(t *testing.T) {
-	t.Setenv("TMUX_INTRAY_STATUS_FORMAT", "%{unread-count}")
+	t.Setenv("TMUX_INTRAY_STATUS_FORMAT", "{{unread-count}}")
 	client := &fakeStatusClient{
 		ensureTmuxRunningResult: true,
 		listNotificationsResult: statusMockLines(),
@@ -306,13 +312,13 @@ func TestStatusRunEEnvironmentFormatOverride(t *testing.T) {
 }
 
 func TestStatusRunEFlagTakesPrecedenceOverEnvironment(t *testing.T) {
-	t.Setenv("TMUX_INTRAY_STATUS_FORMAT", "%{critical-count}")
+	t.Setenv("TMUX_INTRAY_STATUS_FORMAT", "{{critical-count}}")
 	client := &fakeStatusClient{
 		ensureTmuxRunningResult: true,
 		listNotificationsResult: statusMockLines(),
 	}
 	cmd := NewStatusCmd(client)
-	require.NoError(t, cmd.Flags().Set("format", "%{unread-count}"))
+	require.NoError(t, cmd.Flags().Set("format", "{{unread-count}}"))
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
 
@@ -331,9 +337,9 @@ func TestStatusHelpIncludesTemplateExamples(t *testing.T) {
 	help := stdout.String()
 
 	assert.Contains(t, help, "PRESETS (6):")
-	assert.Contains(t, help, "%{unread-count}")
-	assert.Contains(t, help, "%{critical-count}")
-	assert.Contains(t, help, "tmux-intray status --format='%{unread-count} new messages'")
+	assert.Contains(t, help, "{{unread-count}}")
+	assert.Contains(t, help, "{{critical-count}}")
+	assert.Contains(t, help, "tmux-intray status --format='{{unread-count}} new messages'")
 }
 
 func TestStatusHelperEdgeCases(t *testing.T) {

@@ -25,11 +25,11 @@ type templateEngine struct {
 // NewTemplateEngine creates a new template engine instance.
 func NewTemplateEngine() TemplateEngine {
 	return &templateEngine{
-		variablePattern: regexp.MustCompile(`%\{([a-z0-9-]+)\}`),
+		variablePattern: regexp.MustCompile(`\{\{([a-z0-9-]+)\}\}`),
 	}
 }
 
-// Parse identifies all variables in a template string using %{variable-name} syntax.
+// Parse identifies all variables in a template string using {{variable-name}} syntax.
 // Returns a list of variable names found, without duplicates.
 func (te *templateEngine) Parse(template string) ([]string, error) {
 	if template == "" {
@@ -79,9 +79,8 @@ func (te *templateEngine) Substitute(template string, ctx VariableContext) (stri
 			varName := match[1]
 			value, err := resolver.Resolve(varName, ctx)
 			if err != nil {
-				// For unknown variables, replace with empty string
-				result = strings.ReplaceAll(result, match[0], "")
-				continue
+				// Return error for unknown variables with available variables list
+				return "", err
 			}
 			result = strings.ReplaceAll(result, match[0], value)
 		}
@@ -97,8 +96,8 @@ func (te *templateEngine) ValidateTemplate(template string) error {
 	}
 
 	// Check for unclosed braces
-	openCount := strings.Count(template, "%{")
-	closeCount := strings.Count(template, "}")
+	openCount := strings.Count(template, "{{")
+	closeCount := strings.Count(template, "}}")
 
 	if openCount != closeCount {
 		return fmt.Errorf("mismatched variable delimiters: %d opens, %d closes", openCount, closeCount)

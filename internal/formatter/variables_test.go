@@ -1,6 +1,7 @@
 package formatter
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
@@ -243,6 +244,18 @@ func TestVariableResolver_ResolveUnknownVariable(t *testing.T) {
 	_, err := resolver.Resolve("unknown-variable", ctx)
 	if err == nil {
 		t.Errorf("Resolve() expected error for unknown variable, got nil")
+	}
+
+	// Check that error message contains available variables
+	errStr := err.Error()
+	if !strings.Contains(errStr, "unknown-variable") {
+		t.Errorf("Error message should contain unknown variable name, got: %s", errStr)
+	}
+	if !strings.Contains(errStr, "Available variables:") {
+		t.Errorf("Error message should contain available variables list, got: %s", errStr)
+	}
+	if !strings.Contains(errStr, "unread-count") {
+		t.Errorf("Error message should list available variables, got: %s", errStr)
 	}
 }
 

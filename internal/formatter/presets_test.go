@@ -37,37 +37,37 @@ func TestPresetRegistry_Get(t *testing.T) {
 			name:          "get compact preset",
 			presetName:    "compact",
 			shouldExist:   true,
-			expectedTempl: "[%{unread-count}] %{latest-message}",
+			expectedTempl: "[{{unread-count}}] {{latest-message}}",
 		},
 		{
 			name:          "get detailed preset",
 			presetName:    "detailed",
 			shouldExist:   true,
-			expectedTempl: "%{unread-count} unread, %{read-count} read | Latest: %{latest-message}",
+			expectedTempl: "{{unread-count}} unread, {{read-count}} read | Latest: {{latest-message}}",
 		},
 		{
 			name:          "get json preset",
 			presetName:    "json",
 			shouldExist:   true,
-			expectedTempl: `{"unread":%{unread-count},"total":%{total-count},"message":"%{latest-message}"}`,
+			expectedTempl: `{"unread":{{unread-count}},"total":{{total-count}},"message":"{{latest-message}}"}`,
 		},
 		{
 			name:          "get count-only preset",
 			presetName:    "count-only",
 			shouldExist:   true,
-			expectedTempl: "%{unread-count}",
+			expectedTempl: "{{unread-count}}",
 		},
 		{
 			name:          "get levels preset",
 			presetName:    "levels",
 			shouldExist:   true,
-			expectedTempl: "Severity: %{highest-severity} | Unread: %{unread-count}",
+			expectedTempl: "Severity: {{highest-severity}} | Unread: {{unread-count}}",
 		},
 		{
 			name:          "get panes preset",
 			presetName:    "panes",
 			shouldExist:   true,
-			expectedTempl: "%{pane-list} (%{unread-count})",
+			expectedTempl: "{{pane-list}} ({{unread-count}})",
 		},
 		{
 			name:        "get nonexistent preset",
@@ -128,7 +128,7 @@ func TestPresetRegistry_Register(t *testing.T) {
 	// Register a new preset
 	newPreset := Preset{
 		Name:        "custom",
-		Template:    "Custom: %{unread-count}",
+		Template:    "Custom: {{unread-count}}",
 		Description: "Custom preset for testing",
 	}
 
@@ -165,7 +165,7 @@ func TestPresetRegistry_RegisterOverwrite(t *testing.T) {
 	// Register new preset with same name
 	updated := Preset{
 		Name:        "compact",
-		Template:    "New: %{unread-count}",
+		Template:    "New: {{unread-count}}",
 		Description: "Updated compact preset",
 	}
 

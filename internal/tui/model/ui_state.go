@@ -50,6 +50,12 @@ type UIState interface {
 	// SetGroupBy sets the grouping mode.
 	SetGroupBy(groupBy GroupBy)
 
+	// GetActiveTab returns the current tab lane selection.
+	GetActiveTab() settings.Tab
+
+	// SetActiveTab sets the current tab lane selection.
+	SetActiveTab(tab settings.Tab)
+
 	// GetExpandLevel returns the default expansion level for tree nodes.
 	GetExpandLevel() int
 
@@ -144,9 +150,6 @@ const (
 
 // UIDTO is a data transfer object for UI state persistence.
 type UIDTO struct {
-	// ActiveTab is the current top-level tab selection.
-	ActiveTab settings.Tab
-
 	// ViewMode is the current view mode.
 	ViewMode ViewMode
 
@@ -176,6 +179,9 @@ type UIDTO struct {
 
 	// Filters are the active notification filters.
 	Filters Filters
+
+	// ActiveTab is the selected notifications tab lane.
+	ActiveTab settings.Tab
 }
 
 // Filters represents notification filters.

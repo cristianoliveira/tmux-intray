@@ -51,11 +51,13 @@ type UIState struct {
 	pendingAction    PendingAction
 
 	// View mode management
-	viewMode  model.ViewMode
-	activeTab settings.Tab
+	viewMode model.ViewMode
 
 	// Group by configuration
 	groupBy model.GroupBy
+
+	// Active tab lane
+	activeTab settings.Tab
 
 	// Expansion state
 	expandLevel    int
@@ -73,22 +75,12 @@ func NewUIState() *UIState {
 		height:         defaultViewportHeight,
 		cursor:         0,
 		viewMode:       model.ViewModeDetailed,
-		activeTab:      settings.DefaultTab(),
 		groupBy:        model.GroupByNone,
 		expandLevel:    defaultExpandLevel, // Default expand level
 		expansionState: make(map[string]bool),
 		showHelp:       true,
+		activeTab:      settings.DefaultTab(),
 	}
-}
-
-// GetActiveTab returns the selected top-level tab.
-func (u *UIState) GetActiveTab() settings.Tab {
-	return u.activeTab
-}
-
-// SetActiveTab sets the selected top-level tab.
-func (u *UIState) SetActiveTab(tab settings.Tab) {
-	u.activeTab = settings.NormalizeTab(string(tab))
 }
 
 // GetViewport returns the current viewport model.
@@ -331,6 +323,16 @@ func (u *UIState) SetGroupBy(groupBy model.GroupBy) {
 	u.groupBy = groupBy
 }
 
+// GetActiveTab returns the current tab lane selection.
+func (u *UIState) GetActiveTab() settings.Tab {
+	return u.activeTab
+}
+
+// SetActiveTab sets the current tab lane selection.
+func (u *UIState) SetActiveTab(tab settings.Tab) {
+	u.activeTab = settings.NormalizeTab(string(tab))
+}
+
 // GetExpandLevel returns the default expansion level for tree nodes.
 func (u *UIState) GetExpandLevel() int {
 	return u.expandLevel
@@ -455,12 +457,12 @@ func (u *UIState) Load() error {
 // ToDTO converts the UI state to a data transfer object for persistence.
 func (u *UIState) ToDTO() model.UIDTO {
 	return model.UIDTO{
-		ActiveTab:      settings.NormalizeTab(string(u.activeTab)),
 		ViewMode:       u.viewMode,
 		GroupBy:        u.groupBy,
 		ExpandLevel:    u.expandLevel,
 		ExpansionState: u.expansionState,
 		ShowHelp:       u.showHelp,
+		ActiveTab:      u.activeTab,
 	}
 }
 
@@ -470,7 +472,6 @@ func (u *UIState) FromDTO(dto model.UIDTO) error {
 	if dto.ViewMode != "" {
 		u.viewMode = dto.ViewMode
 	}
-	u.activeTab = settings.NormalizeTab(string(dto.ActiveTab))
 	if dto.GroupBy != "" {
 		u.groupBy = dto.GroupBy
 	}
@@ -483,5 +484,6 @@ func (u *UIState) FromDTO(dto model.UIDTO) error {
 		u.expansionState = dto.ExpansionState
 	}
 	u.showHelp = dto.ShowHelp
+	u.activeTab = settings.NormalizeTab(string(dto.ActiveTab))
 	return nil
 }

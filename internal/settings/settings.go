@@ -20,7 +20,6 @@ func convertCamelToSnake(data []byte) []byte {
 	replacements := map[string]string{
 		"sortBy":                "sort_by",
 		"sortOrder":             "sort_order",
-		"activeTab":             "active_tab",
 		"viewMode":              "view_mode",
 		"groupBy":               "group_by",
 		"defaultExpandLevel":    "default_expand_level",
@@ -31,6 +30,7 @@ func convertCamelToSnake(data []byte) []byte {
 		"showLevelBadges":       "show_level_badges",
 		"showSourceAggregation": "show_source_aggregation",
 		"badgeColors":           "badge_colors",
+		"activeTab":             "active_tab",
 	}
 	result := string(data)
 	for old, new := range replacements {
@@ -192,11 +192,6 @@ type Settings struct {
 	// Defaults to true for backward compatibility.
 	UnreadFirst bool `toml:"unread_first"`
 
-	// ActiveTab stores the selected tab in the notifications list UI.
-	// Valid values: "recents", "all".
-	// Empty or invalid values are normalized to "recents".
-	ActiveTab Tab `toml:"active_tab"`
-
 	// Filters contains active filter criteria.
 	Filters Filter `toml:"filters"`
 
@@ -224,6 +219,10 @@ type Settings struct {
 	// ShowHelp controls whether to show help text in the footer.
 	// Defaults to true for backward compatibility.
 	ShowHelp bool `toml:"show_help"`
+
+	// ActiveTab is the selected tab contract for notifications lanes.
+	// Valid values: "recents", "all".
+	ActiveTab Tab `toml:"active_tab"`
 }
 
 // DefaultSettings returns settings with all default values.
@@ -233,7 +232,6 @@ func DefaultSettings() *Settings {
 		SortBy:      SortByTimestamp,
 		SortOrder:   SortOrderDesc,
 		UnreadFirst: true, // Default to true to maintain current behavior (unread first)
-		ActiveTab:   DefaultTab(),
 		Filters: Filter{
 			Level:   "",
 			State:   "",
@@ -249,6 +247,7 @@ func DefaultSettings() *Settings {
 		ExpansionState:     map[string]bool{},
 		GroupHeader:        DefaultGroupHeaderOptions(),
 		ShowHelp:           true,
+		ActiveTab:          DefaultTab(),
 	}
 }
 

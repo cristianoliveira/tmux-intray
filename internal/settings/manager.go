@@ -16,9 +16,6 @@ type TUIState struct {
 	// UnreadFirst controls whether unread notifications are sorted first.
 	UnreadFirst bool `toml:"unread_first"`
 
-	// ActiveTab stores the selected tab in the notifications list UI.
-	ActiveTab Tab `toml:"active_tab"`
-
 	// Filters contains active filter criteria.
 	Filters Filter `toml:"filters"`
 
@@ -40,6 +37,9 @@ type TUIState struct {
 	// ShowHelp controls whether help text is shown in footer.
 	ShowHelp bool `toml:"show_help"`
 
+	// ActiveTab identifies the selected tab lane.
+	ActiveTab Tab `toml:"active_tab"`
+
 	// ExpansionState stores explicit expansion overrides by node path.
 	ExpansionState map[string]bool `toml:"expansion_state"`
 }
@@ -54,7 +54,6 @@ func FromSettings(s *Settings) TUIState {
 		SortBy:                s.SortBy,
 		SortOrder:             s.SortOrder,
 		UnreadFirst:           s.UnreadFirst,
-		ActiveTab:             NormalizeTab(string(s.ActiveTab)),
 		Filters:               s.Filters,
 		ViewMode:              s.ViewMode,
 		GroupBy:               s.GroupBy,
@@ -62,6 +61,7 @@ func FromSettings(s *Settings) TUIState {
 		DefaultExpandLevelSet: true,
 		AutoExpandUnread:      s.AutoExpandUnread,
 		ShowHelp:              s.ShowHelp,
+		ActiveTab:             NormalizeTab(string(s.ActiveTab)),
 		ExpansionState:        s.ExpansionState,
 	}
 }
@@ -79,13 +79,13 @@ func (t TUIState) ToSettings() *Settings {
 		SortBy:             t.SortBy,
 		SortOrder:          t.SortOrder,
 		UnreadFirst:        t.UnreadFirst,
-		ActiveTab:          NormalizeTab(string(t.ActiveTab)),
 		Filters:            t.Filters,
 		ViewMode:           t.ViewMode,
 		GroupBy:            t.GroupBy,
 		DefaultExpandLevel: defaultExpandLevel,
 		AutoExpandUnread:   t.AutoExpandUnread,
 		ShowHelp:           t.ShowHelp,
+		ActiveTab:          NormalizeTab(string(t.ActiveTab)),
 		ExpansionState:     t.ExpansionState,
 	}
 }
@@ -95,9 +95,9 @@ func (t TUIState) IsEmpty() bool {
 	return len(t.Columns) == 0 &&
 		t.SortBy == "" &&
 		t.SortOrder == "" &&
-		t.ActiveTab == "" &&
 		t.ViewMode == "" &&
 		t.GroupBy == "" &&
+		t.ActiveTab == "" &&
 		!t.DefaultExpandLevelSet &&
 		len(t.ExpansionState) == 0 &&
 		t.Filters.Level == "" &&

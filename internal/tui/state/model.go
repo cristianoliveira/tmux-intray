@@ -19,7 +19,7 @@ const (
 	viewModeCompact       = settings.ViewModeCompact
 	viewModeDetailed      = settings.ViewModeDetailed
 	viewModeGrouped       = settings.ViewModeGrouped
-	headerFooterLines     = 3
+	headerFooterLines     = 2
 	defaultViewportWidth  = 80
 	defaultViewportHeight = 22
 	errorClearDuration    = 5 * time.Second
@@ -125,7 +125,7 @@ func NewModel(client tmux.TmuxClient) (*Model, error) {
 		treeService:         treeService,
 		notificationService: notificationService,
 		settingsSvc:         newSettingsService(),
-		unreadFirst:         true, // Default to true for backward compatibility
+		unreadFirst:         true,
 		// Legacy fields kept for backward compatibility but now using services
 		client:             client,
 		sessionNames:       runtimeCoordinator.GetSessionNames(),
