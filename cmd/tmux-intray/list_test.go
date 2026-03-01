@@ -794,7 +794,10 @@ func TestListCmdFlagValidation(t *testing.T) {
 }
 
 func TestListCmdRunEFlagCombinations(t *testing.T) {
-	now := time.Now().UTC()
+	now := time.Date(2026, time.March, 1, 12, 0, 0, 0, time.UTC)
+	previousListNow := listNow
+	listNow = func() time.Time { return now }
+	defer func() { listNow = previousListNow }()
 	tests := []struct {
 		name           string
 		flags          map[string]string
