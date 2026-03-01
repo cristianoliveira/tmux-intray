@@ -111,16 +111,13 @@ func ValidatePaneExists(sessionID, windowID, paneID string) bool {
 }
 
 // jumpToPane is the private implementation that accepts a custom error handler.
+// sessionID and windowID are required; paneID is optional for explicit window jump.
 func (c *Core) jumpToPane(sessionID, windowID, paneID string, handler errors.ErrorHandler) bool {
-	// ASSERTION: Validate input parameters are non-empty
 	if !validateJumpParams(sessionID, windowID, paneID, handler) {
 		return false
 	}
 
 	shouldSwitch := c.shouldSwitchSession(sessionID)
-
-	paneExists := c.ValidatePaneExists(sessionID, windowID, paneID)
-	colors.Debug(fmt.Sprintf("JumpToPane: pane validation for %s:%s in window %s:%s - exists: %v", sessionID, paneID, sessionID, windowID, paneExists))
 
 	if shouldSwitch {
 		if !c.switchToSession(sessionID, handler) {
@@ -133,6 +130,14 @@ func (c *Core) jumpToPane(sessionID, windowID, paneID string, handler errors.Err
 		return false
 	}
 
+	if paneID == "" {
+		colors.Debug(fmt.Sprintf("JumpToPane: explicit window jump to %s", targetWindow))
+		return true
+	}
+
+	paneExists := c.ValidatePaneExists(sessionID, windowID, paneID)
+	colors.Debug(fmt.Sprintf("JumpToPane: pane validation for %s:%s in window %s:%s - exists: %v", sessionID, paneID, sessionID, windowID, paneExists))
+
 	if !paneExists {
 		handler.Warning("Pane " + paneID + " does not exist in window " + targetWindow + ", jumping to window instead")
 		colors.Debug(fmt.Sprintf("JumpToPane: falling back to window selection (pane %s not found)", paneID))
@@ -144,7 +149,7 @@ func (c *Core) jumpToPane(sessionID, windowID, paneID string, handler errors.Err
 
 // validateJumpParams validates the jump parameters.
 func validateJumpParams(sessionID, windowID, paneID string, handler errors.ErrorHandler) bool {
-	if sessionID == "" || windowID == "" || paneID == "" {
+	if sessionID == "" || windowID == "" {
 		var missing []string
 		if sessionID == "" {
 			missing = append(missing, "sessionID")
@@ -152,10 +157,7 @@ func validateJumpParams(sessionID, windowID, paneID string, handler errors.Error
 		if windowID == "" {
 			missing = append(missing, "windowID")
 		}
-		if paneID == "" {
-			missing = append(missing, "paneID")
-		}
-		handler.Error(fmt.Sprintf("jump to pane: invalid parameters (empty %s)", strings.Join(missing, ", ")))
+		handler.Error(fmt.Sprintf("jump: invalid parameters (empty %s)", strings.Join(missing, ", ")))
 		return false
 	}
 	return true
@@ -216,9 +218,10 @@ func (c *Core) selectPane(sessionID, windowID, paneID string, handler errors.Err
 	return true
 }
 
-// JumpToPane jumps to a specific pane. It returns true if the jump succeeded
+// JumpToPane jumps to a specific pane. If paneID is empty, performs an explicit
+// window jump to sessionID:windowID. It returns true if the jump succeeded
 // (either to the pane or fallback to window), false if the jump completely failed.
-// Preconditions: sessionID, windowID, and paneID must be non-empty.
+// Preconditions: sessionID and windowID must be non-empty.
 func (c *Core) JumpToPane(sessionID, windowID, paneID string) bool {
 	return c.jumpToPane(sessionID, windowID, paneID, defaultCLIHandler)
 }

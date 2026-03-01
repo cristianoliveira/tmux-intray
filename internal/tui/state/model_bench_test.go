@@ -387,6 +387,10 @@ func (d *dummyRuntimeCoordinator) JumpToPane(sessionID, windowID, paneID string)
 	return true
 }
 
+func (d *dummyRuntimeCoordinator) JumpToWindow(sessionID, windowID string) bool {
+	return true
+}
+
 func (d *dummyRuntimeCoordinator) ValidatePaneExists(sessionID, windowID, paneID string) (bool, error) {
 	return true, nil
 }
