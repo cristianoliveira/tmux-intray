@@ -320,59 +320,6 @@ Feature: Status Command with Format Flag
 
 ---
 
-### Phase 2: Backward Compatibility (Effort: 1 day)
-
-Ensure `status-panel` continues to work without changes to user configurations.
-
-**Files to Modify:**
-- `cmd/tmux-intray/status-panel-cmd.go` - Delegate to new formatter
-- `internal/status/status.go` - Update to use new formatter
-
-**Implementation Tasks:**
-
-1. **Refactor status-panel to use new formatter**
-   - Create internal function that maps old format names to new templates
-   - Ensure output is pixel-perfect identical to current behavior
-   - Add deprecation path (optional warning, no removal yet)
-
-2. **Maintain configuration compatibility**
-   - Old config keys still work
-   - New `status_format` key can be used for presets
-   - Environment variable `TMUX_INTRAY_STATUS_FORMAT` still works
-
-3. **Document migration path**
-   - Create migration guide for users wanting to switch to `bd status`
-   - Show equivalent templates for each old format
-
-#### Acceptance Criteria for Phase 2
-
-**AC2.1: status-panel Compatibility**
-```gherkin
-Feature: Backward Compatibility
-  Scenario: Compact format unchanged
-    Given existing tmux setup using status-panel with compact format
-    When tmux status bar is refreshed
-    Then output is identical to current behavior
-    And no configuration changes needed
-
-  Scenario: Legacy config still works
-    Given config.toml with status_format = "detailed"
-    When status-panel runs
-    Then output uses detailed format
-    And no deprecation warning appears (Phase 2 choice)
-```
-
-**AC2.2: Configuration Migration**
-```gherkin
-Feature: Configuration Continuity
-  Scenario: Using bd status instead of status-panel
-    Given user reads migration guide
-    When user updates tmux.conf to use "bd status --format='compact'"
-    Then tmux status bar works identically
-    And no manual format adjustment needed
-```
-
----
 ### Phase 3: Documentation (Effort: 1-2 days)
 
 Make the feature discoverable and understandable.
@@ -393,8 +340,8 @@ Make the feature discoverable and understandable.
 2. **User Guide**
    - Explain template syntax
    - Document all variables with examples
-- Show common use cases (tmux, monitoring, scripts)
-   - Provide migration path from status-panel
+   - Show common use cases (tmux, monitoring, scripts)
+   - Document preset formats in detail
 
 3. **Integration Guides**
    - How to integrate with popular monitoring tools
@@ -587,18 +534,6 @@ You have notifications
 - [ ] Integration tests for `bd status --format`
 - [ ] At least 80% code coverage for new formatter package
 
-### Phase 2 Acceptance Criteria
-
-✅ **Backward Compatibility**
-- [ ] `status-panel` command works unchanged
-- [ ] All old format names produce identical output
-- [ ] Old configuration keys still work
-- [ ] No deprecation warnings (Phase 2 choice to be confirmed)
-
-✅ **Migration Path**
-- [ ] Existing tmux.conf configurations work without modification
-- [ ] Users can optionally switch to `bd status` by updating tmux.conf
-- [ ] No data loss or behavior change in migration
 ### Phase 3 Acceptance Criteria
 
 ✅ **Documentation Quality**
@@ -622,7 +557,6 @@ You have notifications
 | Metric | Target | Verification |
 |--------|--------|--------------|
 | `bd status --format` is usable | Any custom template works | Manual testing with 5+ unique templates |
-| No regressions | `status-panel` output unchanged | Diff current vs Phase 2 output |
 | Help text quality | Users can understand usage | Have 2-3 beta users try without docs |
 
 ### Secondary Metrics
@@ -639,7 +573,6 @@ Before release, verify:
 
 - [ ] All unit tests pass
 - [ ] All integration tests pass
-- [ ] `status-panel` output pixel-perfect identical
 - [ ] Documentation compiles and renders correctly
 - [ ] Help text is clear and complete
 - [ ] No deprecation warnings appear (Phase 2 confirmation)
@@ -689,7 +622,6 @@ Phase 1 (Core) ──→ Phase 2 (Compat) ──→ Phase 3 (Docs) ──→ Pha
 | Risk | Impact | Probability | Mitigation |
 |------|--------|-------------|-----------|
 | Template parser complexity | Medium | Low | Start with simple regex-based parser; enhance if needed |
-| Breaking `status-panel` | High | Low | Comprehensive backward compat tests before merge |
 | Users confused by templates | Medium | Medium | Provide 5+ real-world examples in docs |
 | Performance regression | Medium | Low | Benchmark template rendering vs hardcoded |
 | Scope creep (color support) | Medium | Medium | Document as future work; don't block release |
@@ -698,36 +630,11 @@ Phase 1 (Core) ──→ Phase 2 (Compat) ──→ Phase 3 (Docs) ──→ Pha
 
 ## Open Decisions
 
-### Decision 1: Deprecation Warning for status-panel
-**Question:** Should the `status-panel` command emit a deprecation warning?
-
-**Options:**
-- **A) No warning** (Recommended for Phase 2)
-  - Pro: Minimal disruption to existing users
-  - Con: Unclear long-term direction
-  - Timeline: Supports immediate release without user friction
-
-- **B) Optional warning** via environment variable
-  - Pro: Users can opt-in to see path forward
-  - Con: Additional complexity
-  - Timeline: Same-release feasible
-
-- **C) Deprecation warning from day 1**
-  - Pro: Clear signal to users
-  - Con: May confuse existing users who are happy with status-panel
-  - Timeline: Better long-term, may require communication plan
-
-**Recommendation:** Choose **A (No warning)** for Phase 2. Revisit in Phase 4 with user feedback.
-
-**Decision Made:** [TO BE DECIDED BY TEAM]
-
----
 ### Decision 2: Default Format (preset vs template syntax)
 **Question:** What should the default `--format` be if the flag is omitted?
 
 **Options:**
 - **A) Preset "compact"** (Recommended)
-  - Pro: Backward compatible with status-panel behavior
   - Con: Doesn't leverage new template power
   - Default: `bd status` → same as `bd status --format=compact`
 
@@ -745,7 +652,9 @@ Phase 1 (Core) ──→ Phase 2 (Compat) ──→ Phase 3 (Docs) ──→ Pha
 
 **Decision Made:** [TO BE DECIDED BY TEAM]
 
----### Decision 4: Template Syntax for Special Formatting
+---
+
+### Decision 4: Template Syntax for Special Formatting
 **Question:** Should templates support conditionals or filters (e.g., color output based on level)?
 
 **Examples of what we're asking about:**
@@ -823,8 +732,6 @@ internal/
 cmd/tmux-intray/
 ├── status.go                       # [MODIFY] Add --format flag support
 ├── status_test.go                  # [MODIFY] Add format tests
-├── status-panel-cmd.go             # [MODIFY] Delegate to formatter
-└── status-panel-core.go            # [MODIFY] Update if needed
 
 docs/
 └── plans/
@@ -928,7 +835,6 @@ Output: "2 critical"
 | `internal/formatter/presets.go` | Create | New module | Preset management |
 | `internal/formatter/*_test.go` | Create | Test files | Test coverage |
 | `cmd/tmux-intray/status.go` | Modify | Add `--format` support | Feature implementation |
-| `cmd/tmux-intray/status-panel-cmd.go` | Modify | Use new formatter | Backward compatibility |
 | `internal/format/status.go` | Modify | Add helpers | Support new features |
 | `docs/status-command-guide.md` | Create | User guide | Documentation |
 | `docs/cli/CLI_REFERENCE.md` | Modify | Add status docs | API documentation |
@@ -949,7 +855,6 @@ Output: "2 critical"
 - Output accuracy with various notification states
 
 **Regression Tests**:
-- `status-panel` output unchanged
 - Existing functionality unaffected
 
 **Test Organization:**
