@@ -1887,7 +1887,7 @@ func TestModelUpdateHandlesWindowSize(t *testing.T) {
 
 	assert.Equal(t, 100, model.uiState.GetWidth())
 	assert.Equal(t, 30, model.uiState.GetHeight())
-	assert.Equal(t, 27, model.uiState.GetViewport().Height)
+	assert.Equal(t, 28, model.uiState.GetViewport().Height)
 }
 
 func TestModelViewRendersContent(t *testing.T) {
