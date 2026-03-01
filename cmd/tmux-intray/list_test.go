@@ -297,6 +297,8 @@ func TestPrintListGroupByLevel(t *testing.T) {
 }
 
 func TestPrintListGroupByMessage(t *testing.T) {
+	t.Setenv("TMUX_INTRAY_DEDUP__CRITERIA", "message")
+	t.Setenv("TMUX_INTRAY_DEDUP__WINDOW", "")
 	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
 		return "1\t2025-01-01T10:00:00Z\tactive\tsess1\twin1\tpane1\trepeated message\t123\tinfo\t\n" +
 			"2\t2025-01-01T11:00:00Z\tactive\tsess1\twin1\tpane2\trepeated message\t124\twarning\t\n" +
