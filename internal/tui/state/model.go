@@ -19,7 +19,7 @@ const (
 	viewModeCompact       = settings.ViewModeCompact
 	viewModeDetailed      = settings.ViewModeDetailed
 	viewModeGrouped       = settings.ViewModeGrouped
-	headerFooterLines     = 2
+	headerFooterLines     = 3
 	defaultViewportWidth  = 80
 	defaultViewportHeight = 22
 	errorClearDuration    = 5 * time.Second

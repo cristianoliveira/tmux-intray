@@ -845,7 +845,7 @@ func TestModelUpdateTabSwitchRefreshesFilterWithSearchQuery(t *testing.T) {
 	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
 
 	beforeCalls := spyService.applyCalls
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
 	model = updated.(*Model)
 
 	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab())
@@ -1213,8 +1213,8 @@ func TestModelUpdateHandlesReadUnreadKeys(t *testing.T) {
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetCursor(0)
 
-	// Press 'r' to mark read
-	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}}
+	// Press 'R' to mark read
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'R'}}
 	updated, cmd := model.Update(msg)
 	model = updated.(*Model)
 	assert.Nil(t, cmd) // command may be nil
@@ -1870,7 +1870,7 @@ func TestModelUpdateHandlesWindowSize(t *testing.T) {
 
 	assert.Equal(t, 100, model.uiState.GetWidth())
 	assert.Equal(t, 30, model.uiState.GetHeight())
-	assert.Equal(t, 28, model.uiState.GetViewport().Height)
+	assert.Equal(t, 27, model.uiState.GetViewport().Height)
 }
 
 func TestModelViewRendersContent(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
 
@@ -115,9 +116,6 @@ func (m *Model) handleKeyType(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return nil, nil
 	case tea.KeyUp, tea.KeyDown:
 		return nil, nil
-	case tea.KeyTab:
-		m.cycleActiveTab()
-		return m, nil
 	case tea.KeyCtrlH:
 		// In search contexts, Ctrl+h moves cursor left (same as normal navigation)
 		if m.isSearchContext() {
@@ -154,6 +152,31 @@ func (m *Model) canProcessBinding() bool {
 // handleKeyBinding handles string-based key bindings.
 func (m *Model) handleKeyBinding(key string, allowInSearch bool) (tea.Model, tea.Cmd) {
 	switch key {
+	case "j", "k", "G", "g":
+		return m.handleNavigationKeys(key, allowInSearch)
+	case "r", "a":
+		return m.handleTabSwitchingKeys(key)
+	case "R", "u":
+		return m.handleMarkKeys(key)
+	case "/", "?", "v":
+		return m.handleModeKeys(key, allowInSearch)
+	case "h", "l", "z":
+		return m.handleTreeKeys(key, allowInSearch)
+	case "d", "D":
+		return m.handleDismissKeys(key)
+	case "i":
+		// In search mode, 'i' is handled by KeyRunes
+		// This is a no-op but kept for documentation
+		return m, nil
+	case "q":
+		return m.handleQuit()
+	}
+	return m, nil
+}
+
+// handleNavigationKeys handles navigation-related key bindings.
+func (m *Model) handleNavigationKeys(key string, allowInSearch bool) (tea.Model, tea.Cmd) {
+	switch key {
 	case "j":
 		m.handleMoveDown()
 		return m, nil
@@ -166,6 +189,37 @@ func (m *Model) handleKeyBinding(key string, allowInSearch bool) (tea.Model, tea
 		return m.handleBindingWithCheck(func() {
 			m.uiState.SetPendingKey("g")
 		}, allowInSearch)
+	}
+	return m, nil
+}
+
+// handleTabSwitchingKeys handles tab switching key bindings.
+func (m *Model) handleTabSwitchingKeys(key string) (tea.Model, tea.Cmd) {
+	switch key {
+	case "r":
+		m.switchActiveTab(settings.TabRecents)
+		return m, nil
+	case "a":
+		m.switchActiveTab(settings.TabAll)
+		return m, nil
+	}
+	return m, nil
+}
+
+// handleMarkKeys handles mark/unmark key bindings.
+func (m *Model) handleMarkKeys(key string) (tea.Model, tea.Cmd) {
+	switch key {
+	case "R":
+		return m, m.markSelectedRead()
+	case "u":
+		return m, m.markSelectedUnread()
+	}
+	return m, nil
+}
+
+// handleModeKeys handles mode and view key bindings.
+func (m *Model) handleModeKeys(key string, allowInSearch bool) (tea.Model, tea.Cmd) {
+	switch key {
 	case "/":
 		viewModeBeforeSearch := m.uiState.GetViewMode()
 		m.handleSearchViewMode()
@@ -174,16 +228,15 @@ func (m *Model) handleKeyBinding(key string, allowInSearch bool) (tea.Model, tea
 	case "?":
 		m.uiState.SetShowHelp(!m.uiState.ShowHelp())
 		return m, nil
-	case "d":
-		return m, m.handleDismiss()
-	case "D":
-		return m, m.handleDismissGroup()
-	case "r":
-		return m, m.markSelectedRead()
-	case "u":
-		return m, m.markSelectedUnread()
 	case "v":
 		return m.handleBindingWithCheck(m.cycleViewMode, allowInSearch)
+	}
+	return m, nil
+}
+
+// handleTreeKeys handles tree operation key bindings.
+func (m *Model) handleTreeKeys(key string, allowInSearch bool) (tea.Model, tea.Cmd) {
+	switch key {
 	case "h":
 		m.handleCollapseNode()
 		return m, nil
@@ -195,12 +248,17 @@ func (m *Model) handleKeyBinding(key string, allowInSearch bool) (tea.Model, tea
 			m.uiState.SetPendingKey("z")
 		}
 		return m, nil
-	case "i":
-		// In search mode, 'i' is handled by KeyRunes
-		// This is a no-op but kept for documentation
-		return m, nil
-	case "q":
-		return m.handleQuit()
+	}
+	return m, nil
+}
+
+// handleDismissKeys handles dismissal key bindings.
+func (m *Model) handleDismissKeys(key string) (tea.Model, tea.Cmd) {
+	switch key {
+	case "d":
+		return m, m.handleDismiss()
+	case "D":
+		return m, m.handleDismissGroup()
 	}
 	return m, nil
 }
