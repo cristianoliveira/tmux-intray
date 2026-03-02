@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 )
@@ -95,75 +94,21 @@ func ParseNotification(tsvLine string) (Notification, error) {
 func ValidateIndex(idx string) (int, error) {
 	// Check for invalid characters
 	if !strings.ContainsAny(idx, "0123456789") {
-		colors.Error("invalid index: must be a number")
 		return 0, fmt.Errorf("invalid index: must be a number")
 	}
 
 	// Parse as integer
 	num, err := strconv.Atoi(idx)
 	if err != nil {
-		colors.Error("invalid index: ", fmt.Sprintf("%v", err))
 		return 0, fmt.Errorf("invalid index: %w", err)
 	}
 
 	// Check bounds
 	if num <= 0 {
-		colors.Error("invalid index: must be greater than 0")
 		return 0, fmt.Errorf("invalid index: must be greater than 0")
 	}
 
 	return num, nil
-}
-
-// PrintNotification prints a notification in a human-readable format.
-func PrintNotification(notification Notification, showIndex bool, index int) {
-	var prefix string
-	if showIndex {
-		prefix = fmt.Sprintf("%d: ", index)
-	}
-	colors.Info("%s[%s] %s (%s:%s.%s)",
-		prefix,
-		notification.Level,
-		notification.Message,
-		notification.Session,
-		notification.Window,
-		notification.Pane,
-	)
-}
-
-// PrintNotifications prints notifications with optional index display.
-func PrintNotifications(notifications []Notification, showIndex bool) {
-	if len(notifications) == 0 {
-		colors.Info("No notifications")
-		return
-	}
-
-	for i, notif := range notifications {
-		PrintNotification(notif, showIndex, i+1)
-	}
-}
-
-// ParseAndPrintNotifications parses TSV lines and prints them with optional index display.
-func ParseAndPrintNotifications(tsvLines string, showIndex bool) error {
-	if tsvLines == "" {
-		colors.Info("No notifications")
-		return nil
-	}
-
-	var notifications []Notification
-	for _, line := range strings.Split(tsvLines, "\n") {
-		if line == "" {
-			continue
-		}
-		notif, err := ParseNotification(line)
-		if err != nil {
-			return fmt.Errorf("failed to parse notification: %w", err)
-		}
-		notifications = append(notifications, notif)
-	}
-
-	PrintNotifications(notifications, showIndex)
-	return nil
 }
 
 // ValidateLevel checks if the provided notification level is valid.
@@ -178,7 +123,6 @@ func ValidateLevel(level string) error {
 		"critical": true,
 	}
 	if !validLevels[level] {
-		colors.Error("invalid level: ", fmt.Sprintf("%s (valid: info, warning, error, critical)", level))
 		return fmt.Errorf("invalid level: %s (valid: info, warning, error, critical)", level)
 	}
 	return nil
@@ -195,15 +139,9 @@ func ValidateState(state string) error {
 		"all":       true,
 	}
 	if !validStates[state] {
-		colors.Error("invalid state: ", fmt.Sprintf("%s (valid: active, dismissed)", state))
 		return fmt.Errorf("invalid state: %s (valid: active, dismissed)", state)
 	}
 	return nil
-}
-
-// DebugLog prints a debug message if debug mode is enabled.
-func DebugLog(msg string) {
-	colors.Debug(msg)
 }
 
 // GetStateDir returns the state directory path.
