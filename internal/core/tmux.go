@@ -58,6 +58,12 @@ func NewCore(client ports.TmuxClient, stor ports.NotificationRepository) *Core {
 // defaultCore is the default instance for backward compatibility.
 var defaultCore = NewCore(nil, nil)
 
+// Default returns the default Core instance for backward compatibility.
+func Default() *Core {
+	return defaultCore
+}
+
+
 // EnsureTmuxRunning verifies that tmux is running.
 func (c *Core) EnsureTmuxRunning() bool {
 	running, err := c.client.HasSession()
