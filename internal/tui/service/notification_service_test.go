@@ -178,46 +178,81 @@ func TestApplyFiltersAndSearchSessionWindowPaneFilter(t *testing.T) {
 	assert.Equal(t, 1, filtered[0].ID)
 }
 
-func TestApplyFiltersAndSearchTabScopeUsesActiveNotificationsOnly(t *testing.T) {
+func TestApplyFiltersAndSearchActiveOnlyAcrossTabs(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
 	notifications := []notification.Notification{
-		{ID: 1, Message: "active newest", Timestamp: "2024-01-03T10:00:00Z", State: "active", Level: "info"},
-		{ID: 2, Message: "dismissed newest", Timestamp: "2024-01-04T10:00:00Z", State: "dismissed", Level: "warning"},
-		{ID: 3, Message: "active older", Timestamp: "2024-01-01T10:00:00Z", State: "active", Level: "error"},
+		{ID: 1, Message: "active 1", Timestamp: "2024-01-01T10:00:00Z", State: "active", Level: "info"},
+		{ID: 2, Message: "dismissed", Timestamp: "2024-01-02T10:00:00Z", State: "dismissed", Level: "info"},
+		{ID: 3, Message: "active 2", Timestamp: "2024-01-03T10:00:00Z", State: "active", Level: "warning"},
 	}
 	svc.SetNotifications(notifications)
 
 	svc.ApplyFiltersAndSearch(settings.TabRecents, "", "", "", "", "", "", "", "timestamp", "desc")
-	recents := svc.GetFilteredNotifications()
-	require.Len(t, recents, 2)
-	assert.Equal(t, []int{1, 3}, []int{recents[0].ID, recents[1].ID})
+	filtered := svc.GetFilteredNotifications()
+	require.Len(t, filtered, 2)
+	assert.Equal(t, []int{3, 1}, []int{filtered[0].ID, filtered[1].ID})
 
 	svc.ApplyFiltersAndSearch(settings.TabAll, "", "", "", "", "", "", "", "timestamp", "desc")
-	all := svc.GetFilteredNotifications()
-	require.Len(t, all, 2)
-	assert.Equal(t, []int{1, 3}, []int{all[0].ID, all[1].ID})
+	filtered = svc.GetFilteredNotifications()
+	require.Len(t, filtered, 2)
+	assert.Equal(t, []int{3, 1}, []int{filtered[0].ID, filtered[1].ID})
 
 	svc.ApplyFiltersAndSearch(settings.TabAll, "", "dismissed", "", "", "", "", "", "timestamp", "desc")
 	assert.Empty(t, svc.GetFilteredNotifications())
 }
 
-func TestApplyFiltersAndSearchTabAllPhaseConstraintActiveOnly(t *testing.T) {
+func TestApplyFiltersAndSearchRecentsUsesLimitedDataset(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
-	notifications := []notification.Notification{
-		{ID: 1, Message: "active", Timestamp: "2024-01-03T10:00:00Z", State: "active", Level: "info"},
-		{ID: 2, Message: "dismissed", Timestamp: "2024-01-04T10:00:00Z", State: "dismissed", Level: "warning"},
+	notifications := make([]notification.Notification, 0, 25)
+	for i := 1; i <= 25; i++ {
+		notifications = append(notifications, notification.Notification{
+			ID:        i,
+			Message:   "msg",
+			Timestamp: "2024-01-01T10:00:00Z",
+			State:     "active",
+			Level:     "info",
+		})
 	}
 	svc.SetNotifications(notifications)
 
-	svc.ApplyFiltersAndSearch(settings.TabRecents, "", "", "", "", "", "", "", "timestamp", "desc")
-	recents := svc.GetFilteredNotifications()
-	require.Len(t, recents, 1)
-	assert.Equal(t, 1, recents[0].ID)
+	svc.ApplyFiltersAndSearch(settings.TabRecents, "", "", "", "", "", "", "", "id", "desc")
+	filtered := svc.GetFilteredNotifications()
+	require.Len(t, filtered, 20)
+	assert.Equal(t, 25, filtered[0].ID)
+	assert.Equal(t, 6, filtered[len(filtered)-1].ID)
 
-	svc.ApplyFiltersAndSearch(settings.TabAll, "", "", "", "", "", "", "", "timestamp", "desc")
-	all := svc.GetFilteredNotifications()
-	require.Len(t, all, 1)
-	assert.Equal(t, 1, all[0].ID)
+	svc.ApplyFiltersAndSearch(settings.TabAll, "", "", "", "", "", "", "", "id", "desc")
+	filtered = svc.GetFilteredNotifications()
+	require.Len(t, filtered, 25)
+	assert.Equal(t, 25, filtered[0].ID)
+	assert.Equal(t, 1, filtered[len(filtered)-1].ID)
+}
+
+func TestApplyFiltersAndSearchScopesFilteringToSelectedTabDataset(t *testing.T) {
+	svc := NewNotificationService(nil, nil)
+	notifications := make([]notification.Notification, 0, 25)
+	for i := 1; i <= 25; i++ {
+		level := "info"
+		if i == 2 {
+			level = "error"
+		}
+		notifications = append(notifications, notification.Notification{
+			ID:        i,
+			Message:   "msg",
+			Timestamp: "2024-01-01T10:00:00Z",
+			State:     "active",
+			Level:     level,
+		})
+	}
+	svc.SetNotifications(notifications)
+
+	svc.ApplyFiltersAndSearch(settings.TabRecents, "", "", "error", "", "", "", "", "id", "desc")
+	assert.Empty(t, svc.GetFilteredNotifications())
+
+	svc.ApplyFiltersAndSearch(settings.TabAll, "", "", "error", "", "", "", "", "id", "desc")
+	filtered := svc.GetFilteredNotifications()
+	require.Len(t, filtered, 1)
+	assert.Equal(t, 2, filtered[0].ID)
 }
 
 func TestApplyFiltersAndSearchTabScopeSearchesWithinTabDataset(t *testing.T) {

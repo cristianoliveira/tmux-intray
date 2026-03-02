@@ -150,15 +150,17 @@ func determineListState(cmd *cobra.Command) string {
 	return state
 }
 
+// listNow is the time source used for list timestamp filters.
+var listNow = time.Now
+
 // computeCutoffTimestamps computes timestamp cutoffs for older/newer-than filters.
 func computeCutoffTimestamps(olderThan, newerThan int) (olderCutoff, newerCutoff string) {
+	base := listNow().UTC().Truncate(time.Second)
 	if olderThan > 0 {
-		t := time.Now().UTC().AddDate(0, 0, -olderThan)
-		olderCutoff = t.Format("2006-01-02T15:04:05Z")
+		olderCutoff = base.AddDate(0, 0, -olderThan).Format("2006-01-02T15:04:05Z")
 	}
 	if newerThan > 0 {
-		t := time.Now().UTC().AddDate(0, 0, -newerThan)
-		newerCutoff = t.Format("2006-01-02T15:04:05Z")
+		newerCutoff = base.AddDate(0, 0, -newerThan).Format("2006-01-02T15:04:05Z")
 	}
 	return
 }

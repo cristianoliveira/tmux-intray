@@ -57,6 +57,9 @@ type UIState struct {
 	// Group by configuration
 	groupBy model.GroupBy
 
+	// Active tab lane
+	activeTab settings.Tab
+
 	// Expansion state
 	expandLevel    int
 	expansionState map[string]bool
@@ -78,6 +81,7 @@ func NewUIState() *UIState {
 		expandLevel:    defaultExpandLevel, // Default expand level
 		expansionState: make(map[string]bool),
 		showHelp:       true,
+		activeTab:      settings.DefaultTab(),
 	}
 }
 
@@ -331,6 +335,16 @@ func (u *UIState) SetGroupBy(groupBy model.GroupBy) {
 	u.groupBy = groupBy
 }
 
+// GetActiveTab returns the current tab lane selection.
+func (u *UIState) GetActiveTab() settings.Tab {
+	return u.activeTab
+}
+
+// SetActiveTab sets the current tab lane selection.
+func (u *UIState) SetActiveTab(tab settings.Tab) {
+	u.activeTab = settings.NormalizeTab(string(tab))
+}
+
 // GetExpandLevel returns the default expansion level for tree nodes.
 func (u *UIState) GetExpandLevel() int {
 	return u.expandLevel
@@ -461,6 +475,7 @@ func (u *UIState) ToDTO() model.UIDTO {
 		ExpandLevel:    u.expandLevel,
 		ExpansionState: u.expansionState,
 		ShowHelp:       u.showHelp,
+		ActiveTab:      u.activeTab,
 	}
 }
 
@@ -483,5 +498,6 @@ func (u *UIState) FromDTO(dto model.UIDTO) error {
 		u.expansionState = dto.ExpansionState
 	}
 	u.showHelp = dto.ShowHelp
+	u.activeTab = settings.NormalizeTab(string(dto.ActiveTab))
 	return nil
 }

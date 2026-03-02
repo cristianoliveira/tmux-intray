@@ -185,5 +185,4 @@ See [Status Command Guide](../status-command-guide.md) for:
 - All 6 preset definitions with examples
 - Real-world use cases (status bar integration, scripts, etc.)
 - Troubleshooting section
-- Migration guide for users of the deprecated `status-panel` command
 - Advanced examples

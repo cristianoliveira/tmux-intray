@@ -14,8 +14,22 @@ func TestTabContract(t *testing.T) {
 }
 
 func TestNormalizeTab(t *testing.T) {
-	assert.Equal(t, TabRecents, NormalizeTab(""))
-	assert.Equal(t, TabRecents, NormalizeTab("invalid"))
-	assert.Equal(t, TabRecents, NormalizeTab(" ReCeNtS "))
-	assert.Equal(t, TabAll, NormalizeTab("ALL"))
+	tests := []struct {
+		name string
+		raw  string
+		want Tab
+	}{
+		{name: "recents is valid", raw: string(TabRecents), want: TabRecents},
+		{name: "all is valid", raw: string(TabAll), want: TabAll},
+		{name: "empty defaults", raw: "", want: TabRecents},
+		{name: "invalid defaults", raw: "invalid", want: TabRecents},
+		{name: "whitespace trimmed", raw: " ReCeNtS ", want: TabRecents},
+		{name: "uppercase all", raw: "ALL", want: TabAll},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, NormalizeTab(tt.raw))
+		})
+	}
 }

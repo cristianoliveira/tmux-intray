@@ -50,6 +50,12 @@ type UIState interface {
 	// SetGroupBy sets the grouping mode.
 	SetGroupBy(groupBy GroupBy)
 
+	// GetActiveTab returns the current tab lane selection.
+	GetActiveTab() settings.Tab
+
+	// SetActiveTab sets the current tab lane selection.
+	SetActiveTab(tab settings.Tab)
+
 	// GetExpandLevel returns the default expansion level for tree nodes.
 	GetExpandLevel() int
 
@@ -176,6 +182,9 @@ type UIDTO struct {
 
 	// Filters are the active notification filters.
 	Filters Filters
+
+	// ActiveTab is the selected notifications tab lane.
+	ActiveTab settings.Tab
 }
 
 // Filters represents notification filters.

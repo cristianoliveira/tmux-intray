@@ -29,6 +29,7 @@ func TestFromSettings(t *testing.T) {
 				Filters:               Filter{},
 				ViewMode:              ViewModeGrouped,
 				GroupBy:               GroupByNone,
+				ActiveTab:             TabRecents,
 				DefaultExpandLevel:    1,
 				DefaultExpandLevelSet: true,
 				ExpansionState:        map[string]bool{},
@@ -51,6 +52,7 @@ func TestFromSettings(t *testing.T) {
 				},
 				ViewMode:           ViewModeDetailed,
 				GroupBy:            GroupBySession,
+				ActiveTab:          TabAll,
 				DefaultExpandLevel: 2,
 				ExpansionState: map[string]bool{
 					"session:$1": true,
@@ -71,6 +73,7 @@ func TestFromSettings(t *testing.T) {
 				},
 				ViewMode:              ViewModeDetailed,
 				GroupBy:               GroupBySession,
+				ActiveTab:             TabAll,
 				DefaultExpandLevel:    2,
 				DefaultExpandLevelSet: true,
 				ExpansionState: map[string]bool{
@@ -97,6 +100,7 @@ func TestFromSettings(t *testing.T) {
 				ViewMode:              "",
 				GroupBy:               "",
 				DefaultExpandLevelSet: true,
+				ActiveTab:             TabRecents,
 			},
 		},
 	}
@@ -111,6 +115,7 @@ func TestFromSettings(t *testing.T) {
 			assert.Equal(t, tt.want.Filters, got.Filters)
 			assert.Equal(t, tt.want.ViewMode, got.ViewMode)
 			assert.Equal(t, tt.want.GroupBy, got.GroupBy)
+			assert.Equal(t, tt.want.ActiveTab, got.ActiveTab)
 			assert.Equal(t, tt.want.DefaultExpandLevel, got.DefaultExpandLevel)
 			assert.Equal(t, tt.want.DefaultExpandLevelSet, got.DefaultExpandLevelSet)
 			assert.Equal(t, tt.want.ExpansionState, got.ExpansionState)
@@ -135,6 +140,7 @@ func TestToSettings(t *testing.T) {
 				Filters:            Filter{},
 				ViewMode:           "",
 				GroupBy:            "",
+				ActiveTab:          TabRecents,
 				DefaultExpandLevel: 0,
 				ExpansionState:     nil,
 			},
@@ -156,6 +162,7 @@ func TestToSettings(t *testing.T) {
 				},
 				ViewMode:              ViewModeDetailed,
 				GroupBy:               GroupByWindow,
+				ActiveTab:             TabAll,
 				DefaultExpandLevel:    3,
 				DefaultExpandLevelSet: true,
 				ExpansionState: map[string]bool{
@@ -177,6 +184,7 @@ func TestToSettings(t *testing.T) {
 				},
 				ViewMode:           ViewModeDetailed,
 				GroupBy:            GroupByWindow,
+				ActiveTab:          TabAll,
 				DefaultExpandLevel: 3,
 				ExpansionState: map[string]bool{
 					"window:@1": true,
@@ -195,6 +203,7 @@ func TestToSettings(t *testing.T) {
 			assert.Equal(t, tt.want.Filters, got.Filters)
 			assert.Equal(t, tt.want.ViewMode, got.ViewMode)
 			assert.Equal(t, tt.want.GroupBy, got.GroupBy)
+			assert.Equal(t, tt.want.ActiveTab, got.ActiveTab)
 			assert.Equal(t, tt.want.DefaultExpandLevel, got.DefaultExpandLevel)
 			assert.Equal(t, tt.want.ExpansionState, got.ExpansionState)
 		})
@@ -251,6 +260,13 @@ func TestIsEmpty(t *testing.T) {
 			name: "has groupBy",
 			state: TUIState{
 				GroupBy: GroupByWindow,
+			},
+			want: false,
+		},
+		{
+			name: "has activeTab",
+			state: TUIState{
+				ActiveTab: TabAll,
 			},
 			want: false,
 		},
@@ -368,6 +384,7 @@ func TestRoundTripConversion(t *testing.T) {
 				},
 				ViewMode:           ViewModeDetailed,
 				GroupBy:            GroupBySession,
+				ActiveTab:          TabAll,
 				DefaultExpandLevel: 2,
 				ExpansionState: map[string]bool{
 					"session:$1": true,
@@ -397,6 +414,7 @@ func TestRoundTripConversion(t *testing.T) {
 			assert.Equal(t, tt.settings.Filters, result.Filters)
 			assert.Equal(t, tt.settings.ViewMode, result.ViewMode)
 			assert.Equal(t, tt.settings.GroupBy, result.GroupBy)
+			assert.Equal(t, NormalizeTab(string(tt.settings.ActiveTab)), result.ActiveTab)
 			assert.Equal(t, tt.settings.DefaultExpandLevel, result.DefaultExpandLevel)
 			assert.Equal(t, tt.settings.ExpansionState, result.ExpansionState)
 		})
@@ -418,6 +436,7 @@ func TestPartialTUIStateConversion(t *testing.T) {
 		},
 		ViewMode:           ViewModeDetailed,
 		GroupBy:            GroupBySession,
+		ActiveTab:          TabAll,
 		DefaultExpandLevel: 2,
 		ExpansionState: map[string]bool{
 			"session:$1": true,
@@ -433,6 +452,7 @@ func TestPartialTUIStateConversion(t *testing.T) {
 	require.Equal(t, original.Filters, state.Filters)
 	require.Equal(t, original.ViewMode, state.ViewMode)
 	require.Equal(t, original.GroupBy, state.GroupBy)
+	require.Equal(t, original.ActiveTab, state.ActiveTab)
 	require.Equal(t, original.DefaultExpandLevel, state.DefaultExpandLevel)
 	require.Equal(t, original.ExpansionState, state.ExpansionState)
 
@@ -459,6 +479,7 @@ func TestPartialTUIStateConversion(t *testing.T) {
 	assert.Equal(t, "%1", result.Filters.Pane)
 	assert.Equal(t, original.ViewMode, result.ViewMode)
 	assert.Equal(t, original.GroupBy, result.GroupBy)
+	assert.Equal(t, original.ActiveTab, result.ActiveTab)
 	assert.Equal(t, original.DefaultExpandLevel, result.DefaultExpandLevel)
 	assert.Equal(t, map[string]bool{}, result.ExpansionState)
 }
@@ -529,4 +550,21 @@ func TestPartialUpdates(t *testing.T) {
 	assert.Equal(t, LevelFilterWarning, settingsData.Filters.Level)
 	assert.Equal(t, "", settingsData.Filters.State)
 	assert.Equal(t, "", settingsData.ViewMode)
+}
+
+func TestFromSettingsPreservesUnreadFirst(t *testing.T) {
+	s := DefaultSettings()
+	s.UnreadFirst = false
+
+	state := FromSettings(s)
+
+	assert.False(t, state.UnreadFirst)
+}
+
+func TestToSettingsPreservesUnreadFirst(t *testing.T) {
+	state := TUIState{UnreadFirst: true}
+
+	s := state.ToSettings()
+
+	assert.True(t, s.UnreadFirst)
 }

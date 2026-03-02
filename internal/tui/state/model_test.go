@@ -897,7 +897,6 @@ func TestModelTabDefaultAndSwitchKeysRemainActiveOnly(t *testing.T) {
 	require.Len(t, model.filtered, 2)
 	assert.Equal(t, []int{1, 3}, []int{model.filtered[0].ID, model.filtered[1].ID})
 }
-
 func TestModelUpdateHandlesJumpToBottomWithG(t *testing.T) {
 	model := newTestModel(t, []notification.Notification{
 		{ID: 1, Message: "First"},
