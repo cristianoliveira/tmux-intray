@@ -3,7 +3,6 @@ package state
 import (
 	"testing"
 
-	"github.com/cristianoliveira/tmux-intray/internal/core"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	"github.com/stretchr/testify/require"
@@ -32,8 +31,7 @@ func TestTUIWithRealTmuxClient(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create TUI model with real client and core
-	coreInstance := core.NewCore(client, nil)
-	model, err := NewModel(client, coreInstance)
+	model, err := NewModel(client)
 	require.NoError(t, err)
 	require.NotNil(t, model)
 
@@ -59,7 +57,7 @@ func TestTUIClientNilDefaults(t *testing.T) {
 	setupStorage(t)
 
 	// Create TUI model with nil client (should create default)
-	model, err := NewModel(nil, nil)
+	model, err := NewModel(nil)
 	require.NoError(t, err)
 	require.NotNil(t, model)
 

@@ -7,7 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
-	"github.com/cristianoliveira/tmux-intray/internal/core"
+
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/state"
@@ -47,8 +47,7 @@ func (d *DefaultClient) CreateModel() (Model, error) {
 	if d.tmuxClient == nil {
 		d.tmuxClient = tmux.NewDefaultClient()
 	}
-	coreInstance := core.NewCore(d.tmuxClient, nil)
-	return state.NewModel(d.tmuxClient, coreInstance)
+	return state.NewModel(d.tmuxClient)
 }
 
 // RunProgram starts the bubbletea program.
