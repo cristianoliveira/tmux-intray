@@ -63,7 +63,6 @@ func Default() *Core {
 	return defaultCore
 }
 
-
 // EnsureTmuxRunning verifies that tmux is running.
 func (c *Core) EnsureTmuxRunning() bool {
 	running, err := c.client.HasSession()
