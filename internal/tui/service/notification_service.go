@@ -291,24 +291,6 @@ func (s *DefaultNotificationService) SetNotifications(notifications []notificati
 	s.filtered = notifications
 }
 
-func (s *DefaultNotificationService) baseDatasetForTab(tab settings.Tab) []notification.Notification {
-	activeOnly := make([]notification.Notification, 0, len(s.notifications))
-	for _, n := range s.notifications {
-		if n.State == "" || n.State == "active" {
-			activeOnly = append(activeOnly, n)
-		}
-	}
-
-	switch settings.NormalizeTab(string(tab)) {
-	case settings.TabRecents:
-		return activeOnly
-	case settings.TabAll:
-		return activeOnly
-	default:
-		return activeOnly
-	}
-}
-
 // GetNotifications returns all notifications currently tracked by the service.
 func (s *DefaultNotificationService) GetNotifications() []notification.Notification {
 	return s.notifications

@@ -1,16 +1,52 @@
-# Recents | All tabs and Jump Navigation Breakdown
+# Recents/All and Jump Navigation Breakdown
 
-## Problem statement
+## Status
+
+- Phase: implementation completion gate
+- Lane: `tmux-intray-i5r`
+- Scope: cross-lane test/docs closure for Recents/All and jump behavior
+
+## Problem Statement
 
 Currently the application lacks a clear, discoverable, and keyboard-friendly way for users to navigate recently used windows and panes. Users need to quickly filter between "Recents" (recently active) and "All" sessions, and then jump directly to a target window or pane. Without a consistent tab state, predictable rendering, keyboard bindings, and jump target controls, workflows are interrupted, causing friction for power users who rely on rapid context switching.
-
-This document defines the product direction, user stories, acceptance criteria, phased implementation plan (with file paths), risks, test plan, and definition of done for implementing Recents|All tabs and jump navigation controls.
 
 ## Architecture Reference
 
 The tabs implementation follows the architecture defined in [Tabs Architecture](../design/tabs-architecture.md), which establishes tabs as data views with a clear pipeline: `select dataset by tab → apply search/filters → apply sort → render`.
 
-## Product direction
+## Implemented Sequencing and Outcomes
+
+1. Startup defaults
+   - TUI state initializes with `active_tab = recents`.
+   - First filtered dataset shows active notifications only.
+
+2. Recents/All switching
+   - `r` switches to `recents`; `a` switches to `all`.
+   - Search/filter pipeline is reapplied on each switch.
+   - Current phase behavior: both tabs operate over the active-only dataset.
+   - Read-mark action moved to `R` so `r` remains dedicated to tab selection.
+
+3. Jump behavior
+   - `Enter` in non-grouped views executes jump for selected notification.
+   - Jump requires session + window; pane is optional.
+   - If pane exists, jump targets pane; if pane is missing/empty, jump falls back to explicit window target.
+   - Successful jump marks the notification read.
+   - Grouped view keeps `Enter` toggle-first on group rows; jumps occur on notification rows.
+
+## Constraints for This Phase
+
+- `all` tab is intentionally active-only in this phase.
+- No telemetry additions are included in this phase.
+
+## Verification Coverage Added
+
+- `internal/tui/state/model_test.go`
+  - validates Recents default + `r`/`a` tab switching with active-only results
+  - validates Enter-driven pane jump and explicit window fallback jump
+- `internal/tui/service/notification_service_test.go`
+  - codifies phase constraint that `TabAll` remains active-only
+
+## Original Product Direction (for reference)
 
 Goal: Provide a lightweight, performant, keyboard-first UI that lets users toggle between Recents and All views, filter and search within those views, and jump to a selected window or pane.
 
@@ -20,7 +56,7 @@ Design principles:
 - Predictable state: tab state should be persisted during session interactions
 - Fast rendering: only necessary elements are rendered/updated
 
-## User stories and acceptance criteria
+## Original User Stories and Acceptance Criteria (for reference)
 
 1) As a user, I want to switch between "Recents" and "All" so I can focus on recently used items or see all available sessions.
    - Acceptance criteria:
@@ -47,80 +83,6 @@ Design principles:
      - PageUp/PageDown scrolls the list
      - `/` focuses a search input and typing filters list
 
-## Phased implementation plan
+## CLI Reference Impact
 
-Phase 1: Tab state and filtering (priority: high)
-- Implement tab state machine and filtering logic
-- Files to modify/add:
-  - cmd/tmux-intray/main.go - add CLI flags/config for recents list size (if applicable)
-  - internal/recents/state.go - new file: tab state, activeTab enum, filtering utilities
-  - internal/recents/filter.go - new file: filter and search helpers
-  - internal/store/recents_store.go - integrate recents limit and retrieval
-- Acceptance criteria:
-  - Unit tests for state transitions and filtering
-  - Manual test: toggle tabs and observe filtered results
-
-Phase 2: Tab rendering and keybindings (priority: high)
-- Render tabs in the UI, highlight active tab, add keybindings to switch
-- Files to modify/add:
-  - internal/ui/recents_view.go - render tabs and list container
-  - internal/ui/keybindings.go - register tab keybindings (`r`, `a`, `/`, Enter)
-  - assets/styles.go or similar - small visual indicators for active tab
-- Acceptance criteria:
-  - UI shows tabs and responds to key presses
-  - Visual indicator for active tab
-  - Integration tests for keybinding handling
-
-Phase 3: Jump window/pane actions (priority: medium)
-- Implement actions that perform the actual jump to window/pane
-- Files to modify/add:
-  - internal/actions/jump.go - logic to resolve and perform jump (window/pane)
-  - internal/tmux/client.go - expose functions for focusing/attaching windows and panes
-  - internal/ui/recents_view.go - call actions on Enter
-- Acceptance criteria:
-  - Jump actions succeed for valid targets
-  - Errors displayed in UI for invalid targets
-  - Integration/e2e tests (mock tmux client)
-
-Phase 4: Tests and docs updates (priority: medium)
-- Add tests, update docs, create usage examples
-- Files to modify/add:
-  - internal/recents/*_test.go - unit tests for filtering and state
-  - internal/actions/jump_test.go - unit tests with mock client
-  - docs/usage/recents.md - user-facing docs
-  - docs/plans/recents-all-and-jump-navigation-breakdown.md - this file (implementation plan)
-- Acceptance criteria:
-  - All tests pass locally
-  - Documentation updated with examples and keybindings
-
-## Risks
-
-- Incomplete tmux client API: may require expansion or mocks for tests
-- Performance regressions if list rendering is naive for large "All" lists
-- Edge cases where targets are stale (closed windows/panes)
-- Keyboard shortcut collisions with existing bindings
-
-## Test plan
-
-Unit tests:
-- Tab state transitions (activate/deactivate)
-- Filtering and search behavior (match/no match, case-insensitive)
-- Actions: resolve target IDs and handle missing targets
-
-Integration tests:
-- UI keybindings: simulate key events and assert view changes
-- Jump actions with a mocked tmux client that verifies commands invoked
-
-Manual acceptance tests:
-- Toggle between Recents and All with keyboard
-- Search for an item and jump to window or pane
-- Attempt to jump to a removed target and confirm error handling
-
-## Definition of Done
-
-- Code implements tab state/filtering, UI rendering, keybindings, and jump actions
-- Unit and integration tests cover core functionality and pass
-- Documentation updated (this plan + user docs)
-- bd issues created and linked for tracking
-- No regressions in existing functionality
-
+- User-visible keybindings are documented in `docs/cli/CLI_REFERENCE.md` (`r`/`a` tab switch, `R` mark read).

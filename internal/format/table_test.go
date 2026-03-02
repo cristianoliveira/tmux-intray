@@ -141,6 +141,45 @@ func TestMakeSeparator(t *testing.T) {
 	assert.Equal(t, "----------", result)
 }
 
+func TestExtendedTableFormatterGroups(t *testing.T) {
+	formatter := NewExtendedTableFormatter()
+	var buf bytes.Buffer
+
+	groups := domain.GroupResult{
+		Mode: domain.GroupByLevel,
+		Groups: []domain.Group{
+			{
+				DisplayName: "info",
+				Count:       2,
+				Notifications: []domain.Notification{
+					{ID: 1, Timestamp: "2025-01-01T10:00:00Z", Level: domain.LevelInfo, Message: "info message 1"},
+					{ID: 2, Timestamp: "2025-01-01T11:00:00Z", Level: domain.LevelInfo, Message: "info message 2"},
+				},
+			},
+			{
+				DisplayName: "error",
+				Count:       1,
+				Notifications: []domain.Notification{
+					{ID: 3, Timestamp: "2025-01-01T12:00:00Z", Level: domain.LevelError, Message: "error message"},
+				},
+			},
+		},
+	}
+
+	err := formatter.FormatGroups(groups, &buf)
+	assert.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "=== info (2) ===")
+	assert.Contains(t, output, "=== error (1) ===")
+	assert.Contains(t, output, "ID")
+	assert.Contains(t, output, "Date")
+	assert.Contains(t, output, "Level")
+	assert.Contains(t, output, "Message")
+	assert.Contains(t, output, "info message 1")
+	assert.Contains(t, output, "error message")
+}
+
 func TestFormatIntToString(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -163,37 +202,4 @@ func TestFormatIntToString(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
-}
-
-func TestExtendedTableFormatterGroups(t *testing.T) {
-	formatter := NewExtendedTableFormatter()
-	var buf bytes.Buffer
-
-	groups := domain.GroupResult{
-		Mode: domain.GroupByLevel,
-		Groups: []domain.Group{
-			{
-				DisplayName: "info",
-				Count:       2,
-				Notifications: []domain.Notification{
-					{ID: 1, Timestamp: "2025-01-01T10:00:00Z", Level: domain.LevelInfo, Message: "info message 1"},
-					{ID: 2, Timestamp: "2025-01-01T11:00:00Z", Level: domain.LevelInfo, Message: "info message 2"},
-				},
-			},
-		},
-	}
-
-	err := formatter.FormatGroups(groups, &buf)
-	assert.NoError(t, err)
-
-	output := buf.String()
-	assert.Contains(t, output, "=== info (2) ===")
-	assert.Contains(t, output, "ID")
-	assert.Contains(t, output, "Date")
-	assert.Contains(t, output, "Level")
-	assert.Contains(t, output, "Message")
-	assert.Contains(t, output, "1")
-	assert.Contains(t, output, "2")
-	assert.Contains(t, output, "info message 1")
-	assert.Contains(t, output, "info message 2")
 }

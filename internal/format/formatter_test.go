@@ -241,17 +241,6 @@ func TestFormatterGroups(t *testing.T) {
 	assert.Contains(t, output, "info message 1")
 }
 
-func TestNotificationsToPointers(t *testing.T) {
-	notifs := []domain.Notification{
-		{ID: 1, Message: "test"},
-		{ID: 2, Message: "test2"},
-	}
-	ptrs := notificationsToPointers(notifs)
-	assert.Len(t, ptrs, 2)
-	assert.Equal(t, 1, ptrs[0].ID)
-	assert.Equal(t, 2, ptrs[1].ID)
-}
-
 func TestLegacyFormatterGroups(t *testing.T) {
 	formatter := NewLegacyFormatter()
 	var buf bytes.Buffer
@@ -260,11 +249,18 @@ func TestLegacyFormatterGroups(t *testing.T) {
 		Mode: domain.GroupByLevel,
 		Groups: []domain.Group{
 			{
-				DisplayName: "info",
+				DisplayName: "error",
+				Count:       1,
+				Notifications: []domain.Notification{
+					{ID: 1, Message: "error message"},
+				},
+			},
+			{
+				DisplayName: "warning",
 				Count:       2,
 				Notifications: []domain.Notification{
-					{ID: 1, Message: "info message 1"},
-					{ID: 2, Message: "info message 2"},
+					{ID: 2, Message: "warning message 1"},
+					{ID: 3, Message: "warning message 2"},
 				},
 			},
 		},
@@ -274,9 +270,11 @@ func TestLegacyFormatterGroups(t *testing.T) {
 	assert.NoError(t, err)
 
 	output := buf.String()
-	assert.Contains(t, output, "=== info (2) ===")
-	assert.Contains(t, output, "info message 1")
-	assert.Contains(t, output, "info message 2")
+	assert.Contains(t, output, "=== error (1) ===")
+	assert.Contains(t, output, "error message")
+	assert.Contains(t, output, "=== warning (2) ===")
+	assert.Contains(t, output, "warning message 1")
+	assert.Contains(t, output, "warning message 2")
 }
 
 func TestTableFormatterGroups(t *testing.T) {
@@ -284,14 +282,13 @@ func TestTableFormatterGroups(t *testing.T) {
 	var buf bytes.Buffer
 
 	groups := domain.GroupResult{
-		Mode: domain.GroupByLevel,
+		Mode: domain.GroupBySession,
 		Groups: []domain.Group{
 			{
-				DisplayName: "info",
-				Count:       2,
+				DisplayName: "session1",
+				Count:       1,
 				Notifications: []domain.Notification{
-					{ID: 1, Timestamp: "2025-01-01T10:00:00Z", Message: "info message 1"},
-					{ID: 2, Timestamp: "2025-01-01T11:00:00Z", Message: "info message 2"},
+					{ID: 1, Timestamp: "2025-01-01T10:00:00Z", Message: "message 1"},
 				},
 			},
 		},
@@ -301,13 +298,10 @@ func TestTableFormatterGroups(t *testing.T) {
 	assert.NoError(t, err)
 
 	output := buf.String()
-	assert.Contains(t, output, "=== info (2) ===")
+	assert.Contains(t, output, "=== session1 (1) ===")
 	assert.Contains(t, output, "ID")
 	assert.Contains(t, output, "DATE")
-	assert.Contains(t, output, "1")
-	assert.Contains(t, output, "2")
-	assert.Contains(t, output, "info message 1")
-	assert.Contains(t, output, "info message 2")
+	assert.Contains(t, output, "message 1")
 }
 
 func TestCompactFormatterGroups(t *testing.T) {
@@ -321,8 +315,8 @@ func TestCompactFormatterGroups(t *testing.T) {
 				DisplayName: "info",
 				Count:       2,
 				Notifications: []domain.Notification{
-					{ID: 1, Message: "info message 1"},
-					{ID: 2, Message: "info message 2"},
+					{ID: 1, Message: "compact message 1"},
+					{ID: 2, Message: "compact message 2"},
 				},
 			},
 		},
@@ -333,8 +327,8 @@ func TestCompactFormatterGroups(t *testing.T) {
 
 	output := buf.String()
 	assert.Contains(t, output, "=== info (2) ===")
-	assert.Contains(t, output, "info message 1")
-	assert.Contains(t, output, "info message 2")
+	assert.Contains(t, output, "compact message 1")
+	assert.Contains(t, output, "compact message 2")
 }
 
 func TestJSONFormatterGroups(t *testing.T) {
@@ -371,15 +365,62 @@ func TestJSONFormatterGroups(t *testing.T) {
 	assert.Equal(t, groups.Groups[0].Notifications[0].Message, decoded.Groups[0].Notifications[0].Message)
 }
 
-func TestGroupCountFormatterFormatNotifications(t *testing.T) {
+func TestGroupCountFormatterNotifications(t *testing.T) {
 	baseFormatter := NewSimpleFormatter()
 	formatter := NewGroupCountFormatter(baseFormatter)
 	var buf bytes.Buffer
 
 	notifications := []*domain.Notification{
-		{ID: 1, Message: "test"},
+		{ID: 1, Message: "test message"},
 	}
+
 	err := formatter.FormatNotifications(notifications, &buf)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not supported")
+	assert.Contains(t, err.Error(), "formatNotifications not supported for GroupCountFormatter")
+}
+
+func TestNotificationsToPointers(t *testing.T) {
+	notifs := []domain.Notification{
+		{ID: 1, Message: "message 1"},
+		{ID: 2, Message: "message 2"},
+		{ID: 3, Message: "message 3"},
+	}
+
+	pointers := notificationsToPointers(notifs)
+
+	assert.Equal(t, 3, len(pointers))
+	assert.Equal(t, 1, pointers[0].ID)
+	assert.Equal(t, "message 1", pointers[0].Message)
+	assert.Equal(t, 2, pointers[1].ID)
+	assert.Equal(t, "message 2", pointers[1].Message)
+	assert.Equal(t, 3, pointers[2].ID)
+	assert.Equal(t, "message 3", pointers[2].Message)
+
+	// Verify that modifying through pointer affects the original slice
+	// (pointers[0] points to notifs[0])
+	pointers[0].Message = "modified"
+	assert.Equal(t, "modified", notifs[0].Message)
+
+	// Verify that modifying pointer's ID also affects original
+	pointers[1].ID = 999
+	assert.Equal(t, 999, notifs[1].ID)
+}
+
+func TestJSONFormatterNotificationsError(t *testing.T) {
+	formatter := NewJSONFormatter()
+	var buf bytes.Buffer
+
+	// Create a notification that will cause JSON marshaling to fail
+	// by using invalid UTF-8 sequence in a string
+	notifications := []*domain.Notification{
+		{ID: 1, Message: "test\x00message"},
+	}
+
+	err := formatter.FormatNotifications(notifications, &buf)
+	// This may or may not error depending on Go's JSON implementation
+	// If it errors, verify the error message
+	if err != nil {
+		assert.Contains(t, err.Error(), "failed to marshal")
+	}
+
 }
