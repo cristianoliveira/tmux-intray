@@ -15,7 +15,6 @@ type TUIState struct {
 
 	// UnreadFirst controls whether unread notifications are sorted first.
 	UnreadFirst bool `toml:"unread_first"`
-
 	// Filters contains active filter criteria.
 	Filters Filter `toml:"filters"`
 

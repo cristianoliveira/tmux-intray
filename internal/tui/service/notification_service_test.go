@@ -196,6 +196,9 @@ func TestApplyFiltersAndSearchActiveOnlyAcrossTabs(t *testing.T) {
 	filtered = svc.GetFilteredNotifications()
 	require.Len(t, filtered, 2)
 	assert.Equal(t, []int{3, 1}, []int{filtered[0].ID, filtered[1].ID})
+
+	svc.ApplyFiltersAndSearch(settings.TabAll, "", "dismissed", "", "", "", "", "", "timestamp", "desc")
+	assert.Empty(t, svc.GetFilteredNotifications())
 }
 
 func TestApplyFiltersAndSearchRecentsUsesLimitedDataset(t *testing.T) {

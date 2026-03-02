@@ -13,12 +13,24 @@ func TestSettingsServiceToStatePreservesUnreadFirstAndActiveTab(t *testing.T) {
 	ui := NewUIState()
 	ui.SetActiveTab(settings.TabAll)
 
-	state := svc.toState(ui, []string{settings.ColumnID}, settings.SortByTimestamp, settings.SortOrderDesc, false, settings.Filter{})
+	tests := []struct {
+		name        string
+		unreadFirst bool
+	}{
+		{name: "unread first true", unreadFirst: true},
+		{name: "unread first false", unreadFirst: false},
+	}
 
-	assert.Equal(t, settings.TabAll, state.ActiveTab)
-	assert.Equal(t, []string{settings.ColumnID}, state.Columns)
-	assert.Equal(t, settings.SortByTimestamp, state.SortBy)
-	assert.Equal(t, false, state.UnreadFirst)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := svc.toState(ui, []string{settings.ColumnID}, settings.SortByTimestamp, settings.SortOrderDesc, tt.unreadFirst, settings.Filter{})
+
+			assert.Equal(t, settings.TabAll, state.ActiveTab)
+			assert.Equal(t, []string{settings.ColumnID}, state.Columns)
+			assert.Equal(t, settings.SortByTimestamp, state.SortBy)
+			assert.Equal(t, tt.unreadFirst, state.UnreadFirst)
+		})
+	}
 }
 
 func TestSettingsServiceFromStateAppliesUnreadFirstAndNormalizesTab(t *testing.T) {
