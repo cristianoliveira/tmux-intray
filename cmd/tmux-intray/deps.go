@@ -51,7 +51,7 @@ func buildCLIDeps() (cliDeps, error) {
 	return cliDeps{
 		coreClient: coreClient,
 		storage:    stor,
-		tuiClient:  app.NewDefaultClient(nil),
+		tuiClient:  app.NewDefaultClient(nil, nil, nil),
 	}, nil
 }
 
