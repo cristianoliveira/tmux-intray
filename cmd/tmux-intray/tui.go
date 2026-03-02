@@ -80,7 +80,7 @@ USAGE:
 }
 
 // tuiCmd represents the tui command
-var tuiCmd = NewTUICmd(app.NewDefaultClient(nil))
+var tuiCmd = NewTUICmd(app.NewDefaultClient(nil, nil, nil))
 
 func init() {
 	cmd.RootCmd.AddCommand(tuiCmd)
