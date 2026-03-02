@@ -296,21 +296,15 @@ func TestCore(t *testing.T) {
 		// Verify notification gone
 		_, err = c.GetNotificationByID(id)
 		require.Error(t, err)
-		// Package-level function
-		err = CleanupOldNotifications(0, false)
-		require.NoError(t, err)
 	})
 
 	t.Run("PackageVisibility", func(t *testing.T) {
-		// Temporarily replace defaultCore with a mocked core
+		// Test with explicit core instance
 		mockClient := new(tmux.MockClient)
 		mockClient.On("GetEnvironment", "TMUX_INTRAY_VISIBLE").Return("1", nil).Once()
-		mockCore := NewCore(mockClient, sqliteStorage)
-		oldCore := defaultCore
-		defaultCore = mockCore
-		defer func() { defaultCore = oldCore }()
+		c := NewCore(mockClient, sqliteStorage)
 
-		visible, err := GetVisibility()
+		visible, err := c.GetVisibility()
 		require.NoError(t, err)
 		require.Equal(t, "1", visible)
 		mockClient.AssertExpectations(t)
@@ -318,48 +312,111 @@ func TestCore(t *testing.T) {
 		// Test SetVisibility
 		mockClient = new(tmux.MockClient)
 		mockClient.On("SetEnvironment", "TMUX_INTRAY_VISIBLE", "0").Return(nil).Once()
-		mockCore = NewCore(mockClient, sqliteStorage)
-		defaultCore = mockCore
-		err = SetVisibility(false)
+		c = NewCore(mockClient, sqliteStorage)
+		err = c.SetVisibility(false)
 		require.NoError(t, err)
 		mockClient.AssertExpectations(t)
 	})
 
-	t.Run("PackageLevelWrappers", func(t *testing.T) {
+	t.Run("ExplicitInstanceUsage", func(t *testing.T) {
 		clearNotifications()
-		// Replace defaultCore with test core using the same storage
+		// Create test core using explicit instance
 		testCore := NewCore(nil, sqliteStorage)
-		oldCore := defaultCore
-		defaultCore = testCore
-		defer func() { defaultCore = oldCore }()
 
-		// Use package-level functions (now using testCore)
-		id, err := AddTrayItem("package msg", "$1", "%1", "@1", "123", true, "info")
+		// Use instance methods
+		id, err := testCore.AddTrayItem("package msg", "$1", "%1", "@1", "123", true, "info")
 		require.NoError(t, err)
 		require.NotEmpty(t, id)
 
 		// GetNotificationByID
-		line, err := GetNotificationByID(id)
+		line, err := testCore.GetNotificationByID(id)
 		require.NoError(t, err)
 		require.Contains(t, line, "package msg")
 
 		// ListNotifications
-		lines, err := ListNotifications("active", "", "", "", "", "", "", "")
+		lines, err := testCore.ListNotifications("active", "", "", "", "", "", "", "")
 		require.NoError(t, err)
 		require.True(t, containsID(lines, id))
 
 		// GetTrayItems
-		items, err := GetTrayItems("active")
+		items, err := testCore.GetTrayItems("active")
 		require.NoError(t, err)
 		require.Contains(t, items, "package msg")
 
 		// GetActiveCount
-		count := GetActiveCount()
+		count := testCore.GetActiveCount()
 		require.Equal(t, 1, count)
 
 		// ClearTrayItems
-		err = ClearTrayItems()
+		err = testCore.ClearTrayItems()
 		require.NoError(t, err)
-		require.Equal(t, 0, GetActiveCount())
+		require.Equal(t, 0, testCore.GetActiveCount())
+	})
+
+	t.Run("DependencyInjection", func(t *testing.T) {
+		clearNotifications()
+
+		// Create two separate Core instances with same storage
+		core1 := NewCore(nil, sqliteStorage)
+		core2 := NewCore(nil, sqliteStorage)
+
+		// Add notification using core1
+		id1, err := core1.AddTrayItem("from core1", "$1", "%1", "@1", "123", true, "info")
+		require.NoError(t, err)
+
+		// Add notification using core2
+		id2, err := core2.AddTrayItem("from core2", "$2", "%2", "@2", "456", true, "warning")
+		require.NoError(t, err)
+
+		// Verify both notifications exist (they share the same storage)
+		count1 := core1.GetActiveCount()
+		count2 := core2.GetActiveCount()
+		require.Equal(t, 2, count1)
+		require.Equal(t, 2, count2)
+
+		// Verify notifications are visible from both cores
+		line1, err := core1.GetNotificationByID(id1)
+		require.NoError(t, err)
+		require.Contains(t, line1, "from core1")
+
+		line2, err := core2.GetNotificationByID(id2)
+		require.NoError(t, err)
+		require.Contains(t, line2, "from core2")
+
+		// Clear from core1
+		err = core1.ClearTrayItems()
+		require.NoError(t, err)
+
+		// Verify both cores see empty storage
+		require.Equal(t, 0, core1.GetActiveCount())
+		require.Equal(t, 0, core2.GetActiveCount())
+	})
+
+	t.Run("MockClientInjection", func(t *testing.T) {
+		clearNotifications()
+
+		// Create mock client
+		mockClient := new(tmux.MockClient)
+		mockClient.On("GetCurrentContext").Return(tmux.TmuxContext{
+			SessionID: "$0",
+			WindowID:  "1",
+			PaneID:    "%pane",
+			PanePID:   "2024-01-01T12:00:00Z",
+		}, nil).Once()
+
+		// Create Core with mock client
+		coreWithMock := NewCore(mockClient, sqliteStorage)
+
+		// Add notification with auto-association (uses mock client)
+		id, err := coreWithMock.AddTrayItem("auto with mock", "", "", "", "", false, "info")
+		require.NoError(t, err)
+		require.NotEmpty(t, id)
+
+		// Verify notification was added
+		items, err := coreWithMock.GetTrayItems("active")
+		require.NoError(t, err)
+		require.Contains(t, items, "auto with mock")
+
+		mockClient.AssertExpectations(t)
 	})
 }

@@ -65,12 +65,13 @@ func newTestModel(t *testing.T, notifications []notification.Notification) *Mode
 
 	// Create mock client with stubbed session fetchers
 	mockClient := stubSessionFetchers(t)
+	mockCore := core.NewCore(mockClient, nil)
 
 	// Initialize UI state
 	uiState := NewUIState()
 
-	// Initialize runtime coordinator with mock client
-	runtimeCoordinator := service.NewRuntimeCoordinator(mockClient)
+	// Initialize runtime coordinator with mock client and core
+	runtimeCoordinator := service.NewRuntimeCoordinator(mockClient, mockCore)
 
 	// Initialize tree service
 	treeService := service.NewTreeService(uiState.GetGroupBy())
@@ -91,14 +92,13 @@ func newTestModel(t *testing.T, notifications []notification.Notification) *Mode
 		runtimeCoordinator:  runtimeCoordinator,
 		treeService:         treeService,
 		notificationService: notificationService,
+		core:                mockCore,
 		errorHandler:        errors.NewTUIHandler(nil),
 		// Legacy fields kept for backward compatibility but now using services
 		client:             mockClient,
 		sessionNames:       runtimeCoordinator.GetSessionNames(),
 		windowNames:        runtimeCoordinator.GetWindowNames(),
 		paneNames:          runtimeCoordinator.GetPaneNames(),
-		ensureTmuxRunning:  core.EnsureTmuxRunning,
-		jumpToPane:         core.JumpToPane,
 		groupHeaderOptions: settings.DefaultGroupHeaderOptions(),
 	}
 	m.syncNotificationMirrors()
@@ -250,7 +250,7 @@ func TestNewModelInitialState(t *testing.T) {
 	setupStorage(t)
 	mockClient := stubSessionFetchers(t)
 
-	model, err := NewModel(mockClient)
+	model, err := NewModel(mockClient, nil)
 
 	require.NoError(t, err)
 	// NewUIState initializes with default values
@@ -1213,7 +1213,7 @@ func TestModelUpdateHandlesReadUnreadKeys(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 
-	model, err := NewModel(mockClient)
+	model, err := NewModel(mockClient, nil)
 	require.NoError(t, err)
 	require.Len(t, model.filtered, 1)
 	model.uiState.SetWidth(80)
@@ -1303,7 +1303,8 @@ func TestApplySearchFilterWithMockProvider(t *testing.T) {
 
 	// Initialize model with custom search provider
 	uiState := NewUIState()
-	runtimeCoordinator := service.NewRuntimeCoordinator(mockClient)
+	mockCore := core.NewCore(mockClient, nil)
+	runtimeCoordinator := service.NewRuntimeCoordinator(mockClient, mockCore)
 	treeService := service.NewTreeService(uiState.GetGroupBy())
 	notificationService := service.NewNotificationService(mockProvider, runtimeCoordinator)
 
@@ -1312,13 +1313,12 @@ func TestApplySearchFilterWithMockProvider(t *testing.T) {
 		runtimeCoordinator:  runtimeCoordinator,
 		treeService:         treeService,
 		notificationService: notificationService,
+		core:                mockCore,
 		errorHandler:        errors.NewTUIHandler(nil),
 		client:              mockClient,
 		sessionNames:        runtimeCoordinator.GetSessionNames(),
 		windowNames:         runtimeCoordinator.GetWindowNames(),
 		paneNames:           runtimeCoordinator.GetPaneNames(),
-		ensureTmuxRunning:   core.EnsureTmuxRunning,
-		jumpToPane:          core.JumpToPane,
 		notifications:       notifications,
 		filtered:            []notification.Notification{},
 	}
@@ -1504,7 +1504,7 @@ func TestCtrlBindingsAllowDismissInSearchMode(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 
-	model, err := NewModel(mockClient)
+	model, err := NewModel(mockClient, nil)
 	require.NoError(t, err)
 	require.Len(t, model.filtered, 1)
 
@@ -1527,7 +1527,7 @@ func TestCtrlBindingsAllowDismissInSearchViewMode(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 
-	model, err := NewModel(mockClient)
+	model, err := NewModel(mockClient, nil)
 	require.NoError(t, err)
 	require.Len(t, model.filtered, 1)
 
@@ -1551,7 +1551,7 @@ func TestCtrlBindingsAllowDismissWhenSearchStartedWithSlash(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 
-	model, err := NewModel(mockClient)
+	model, err := NewModel(mockClient, nil)
 	require.NoError(t, err)
 	require.Len(t, model.filtered, 1)
 
@@ -2176,7 +2176,7 @@ func TestHandleDismiss(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 
-	model, err := NewModel(mockClient)
+	model, err := NewModel(mockClient, nil)
 	require.NoError(t, err)
 	require.Len(t, model.filtered, 1)
 
@@ -2184,7 +2184,7 @@ func TestHandleDismiss(t *testing.T) {
 
 	assert.Nil(t, cmd)
 
-	model, err = NewModel(mockClient)
+	model, err = NewModel(mockClient, nil)
 	require.NoError(t, err)
 	assert.Empty(t, model.filtered)
 }
@@ -2197,7 +2197,7 @@ func TestMarkSelectedRead(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 
-	model, err := NewModel(mockClient)
+	model, err := NewModel(mockClient, nil)
 	require.NoError(t, err)
 	require.Len(t, model.filtered, 1)
 
@@ -2224,7 +2224,7 @@ func TestMarkSelectedUnread(t *testing.T) {
 	require.NotEmpty(t, id)
 	require.NoError(t, storage.MarkNotificationRead(id))
 
-	model, err := NewModel(mockClient)
+	model, err := NewModel(mockClient, nil)
 	require.NoError(t, err)
 	require.Len(t, model.filtered, 1)
 	require.True(t, model.filtered[0].IsRead())
@@ -2254,7 +2254,7 @@ func TestHandleDismissGroupedViewUsesVisibleNodes(t *testing.T) {
 	_, err = storage.AddNotification("A msg", "2024-01-01T12:00:00Z", "a", "@1", "%1", "", "info")
 	require.NoError(t, err)
 
-	model, err := NewModel(mockClient)
+	model, err := NewModel(mockClient, nil)
 	require.NoError(t, err)
 	model.uiState.SetViewMode(viewModeGrouped)
 
@@ -2343,7 +2343,7 @@ func TestHandleJumpMarksNotificationReadOnSuccess(t *testing.T) {
 	require.NoError(t, err)
 
 	mockClient := stubSessionFetchers(t)
-	model, err := NewModel(mockClient)
+	model, err := NewModel(mockClient, nil)
 	require.NoError(t, err)
 	require.Len(t, model.filtered, 1)
 	model.runtimeCoordinator = &testRuntimeCoordinator{
@@ -2370,7 +2370,7 @@ func TestModelUpdateEnterJumpsUsingExplicitWindowAndPane(t *testing.T) {
 	require.NoError(t, err)
 
 	mockClient := stubSessionFetchers(t)
-	model, err := NewModel(mockClient)
+	model, err := NewModel(mockClient, nil)
 	require.NoError(t, err)
 	require.Len(t, model.filtered, 1)
 	model.uiState.SetWidth(80)
@@ -2407,7 +2407,7 @@ func TestHandleJumpDoesNotMarkReadWhenJumpFails(t *testing.T) {
 	require.NoError(t, err)
 
 	mockClient := stubSessionFetchers(t)
-	model, err := NewModel(mockClient)
+	model, err := NewModel(mockClient, nil)
 	require.NoError(t, err)
 	require.Len(t, model.filtered, 1)
 	model.runtimeCoordinator = &testRuntimeCoordinator{
@@ -2430,15 +2430,6 @@ func TestHandleJumpGroupedViewUsesVisibleNodes(t *testing.T) {
 		{ID: 1, Session: "b", Window: "@1", Pane: "%1", Message: "B"},
 		{ID: 2, Session: "a", Window: "", Pane: "%1", Message: "A"},
 	})
-	// Set custom functions to verify they aren't called
-	model.ensureTmuxRunning = func() bool {
-		t.Fatal("ensureTmuxRunning should not be called")
-		return true
-	}
-	model.jumpToPane = func(sessionID, windowID, paneID string) bool {
-		t.Fatal("jumpToPane should not be called")
-		return true
-	}
 
 	model.uiState.SetViewMode(viewModeGrouped)
 	model.uiState.SetGroupBy(settings.GroupByPane)
@@ -2636,7 +2627,8 @@ func TestGetSessionNameCachesFetcher(t *testing.T) {
 	mockClient.On("ListWindows").Return(map[string]string{}, nil)
 	mockClient.On("ListPanes").Return(map[string]string{}, nil)
 
-	runtimeCoordinator := service.NewRuntimeCoordinator(mockClient)
+	mockCore := core.NewCore(mockClient, nil)
+	runtimeCoordinator := service.NewRuntimeCoordinator(mockClient, mockCore)
 
 	model := &Model{
 		uiState:            NewUIState(),
