@@ -75,11 +75,8 @@ func TestNewDefaultClient_BackwardCompatibility(t *testing.T) {
 	}
 
 	// Verify it's a DefaultSettingsLoader by calling Load
-	_, err := client.settingsLoader.Load()
-	if err != nil {
-		// This is expected if settings file doesn't exist, but it shouldn't panic
-		// The important thing is that it doesn't panic and returns an error
-	}
+	// Error is expected if settings file doesn't exist; the important thing is it doesn't panic
+	_, _ = client.settingsLoader.Load()
 }
 
 // mockTmuxClientFactory is a test double for TmuxClientFactory.
@@ -166,8 +163,7 @@ func TestDefaultClient_CreateModel_Success(t *testing.T) {
 	assert.NotNil(t, model)
 
 	// Verify the model implements the Model interface
-	_, ok := model.(Model)
-	assert.True(t, ok, "CreateModel() should return a Model implementation")
+	assert.Implements(t, (*Model)(nil), model, "CreateModel() should return a Model implementation")
 }
 
 // TestDefaultClient_CreateModel_NilFactory verifies that passing nil for
@@ -420,12 +416,10 @@ func TestDefaultClient_CreateModel_ReturnsModelType(t *testing.T) {
 	require.NotNil(t, model)
 
 	// Verify it's a tea.Model
-	_, ok := model.(tea.Model)
-	assert.True(t, ok, "Model should implement tea.Model")
+	assert.Implements(t, (*tea.Model)(nil), model, "Model should implement tea.Model")
 
 	// Verify it's our app.Model interface
-	_, ok = model.(Model)
-	assert.True(t, ok, "Model should implement app.Model")
+	assert.Implements(t, (*Model)(nil), model, "Model should implement app.Model")
 
 	// Test SetLoadedSettings
 	loadedSettings := &settings.Settings{SortBy: "name"}
