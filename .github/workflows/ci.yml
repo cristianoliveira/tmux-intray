@@ -173,7 +173,7 @@ jobs:
         run: make check-coverage THRESHOLD=65
 
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: coverage.out
