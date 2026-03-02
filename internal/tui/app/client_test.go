@@ -85,7 +85,6 @@ func TestNewDefaultClient_BackwardCompatibility(t *testing.T) {
 // mockTmuxClientFactory is a test double for TmuxClientFactory.
 type mockTmuxClientFactory struct {
 	client tmux.TmuxClient
-	err    error
 }
 
 func (m *mockTmuxClientFactory) NewClient() tmux.TmuxClient {
