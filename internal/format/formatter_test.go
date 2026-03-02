@@ -2,6 +2,7 @@ package format
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
 
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
@@ -238,4 +239,147 @@ func TestFormatterGroups(t *testing.T) {
 	assert.Contains(t, output, "=== info (2) ===")
 	assert.Contains(t, output, "1")
 	assert.Contains(t, output, "info message 1")
+}
+
+func TestNotificationsToPointers(t *testing.T) {
+	notifs := []domain.Notification{
+		{ID: 1, Message: "test"},
+		{ID: 2, Message: "test2"},
+	}
+	ptrs := notificationsToPointers(notifs)
+	assert.Len(t, ptrs, 2)
+	assert.Equal(t, 1, ptrs[0].ID)
+	assert.Equal(t, 2, ptrs[1].ID)
+}
+
+func TestLegacyFormatterGroups(t *testing.T) {
+	formatter := NewLegacyFormatter()
+	var buf bytes.Buffer
+
+	groups := domain.GroupResult{
+		Mode: domain.GroupByLevel,
+		Groups: []domain.Group{
+			{
+				DisplayName: "info",
+				Count:       2,
+				Notifications: []domain.Notification{
+					{ID: 1, Message: "info message 1"},
+					{ID: 2, Message: "info message 2"},
+				},
+			},
+		},
+	}
+
+	err := formatter.FormatGroups(groups, &buf)
+	assert.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "=== info (2) ===")
+	assert.Contains(t, output, "info message 1")
+	assert.Contains(t, output, "info message 2")
+}
+
+func TestTableFormatterGroups(t *testing.T) {
+	formatter := NewTableFormatter()
+	var buf bytes.Buffer
+
+	groups := domain.GroupResult{
+		Mode: domain.GroupByLevel,
+		Groups: []domain.Group{
+			{
+				DisplayName: "info",
+				Count:       2,
+				Notifications: []domain.Notification{
+					{ID: 1, Timestamp: "2025-01-01T10:00:00Z", Message: "info message 1"},
+					{ID: 2, Timestamp: "2025-01-01T11:00:00Z", Message: "info message 2"},
+				},
+			},
+		},
+	}
+
+	err := formatter.FormatGroups(groups, &buf)
+	assert.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "=== info (2) ===")
+	assert.Contains(t, output, "ID")
+	assert.Contains(t, output, "DATE")
+	assert.Contains(t, output, "1")
+	assert.Contains(t, output, "2")
+	assert.Contains(t, output, "info message 1")
+	assert.Contains(t, output, "info message 2")
+}
+
+func TestCompactFormatterGroups(t *testing.T) {
+	formatter := NewCompactFormatter()
+	var buf bytes.Buffer
+
+	groups := domain.GroupResult{
+		Mode: domain.GroupByLevel,
+		Groups: []domain.Group{
+			{
+				DisplayName: "info",
+				Count:       2,
+				Notifications: []domain.Notification{
+					{ID: 1, Message: "info message 1"},
+					{ID: 2, Message: "info message 2"},
+				},
+			},
+		},
+	}
+
+	err := formatter.FormatGroups(groups, &buf)
+	assert.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "=== info (2) ===")
+	assert.Contains(t, output, "info message 1")
+	assert.Contains(t, output, "info message 2")
+}
+
+func TestJSONFormatterGroups(t *testing.T) {
+	formatter := NewJSONFormatter()
+	var buf bytes.Buffer
+
+	groups := domain.GroupResult{
+		Mode: domain.GroupByLevel,
+		Groups: []domain.Group{
+			{
+				DisplayName: "info",
+				Count:       2,
+				Notifications: []domain.Notification{
+					{ID: 1, Message: "info message 1"},
+					{ID: 2, Message: "info message 2"},
+				},
+			},
+		},
+	}
+
+	err := formatter.FormatGroups(groups, &buf)
+	assert.NoError(t, err)
+
+	// Parse JSON back
+	var decoded domain.GroupResult
+	err = json.Unmarshal(buf.Bytes(), &decoded)
+	assert.NoError(t, err)
+	assert.Equal(t, groups.Mode, decoded.Mode)
+	assert.Len(t, decoded.Groups, 1)
+	assert.Equal(t, groups.Groups[0].DisplayName, decoded.Groups[0].DisplayName)
+	assert.Equal(t, groups.Groups[0].Count, decoded.Groups[0].Count)
+	assert.Len(t, decoded.Groups[0].Notifications, 2)
+	assert.Equal(t, groups.Groups[0].Notifications[0].ID, decoded.Groups[0].Notifications[0].ID)
+	assert.Equal(t, groups.Groups[0].Notifications[0].Message, decoded.Groups[0].Notifications[0].Message)
+}
+
+func TestGroupCountFormatterFormatNotifications(t *testing.T) {
+	baseFormatter := NewSimpleFormatter()
+	formatter := NewGroupCountFormatter(baseFormatter)
+	var buf bytes.Buffer
+
+	notifications := []*domain.Notification{
+		{ID: 1, Message: "test"},
+	}
+	err := formatter.FormatNotifications(notifications, &buf)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not supported")
 }
