@@ -24,23 +24,20 @@ func mockLines() string {
 }
 
 func setupMock() {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
 		// We'll apply basic filters here for simplicity.
 		// In real tests we can filter based on parameters.
-		return mockLines()
+		return mockLines(), nil
 	}
 }
 
 func restoreMock() {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
-		// default to real storage (not used in tests)
-		return ""
-	}
+	listListFunc = nil
 }
 
 func TestPrintListEmpty(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
-		return ""
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+		return "", nil
 	}
 	defer restoreMock()
 
@@ -56,8 +53,8 @@ func TestPrintListEmpty(t *testing.T) {
 }
 
 func TestPrintListLegacyFormat(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
-		return mockLines()
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+		return mockLines(), nil
 	}
 	defer restoreMock()
 
@@ -81,8 +78,8 @@ func TestPrintListLegacyFormat(t *testing.T) {
 }
 
 func TestPrintListSimpleFormat(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
-		return mockLines()
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+		return mockLines(), nil
 	}
 	defer restoreMock()
 
@@ -112,8 +109,8 @@ func TestPrintListSimpleFormat(t *testing.T) {
 }
 
 func TestPrintListUnreadFirstOrdering(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
-		return mockLines()
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+		return mockLines(), nil
 	}
 	defer restoreMock()
 
@@ -141,8 +138,8 @@ func TestPrintListUnreadFirstOrdering(t *testing.T) {
 }
 
 func TestPrintListTableFormat(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
-		return mockLines()
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+		return mockLines(), nil
 	}
 	defer restoreMock()
 
@@ -172,8 +169,8 @@ func TestPrintListTableFormat(t *testing.T) {
 }
 
 func TestPrintListCompactFormat(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
-		return mockLines()
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+		return mockLines(), nil
 	}
 	defer restoreMock()
 
@@ -196,8 +193,8 @@ func TestPrintListCompactFormat(t *testing.T) {
 }
 
 func TestPrintListSearchFilter(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
-		return mockLines()
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+		return mockLines(), nil
 	}
 	defer restoreMock()
 
@@ -217,8 +214,8 @@ func TestPrintListSearchFilter(t *testing.T) {
 }
 
 func TestPrintListRegexSearch(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
-		return mockLines()
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+		return mockLines(), nil
 	}
 	defer restoreMock()
 
@@ -245,8 +242,8 @@ func TestPrintListRegexSearch(t *testing.T) {
 }
 
 func TestPrintListGroupByLevelSimple(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
-		return mockLines()
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+		return mockLines(), nil
 	}
 	defer restoreMock()
 
@@ -273,8 +270,8 @@ func TestPrintListGroupByLevelSimple(t *testing.T) {
 }
 
 func TestPrintListGroupByLevel(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
-		return mockLines()
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+		return mockLines(), nil
 	}
 	defer restoreMock()
 
@@ -299,10 +296,10 @@ func TestPrintListGroupByLevel(t *testing.T) {
 func TestPrintListGroupByMessage(t *testing.T) {
 	t.Setenv("TMUX_INTRAY_DEDUP__CRITERIA", "message")
 	t.Setenv("TMUX_INTRAY_DEDUP__WINDOW", "")
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
 		return "1\t2025-01-01T10:00:00Z\tactive\tsess1\twin1\tpane1\trepeated message\t123\tinfo\t\n" +
 			"2\t2025-01-01T11:00:00Z\tactive\tsess1\twin1\tpane2\trepeated message\t124\twarning\t\n" +
-			"3\t2025-01-01T12:00:00Z\tactive\tsess2\twin2\tpane3\tunique message\t125\terror\t\n"
+			"3\t2025-01-01T12:00:00Z\tactive\tsess2\twin2\tpane3\tunique message\t125\terror\t\n", nil
 	}
 	defer restoreMock()
 
@@ -321,8 +318,8 @@ func TestPrintListGroupByMessage(t *testing.T) {
 }
 
 func TestPrintListGroupCount(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
-		return mockLines()
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+		return mockLines(), nil
 	}
 	defer restoreMock()
 
@@ -349,9 +346,9 @@ func TestPrintListGroupCount(t *testing.T) {
 }
 
 func TestPrintListWithCustomSearchProvider(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
 		return "1\t2025-01-01T10:00:00Z\tactive\tsess1\twin1\tpane1\terror message\t123\terror\n" +
-			"2\t2025-01-01T11:00:00Z\tactive\tsess1\twin1\tpane2\twarning message\t124\twarning\n"
+			"2\t2025-01-01T11:00:00Z\tactive\tsess1\twin1\tpane2\twarning message\t124\twarning\n", nil
 	}
 	defer restoreMock()
 
@@ -395,8 +392,8 @@ func TestPrintListWithCustomSearchProvider(t *testing.T) {
 func TestPrintListBackwardCompatibility(t *testing.T) {
 	// Verify that existing behavior is preserved when no custom provider is set
 
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
-		return "1\t2025-01-01T10:00:00Z\tactive\tsess1\twin1\tpane1\tHello World\t123\tinfo\n"
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+		return "1\t2025-01-01T10:00:00Z\tactive\tsess1\twin1\tpane1\tHello World\t123\tinfo\n", nil
 	}
 	defer restoreMock()
 
@@ -435,7 +432,7 @@ func TestPrintListBackwardCompatibility(t *testing.T) {
 }
 
 func TestPrintListFilterRead(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
 		// Only return read notifications (those with non-empty read_timestamp)
 		// Using mockLines which has read timestamps for IDs 1, 3, 5
 		lines := ""
@@ -444,7 +441,7 @@ func TestPrintListFilterRead(t *testing.T) {
 				"3\t2025-01-01T12:00:00Z\tdismissed\tsess2\twin2\tpane3\tmessage three\t125\terror\t2025-01-01T12:05:00Z\n" +
 				"5\t2025-01-01T14:00:00Z\tactive\tsess3\twin3\tpane5\tmessage five\t127\tinfo\t2025-01-01T14:05:00Z"
 		}
-		return lines
+		return lines, nil
 	}
 	defer restoreMock()
 
@@ -477,7 +474,7 @@ func TestPrintListFilterRead(t *testing.T) {
 }
 
 func TestPrintListFilterUnread(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
 		// Only return unread notifications (those with empty read_timestamp)
 		// Using mockLines which has no read timestamps for IDs 2, 4
 		lines := ""
@@ -485,7 +482,7 @@ func TestPrintListFilterUnread(t *testing.T) {
 			lines = "2\t2025-01-01T11:00:00Z\tactive\tsess1\twin1\tpane2\tmessage two\t124\twarning\t\n" +
 				"4\t2025-01-01T13:00:00Z\tactive\tsess2\twin2\tpane4\tmessage four\t126\tinfo\t"
 		}
-		return lines
+		return lines, nil
 	}
 	defer restoreMock()
 
@@ -703,8 +700,8 @@ func TestPrintFunctionsWithSingleNotification(t *testing.T) {
 }
 
 func TestPrintListJSONFormat(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
-		return mockLines()
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+		return mockLines(), nil
 	}
 	defer restoreMock()
 
@@ -721,8 +718,8 @@ func TestPrintListJSONFormat(t *testing.T) {
 }
 
 func TestPrintListUnknownFormat(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
-		return mockLines()
+	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+		return mockLines(), nil
 	}
 	defer restoreMock()
 

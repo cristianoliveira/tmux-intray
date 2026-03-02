@@ -10,7 +10,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/cristianoliveira/tmux-intray/cmd"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/spf13/cobra"
@@ -151,13 +150,6 @@ func runShowCmd(client settingsClient) error {
 	// Display settings
 	colors.Info(string(data))
 	return nil
-}
-
-// settingsCmd represents the settings command
-var settingsCmd = NewSettingsCmd(coreClient)
-
-func init() {
-	cmd.RootCmd.AddCommand(settingsCmd)
 }
 
 // confirmReset asks the user for confirmation before resetting settings.

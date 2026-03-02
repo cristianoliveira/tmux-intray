@@ -8,7 +8,12 @@ import (
 )
 
 func main() {
-	exitCode := run(os.Args[1:], cmd.Execute)
+	exitCode := run(os.Args[1:], func() error {
+		if err := initCLI(); err != nil {
+			return err
+		}
+		return cmd.Execute()
+	})
 	if exitCode != 0 {
 		os.Exit(exitCode)
 	}

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cristianoliveira/tmux-intray/cmd"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/spf13/cobra"
@@ -178,11 +177,4 @@ func reportJumpOutcome(id string, details jumpDetails, paneExists bool) {
 	}
 
 	colors.Warning(fmt.Sprintf("Pane %s no longer exists (jumped to window %s:%s instead)", details.pane, details.session, details.window))
-}
-
-// jumpCmd represents the jump command.
-var jumpCmd = NewJumpCmd(coreClient)
-
-func init() {
-	cmd.RootCmd.AddCommand(jumpCmd)
 }
