@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cristianoliveira/tmux-intray/cmd"
-
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/dedupconfig"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
@@ -180,17 +178,11 @@ func validateListOptions(groupBy, filter string) error {
 	return nil
 }
 
-// listCmd represents the list command
-var listCmd = NewListCmd(coreClient)
-
 // listOutputWriter is the writer used by PrintList. Can be changed for testing.
 var listOutputWriter io.Writer = os.Stdout
 
 // listListFunc is the function used to retrieve notifications. Can be changed for testing.
-var listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
-	result, _ := coreClient.ListNotifications(state, level, session, window, pane, olderThan, newerThan, readFilter)
-	return result
-}
+var listListFunc func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error)
 
 // FilterOptions holds all filter parameters for listing notifications.
 type FilterOptions struct {
@@ -246,7 +238,10 @@ func fetchNotifications(opts FilterOptions) (string, error) {
 	if opts.Client != nil {
 		return opts.Client.ListNotifications(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, opts.OlderThan, opts.NewerThan, opts.ReadFilter)
 	}
-	return listListFunc(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, opts.OlderThan, opts.NewerThan, opts.ReadFilter), nil
+	if listListFunc != nil {
+		return listListFunc(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, opts.OlderThan, opts.NewerThan, opts.ReadFilter)
+	}
+	return "", fmt.Errorf("list: missing client")
 }
 
 // getSearchProvider returns the appropriate search provider based on options.
@@ -359,8 +354,4 @@ func orderUnreadFirst(notifs []*domain.Notification) []*domain.Notification {
 	})
 
 	return ordered
-}
-
-func init() {
-	cmd.RootCmd.AddCommand(listCmd)
 }

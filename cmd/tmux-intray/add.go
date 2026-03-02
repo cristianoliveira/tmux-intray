@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cristianoliveira/tmux-intray/cmd"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/spf13/cobra"
 )
@@ -114,13 +113,6 @@ func runAddCmd(client addClient, args []string, sessionFlag, windowFlag, paneFla
 
 	colors.Success("added")
 	return nil
-}
-
-// addCmd represents the add command.
-var addCmd = NewAddCmd(coreClient)
-
-func init() {
-	cmd.RootCmd.AddCommand(addCmd)
 }
 
 // validateMessage checks message length and emptiness (matches Bash validation)
