@@ -6,8 +6,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/cristianoliveira/tmux-intray/cmd"
-
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/spf13/cobra"
 )
@@ -45,11 +43,4 @@ OPTIONS:
 	}
 
 	return markReadCmd
-}
-
-// markReadCmd represents the mark-read command
-var markReadCmd = NewMarkReadCmd(coreClient)
-
-func init() {
-	cmd.RootCmd.AddCommand(markReadCmd)
 }

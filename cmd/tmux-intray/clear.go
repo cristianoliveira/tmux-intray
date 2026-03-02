@@ -9,7 +9,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/cristianoliveira/tmux-intray/cmd"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/spf13/cobra"
 )
@@ -72,18 +71,12 @@ EXAMPLES:
 	return clearCmd
 }
 
-// clearCmd represents the clear command.
-var clearCmd = NewClearCmd(coreClient)
-
-func init() {
-	cmd.RootCmd.AddCommand(clearCmd)
-}
-
-var clearAllFunc = func() error {
-	return fileStorage.DismissAll()
-}
+var clearAllFunc func() error
 
 func ClearAll() error {
+	if clearAllFunc == nil {
+		return fmt.Errorf("clear: missing storage dependency")
+	}
 	return clearAllFunc()
 }
 

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/cristianoliveira/tmux-intray/cmd"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/app"
@@ -77,11 +76,4 @@ USAGE:
 			return client.RunProgram(model)
 		},
 	}
-}
-
-// tuiCmd represents the tui command
-var tuiCmd = NewTUICmd(app.NewDefaultClient(nil))
-
-func init() {
-	cmd.RootCmd.AddCommand(tuiCmd)
 }
