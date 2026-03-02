@@ -8,7 +8,7 @@ import (
 	stderrors "errors"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/cristianoliveira/tmux-intray/internal/core"
+
 	"github.com/cristianoliveira/tmux-intray/internal/errors"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
@@ -69,7 +69,7 @@ func newTestModel(t *testing.T, notifications []notification.Notification) *Mode
 	// Initialize UI state
 	uiState := NewUIState()
 
-	// Initialize runtime coordinator with mock client
+	// Initialize runtime coordinator with mock client and core
 	runtimeCoordinator := service.NewRuntimeCoordinator(mockClient)
 
 	// Initialize tree service
@@ -97,8 +97,6 @@ func newTestModel(t *testing.T, notifications []notification.Notification) *Mode
 		sessionNames:       runtimeCoordinator.GetSessionNames(),
 		windowNames:        runtimeCoordinator.GetWindowNames(),
 		paneNames:          runtimeCoordinator.GetPaneNames(),
-		ensureTmuxRunning:  core.EnsureTmuxRunning,
-		jumpToPane:         core.JumpToPane,
 		groupHeaderOptions: settings.DefaultGroupHeaderOptions(),
 	}
 	m.syncNotificationMirrors()
@@ -1317,8 +1315,6 @@ func TestApplySearchFilterWithMockProvider(t *testing.T) {
 		sessionNames:        runtimeCoordinator.GetSessionNames(),
 		windowNames:         runtimeCoordinator.GetWindowNames(),
 		paneNames:           runtimeCoordinator.GetPaneNames(),
-		ensureTmuxRunning:   core.EnsureTmuxRunning,
-		jumpToPane:          core.JumpToPane,
 		notifications:       notifications,
 		filtered:            []notification.Notification{},
 	}
@@ -2430,15 +2426,6 @@ func TestHandleJumpGroupedViewUsesVisibleNodes(t *testing.T) {
 		{ID: 1, Session: "b", Window: "@1", Pane: "%1", Message: "B"},
 		{ID: 2, Session: "a", Window: "", Pane: "%1", Message: "A"},
 	})
-	// Set custom functions to verify they aren't called
-	model.ensureTmuxRunning = func() bool {
-		t.Fatal("ensureTmuxRunning should not be called")
-		return true
-	}
-	model.jumpToPane = func(sessionID, windowID, paneID string) bool {
-		t.Fatal("jumpToPane should not be called")
-		return true
-	}
 
 	model.uiState.SetViewMode(viewModeGrouped)
 	model.uiState.SetGroupBy(settings.GroupByPane)
@@ -2635,7 +2622,6 @@ func TestGetSessionNameCachesFetcher(t *testing.T) {
 	mockClient.On("ListSessions").Return(map[string]string{"$1": "$1-name"}, nil)
 	mockClient.On("ListWindows").Return(map[string]string{}, nil)
 	mockClient.On("ListPanes").Return(map[string]string{}, nil)
-
 	runtimeCoordinator := service.NewRuntimeCoordinator(mockClient)
 
 	model := &Model{

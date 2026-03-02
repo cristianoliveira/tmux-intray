@@ -30,7 +30,7 @@ func TestTUIWithRealTmuxClient(t *testing.T) {
 	_, err = storage.AddNotification("Test notification for TUI", "", "$1", "@1", "%1", "", "info")
 	require.NoError(t, err)
 
-	// Create TUI model with real client
+	// Create TUI model with real client and core
 	model, err := NewModel(client)
 	require.NoError(t, err)
 	require.NotNil(t, model)

@@ -9,6 +9,19 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 )
 
+var coreInstance *core.Core = core.Default()
+
+// SetCore sets the core instance for all tmuxintray functions.
+// This should be called during initialization.
+func SetCore(c *core.Core) {
+	coreInstance = c
+}
+
+// GetCore returns the current core instance.
+func GetCore() *core.Core {
+	return coreInstance
+}
+
 // ListAllNotifications returns all notifications as TSV lines.
 func ListAllNotifications() (string, error) {
 	return storage.ListNotifications("", "", "", "", "", "", "", "")
@@ -25,7 +38,7 @@ func GetActiveCount() int {
 }
 
 var getVisibilityFunc = func() (string, error) {
-	return core.GetVisibility()
+	return coreInstance.GetVisibility()
 }
 
 // GetVisibility returns current visibility state as "0" (hidden) or "1" (visible).
@@ -35,7 +48,7 @@ func GetVisibility() (string, error) {
 
 // SetVisibility sets tray visibility.
 func SetVisibility(visible bool) error {
-	return core.SetVisibility(visible)
+	return coreInstance.SetVisibility(visible)
 }
 
 // Notification represents a single notification in the tray.
