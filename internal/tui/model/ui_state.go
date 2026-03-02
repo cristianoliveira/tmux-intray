@@ -182,9 +182,6 @@ type UIDTO struct {
 
 	// Filters are the active notification filters.
 	Filters Filters
-
-	// ActiveTab is the selected notifications tab lane.
-	ActiveTab settings.Tab
 }
 
 // Filters represents notification filters.
