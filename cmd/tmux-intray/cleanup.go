@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/cristianoliveira/tmux-intray/cmd"
 	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/spf13/cobra"
 )
@@ -69,11 +68,4 @@ than the configured auto-cleanup days. This helps prevent storage bloat.`,
 	cleanupCmd.Flags().BoolVar(&dryRunFlag, "dryrun", false, "Show what would be deleted without actually deleting")
 
 	return cleanupCmd
-}
-
-// cleanupCmd represents the cleanup command.
-var cleanupCmd = NewCleanupCmd(coreClient)
-
-func init() {
-	cmd.RootCmd.AddCommand(cleanupCmd)
 }

@@ -9,7 +9,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/cristianoliveira/tmux-intray/cmd"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/format"
 	"github.com/cristianoliveira/tmux-intray/internal/formatter"
@@ -200,13 +199,6 @@ func buildVariableContext(client statusClient) formatter.VariableContext {
 		WindowList:      "",
 		PaneList:        "",
 	}
-}
-
-// statusCmd represents the status command.
-var statusCmd = NewStatusCmd(coreClient)
-
-func init() {
-	cmd.RootCmd.AddCommand(statusCmd)
 }
 
 // Helper functions

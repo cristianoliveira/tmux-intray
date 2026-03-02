@@ -13,8 +13,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cristianoliveira/tmux-intray/cmd"
-
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
@@ -22,7 +20,7 @@ import (
 )
 
 type followClient interface {
-	ListNotifications(state, level, session, window, pane, olderThan, newerThan, readFilter string) string
+	ListNotifications(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error)
 }
 
 var (
@@ -98,10 +96,7 @@ type FollowOptions struct {
 }
 
 // listFunc is the function used to retrieve notifications. Can be changed for testing.
-var listFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
-	result, _ := fileStorage.ListNotifications(state, level, session, window, pane, olderThan, newerThan, readFilter)
-	return result
-}
+var listFunc func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error)
 
 // formatTimestamp converts ISO timestamp to display format.
 func formatTimestamp(ts string) string {
@@ -164,24 +159,8 @@ func Follow(ctx context.Context, opts FollowOptions) error {
 	// Map from notification ID to whether we've seen it
 	seen := make(map[int]bool)
 
-	// Determine tick channel
-	var tickChan <-chan time.Time
-	var ticker *time.Ticker
-	if opts.TickChan != nil {
-		tickChan = opts.TickChan
-	} else {
-		ticker = time.NewTicker(opts.Interval)
-		tickChan = ticker.C
-		defer ticker.Stop()
-	}
-
-	// Helper function to fetch notifications
-	fetchNotifications := func() string {
-		if opts.Client != nil {
-			return opts.Client.ListNotifications(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, "", "", "")
-		}
-		return listFunc(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, "", "", "")
-	}
+	tickChan, stopTicker := resolveTickChannel(opts)
+	defer stopTicker()
 
 	for {
 		select {
@@ -191,45 +170,68 @@ func Follow(ctx context.Context, opts FollowOptions) error {
 			_, _ = fmt.Fprintf(opts.Output, "\nReceived signal %v, stopping...\n", sig)
 			return nil
 		case <-tickChan:
-			// Fetch notifications with filters
-			lines := fetchNotifications()
-			if lines == "" {
-				continue
-			}
-			// Parse lines
-			var notifications []notification.Notification
-			for _, line := range strings.Split(lines, "\n") {
-				if line == "" {
-					continue
-				}
-				notif, err := notification.ParseNotification(line)
-				if err != nil {
-					continue
-				}
-				notifications = append(notifications, notif)
-			}
-			// Print new notifications
-			for _, notif := range notifications {
-				if !seen[notif.ID] {
-					domainNotif := notification.ToDomainUnsafe(notif)
-					printNotification(*domainNotif, opts.Output)
-					seen[notif.ID] = true
-				}
+			err := handleTick(opts, seen)
+			if err != nil {
+				_, _ = fmt.Fprintf(opts.Output, "follow: failed to list notifications: %v\n", err)
 			}
 		}
 	}
 }
 
-// defaultFollowClient is the default implementation using listFunc.
-type defaultFollowClient struct{}
-
-func (d *defaultFollowClient) ListNotifications(state, level, session, window, pane, olderThan, newerThan, readFilter string) string {
-	return listFunc(state, level, session, window, pane, olderThan, newerThan, readFilter)
+func resolveTickChannel(opts FollowOptions) (<-chan time.Time, func()) {
+	if opts.TickChan != nil {
+		return opts.TickChan, func() {}
+	}
+	ticker := time.NewTicker(opts.Interval)
+	return ticker.C, ticker.Stop
 }
 
-// followCmd represents the follow command
-var followCmd = NewFollowCmd(&defaultFollowClient{})
+func handleTick(opts FollowOptions, seen map[int]bool) error {
+	lines, err := fetchFollowNotifications(opts)
+	if err != nil {
+		return err
+	}
+	if lines == "" {
+		return nil
+	}
 
-func init() {
-	cmd.RootCmd.AddCommand(followCmd)
+	notifications := parseNotifications(lines)
+	printNewNotifications(notifications, seen, opts.Output)
+	return nil
+}
+
+func fetchFollowNotifications(opts FollowOptions) (string, error) {
+	if opts.Client != nil {
+		return opts.Client.ListNotifications(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, "", "", "")
+	}
+	if listFunc == nil {
+		return "", fmt.Errorf("follow: missing list client")
+	}
+	return listFunc(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, "", "", "")
+}
+
+func parseNotifications(lines string) []notification.Notification {
+	var notifications []notification.Notification
+	for _, line := range strings.Split(lines, "\n") {
+		if line == "" {
+			continue
+		}
+		notif, err := notification.ParseNotification(line)
+		if err != nil {
+			continue
+		}
+		notifications = append(notifications, notif)
+	}
+	return notifications
+}
+
+func printNewNotifications(notifications []notification.Notification, seen map[int]bool, output io.Writer) {
+	for _, notif := range notifications {
+		if seen[notif.ID] {
+			continue
+		}
+		domainNotif := notification.ToDomainUnsafe(notif)
+		printNotification(*domainNotif, output)
+		seen[notif.ID] = true
+	}
 }

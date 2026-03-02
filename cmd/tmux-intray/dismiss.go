@@ -9,8 +9,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/cristianoliveira/tmux-intray/cmd"
-
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/spf13/cobra"
 )
@@ -97,31 +95,26 @@ func dismissSingleNotification(client dismissClient, id string) error {
 	return nil
 }
 
-// dismissCmd represents the dismiss command
-var dismissCmd = NewDismissCmd(coreClient)
+var dismissFunc func(id string) error
 
-var dismissFunc = func(id string) error {
-	return coreClient.DismissNotification(id)
-}
-
-var dismissAllFunc = func() error {
-	return coreClient.DismissAll()
-}
+var dismissAllFunc func() error
 
 var confirmDismissAllFunc = func() bool {
 	return confirmDismissAll()
 }
 
 func Dismiss(id string) error {
+	if dismissFunc == nil {
+		return fmt.Errorf("dismiss: missing dependency")
+	}
 	return dismissFunc(id)
 }
 
 func DismissAll() error {
+	if dismissAllFunc == nil {
+		return fmt.Errorf("dismiss: missing dependency")
+	}
 	return dismissAllFunc()
-}
-
-func init() {
-	cmd.RootCmd.AddCommand(dismissCmd)
 }
 
 // confirmDismissAll asks the user for confirmation before dismissing all notifications.

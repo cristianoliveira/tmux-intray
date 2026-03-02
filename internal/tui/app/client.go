@@ -3,12 +3,10 @@ package app
 
 import (
 	"fmt"
-	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
-	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/state"
 )
 
@@ -28,39 +26,49 @@ type Client interface {
 
 // DefaultClient is the default adapter-based implementation used by CLI wiring.
 type DefaultClient struct {
-	tmuxClient tmux.TmuxClient
+	tmuxClientFactory TmuxClientFactory
+	programRunner     ProgramRunner
+	settingsLoader    SettingsLoader
 }
 
 // NewDefaultClient creates a default TUI client adapter.
-func NewDefaultClient(tmuxClient tmux.TmuxClient) *DefaultClient {
-	return &DefaultClient{tmuxClient: tmuxClient}
+// If tmuxClientFactory is nil, a DefaultTmuxClientFactory will be used.
+// If programRunner is nil, a DefaultProgramRunner will be used.
+// If settingsLoader is nil, a DefaultSettingsLoader will be used.
+func NewDefaultClient(tmuxClientFactory TmuxClientFactory, programRunner ProgramRunner, settingsLoader SettingsLoader) *DefaultClient {
+	if tmuxClientFactory == nil {
+		tmuxClientFactory = NewDefaultTmuxClientFactory()
+	}
+	if programRunner == nil {
+		programRunner = NewDefaultProgramRunner()
+	}
+	if settingsLoader == nil {
+		settingsLoader = NewDefaultSettingsLoader()
+	}
+	return &DefaultClient{
+		tmuxClientFactory: tmuxClientFactory,
+		programRunner:     programRunner,
+		settingsLoader:    settingsLoader,
+	}
 }
 
-// LoadSettings loads persisted settings.
+// LoadSettings loads persisted settings using the injected SettingsLoader.
 func (d *DefaultClient) LoadSettings() (*settings.Settings, error) {
-	return settings.Load()
+	return d.settingsLoader.Load()
 }
 
 // CreateModel builds a TUI model implementation.
 func (d *DefaultClient) CreateModel() (Model, error) {
-	if d.tmuxClient == nil {
-		d.tmuxClient = tmux.NewDefaultClient()
-	}
-	return state.NewModel(d.tmuxClient)
+	tmuxClient := d.tmuxClientFactory.NewClient()
+	return state.NewModel(tmuxClient)
 }
 
-// RunProgram starts the bubbletea program.
+// RunProgram starts the bubbletea program using the configured ProgramRunner.
 func (d *DefaultClient) RunProgram(model Model) error {
-	p := tea.NewProgram(
-		model,
-		tea.WithAltScreen(),
-		tea.WithMouseCellMotion(),
-	)
-
-	_, err := p.Run()
+	err := d.programRunner.Run(model)
 	if err != nil {
 		colors.Error(fmt.Sprintf("Error running TUI: %v", err))
-		os.Exit(1)
+		return err
 	}
 	return nil
 }
