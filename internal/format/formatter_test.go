@@ -2,6 +2,7 @@ package format
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
 
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
@@ -338,10 +339,11 @@ func TestJSONFormatterGroups(t *testing.T) {
 		Mode: domain.GroupByLevel,
 		Groups: []domain.Group{
 			{
-				DisplayName: "error",
-				Count:       1,
+				DisplayName: "info",
+				Count:       2,
 				Notifications: []domain.Notification{
-					{ID: 1, Timestamp: "2025-01-01T10:00:00Z", Message: "json message"},
+					{ID: 1, Message: "info message 1"},
+					{ID: 2, Message: "info message 2"},
 				},
 			},
 		},
@@ -350,11 +352,17 @@ func TestJSONFormatterGroups(t *testing.T) {
 	err := formatter.FormatGroups(groups, &buf)
 	assert.NoError(t, err)
 
-	output := buf.String()
-	assert.Contains(t, output, `"Mode": "level"`)
-	assert.Contains(t, output, `"DisplayName": "error"`)
-	assert.Contains(t, output, `"Count": 1`)
-	assert.Contains(t, output, `"json message"`)
+	// Parse JSON back
+	var decoded domain.GroupResult
+	err = json.Unmarshal(buf.Bytes(), &decoded)
+	assert.NoError(t, err)
+	assert.Equal(t, groups.Mode, decoded.Mode)
+	assert.Len(t, decoded.Groups, 1)
+	assert.Equal(t, groups.Groups[0].DisplayName, decoded.Groups[0].DisplayName)
+	assert.Equal(t, groups.Groups[0].Count, decoded.Groups[0].Count)
+	assert.Len(t, decoded.Groups[0].Notifications, 2)
+	assert.Equal(t, groups.Groups[0].Notifications[0].ID, decoded.Groups[0].Notifications[0].ID)
+	assert.Equal(t, groups.Groups[0].Notifications[0].Message, decoded.Groups[0].Notifications[0].Message)
 }
 
 func TestGroupCountFormatterNotifications(t *testing.T) {
@@ -414,4 +422,5 @@ func TestJSONFormatterNotificationsError(t *testing.T) {
 	if err != nil {
 		assert.Contains(t, err.Error(), "failed to marshal")
 	}
+
 }

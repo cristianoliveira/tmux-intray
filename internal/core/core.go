@@ -20,7 +20,18 @@ func (defaultSettingsStore) ResetSettings() (any, error) {
 	return settings.Reset()
 }
 
+// GetTrayItems returns tray items for a given state filter.
+// Returns newline-separated messages (unescaped).
+func GetTrayItems(stateFilter string) (string, error) {
+	return defaultCore.GetTrayItems(stateFilter)
+}
+
 // Version returns the version string.
+func Version() string {
+	return defaultCore.Version()
+}
+
+// Version returns the version string using this Core instance.
 func (c *Core) Version() string {
 	return version.String()
 }
@@ -85,11 +96,25 @@ func (c *Core) AddTrayItem(item, session, window, pane, paneCreated string, noAu
 	return id, nil
 }
 
+// AddTrayItem adds a tray item using the default core instance.
+// Returns the notification ID or an error if validation fails.
+func AddTrayItem(item, session, window, pane, paneCreated string, noAuto bool, level string) (string, error) {
+	return defaultCore.AddTrayItem(item, session, window, pane, paneCreated, noAuto, level)
+}
+
 // ClearTrayItems dismisses all active tray items.
+func ClearTrayItems() error {
+	return defaultCore.ClearTrayItems()
+}
 
 // ClearTrayItems dismisses all active tray items using this Core instance.
 func (c *Core) ClearTrayItems() error {
 	return c.storage.DismissAll()
+}
+
+// CleanupOldNotifications cleans up old dismissed notifications.
+func CleanupOldNotifications(days int, dryRun bool) error {
+	return defaultCore.CleanupOldNotifications(days, dryRun)
 }
 
 // CleanupOldNotifications cleans up old dismissed notifications using this Core instance.
@@ -97,9 +122,19 @@ func (c *Core) CleanupOldNotifications(days int, dryRun bool) error {
 	return c.storage.CleanupOldNotifications(days, dryRun)
 }
 
+// MarkNotificationRead marks a notification as read.
+func MarkNotificationRead(id string) error {
+	return defaultCore.MarkNotificationRead(id)
+}
+
 // MarkNotificationRead marks a notification as read using this Core instance.
 func (c *Core) MarkNotificationRead(id string) error {
 	return c.storage.MarkNotificationRead(id)
+}
+
+// MarkNotificationUnread marks a notification as unread.
+func MarkNotificationUnread(id string) error {
+	return defaultCore.MarkNotificationUnread(id)
 }
 
 // MarkNotificationUnread marks a notification as unread using this Core instance.
@@ -107,14 +142,29 @@ func (c *Core) MarkNotificationUnread(id string) error {
 	return c.storage.MarkNotificationUnread(id)
 }
 
+// GetNotificationByID retrieves a notification by its ID.
+func GetNotificationByID(id string) (string, error) {
+	return defaultCore.GetNotificationByID(id)
+}
+
 // GetNotificationByID retrieves a notification by its ID using this Core instance.
 func (c *Core) GetNotificationByID(id string) (string, error) {
 	return c.storage.GetNotificationByID(id)
 }
 
+// GetActiveCount returns the number of active notifications.
+func GetActiveCount() int {
+	return defaultCore.GetActiveCount()
+}
+
 // GetActiveCount returns the number of active notifications using this Core instance.
 func (c *Core) GetActiveCount() int {
 	return c.storage.GetActiveCount()
+}
+
+// GetVisibility returns the visibility state as "0" or "1".
+func GetVisibility() (string, error) {
+	return defaultCore.GetVisibility()
 }
 
 // GetVisibility returns the visibility state using this Core instance.
@@ -126,6 +176,12 @@ func (c *Core) GetVisibility() (string, error) {
 
 	// Fall back to "0" (default)
 	return "0", nil
+}
+
+// SetVisibility sets the visibility state.
+// Returns true on success, false on failure.
+func SetVisibility(visible bool) error {
+	return defaultCore.SetVisibility(visible)
 }
 
 // SetVisibility sets the visibility state using this Core instance.
@@ -145,14 +201,29 @@ func (c *Core) ListNotifications(stateFilter, levelFilter, sessionFilter, window
 	return c.storage.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
 }
 
+// ListNotifications lists notifications with filters using the default core instance.
+func ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error) {
+	return defaultCore.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
+}
+
 // DismissNotification dismisses a single notification by ID.
 func (c *Core) DismissNotification(id string) error {
 	return c.storage.DismissNotification(id)
 }
 
+// DismissNotification dismisses a single notification by ID using the default core instance.
+func DismissNotification(id string) error {
+	return defaultCore.DismissNotification(id)
+}
+
 // DismissAll dismisses all active notifications.
 func (c *Core) DismissAll() error {
 	return c.storage.DismissAll()
+}
+
+// DismissAll dismisses all active notifications using the default core instance.
+func DismissAll() error {
+	return defaultCore.DismissAll()
 }
 
 // ResetSettings resets settings to defaults.
@@ -171,6 +242,11 @@ func (c *Core) ResetSettings() (*settings.Settings, error) {
 	return reset, nil
 }
 
+// ResetSettings resets settings to defaults using the default core instance.
+func ResetSettings() (*settings.Settings, error) {
+	return defaultCore.ResetSettings()
+}
+
 // LoadSettings loads current settings.
 func (c *Core) LoadSettings() (*settings.Settings, error) {
 	if c.settings == nil {
@@ -185,4 +261,9 @@ func (c *Core) LoadSettings() (*settings.Settings, error) {
 		return nil, fmt.Errorf("load settings: unexpected settings type %T", v)
 	}
 	return loaded, nil
+}
+
+// LoadSettings loads current settings using the default core instance.
+func LoadSettings() (*settings.Settings, error) {
+	return defaultCore.LoadSettings()
 }

@@ -54,13 +54,14 @@ type Model struct {
 	notificationService model.NotificationService
 	runtimeCoordinator  model.RuntimeCoordinator
 	interactionCtrl     model.InteractionController
-	core                *core.Core // Core instance for tmux operations
 	// Legacy fields for backward compatibility
-	client         tmux.TmuxClient
-	sessionNames   map[string]string
-	windowNames    map[string]string
-	paneNames      map[string]string
-	searchProvider search.Provider
+	client            tmux.TmuxClient
+	sessionNames      map[string]string
+	windowNames       map[string]string
+	paneNames         map[string]string
+	ensureTmuxRunning func() bool
+	jumpToPane        func(sessionID, windowID, paneID string) bool
+	searchProvider    search.Provider
 }
 
 // Init initializes the TUI model.
@@ -90,20 +91,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // NewModel creates a new TUI model.
 // If client is nil, a new DefaultClient is created.
-// If coreInstance is nil, a new Core instance with defaults is created.
-func NewModel(client tmux.TmuxClient, coreInstance *core.Core) (*Model, error) {
+func NewModel(client tmux.TmuxClient) (*Model, error) {
 	if client == nil {
 		client = tmux.NewDefaultClient()
-	}
-	if coreInstance == nil {
-		coreInstance = core.NewCore(client, nil)
 	}
 
 	// Initialize UI state
 	uiState := NewUIState()
 
 	// Initialize runtime coordinator (handles tmux integration and name resolution)
-	runtimeCoordinator := service.NewRuntimeCoordinator(client, coreInstance)
+	runtimeCoordinator := service.NewRuntimeCoordinator(client)
 
 	// Initialize tree service
 	treeService := service.NewTreeService(uiState.GetGroupBy())
@@ -127,7 +124,6 @@ func NewModel(client tmux.TmuxClient, coreInstance *core.Core) (*Model, error) {
 		interactionCtrl:     interactionCtrl,
 		treeService:         treeService,
 		notificationService: notificationService,
-		core:                coreInstance,
 		settingsSvc:         newSettingsService(),
 		unreadFirst:         true, // Default to true for backward compatibility
 		// Legacy fields kept for backward compatibility but now using services
@@ -135,6 +131,8 @@ func NewModel(client tmux.TmuxClient, coreInstance *core.Core) (*Model, error) {
 		sessionNames:       runtimeCoordinator.GetSessionNames(),
 		windowNames:        runtimeCoordinator.GetWindowNames(),
 		paneNames:          runtimeCoordinator.GetPaneNames(),
+		ensureTmuxRunning:  core.EnsureTmuxRunning,
+		jumpToPane:         core.JumpToPane,
 		groupHeaderOptions: settings.DefaultGroupHeaderOptions(),
 	}
 

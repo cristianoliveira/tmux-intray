@@ -13,30 +13,31 @@ import (
 // DefaultRuntimeCoordinator implements the RuntimeCoordinator interface.
 type DefaultRuntimeCoordinator struct {
 	client       tmux.TmuxClient
-	core         *core.Core
 	sessionNames map[string]string
 	windowNames  map[string]string
 	paneNames    map[string]string
+
+	// Function pointers for testability
+	ensureTmuxRunning func() bool
+	jumpToPane        func(sessionID, windowID, paneID string) bool
 
 	// errorHandler is used for jump operations. If nil, uses default CLI handler.
 	errorHandler errors.ErrorHandler
 }
 
 // NewRuntimeCoordinator creates a new DefaultRuntimeCoordinator.
-func NewRuntimeCoordinator(client tmux.TmuxClient, coreInstance *core.Core) model.RuntimeCoordinator {
+func NewRuntimeCoordinator(client tmux.TmuxClient) model.RuntimeCoordinator {
 	if client == nil {
 		client = tmux.NewDefaultClient()
 	}
-	if coreInstance == nil {
-		coreInstance = core.NewCore(client, nil)
-	}
 
 	coordinator := &DefaultRuntimeCoordinator{
-		client:       client,
-		core:         coreInstance,
-		sessionNames: make(map[string]string),
-		windowNames:  make(map[string]string),
-		paneNames:    make(map[string]string),
+		client:            client,
+		sessionNames:      make(map[string]string),
+		windowNames:       make(map[string]string),
+		paneNames:         make(map[string]string),
+		ensureTmuxRunning: core.EnsureTmuxRunning,
+		jumpToPane:        core.JumpToPane,
 	}
 
 	// Initialize name caches (ignore error - will use empty maps if it fails)
@@ -47,7 +48,10 @@ func NewRuntimeCoordinator(client tmux.TmuxClient, coreInstance *core.Core) mode
 
 // EnsureTmuxRunning ensures the tmux server is running.
 func (c *DefaultRuntimeCoordinator) EnsureTmuxRunning() bool {
-	return c.core.EnsureTmuxRunning()
+	if c.ensureTmuxRunning == nil {
+		return core.EnsureTmuxRunning()
+	}
+	return c.ensureTmuxRunning()
 }
 
 // SetErrorHandler sets the error handler for jump operations.
@@ -58,19 +62,25 @@ func (c *DefaultRuntimeCoordinator) SetErrorHandler(handler errors.ErrorHandler)
 
 // JumpToPane jumps to a specific pane in tmux.
 func (c *DefaultRuntimeCoordinator) JumpToPane(sessionID, windowID, paneID string) bool {
+	if c.jumpToPane != nil {
+		return c.jumpToPane(sessionID, windowID, paneID)
+	}
 	// If an error handler is set, use JumpToPaneWithHandler
 	if c.errorHandler != nil {
-		return c.core.JumpToPaneWithHandler(sessionID, windowID, paneID, c.errorHandler)
+		return core.JumpToPaneWithHandler(sessionID, windowID, paneID, c.errorHandler)
 	}
-	return c.core.JumpToPane(sessionID, windowID, paneID)
+	return core.JumpToPane(sessionID, windowID, paneID)
 }
 
 // JumpToWindow jumps to a specific window in tmux.
 func (c *DefaultRuntimeCoordinator) JumpToWindow(sessionID, windowID string) bool {
-	if c.errorHandler != nil {
-		return c.core.JumpToPaneWithHandler(sessionID, windowID, "", c.errorHandler)
+	if c.jumpToPane != nil {
+		return c.jumpToPane(sessionID, windowID, "")
 	}
-	return c.core.JumpToPane(sessionID, windowID, "")
+	if c.errorHandler != nil {
+		return core.JumpToPaneWithHandler(sessionID, windowID, "", c.errorHandler)
+	}
+	return core.JumpToPane(sessionID, windowID, "")
 }
 
 // ValidatePaneExists checks if a pane exists in the specified session and window.
@@ -89,7 +99,7 @@ func (c *DefaultRuntimeCoordinator) ValidatePaneExists(sessionID, windowID, pane
 
 // GetCurrentContext returns the current tmux context.
 func (c *DefaultRuntimeCoordinator) GetCurrentContext() (*model.TmuxContext, error) {
-	ctx := c.core.GetCurrentTmuxContext()
+	ctx := core.GetCurrentTmuxContext()
 	return &model.TmuxContext{
 		SessionID:   ctx.SessionID,
 		WindowID:    ctx.WindowID,
@@ -181,7 +191,7 @@ func (c *DefaultRuntimeCoordinator) RefreshNames() error {
 
 // GetTmuxVisibility returns the visibility state from tmux environment.
 func (c *DefaultRuntimeCoordinator) GetTmuxVisibility() (bool, error) {
-	value := c.core.GetTmuxVisibility()
+	value := core.GetTmuxVisibility()
 	return value == "1", nil
 }
 
@@ -191,7 +201,7 @@ func (c *DefaultRuntimeCoordinator) SetTmuxVisibility(visible bool) error {
 	if visible {
 		value = "1"
 	}
-	_, err := c.core.SetTmuxVisibility(value)
+	_, err := core.SetTmuxVisibility(value)
 	return err
 }
 
