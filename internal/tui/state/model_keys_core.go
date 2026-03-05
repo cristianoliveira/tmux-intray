@@ -221,9 +221,7 @@ func (m *Model) handleMarkKeys(key string) (tea.Model, tea.Cmd) {
 func (m *Model) handleModeKeys(key string, allowInSearch bool) (tea.Model, tea.Cmd) {
 	switch key {
 	case "/":
-		viewModeBeforeSearch := m.uiState.GetViewMode()
-		m.handleSearchViewMode()
-		m.uiState.SetViewMode(viewModeBeforeSearch)
+		m.handleSearchMode()
 		return m, nil
 	case "?":
 		m.uiState.SetShowHelp(!m.uiState.ShowHelp())

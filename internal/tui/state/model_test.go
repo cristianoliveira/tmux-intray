@@ -1058,6 +1058,38 @@ func TestModelUpdateHandlesSearch(t *testing.T) {
 	assert.Len(t, model.filtered, 3)
 }
 
+func TestModelUpdateSlashInGroupedViewKeepsGroupedModeAndFilters(t *testing.T) {
+	setupConfig(t, t.TempDir())
+
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "foo message"},
+		{ID: 2, Session: "$1", Window: "@2", Pane: "%1", Message: "bar message"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(settings.ViewModeGrouped)
+	model.applySearchFilter()
+	model.resetCursor()
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	model = updated.(*Model)
+
+	assert.True(t, model.uiState.IsSearchMode())
+	assert.Equal(t, settings.ViewModeGrouped, string(model.uiState.GetViewMode()))
+
+	loaded, err := settings.Load()
+	require.NoError(t, err)
+	assert.Equal(t, settings.ViewModeGrouped, loaded.ViewMode)
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+	model = updated.(*Model)
+
+	assert.Equal(t, settings.ViewModeGrouped, string(model.uiState.GetViewMode()))
+	assert.Equal(t, "f", model.uiState.GetSearchQuery())
+	assert.Len(t, model.filtered, 1)
+	assert.Equal(t, "foo message", model.filtered[0].Message)
+}
+
 func TestModelUpdateSearchViewModeEnterJumpsWhileSearchActive(t *testing.T) {
 	setupStorage(t)
 
@@ -1455,9 +1487,35 @@ func TestModelUpdateHandlesSearchEnter(t *testing.T) {
 	model = updated.(*Model)
 
 	assert.Nil(t, cmd)
-	assert.False(t, model.uiState.IsSearchMode())
-	// In the new implementation, search query is cleared when exiting search mode
-	assert.Equal(t, "", model.uiState.GetSearchQuery())
+	assert.True(t, model.uiState.IsSearchMode())
+	assert.Equal(t, "test query", model.uiState.GetSearchQuery())
+}
+
+func TestModelUpdateGroupedSearchEnterJumps(t *testing.T) {
+	setupStorage(t)
+
+	model := newTestModelWithOptions(t, []notification.Notification{
+		{ID: 1, Message: "jump me", Session: "$1", Window: "@1", Pane: "%1"},
+	}, func(m *Model) {
+		m.runtimeCoordinator = &testRuntimeCoordinator{
+			ensureTmuxRunningFn: func() bool { return true },
+			jumpToPaneFn:        func(sessionID, windowID, paneID string) bool { return true },
+		}
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(settings.ViewModeGrouped)
+	model.uiState.SetSearchMode(true)
+	model.uiState.SetSearchQuery("jump")
+	model.applySearchFilter()
+	model.resetCursor()
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(*Model)
+
+	assert.NotNil(t, cmd)
+	assert.True(t, model.uiState.IsSearchMode())
+	assert.Equal(t, settings.ViewModeGrouped, string(model.uiState.GetViewMode()))
 }
 
 // TestCtrlJKNavigationInSearchMode tests that Ctrl+j and Ctrl+k work for navigation in search mode.
@@ -1932,7 +1990,7 @@ func TestModelViewRendersContent(t *testing.T) {
 	assert.Contains(t, view, "AGE")
 	assert.Contains(t, view, "Test notification")
 	assert.Contains(t, view, "j/k: move")
-	assert.Contains(t, view, "/: search view")
+	assert.Contains(t, view, "/: search messages")
 	assert.NotContains(t, view, "Ctrl+f")
 	assert.Contains(t, view, "q: quit")
 }
