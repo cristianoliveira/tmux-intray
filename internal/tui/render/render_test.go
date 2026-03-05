@@ -257,7 +257,7 @@ func TestFooterGroupedHelpText(t *testing.T) {
 	assert.Contains(t, footer, "a: all")
 	assert.Contains(t, footer, "R: read")
 	assert.Contains(t, footer, "Enter: toggle/jump")
-	assert.Contains(t, footer, "/: search view")
+	assert.Contains(t, footer, "/: search messages")
 	assert.NotContains(t, footer, "Ctrl+f")
 }
 
@@ -269,6 +269,8 @@ func TestFooterSearchModeHelpText(t *testing.T) {
 	assert.Contains(t, footer, "read: all")
 	assert.Contains(t, footer, "ESC: exit search")
 	assert.Contains(t, footer, "Ctrl+j/k: navigate")
+	assert.Contains(t, footer, "Enter: jump")
+	assert.NotContains(t, footer, "Enter: exit search")
 	assert.Contains(t, footer, "Search: test")
 }
 
@@ -283,10 +285,10 @@ func TestFooterSearchViewModeHelpTextShowsJumpOnEnter(t *testing.T) {
 	assert.NotContains(t, footer, "Enter: exit search")
 }
 
-func TestFooterSearchViewModeHelpTextShowsToggleJumpWhenGrouped(t *testing.T) {
+func TestFooterSearchViewModeHelpTextShowsJumpWhenGrouped(t *testing.T) {
 	footer := Footer(FooterState{SearchMode: true, SearchQuery: "test", Grouped: true, ViewMode: settings.ViewModeSearch, ShowHelp: true})
 
-	assert.Contains(t, footer, "Enter: toggle/jump")
+	assert.Contains(t, footer, "Enter: jump")
 }
 
 func TestFooterSearchModeWithoutHelp(t *testing.T) {
