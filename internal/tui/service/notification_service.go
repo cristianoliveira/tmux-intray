@@ -20,7 +20,10 @@ type DefaultNotificationService struct {
 	filtered       []notification.Notification
 }
 
-const recentsDatasetLimit = 20
+const (
+	recentsDatasetLimit   = 20
+	recentsPerSourceLimit = 3
+)
 
 // NewNotificationService creates a new DefaultNotificationService.
 func NewNotificationService(provider search.Provider, resolver model.NameResolver) model.NotificationService {
@@ -320,22 +323,55 @@ func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortB
 		}
 	}
 
-	if settings.NormalizeTab(string(activeTab)) == settings.TabAll {
+	normalizedTab := settings.NormalizeTab(string(activeTab))
+	if normalizedTab == settings.TabAll {
 		return activeOnly
 	}
 
-	sorted := s.SortNotifications(activeOnly, sortBy, sortOrder)
-	if len(sorted) <= recentsDatasetLimit {
-		return sorted
+	unreadOnly := make([]notification.Notification, 0, len(activeOnly))
+	for _, n := range activeOnly {
+		if !n.IsRead() {
+			unreadOnly = append(unreadOnly, n)
+		}
 	}
 
-	result := make([]notification.Notification, recentsDatasetLimit)
-	copy(result, sorted[:recentsDatasetLimit])
+	sorted := s.SortNotifications(unreadOnly, sortBy, sortOrder)
+	result := make([]notification.Notification, 0, minInt(len(sorted), recentsDatasetLimit))
+	perSourceCount := make(map[string]int, len(sorted))
+
+	for _, notif := range sorted {
+		sourceKey := notificationSourceKey(notif)
+		if perSourceCount[sourceKey] >= recentsPerSourceLimit {
+			continue
+		}
+
+		result = append(result, notif)
+		perSourceCount[sourceKey]++
+		if len(result) >= recentsDatasetLimit {
+			break
+		}
+	}
+
 	return result
+}
+
+func notificationSourceKey(notif notification.Notification) string {
+	return notif.Session + "\x00" + notif.Window + "\x00" + notif.Pane
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // ApplyFiltersAndSearch applies tab scope, then filters/search/sorting and stores filtered results.
 func (s *DefaultNotificationService) ApplyFiltersAndSearch(tab settings.Tab, query, state, level, sessionID, windowID, paneID, readFilter, sortBy, sortOrder string) {
+	if settings.NormalizeTab(string(tab)) == settings.TabRecents {
+		readFilter = "unread"
+	}
+
 	result := s.selectDataset(tab, sortBy, sortOrder)
 	// Apply state filter
 	if state != "" {

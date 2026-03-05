@@ -63,6 +63,8 @@ func disabledRenderGroupOptions() settings.GroupHeaderOptions {
 func newTestModel(t *testing.T, notifications []notification.Notification) *Model {
 	t.Helper()
 
+	notifications = normalizeTestNotifications(notifications)
+
 	// Create mock client with stubbed session fetchers
 	mockClient := stubSessionFetchers(t)
 
@@ -102,6 +104,26 @@ func newTestModel(t *testing.T, notifications []notification.Notification) *Mode
 	m.syncNotificationMirrors()
 
 	return &m
+}
+
+func normalizeTestNotifications(notifications []notification.Notification) []notification.Notification {
+	normalized := make([]notification.Notification, len(notifications))
+	copy(normalized, notifications)
+
+	base := time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC)
+	for i := range normalized {
+		if normalized[i].Timestamp == "" {
+			normalized[i].Timestamp = base.Add(time.Duration(i) * time.Minute).Format(time.RFC3339)
+		}
+		if normalized[i].State == "" {
+			normalized[i].State = "active"
+		}
+		if normalized[i].Level == "" {
+			normalized[i].Level = "info"
+		}
+	}
+
+	return normalized
 }
 
 // newTestModelWithOptions creates a test model with custom options, useful for tests that need to override services.
@@ -1231,7 +1253,11 @@ func TestModelUpdateHandlesReadUnreadKeys(t *testing.T) {
 	loaded, err := notification.ParseNotification(parts[0])
 	require.NoError(t, err)
 	assert.True(t, loaded.IsRead())
-	// Also filtered notification should be read
+	// Recents tab only shows unread notifications, so the list should now be empty.
+	assert.Empty(t, model.filtered)
+
+	model.switchActiveTab(settings.TabAll)
+	require.Len(t, model.filtered, 1)
 	assert.True(t, model.filtered[0].IsRead())
 
 	// Press 'u' to mark unread
@@ -1246,6 +1272,11 @@ func TestModelUpdateHandlesReadUnreadKeys(t *testing.T) {
 	loaded, err = notification.ParseNotification(parts[0])
 	require.NoError(t, err)
 	assert.False(t, loaded.IsRead())
+	require.Len(t, model.filtered, 1)
+	assert.False(t, model.filtered[0].IsRead())
+
+	model.switchActiveTab(settings.TabRecents)
+	require.Len(t, model.filtered, 1)
 	assert.False(t, model.filtered[0].IsRead())
 }
 
@@ -1256,6 +1287,7 @@ func TestApplySearchFilterReadStatus(t *testing.T) {
 	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+	model.uiState.SetActiveTab(settings.TabAll)
 
 	model.uiState.SetSearchQuery("read")
 	model.applySearchFilter()
@@ -1322,6 +1354,7 @@ func TestApplySearchFilterWithMockProvider(t *testing.T) {
 	model.uiState.SetSearchQuery("test")
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+	model.uiState.SetActiveTab(settings.TabAll)
 
 	model.applySearchFilter()
 	model.resetCursor()
@@ -1343,6 +1376,7 @@ func TestApplySearchFilterUsesDefaultTokenProvider(t *testing.T) {
 	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
+	model.uiState.SetActiveTab(settings.TabAll)
 
 	// No custom searchProvider set, should use default TokenProvider
 	// (it's set by newTestModel, so we just verify it works)
@@ -2208,6 +2242,10 @@ func TestMarkSelectedRead(t *testing.T) {
 	loaded, err := notification.ParseNotification(parts[0])
 	require.NoError(t, err)
 	assert.True(t, loaded.IsRead())
+	assert.Empty(t, model.filtered)
+
+	model.switchActiveTab(settings.TabAll)
+	require.Len(t, model.filtered, 1)
 	assert.True(t, model.filtered[0].IsRead())
 }
 
@@ -2222,6 +2260,9 @@ func TestMarkSelectedUnread(t *testing.T) {
 
 	model, err := NewModel(mockClient)
 	require.NoError(t, err)
+	assert.Empty(t, model.filtered)
+
+	model.switchActiveTab(settings.TabAll)
 	require.Len(t, model.filtered, 1)
 	require.True(t, model.filtered[0].IsRead())
 
