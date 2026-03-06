@@ -3,9 +3,7 @@ package core
 
 import (
 	"fmt"
-	"strings"
 
-	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/errors"
 	"github.com/cristianoliveira/tmux-intray/internal/ports"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
@@ -65,12 +63,7 @@ func Default() *Core {
 
 // EnsureTmuxRunning verifies that tmux is running.
 func (c *Core) EnsureTmuxRunning() bool {
-	running, err := c.client.HasSession()
-	if err != nil {
-		colors.Debug("EnsureTmuxRunning: tmux has-session failed: " + err.Error())
-		return false
-	}
-	return running
+	return c.tmuxRuntime().ensureTmuxRunning()
 }
 
 // EnsureTmuxRunning verifies that tmux is running using the default client.
@@ -80,19 +73,7 @@ func EnsureTmuxRunning() bool {
 
 // GetCurrentTmuxContext returns the current tmux context.
 func (c *Core) GetCurrentTmuxContext() TmuxContext {
-	ctx, err := c.client.GetCurrentContext()
-	if err != nil {
-		colors.Error("get current tmux context: failed to get tmux context: " + err.Error())
-		return TmuxContext{}
-	}
-
-	// Convert tmux.TmuxContext to core.TmuxContext
-	return TmuxContext{
-		SessionID:   ctx.SessionID,
-		WindowID:    ctx.WindowID,
-		PaneID:      ctx.PaneID,
-		PaneCreated: ctx.PanePID,
-	}
+	return c.tmuxRuntime().currentContext()
 }
 
 // GetCurrentTmuxContext returns the current tmux context using the default client.
@@ -102,12 +83,7 @@ func GetCurrentTmuxContext() TmuxContext {
 
 // ValidatePaneExists checks if a pane exists.
 func (c *Core) ValidatePaneExists(sessionID, windowID, paneID string) bool {
-	exists, err := c.client.ValidatePaneExists(sessionID, windowID, paneID)
-	if err != nil {
-		colors.Debug(fmt.Sprintf("ValidatePaneExists: tmux list-panes failed for %s:%s.%s: %v", sessionID, windowID, paneID, err))
-		return false
-	}
-	return exists
+	return c.tmuxRuntime().validatePaneExists(sessionID, windowID, paneID)
 }
 
 // ValidatePaneExists checks if a pane exists using the default client.
@@ -118,109 +94,8 @@ func ValidatePaneExists(sessionID, windowID, paneID string) bool {
 // jumpToPane is the private implementation that accepts a custom error handler.
 // sessionID and windowID are required; paneID is optional for explicit window jump.
 func (c *Core) jumpToPane(sessionID, windowID, paneID string, handler errors.ErrorHandler) bool {
-	if !validateJumpParams(sessionID, windowID, paneID, handler) {
-		return false
-	}
-
-	shouldSwitch := c.shouldSwitchSession(sessionID)
-
-	if shouldSwitch {
-		if !c.switchToSession(sessionID, handler) {
-			return false
-		}
-	}
-
-	targetWindow := sessionID + ":" + windowID
-	if !c.selectWindow(targetWindow, handler) {
-		return false
-	}
-
-	if paneID == "" {
-		colors.Debug(fmt.Sprintf("JumpToPane: explicit window jump to %s", targetWindow))
-		return true
-	}
-
-	paneExists := c.ValidatePaneExists(sessionID, windowID, paneID)
-	colors.Debug(fmt.Sprintf("JumpToPane: pane validation for %s:%s in window %s:%s - exists: %v", sessionID, paneID, sessionID, windowID, paneExists))
-
-	if !paneExists {
-		handler.Warning("Pane " + paneID + " does not exist in window " + targetWindow + ", jumping to window instead")
-		colors.Debug(fmt.Sprintf("JumpToPane: falling back to window selection (pane %s not found)", paneID))
-		return true
-	}
-
-	return c.selectPane(sessionID, windowID, paneID, handler)
-}
-
-// validateJumpParams validates the jump parameters.
-func validateJumpParams(sessionID, windowID, paneID string, handler errors.ErrorHandler) bool {
-	if sessionID == "" || windowID == "" {
-		var missing []string
-		if sessionID == "" {
-			missing = append(missing, "sessionID")
-		}
-		if windowID == "" {
-			missing = append(missing, "windowID")
-		}
-		handler.Error(fmt.Sprintf("jump: invalid parameters (empty %s)", strings.Join(missing, ", ")))
-		return false
-	}
-	return true
-}
-
-// shouldSwitchSession determines if we need to switch to the target session.
-func (c *Core) shouldSwitchSession(sessionID string) bool {
-	currentCtx, err := c.client.GetCurrentContext()
-	if err != nil {
-		colors.Debug("JumpToPane: failed to get tmux context: " + err.Error())
-		return true
-	}
-	return currentCtx.SessionID != sessionID
-}
-
-// switchToSession switches to the target session.
-func (c *Core) switchToSession(sessionID string, handler errors.ErrorHandler) bool {
-	colors.Debug(fmt.Sprintf("JumpToPane: switching client to session %s", sessionID))
-	_, stderr, err := c.client.Run("switch-client", "-t", sessionID)
-	if err != nil {
-		handler.Error(fmt.Sprintf("jump to pane: failed to switch client to session %s: %v", sessionID, err))
-		if stderr != "" {
-			colors.Debug("JumpToPane: stderr: " + stderr)
-		}
-		return false
-	}
-	return true
-}
-
-// selectWindow selects the target window.
-func (c *Core) selectWindow(targetWindow string, handler errors.ErrorHandler) bool {
-	colors.Debug(fmt.Sprintf("JumpToPane: selecting window %s", targetWindow))
-	_, stderr, err := c.client.Run("select-window", "-t", targetWindow)
-	if err != nil {
-		handler.Error(fmt.Sprintf("jump to pane: failed to select window %s: %v", targetWindow, err))
-		if stderr != "" {
-			colors.Debug("JumpToPane: stderr: " + stderr)
-		}
-		return false
-	}
-	return true
-}
-
-// selectPane selects the target pane.
-func (c *Core) selectPane(sessionID, windowID, paneID string, handler errors.ErrorHandler) bool {
-	targetPane := sessionID + ":" + windowID + "." + paneID
-	colors.Debug(fmt.Sprintf("JumpToPane: selecting pane %s", targetPane))
-	_, stderr, err := c.client.Run("select-pane", "-t", targetPane)
-	if err != nil {
-		handler.Error(fmt.Sprintf("jump to pane: failed to select pane %s: %v", targetPane, err))
-		if stderr != "" {
-			colors.Debug("JumpToPane: stderr: " + stderr)
-		}
-		return false
-	}
-
-	colors.Debug(fmt.Sprintf("JumpToPane: successfully selected pane %s", targetPane))
-	return true
+	coordinator := newTmuxJumpCoordinator(c.client)
+	return coordinator.jumpToPane(sessionID, windowID, paneID, handler)
 }
 
 // JumpToPane jumps to a specific pane. If paneID is empty, performs an explicit
@@ -245,12 +120,7 @@ func JumpToPaneWithHandler(sessionID, windowID, paneID string, handler errors.Er
 // GetTmuxVisibility returns the value of TMUX_INTRAY_VISIBLE global tmux variable.
 // Returns "0" if variable is not set.
 func (c *Core) GetTmuxVisibility() string {
-	value, err := c.client.GetEnvironment("TMUX_INTRAY_VISIBLE")
-	if err != nil {
-		colors.Debug("GetTmuxVisibility: tmux show-environment failed: " + err.Error())
-		return "0"
-	}
-	return value
+	return c.tmuxRuntime().getVisibility()
 }
 
 // GetTmuxVisibility returns the value of TMUX_INTRAY_VISIBLE global tmux variable using the default client.
@@ -261,16 +131,15 @@ func GetTmuxVisibility() string {
 // SetTmuxVisibility sets the TMUX_INTRAY_VISIBLE global tmux variable.
 // Returns (true, nil) on success, (false, error) on failure.
 func (c *Core) SetTmuxVisibility(value string) (bool, error) {
-	err := c.client.SetEnvironment("TMUX_INTRAY_VISIBLE", value)
-	if err != nil {
-		colors.Error(fmt.Sprintf("set tmux visibility: failed to set TMUX_INTRAY_VISIBLE to '%s': %v", value, err))
-		return false, fmt.Errorf("set tmux visibility: %w", err)
-	}
-	return true, nil
+	return c.tmuxRuntime().setVisibility(value)
 }
 
 // SetTmuxVisibility sets the TMUX_INTRAY_VISIBLE global tmux variable using the default client.
 // Returns (true, nil) on success, (false, error) on failure.
 func SetTmuxVisibility(value string) (bool, error) {
 	return defaultCore.SetTmuxVisibility(value)
+}
+
+func (c *Core) tmuxRuntime() *tmuxRuntime {
+	return newTmuxRuntime(c.client)
 }
