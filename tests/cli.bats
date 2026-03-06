@@ -20,7 +20,7 @@
 
     run ./tmux-intray add
     [ "$status" -eq 1 ]
-    [[ "$output" == *"requires a message"* ]]
+    [[ "$output" == *"message cannot be empty"* ]]
 }
 
 @test "commands work when invoked from different working directory" {
