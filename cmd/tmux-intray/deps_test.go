@@ -2,11 +2,12 @@ package main
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/cristianoliveira/tmux-intray/internal/core"
+	"github.com/cristianoliveira/tmux-intray/internal/ports"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
-	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/app"
 	"github.com/spf13/cobra"
 )
@@ -149,44 +150,126 @@ func (f *fakeTUIClient) RunProgram(model app.Model) error {
 	return nil
 }
 
-func TestBuildCLIDepsReturnsStorageError(t *testing.T) {
-	originalNewStorage := newStorageFromConfig
-	defer func() { newStorageFromConfig = originalNewStorage }()
-
-	newStorageFromConfig = func() (storage.Storage, error) {
-		return nil, errors.New("storage unavailable")
-	}
-
-	_, err := buildCLIDeps()
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-	if err.Error() == "" {
-		t.Fatal("expected error message, got empty string")
+func testFactories() cliDepsFactories {
+	return cliDepsFactories{
+		newStorage: func() (ports.NotificationRepository, error) {
+			return &fakeStorage{}, nil
+		},
+		newCore: func(stor ports.NotificationRepository) (cliCore, error) {
+			return &fakeCore{}, nil
+		},
+		newTUI: func() (tuiClient, error) {
+			return &fakeTUIClient{}, nil
+		},
 	}
 }
 
-func TestBuildCLIDepsSuccess(t *testing.T) {
-	originalNewStorage := newStorageFromConfig
-	defer func() { newStorageFromConfig = originalNewStorage }()
-
-	stubStorage := &fakeStorage{}
-	newStorageFromConfig = func() (storage.Storage, error) {
-		return stubStorage, nil
+func TestBuildCLIDepsWithFactoriesReturnsStorageError(t *testing.T) {
+	factories := testFactories()
+	factories.newStorage = func() (ports.NotificationRepository, error) {
+		return nil, errors.New("storage unavailable")
 	}
 
-	deps, err := buildCLIDeps()
+	_, err := buildCLIDepsWithFactories(factories)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to initialize storage") {
+		t.Fatalf("expected storage initialization error, got %q", err.Error())
+	}
+}
+
+func TestBuildCLIDepsWithFactoriesReturnsCoreError(t *testing.T) {
+	factories := testFactories()
+	factories.newCore = func(stor ports.NotificationRepository) (cliCore, error) {
+		return nil, errors.New("core unavailable")
+	}
+
+	_, err := buildCLIDepsWithFactories(factories)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to initialize core") {
+		t.Fatalf("expected core initialization error, got %q", err.Error())
+	}
+}
+
+func TestBuildCLIDepsWithFactoriesReturnsTUIError(t *testing.T) {
+	factories := testFactories()
+	factories.newTUI = func() (tuiClient, error) {
+		return nil, errors.New("tui unavailable")
+	}
+
+	_, err := buildCLIDepsWithFactories(factories)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to initialize tui") {
+		t.Fatalf("expected tui initialization error, got %q", err.Error())
+	}
+}
+
+func TestBuildCLIDepsWithFactoriesSuccess(t *testing.T) {
+	stubStorage := &fakeStorage{}
+	stubCore := &fakeCore{}
+	stubTUI := &fakeTUIClient{}
+
+	factories := testFactories()
+	factories.newStorage = func() (ports.NotificationRepository, error) {
+		return stubStorage, nil
+	}
+	factories.newCore = func(stor ports.NotificationRepository) (cliCore, error) {
+		if stor != stubStorage {
+			t.Fatalf("expected storage to be passed to core constructor")
+		}
+		return stubCore, nil
+	}
+	factories.newTUI = func() (tuiClient, error) {
+		return stubTUI, nil
+	}
+
+	deps, err := buildCLIDepsWithFactories(factories)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if deps.coreClient == nil {
-		t.Fatal("expected coreClient to be set")
+	if deps.coreClient != stubCore {
+		t.Fatal("expected coreClient to match stub")
 	}
 	if deps.storage != stubStorage {
 		t.Fatal("expected storage to match stub")
 	}
-	if deps.tuiClient == nil {
-		t.Fatal("expected tuiClient to be set")
+	if deps.tuiClient != stubTUI {
+		t.Fatal("expected tuiClient to match stub")
+	}
+}
+
+func TestDefaultCLIDepsFactoriesWireRuntimeConstructors(t *testing.T) {
+	factories := defaultCLIDepsFactories()
+
+	if factories.newStorage == nil {
+		t.Fatal("expected storage factory to be set")
+	}
+	if factories.newCore == nil {
+		t.Fatal("expected core factory to be set")
+	}
+	if factories.newTUI == nil {
+		t.Fatal("expected tui factory to be set")
+	}
+
+	coreClient, err := factories.newCore(&fakeStorage{})
+	if err != nil {
+		t.Fatalf("unexpected error creating core client: %v", err)
+	}
+	if coreClient == nil {
+		t.Fatal("expected core client to be created")
+	}
+
+	tuiClient, err := factories.newTUI()
+	if err != nil {
+		t.Fatalf("unexpected error creating tui client: %v", err)
+	}
+	if tuiClient == nil {
+		t.Fatal("expected tui client to be created")
 	}
 }
 
