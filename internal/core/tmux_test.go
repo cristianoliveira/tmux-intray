@@ -95,6 +95,18 @@ func TestTmuxFunctions(t *testing.T) {
 		require.True(t, result)
 		mockClient.AssertExpectations(t)
 
+		// Test jump when context lookup fails (defaults to switch session)
+		mockClient = new(tmux.MockClient)
+		mockClient.On("GetCurrentContext").Return(tmux.TmuxContext{}, tmux.ErrTmuxNotRunning).Once()
+		mockClient.On("ValidatePaneExists", "$7", "3", "%9").Return(true, nil).Once()
+		mockClient.On("Run", []string{"switch-client", "-t", "$7"}).Return("", "", nil).Once()
+		mockClient.On("Run", []string{"select-window", "-t", "$7:3"}).Return("", "", nil).Once()
+		mockClient.On("Run", []string{"select-pane", "-t", "$7:3.%9"}).Return("", "", nil).Once()
+		c = NewCore(mockClient, nil)
+		result = c.JumpToPane("$7", "3", "%9")
+		require.True(t, result)
+		mockClient.AssertExpectations(t)
+
 		// Test failure when select-window fails
 		mockClient = new(tmux.MockClient)
 		mockClient.On("GetCurrentContext").Return(tmux.TmuxContext{SessionID: "$999"}, nil).Once()
