@@ -40,18 +40,56 @@ type cliDeps struct {
 	tuiClient  tuiClient
 }
 
-var newStorageFromConfig = storage.NewFromConfig
+type storageFactory func() (ports.NotificationRepository, error)
+
+type coreFactory func(storage ports.NotificationRepository) (cliCore, error)
+
+type tuiFactory func() (tuiClient, error)
+
+type cliDepsFactories struct {
+	newStorage storageFactory
+	newCore    coreFactory
+	newTUI     tuiFactory
+}
+
+func defaultCLIDepsFactories() cliDepsFactories {
+	return cliDepsFactories{
+		newStorage: func() (ports.NotificationRepository, error) {
+			return storage.NewFromConfig()
+		},
+		newCore: func(stor ports.NotificationRepository) (cliCore, error) {
+			return core.NewCoreWithDeps(nil, stor, nil), nil
+		},
+		newTUI: func() (tuiClient, error) {
+			return app.NewDefaultClient(nil, nil, nil), nil
+		},
+	}
+}
 
 func buildCLIDeps() (cliDeps, error) {
-	stor, err := newStorageFromConfig()
+	return buildCLIDepsWithFactories(defaultCLIDepsFactories())
+}
+
+func buildCLIDepsWithFactories(factories cliDepsFactories) (cliDeps, error) {
+	stor, err := factories.newStorage()
 	if err != nil {
 		return cliDeps{}, fmt.Errorf("deps: failed to initialize storage: %w", err)
 	}
-	coreClient := core.NewCoreWithDeps(nil, stor, nil)
+
+	coreClient, err := factories.newCore(stor)
+	if err != nil {
+		return cliDeps{}, fmt.Errorf("deps: failed to initialize core: %w", err)
+	}
+
+	tuiClient, err := factories.newTUI()
+	if err != nil {
+		return cliDeps{}, fmt.Errorf("deps: failed to initialize tui: %w", err)
+	}
+
 	return cliDeps{
 		coreClient: coreClient,
 		storage:    stor,
-		tuiClient:  app.NewDefaultClient(nil, nil, nil),
+		tuiClient:  tuiClient,
 	}, nil
 }
 
