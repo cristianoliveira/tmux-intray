@@ -14,9 +14,8 @@ func TestAddCmdArgsValidation(t *testing.T) {
 		name    string
 		args    []string
 		wantErr bool
-		wantMsg string
 	}{
-		{name: "no args returns error", args: []string{}, wantErr: true, wantMsg: "add requires a message"},
+		{name: "no args returns no error", args: []string{}, wantErr: false},
 		{name: "one arg returns no error", args: []string{"hello"}, wantErr: false},
 		{name: "multiple args returns no error", args: []string{"hello", "world"}, wantErr: false},
 	}
@@ -30,8 +29,8 @@ func TestAddCmdArgsValidation(t *testing.T) {
 			if !tt.wantErr && err != nil {
 				t.Fatalf("expected no error, got %v", err)
 			}
-			if tt.wantMsg != "" && !strings.Contains(stderr, tt.wantMsg) {
-				t.Fatalf("expected stderr to contain %q, got %q", tt.wantMsg, stderr)
+			if stderr != "" {
+				t.Fatalf("expected no stderr output, got %q", stderr)
 			}
 		})
 	}
@@ -49,10 +48,23 @@ func TestAddCmdArgsNilAndEmptySlicesAreStable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := runAddArgsSafely(t, tt.args)
-			if err == nil {
-				t.Fatalf("expected error for %s, got nil", tt.name)
+			if err != nil {
+				t.Fatalf("expected no error for %s, got %v", tt.name, err)
 			}
 		})
+	}
+}
+
+func TestAddRunENoArgsUsesCentralizedMessageValidation(t *testing.T) {
+	client := &fakeAddClient{ensureTmuxRunningResult: true}
+	add := NewAddCmd(client)
+
+	err := add.RunE(add, []string{})
+	if err == nil || !strings.Contains(err.Error(), "message cannot be empty") {
+		t.Fatalf("expected message validation error, got %v", err)
+	}
+	if client.addCalled {
+		t.Fatalf("expected AddTrayItem not to be called")
 	}
 }
 
@@ -89,7 +101,7 @@ func runAddArgsSafely(t *testing.T, args []string) (string, error) {
 		}
 	}()
 
-	err := add.Args(add, args)
+	err := add.ValidateArgs(args)
 	return errBuffer.String(), err
 }
 

@@ -17,7 +17,7 @@ teardown() {
 @test "add requires a message" {
     run ./tmux-intray add
     [ "$status" -eq 1 ]
-    [[ "$output" == *"requires a message"* ]]
+    [[ "$output" == *"message cannot be empty"* ]]
 }
 
 @test "add item to tray" {

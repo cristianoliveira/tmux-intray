@@ -48,13 +48,6 @@ OPTIONS:
 
 If no pane association options are provided, automatically associates with
 the current tmux pane (if inside tmux). Use --no-associate to skip.`,
-		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "add requires a message\n")
-				return fmt.Errorf("")
-			}
-			return nil
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runAddCmd(client, args, sessionFlag, windowFlag, paneFlag, paneCreatedFlag, noAssociateFlag, levelFlag)
 		},
