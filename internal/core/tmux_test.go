@@ -116,6 +116,15 @@ func TestTmuxFunctions(t *testing.T) {
 		require.False(t, result)
 		mockClient.AssertExpectations(t)
 
+		// Test failure when switch-client fails
+		mockClient = new(tmux.MockClient)
+		mockClient.On("GetCurrentContext").Return(tmux.TmuxContext{SessionID: "$0"}, nil).Once()
+		mockClient.On("Run", []string{"switch-client", "-t", "$2"}).Return("", "permission denied", tmux.ErrInvalidTarget).Once()
+		c = NewCore(mockClient, nil)
+		result = c.JumpToPane("$2", "1", "%1")
+		require.False(t, result)
+		mockClient.AssertExpectations(t)
+
 		// Test failure when select-pane fails
 		mockClient = new(tmux.MockClient)
 		mockClient.On("GetCurrentContext").Return(tmux.TmuxContext{SessionID: "$0"}, nil).Once()
@@ -145,6 +154,9 @@ func TestTmuxFunctions(t *testing.T) {
 		require.False(t, result)
 
 		result = c.JumpToPane("$1", "", "%1")
+		require.False(t, result)
+
+		result = c.JumpToPane("", "", "%1")
 		require.False(t, result)
 
 		// Verify no tmux calls were made for invalid parameters
