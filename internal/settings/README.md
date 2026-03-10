@@ -10,8 +10,8 @@ Settings are persisted to `~/.config/tmux-intray/tui.toml` as TOML:
 
 ```toml
 columns = ["id", "timestamp", "state", "level", "session", "window", "pane", "message"]
-sortBy = "timestamp"
-sortOrder = "desc"
+sort_by = "timestamp"
+sort_order = "desc"
 
 [filters]
 level = ""
@@ -20,7 +20,7 @@ session = ""
 window = ""
 pane = ""
 
-viewMode = "grouped"
+view_mode = "grouped"
 ```
 
 ## API
