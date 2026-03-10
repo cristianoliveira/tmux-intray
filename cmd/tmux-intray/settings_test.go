@@ -132,7 +132,7 @@ func TestSettingsDefaults(t *testing.T) {
 	require.Equal(t, "desc", defaults.SortOrder)
 
 	// Verify default view mode
-	require.Equal(t, settings.ViewModeGrouped, defaults.ViewMode)
+	require.Equal(t, settings.ViewModeSearch, defaults.ViewMode)
 
 	// Verify default grouping settings
 	require.Equal(t, settings.GroupByNone, defaults.GroupBy)

@@ -32,7 +32,7 @@ func TestDefaultSettings(t *testing.T) {
 	assert.Equal(t, "", s.Filters.Pane)
 
 	// Check view mode
-	assert.Equal(t, ViewModeGrouped, s.ViewMode)
+	assert.Equal(t, ViewModeSearch, s.ViewMode)
 
 	// Check grouping settings
 	assert.Equal(t, GroupByNone, s.GroupBy)
@@ -816,7 +816,7 @@ func TestReset(t *testing.T) {
 	assert.Equal(t, DefaultColumns, defaults.Columns)
 	assert.Equal(t, SortByTimestamp, defaults.SortBy)
 	assert.Equal(t, SortOrderDesc, defaults.SortOrder)
-	assert.Equal(t, ViewModeGrouped, defaults.ViewMode)
+	assert.Equal(t, ViewModeSearch, defaults.ViewMode)
 	assert.Equal(t, GroupByNone, defaults.GroupBy)
 	assert.Equal(t, TabRecents, defaults.ActiveTab)
 	assert.Equal(t, 1, defaults.DefaultExpandLevel)
@@ -836,7 +836,7 @@ func TestResetWhenFileDoesNotExist(t *testing.T) {
 	assert.Equal(t, DefaultColumns, defaults.Columns)
 	assert.Equal(t, SortByTimestamp, defaults.SortBy)
 	assert.Equal(t, SortOrderDesc, defaults.SortOrder)
-	assert.Equal(t, ViewModeGrouped, defaults.ViewMode)
+	assert.Equal(t, ViewModeSearch, defaults.ViewMode)
 	assert.Equal(t, GroupByNone, defaults.GroupBy)
 	assert.Equal(t, TabRecents, defaults.ActiveTab)
 	assert.Equal(t, 1, defaults.DefaultExpandLevel)

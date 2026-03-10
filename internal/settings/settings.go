@@ -242,7 +242,7 @@ func DefaultSettings() *Settings {
 			Window:  "",
 			Pane:    "",
 		},
-		ViewMode:           ViewModeGrouped,
+		ViewMode:           ViewModeSearch,
 		GroupBy:            GroupByNone,
 		DefaultExpandLevel: 1,
 		AutoExpandUnread:   false, // Default to false to avoid unexpected behavior
