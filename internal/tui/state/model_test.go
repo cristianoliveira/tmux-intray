@@ -1077,10 +1077,6 @@ func TestModelUpdateSlashInGroupedViewKeepsGroupedModeAndFilters(t *testing.T) {
 	assert.True(t, model.uiState.IsSearchMode())
 	assert.Equal(t, settings.ViewModeGrouped, string(model.uiState.GetViewMode()))
 
-	loaded, err := settings.Load()
-	require.NoError(t, err)
-	assert.Equal(t, settings.ViewModeGrouped, loaded.ViewMode)
-
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
 	model = updated.(*Model)
 

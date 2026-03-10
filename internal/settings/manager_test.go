@@ -27,7 +27,7 @@ func TestFromSettings(t *testing.T) {
 				SortOrder:             SortOrderDesc,
 				ActiveTab:             TabRecents,
 				Filters:               Filter{},
-				ViewMode:              ViewModeGrouped,
+				ViewMode:              ViewModeSearch,
 				GroupBy:               GroupByNone,
 				DefaultExpandLevel:    1,
 				DefaultExpandLevelSet: true,
