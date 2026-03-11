@@ -165,8 +165,10 @@ func (m *Model) handleKeyBinding(key string, allowInSearch bool) (tea.Model, tea
 	case "d", "D":
 		return m.handleDismissKeys(key)
 	case "1", "2":
-		// Ctrl+1 and Ctrl+2 for tab navigation in search contexts
-		// These come through via the ctrlFallsBack mechanism
+		// Alt+1 and Alt+2 for tab navigation in search contexts
+		// Note: Ctrl+number keys don't produce a distinct key in most terminals,
+		// so we use Alt+number for tab switching in search mode.
+		// These come through via the ctrlFallsBack mechanism (which also handles alt+).
 		return m.handleCtrlNumberTabSwitching(key, allowInSearch)
 	case "i":
 		// In search mode, 'i' is handled by KeyRunes
@@ -210,8 +212,9 @@ func (m *Model) handleTabSwitchingKeys(key string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleCtrlNumberTabSwitching handles Ctrl+1 and Ctrl+2 for tab navigation in search contexts.
-// These bindings only work when triggered via Ctrl+number (via ctrlFallsBack mechanism),
+// handleCtrlNumberTabSwitching handles Alt+1 and Alt+2 for tab navigation in search contexts.
+// Note: Ctrl+number keys don't produce a distinct key in most terminals, so we use Alt+number.
+// These bindings only work when triggered via Alt+number (via ctrlFallsBack mechanism),
 // not when typing "1" or "2" directly in search mode.
 func (m *Model) handleCtrlNumberTabSwitching(key string, allowInSearch bool) (tea.Model, tea.Cmd) {
 	// Only allow in search contexts (where allowInSearch is true from ctrlFallsBack)
@@ -321,14 +324,42 @@ func (m *Model) bindingKeyForMsg(msg tea.KeyMsg) (string, bool) {
 	key := msg.String()
 	policy := m.keyBindingPolicyForContext(m.currentKeyBindingContext())
 
-	if policy.ctrlFallsBack && strings.HasPrefix(key, "ctrl+") {
-		fallback := strings.TrimPrefix(key, "ctrl+")
-		if len([]rune(fallback)) == 1 {
+	if policy.ctrlFallsBack {
+		if fallback, ok := m.handleCtrlFallback(key); ok {
+			return fallback, true
+		}
+		if fallback, ok := m.handleAltFallback(key); ok {
 			return fallback, true
 		}
 	}
 
 	return key, policy.allowBindings
+}
+
+// handleCtrlFallback handles ctrl+key for letter keys (e.g., ctrl+r -> "r")
+func (m *Model) handleCtrlFallback(key string) (string, bool) {
+	if !strings.HasPrefix(key, "ctrl+") {
+		return "", false
+	}
+	fallback := strings.TrimPrefix(key, "ctrl+")
+	if len([]rune(fallback)) == 1 {
+		return fallback, true
+	}
+	return "", false
+}
+
+// handleAltFallback handles alt+key for number keys (e.g., alt+1 -> "1")
+// Note: Ctrl+number keys don't produce a distinct key in most terminals,
+// so we use Alt+number for tab switching in search mode.
+func (m *Model) handleAltFallback(key string) (string, bool) {
+	if !strings.HasPrefix(key, "alt+") {
+		return "", false
+	}
+	fallback := strings.TrimPrefix(key, "alt+")
+	if len([]rune(fallback)) == 1 {
+		return fallback, true
+	}
+	return "", false
 }
 
 func (m *Model) isSearchContext() bool {

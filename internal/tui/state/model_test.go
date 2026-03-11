@@ -3854,3 +3854,33 @@ func TestCtrlNumberKeysTypedDirectlyInSearchMode(t *testing.T) {
 	// Should NOT switch tabs
 	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
 }
+
+// TestAltNumberTabSwitchingInSearchMode tests that Alt+1 and Alt+2 switch tabs in search input mode.
+// Note: Ctrl+number keys don't produce a distinct key in most terminals, so we use Alt+number
+// for tab switching in search mode.
+func TestAltNumberTabSwitchingInSearchMode(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First", State: "active"},
+		{ID: 2, Message: "Second", State: "dismissed"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetCursor(0)
+	model.uiState.SetActiveTab(settings.TabRecents)
+	model.uiState.SetSearchMode(true)
+	model.applySearchFilter()
+
+	require.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
+
+	// Test Alt+2 switches to "All" tab in search input mode
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}, Alt: true}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab())
+
+	// Test Alt+1 switches to "Recents" tab in search input mode
+	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}, Alt: true}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
+}

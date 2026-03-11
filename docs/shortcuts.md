@@ -60,8 +60,10 @@ Search input mode starts with `/` and ends with `Esc`.
 ### Tabs navigation
 
 In search input mode, the following shortcuts are handled as tabs navigation:
-- `Ctrl+1`: Switch to first tab (recents)
-- `Ctrl+2`: Switch to second tab (all)
+- `Alt+1`: Switch to first tab (recents)
+- `Alt+2`: Switch to second tab (all)
+
+Note: Ctrl+number keys don't produce a distinct key in most terminals, so Alt+number is used instead.
 
 ### Search-context Ctrl fallback
 
