@@ -4,11 +4,10 @@ This document lists keyboard shortcuts currently implemented in code.
 
 ## Tmux plugin bindings
 
-These are tmux prefix bindings installed by `tmux-intray.tmux`:
+These are tmux prefix bindings installed by `tmux-intray.tmux` and recommended:
 
 | Shortcut | Context | Action |
 |---|---|---|
-| `prefix + I` | tmux | Run `tmux-intray follow` |
 | `prefix + J` | tmux | Open `tmux-intray tui` in a tmux popup |
 
 ## TUI shortcuts (normal mode)
@@ -58,13 +57,18 @@ Search input mode starts with `/` and ends with `Esc`.
 | `Ctrl+j` / `Ctrl+k` | Move selection down/up | Navigation while staying in search input |
 | `Ctrl+h` / `Ctrl+l` | No-op | Explicitly handled without action |
 
+### Tabs navigation
+
+In search input mode, the following shortcuts are handled as tabs navigation:
+- `Ctrl+1`: Switch to first tab (recents)
+- `Ctrl+2`: Switch to second tab (all)
+
 ### Search-context Ctrl fallback
 
 In search contexts (search input mode and search view mode), `Ctrl+<letter>` falls back to the corresponding single-letter binding for implemented one-letter shortcuts.
 
 Examples:
 - `Ctrl+d` behaves like `d` (dismiss).
-- `Ctrl+r` / `Ctrl+a` switch tabs.
 - `Ctrl+r` / `Ctrl+u` mark read/unread.
 
 ## Search view mode

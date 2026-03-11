@@ -3774,3 +3774,83 @@ func TestSaveSettings_Success(t *testing.T) {
 	err = model.SaveSettings()
 	assert.NoError(t, err)
 }
+
+// TestCtrlNumberTabSwitchingInSearchMode tests that Ctrl+1 and Ctrl+2 switch tabs in search input mode.
+func TestCtrlNumberTabSwitchingInSearchMode(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First", State: "active"},
+		{ID: 2, Message: "Second", State: "dismissed"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetCursor(0)
+	model.uiState.SetActiveTab(settings.TabRecents)
+	model.uiState.SetSearchMode(true)
+	model.applySearchFilter()
+
+	require.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
+
+	// Test Ctrl+2 switches to "All" tab in search input mode
+	// We simulate this by calling handleKeyBinding with "2" and allowInSearch=true
+	updated, _ := model.handleKeyBinding("2", true)
+	model = updated.(*Model)
+	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab())
+
+	// Test Ctrl+1 switches to "Recents" tab in search input mode
+	updated, _ = model.handleKeyBinding("1", true)
+	model = updated.(*Model)
+	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
+}
+
+// TestCtrlNumberTabSwitchingNotInSearchMode tests that "1" and "2" don't switch tabs in normal mode.
+func TestCtrlNumberTabSwitchingNotInSearchMode(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetCursor(0)
+	model.uiState.SetActiveTab(settings.TabAll)
+	model.uiState.SetSearchMode(false) // Not in search mode
+	model.applySearchFilter()
+
+	require.Equal(t, settings.TabAll, model.uiState.GetActiveTab())
+
+	// Test that "1" with allowInSearch=false does NOT switch tabs
+	updated, _ := model.handleKeyBinding("1", false)
+	model = updated.(*Model)
+	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab()) // Should stay on All tab
+
+	// Test that "2" with allowInSearch=false does NOT switch tabs
+	updated, _ = model.handleKeyBinding("2", false)
+	model = updated.(*Model)
+	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab()) // Should stay on All tab
+}
+
+// TestCtrlNumberKeysTypedDirectlyInSearchMode tests that typing "1" or "2" directly in search mode
+// adds them to the search query rather than switching tabs.
+func TestCtrlNumberKeysTypedDirectlyInSearchMode(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{ID: 1, Message: "First"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetCursor(0)
+	model.uiState.SetActiveTab(settings.TabRecents)
+	model.uiState.SetSearchMode(true)
+	model.uiState.SetSearchQuery("")
+	model.applySearchFilter()
+
+	require.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
+	require.Equal(t, "", model.uiState.GetSearchQuery())
+
+	// Typing "1" directly in search mode should add to search query, not switch tabs
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+
+	// Should add to search query
+	assert.Equal(t, "1", model.uiState.GetSearchQuery())
+	// Should NOT switch tabs
+	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
+}

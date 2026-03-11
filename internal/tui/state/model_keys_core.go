@@ -164,6 +164,10 @@ func (m *Model) handleKeyBinding(key string, allowInSearch bool) (tea.Model, tea
 		return m.handleTreeKeys(key, allowInSearch)
 	case "d", "D":
 		return m.handleDismissKeys(key)
+	case "1", "2":
+		// Ctrl+1 and Ctrl+2 for tab navigation in search contexts
+		// These come through via the ctrlFallsBack mechanism
+		return m.handleCtrlNumberTabSwitching(key, allowInSearch)
 	case "i":
 		// In search mode, 'i' is handled by KeyRunes
 		// This is a no-op but kept for documentation
@@ -200,6 +204,25 @@ func (m *Model) handleTabSwitchingKeys(key string) (tea.Model, tea.Cmd) {
 		m.switchActiveTab(settings.TabRecents)
 		return m, nil
 	case "a":
+		m.switchActiveTab(settings.TabAll)
+		return m, nil
+	}
+	return m, nil
+}
+
+// handleCtrlNumberTabSwitching handles Ctrl+1 and Ctrl+2 for tab navigation in search contexts.
+// These bindings only work when triggered via Ctrl+number (via ctrlFallsBack mechanism),
+// not when typing "1" or "2" directly in search mode.
+func (m *Model) handleCtrlNumberTabSwitching(key string, allowInSearch bool) (tea.Model, tea.Cmd) {
+	// Only allow in search contexts (where allowInSearch is true from ctrlFallsBack)
+	if !allowInSearch {
+		return m, nil
+	}
+	switch key {
+	case "1":
+		m.switchActiveTab(settings.TabRecents)
+		return m, nil
+	case "2":
 		m.switchActiveTab(settings.TabAll)
 		return m, nil
 	}
