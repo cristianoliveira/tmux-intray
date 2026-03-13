@@ -28,7 +28,7 @@ Applies when the TUI is open and not in search input or confirmation mode.
 | `r` | Switch tab to Recents | |
 | `a` | Switch tab to All | |
 | `/` | Enter search input mode | |
-| `v` | Cycle view mode | `compact -> detailed -> grouped -> search -> compact` |
+| `v` | Cycle view mode | `detailed -> grouped -> search -> detailed` |
 | `?` | Toggle help text | |
 | `q` | Quit TUI | Saves settings before quitting |
 | `Esc` | Quit TUI | If not in search input |

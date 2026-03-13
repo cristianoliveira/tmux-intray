@@ -37,7 +37,7 @@ USAGE:
 			    j/k         Move up/down in the list
 			    /           Enter search mode
 
-			    v           Cycle view mode (compact/detailed/grouped/search)
+			    v           Cycle view mode (detailed/grouped/search)
 			    ESC         Exit search mode, or quit TUI
 			    d           Dismiss selected notification
 			    r           Mark selected notification as read
