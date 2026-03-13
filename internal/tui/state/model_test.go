@@ -1147,12 +1147,12 @@ func TestModelUpdateCyclesViewModesWithPersistence(t *testing.T) {
 
 	updated, _ = model.Update(msg)
 	model = updated.(*Model)
-	assert.Equal(t, settings.ViewModeCompact, string(model.uiState.GetViewMode()))
+	// After search, cycle back to detailed (3-mode cycle: detailed -> grouped -> search -> detailed)
+	assert.Equal(t, settings.ViewModeDetailed, string(model.uiState.GetViewMode()))
 	assert.False(t, model.uiState.IsSearchMode())
 	loaded, err = settings.Load()
 	require.NoError(t, err)
-	// Legacy compact view mode is migrated to detailed on save/load
-	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode, "compact should be migrated to detailed")
+	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
 }
 
 func TestModelUpdateIgnoresViewModeCycleInSearchMode(t *testing.T) {
@@ -1160,12 +1160,12 @@ func TestModelUpdateIgnoresViewModeCycleInSearchMode(t *testing.T) {
 	model.uiState.SetSearchMode(true)
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
-	model.uiState.SetViewMode(settings.ViewModeCompact)
+	model.uiState.SetViewMode(settings.ViewModeDetailed)
 
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}}
 	updated, _ := model.Update(msg)
 	model = updated.(*Model)
-	assert.Equal(t, settings.ViewModeCompact, string(model.uiState.GetViewMode()))
+	assert.Equal(t, settings.ViewModeDetailed, string(model.uiState.GetViewMode()))
 	assert.Equal(t, "v", model.uiState.GetSearchQuery())
 }
 

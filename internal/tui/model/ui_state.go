@@ -35,7 +35,7 @@ type UIState interface {
 	// SetSearchQuery sets the search query string.
 	SetSearchQuery(query string)
 
-	// GetViewMode returns the current view mode (compact, detailed, grouped).
+	// GetViewMode returns the current view mode (detailed, grouped, search).
 	GetViewMode() ViewMode
 
 	// SetViewMode sets the current view mode.

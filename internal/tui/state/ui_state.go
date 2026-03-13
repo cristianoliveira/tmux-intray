@@ -306,16 +306,16 @@ func (u *UIState) SetViewMode(mode model.ViewMode) {
 
 // CycleViewMode cycles to the next available view mode.
 func (u *UIState) CycleViewMode() {
-	// Cycle through modes: compact -> detailed -> grouped -> search -> compact
+	// Cycle through modes: detailed -> grouped -> search -> detailed
+	// Note: ViewModeCompact is deprecated and not part of the active cycle
+	// It is only kept for backward compatibility (migration logic)
 	switch u.viewMode {
-	case model.ViewModeCompact:
-		u.viewMode = model.ViewModeDetailed
 	case model.ViewModeDetailed:
 		u.viewMode = model.ViewModeGrouped
 	case model.ViewModeGrouped:
 		u.viewMode = model.ViewModeSearch
 	case model.ViewModeSearch:
-		u.viewMode = model.ViewModeCompact
+		u.viewMode = model.ViewModeDetailed
 	default:
 		u.viewMode = model.ViewModeDetailed
 	}

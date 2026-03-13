@@ -16,7 +16,6 @@ import (
 )
 
 const (
-	viewModeCompact       = settings.ViewModeCompact
 	viewModeDetailed      = settings.ViewModeDetailed
 	viewModeGrouped       = settings.ViewModeGrouped
 	headerFooterLines     = 3

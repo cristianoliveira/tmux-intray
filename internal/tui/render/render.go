@@ -282,8 +282,6 @@ func truncateFooter(value string, width int) string {
 
 func viewModeIndicator(mode string) string {
 	switch mode {
-	case settings.ViewModeCompact:
-		return "[C]"
 	case settings.ViewModeDetailed:
 		return "[D]"
 	case settings.ViewModeGrouped:
