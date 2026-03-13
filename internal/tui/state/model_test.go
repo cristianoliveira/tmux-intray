@@ -1151,7 +1151,8 @@ func TestModelUpdateCyclesViewModesWithPersistence(t *testing.T) {
 	assert.False(t, model.uiState.IsSearchMode())
 	loaded, err = settings.Load()
 	require.NoError(t, err)
-	assert.Equal(t, settings.ViewModeCompact, loaded.ViewMode)
+	// Legacy compact view mode is migrated to detailed on save/load
+	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode, "compact should be migrated to detailed")
 }
 
 func TestModelUpdateIgnoresViewModeCycleInSearchMode(t *testing.T) {

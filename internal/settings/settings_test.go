@@ -486,12 +486,27 @@ func TestValidateValidSettings(t *testing.T) {
 				DefaultExpandLevel: 1,
 			},
 		},
+		{
+			name: "legacy compact view mode migrates to detailed",
+			settings: &Settings{
+				Columns:            DefaultColumns,
+				SortBy:             SortByTimestamp,
+				SortOrder:          SortOrderDesc,
+				ViewMode:           ViewModeCompact, // Should be normalized to detailed
+				GroupBy:            GroupByNone,
+				DefaultExpandLevel: 1,
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validate(tt.settings)
 			assert.NoError(t, err)
+			// Verify normalization: compact should be converted to detailed
+			if tt.name == "legacy compact view mode migrates to detailed" {
+				assert.Equal(t, ViewModeDetailed, tt.settings.ViewMode, "compact should be normalized to detailed")
+			}
 		})
 	}
 }
@@ -1044,4 +1059,73 @@ func TestActiveTabSaveLoadRoundTripPreservesExistingFields(t *testing.T) {
 	assert.Equal(t, original.AutoExpandUnread, loaded.AutoExpandUnread)
 	assert.Equal(t, original.ShowHelp, loaded.ShowHelp)
 	assert.Equal(t, original.ExpansionState, loaded.ExpansionState)
+}
+
+func TestViewModeCompactMigrationToDetailed(t *testing.T) {
+	t.Run("load from file migrates compact to detailed", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", tmpDir)
+		t.Setenv("HOME", tmpDir)
+
+		configDir := filepath.Join(tmpDir, "tmux-intray")
+		require.NoError(t, os.MkdirAll(configDir, 0755))
+
+		settingsPath := filepath.Join(configDir, "tui.toml")
+		// Create a settings file with legacy view_mode = "compact"
+		legacyTOML := `view_mode = "compact"
+sort_by = "timestamp"
+sort_order = "desc"
+`
+		require.NoError(t, os.WriteFile(settingsPath, []byte(legacyTOML), 0644))
+		t.Cleanup(func() { _ = os.Remove(settingsPath) })
+
+		// Load settings - should migrate compact to detailed
+		loaded, err := Load()
+		require.NoError(t, err)
+		assert.Equal(t, ViewModeDetailed, loaded.ViewMode, "compact should be migrated to detailed")
+		assert.Equal(t, SortByTimestamp, loaded.SortBy)
+		assert.Equal(t, SortOrderDesc, loaded.SortOrder)
+	})
+
+	t.Run("validate migrates compact to detailed", func(t *testing.T) {
+		settings := &Settings{
+			Columns:            DefaultColumns,
+			SortBy:             SortByTimestamp,
+			SortOrder:          SortOrderDesc,
+			ViewMode:           ViewModeCompact,
+			GroupBy:            GroupByNone,
+			DefaultExpandLevel: 1,
+		}
+
+		// Validate should migrate compact to detailed
+		err := Validate(settings)
+		require.NoError(t, err)
+		assert.Equal(t, ViewModeDetailed, settings.ViewMode, "compact should be migrated to detailed during validation")
+	})
+
+	t.Run("save and reload with compact migrates to detailed", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", tmpDir)
+		t.Setenv("HOME", tmpDir)
+
+		// Create settings with view_mode = "compact"
+		settings := &Settings{
+			Columns:   []string{ColumnID, ColumnMessage},
+			SortBy:    SortByLevel,
+			SortOrder: SortOrderAsc,
+			ViewMode:  ViewModeCompact,
+			GroupBy:   GroupByNone,
+		}
+
+		// Save the settings
+		err := Save(settings)
+		require.NoError(t, err)
+
+		// Load the settings - should have migrated to detailed
+		loaded, err := Load()
+		require.NoError(t, err)
+		assert.Equal(t, ViewModeDetailed, loaded.ViewMode, "compact should be migrated to detailed after reload")
+		assert.Equal(t, SortByLevel, loaded.SortBy)
+		assert.Equal(t, SortOrderAsc, loaded.SortOrder)
+	})
 }
