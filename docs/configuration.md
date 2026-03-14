@@ -220,7 +220,7 @@ critical = "\u001b[0;31m"
 | `filters.session` | string | Filter by tmux session | `""` (no filter) | Session name or `""` |
 | `filters.window` | string | Filter by tmux window | `""` (no filter) | Window ID or `""` |
 | `filters.pane` | string | Filter by tmux pane | `""` (no filter) | Pane ID or `""` |
-| `view_mode` | string | Display layout | `"grouped"` | `"compact"`, `"detailed"`, `"grouped"`, `"search"` |
+| `view_mode` | string | Display layout | `"grouped"` | `"detailed"`, `"grouped"`, `"search"` (note: `compact` is deprecated for migration only) |
 | `group_by` | string | Group notifications in the TUI | `"none"` | `"none"`, `"session"`, `"window"`, `"pane"`, `"message"`, `"pane_message"` |
 | `default_expand_level` | number | Default grouping expansion depth | `1` | `0`-`3` |
 | `expansion_state` | object | Explicit expansion overrides by node path | `{}` | Object of string to boolean |
@@ -230,6 +230,14 @@ critical = "\u001b[0;31m"
 | `group_header.badge_colors` | table | ANSI color codes per level (`info`, `warning`, `error`, `critical`) | defaults shown above | Strings containing ANSI escape sequences |
 
 `filters.read` lets you persist whether the TUI should show only read, only unread, or all notifications. At runtime you can toggle the same preference with the `:filter-read <read|unread|all>` command; the change is saved back to `tui.toml` automatically.
+
+#### View Mode Migration
+
+The `compact` view mode is **deprecated** but remains supported for migration purposes:
+
+- Legacy configuration files with `view_mode = "compact"` are automatically migrated to `view_mode = "detailed"` on TUI startup
+- The `compact` mode is no longer part of the active view mode cycle (`detailed → grouped → search → detailed`)
+- Use `detailed` mode for full notification details in a single-line format
 
 #### Sorting with Unread-First Grouping
 
@@ -392,7 +400,7 @@ session = ""
 window = ""
 pane = ""
 
-view_mode = "compact"
+view_mode = "detailed"
 group_by = "none"
 default_expand_level = 1
 expansion_state = {}

@@ -80,9 +80,10 @@ Returns a Settings struct with all default values populated.
 - `SortBySession` = "session"
 
 ### View Mode
-- `ViewModeCompact` = "compact"
 - `ViewModeDetailed` = "detailed"
 - `ViewModeGrouped` = "grouped"
+- `ViewModeSearch` = "search"
+- Note: `ViewModeCompact` is deprecated but kept for backward compatibility (migration)
 
 ### Filter Levels
 - `LevelFilterInfo` = "info"

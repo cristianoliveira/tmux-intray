@@ -168,7 +168,8 @@ func (o GroupHeaderOptions) Validate() error {
 //	  "expansionState": {}
 //	}
 //
-// Valid viewMode values: "compact", "detailed", "grouped".
+// Valid viewMode values: "detailed", "grouped", "search".
+// Note: "compact" is deprecated and will be migrated to "detailed".
 //
 // Settings are stored at ~/.config/tmux-intray/tui.toml by default.
 type Settings struct {
@@ -200,8 +201,9 @@ type Settings struct {
 	// Filters contains active filter criteria.
 	Filters Filter `toml:"filters"`
 
-	// ViewMode specifies the display layout: "compact", "detailed", or "grouped".
-	// Empty string means use default view mode (grouped).
+	// ViewMode specifies the display layout: "detailed", "grouped", or "search".
+	// Empty string means use default view mode (search).
+	// Note: "compact" is deprecated and will be migrated to "detailed".
 	ViewMode string `toml:"view_mode"`
 
 	// GroupBy specifies the grouping mode: "none", "session", "window", "pane", "message", or "pane_message".

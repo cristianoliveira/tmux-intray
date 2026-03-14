@@ -11,6 +11,12 @@ func Validate(settings *Settings) error {
 
 	settings.ActiveTab = NormalizeTab(string(settings.ActiveTab))
 
+	// Migrate legacy view_mode values
+	// "compact" is deprecated and should be converted to "detailed"
+	if settings.ViewMode == ViewModeCompact {
+		settings.ViewMode = ViewModeDetailed
+	}
+
 	settings.GroupHeader.normalize()
 	if err := settings.GroupHeader.Validate(); err != nil {
 		return fmt.Errorf("invalid groupHeader options: %w", err)
@@ -86,7 +92,7 @@ func validateViewMode(mode string) error {
 		return nil
 	}
 	switch mode {
-	case ViewModeCompact, ViewModeDetailed, ViewModeGrouped, ViewModeSearch:
+	case ViewModeDetailed, ViewModeGrouped, ViewModeSearch:
 		return nil
 	default:
 		return fmt.Errorf("invalid viewMode value: %s", mode)

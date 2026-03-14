@@ -404,7 +404,8 @@ func TestModelSwitchesViewModes(t *testing.T) {
 	require.NotNil(t, model.getTreeRootForTest())
 	require.NotEmpty(t, model.getVisibleNodesForTest())
 
-	model.uiState.SetViewMode(settings.ViewModeCompact)
+	// Switch to detailed mode (not grouped) - should not have tree structure
+	model.uiState.SetViewMode(settings.ViewModeDetailed)
 	model.applySearchFilter()
 	model.resetCursor()
 	assert.Nil(t, model.getTreeRootForTest())
@@ -1119,21 +1120,14 @@ func TestModelUpdateCyclesViewModesWithPersistence(t *testing.T) {
 	}
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
-	model.uiState.SetViewMode(settings.ViewModeCompact)
+	model.uiState.SetViewMode(settings.ViewModeDetailed)
 
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}}
 
 	updated, _ := model.Update(msg)
 	model = updated.(*Model)
-	assert.Equal(t, settings.ViewModeDetailed, string(model.uiState.GetViewMode()))
-	loaded, err := settings.Load()
-	require.NoError(t, err)
-	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
-
-	updated, _ = model.Update(msg)
-	model = updated.(*Model)
 	assert.Equal(t, settings.ViewModeGrouped, string(model.uiState.GetViewMode()))
-	loaded, err = settings.Load()
+	loaded, err := settings.Load()
 	require.NoError(t, err)
 	assert.Equal(t, settings.ViewModeGrouped, loaded.ViewMode)
 
@@ -1147,11 +1141,71 @@ func TestModelUpdateCyclesViewModesWithPersistence(t *testing.T) {
 
 	updated, _ = model.Update(msg)
 	model = updated.(*Model)
-	assert.Equal(t, settings.ViewModeCompact, string(model.uiState.GetViewMode()))
+	// After search, cycle back to detailed (3-mode cycle: detailed -> grouped -> search -> detailed)
+	assert.Equal(t, settings.ViewModeDetailed, string(model.uiState.GetViewMode()))
 	assert.False(t, model.uiState.IsSearchMode())
 	loaded, err = settings.Load()
 	require.NoError(t, err)
-	assert.Equal(t, settings.ViewModeCompact, loaded.ViewMode)
+	assert.Equal(t, settings.ViewModeDetailed, loaded.ViewMode)
+}
+
+func TestModelViewModeCycleThreeModeBehavior(t *testing.T) {
+	tests := []struct {
+		name           string
+		startMode      uimodel.ViewMode
+		expectedCycles []uimodel.ViewMode
+	}{
+		{
+			name:      "cycle from detailed mode",
+			startMode: uimodel.ViewModeDetailed,
+			expectedCycles: []uimodel.ViewMode{
+				uimodel.ViewModeGrouped,  // 1st press: detailed -> grouped
+				uimodel.ViewModeSearch,   // 2nd press: grouped -> search
+				uimodel.ViewModeDetailed, // 3rd press: search -> detailed
+				uimodel.ViewModeGrouped,  // 4th press: detailed -> grouped
+			},
+		},
+		{
+			name:      "cycle from grouped mode",
+			startMode: uimodel.ViewModeGrouped,
+			expectedCycles: []uimodel.ViewMode{
+				uimodel.ViewModeSearch,   // 1st press: grouped -> search
+				uimodel.ViewModeDetailed, // 2nd press: search -> detailed
+				uimodel.ViewModeGrouped,  // 3rd press: detailed -> grouped
+				uimodel.ViewModeSearch,   // 4th press: grouped -> search
+			},
+		},
+		{
+			name:      "cycle from search mode",
+			startMode: uimodel.ViewModeSearch,
+			expectedCycles: []uimodel.ViewMode{
+				uimodel.ViewModeDetailed, // 1st press: search -> detailed
+				uimodel.ViewModeGrouped,  // 2nd press: detailed -> grouped
+				uimodel.ViewModeSearch,   // 3rd press: grouped -> search
+				uimodel.ViewModeDetailed, // 4th press: search -> detailed
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			model := &Model{
+				uiState: NewUIState(),
+			}
+			model.uiState.SetWidth(80)
+			model.uiState.GetViewport().Width = 80
+			model.uiState.SetViewMode(tt.startMode)
+
+			msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}}
+
+			for i, expectedMode := range tt.expectedCycles {
+				updated, _ := model.Update(msg)
+				model = updated.(*Model)
+				assert.Equal(t, expectedMode, model.uiState.GetViewMode(),
+					"cycle %d: expected %s, got %s", i+1, expectedMode, model.uiState.GetViewMode())
+			}
+		})
+	}
 }
 
 func TestModelUpdateIgnoresViewModeCycleInSearchMode(t *testing.T) {
@@ -1159,12 +1213,12 @@ func TestModelUpdateIgnoresViewModeCycleInSearchMode(t *testing.T) {
 	model.uiState.SetSearchMode(true)
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
-	model.uiState.SetViewMode(settings.ViewModeCompact)
+	model.uiState.SetViewMode(settings.ViewModeDetailed)
 
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}}
 	updated, _ := model.Update(msg)
 	model = updated.(*Model)
-	assert.Equal(t, settings.ViewModeCompact, string(model.uiState.GetViewMode()))
+	assert.Equal(t, settings.ViewModeDetailed, string(model.uiState.GetViewMode()))
 	assert.Equal(t, "v", model.uiState.GetSearchQuery())
 }
 
@@ -1223,7 +1277,7 @@ func TestModelUpdateHandlesKeyBindingsInSearchMode(t *testing.T) {
 
 	// Test normal mode (canProcessBinding returns true) but not grouped view
 	model.uiState.SetSearchMode(false)
-	model.uiState.SetViewMode(settings.ViewModeCompact) // not grouped
+	model.uiState.SetViewMode(settings.ViewModeDetailed) // not grouped
 	// 'z' should not set pending key because not grouped view
 	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'z'}}
 	updated, _ = model.Update(msg)
@@ -2797,7 +2851,7 @@ func TestToState(t *testing.T) {
 			},
 			want: settings.TUIState{
 				SortBy:                settings.SortByTimestamp,
-				ViewMode:              settings.ViewModeCompact,
+				ViewMode:              settings.ViewModeDetailed,
 				GroupBy:               settings.GroupByNone,
 				DefaultExpandLevel:    1,
 				DefaultExpandLevelSet: true,
@@ -2818,7 +2872,7 @@ func TestToState(t *testing.T) {
 				tt.model.uiState.SetExpansionState(map[string]bool{"session:$1": true})
 			case "model with partial settings":
 				tt.model.uiState = NewUIState()
-				tt.model.uiState.SetViewMode(uimodel.ViewMode(settings.ViewModeCompact))
+				tt.model.uiState.SetViewMode(uimodel.ViewMode(settings.ViewModeDetailed))
 				tt.model.uiState.SetGroupBy(uimodel.GroupBy(settings.GroupByNone))
 			default:
 				tt.model.uiState = NewUIState()
@@ -3605,8 +3659,8 @@ func TestHandleDismissGroup_ListMode(t *testing.T) {
 	model := newTestModel(t, []notification.Notification{notif})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
-	// In list mode (not grouped)
-	model.uiState.SetViewMode(settings.ViewModeCompact)
+	// In detailed mode (not grouped)
+	model.uiState.SetViewMode(settings.ViewModeDetailed)
 	disableModelGroupOptions(model)
 	model.applySearchFilter()
 	model.resetCursor()

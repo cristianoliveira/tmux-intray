@@ -336,8 +336,8 @@ func TestFooterClampsToWidthAndClearsLine(t *testing.T) {
 }
 
 func TestFooterMinimalHelp(t *testing.T) {
-	footer := Footer(FooterState{ViewMode: settings.ViewModeCompact, ActiveTab: settings.TabRecents, ShowHelp: false})
-	assert.Contains(t, footer, "mode: [C]")
+	footer := Footer(FooterState{ViewMode: settings.ViewModeDetailed, ActiveTab: settings.TabRecents, ShowHelp: false})
+	assert.Contains(t, footer, "mode: [D]")
 	assert.Contains(t, footer, "tab: [R]ecents")
 	assert.Contains(t, footer, "j/k: move")
 	assert.Contains(t, footer, "?: toggle help")
@@ -354,7 +354,6 @@ func TestFooterMinimalHelp(t *testing.T) {
 }
 
 func TestViewModeIndicator(t *testing.T) {
-	assert.Equal(t, "[C]", viewModeIndicator(settings.ViewModeCompact))
 	assert.Equal(t, "[D]", viewModeIndicator(settings.ViewModeDetailed))
 	assert.Equal(t, "[G]", viewModeIndicator(settings.ViewModeGrouped))
 	assert.Equal(t, "[S]", viewModeIndicator(settings.ViewModeSearch))
