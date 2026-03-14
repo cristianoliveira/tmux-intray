@@ -35,9 +35,10 @@ type cliCore interface {
 }
 
 type cliDeps struct {
-	coreClient cliCore
-	storage    ports.NotificationRepository
-	tuiClient  tuiClient
+	coreClient       cliCore
+	storage          ports.NotificationRepository
+	telemetryStorage ports.TelemetryStorage
+	tuiClient        tuiClient
 }
 
 type storageFactory func() (ports.NotificationRepository, error)
@@ -86,10 +87,18 @@ func buildCLIDepsWithFactories(factories cliDepsFactories) (cliDeps, error) {
 		return cliDeps{}, fmt.Errorf("deps: failed to initialize tui: %w", err)
 	}
 
+	// Try to get TelemetryStorage interface from the storage implementation
+	// The SQLiteStorage implements both NotificationRepository and TelemetryStorage
+	var telemetryStorage TelemetryStorage
+	if ts, ok := stor.(TelemetryStorage); ok {
+		telemetryStorage = ts
+	}
+
 	return cliDeps{
-		coreClient: coreClient,
-		storage:    stor,
-		tuiClient:  tuiClient,
+		coreClient:       coreClient,
+		storage:          stor,
+		telemetryStorage: telemetryStorage,
+		tuiClient:        tuiClient,
 	}, nil
 }
 
@@ -108,6 +117,9 @@ func registerCommands(root *cobra.Command, deps cliDeps) {
 		root.AddCommand(NewJumpCmd(deps.coreClient))
 		root.AddCommand(NewSettingsCmd(deps.coreClient))
 		root.AddCommand(NewTUICmd(deps.tuiClient))
+		if deps.telemetryStorage != nil {
+			root.AddCommand(NewTelemetryCmd(deps.telemetryStorage, &telemetryConfigAdapter{}))
+		}
 
 		dismissFunc = deps.coreClient.DismissNotification
 		dismissAllFunc = deps.coreClient.DismissAll
