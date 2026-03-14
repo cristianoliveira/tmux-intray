@@ -15,4 +15,6 @@ type Storage interface {
 	MarkNotificationUnreadWithTimestamp(id, timestamp string) error
 	CleanupOldNotifications(daysThreshold int, dryRun bool) error
 	GetActiveCount() int
+	// Telemetry methods
+	LogTelemetryEvent(timestamp, featureName, featureCategory, contextData string) error
 }
