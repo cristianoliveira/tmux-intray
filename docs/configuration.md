@@ -85,6 +85,12 @@ With the configuration above, `tmux-intray` only collapses notifications when th
 | `TMUX_INTRAY_LOGGING_LEVEL` | `info` | Minimum log level to record (`debug`, `info`, `warn`, `error`). |
 | `TMUX_INTRAY_LOGGING_MAX_FILES` | `10` | Maximum number of log files to retain (older files are rotated out). |
 
+### Telemetry
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TMUX_INTRAY_TELEMETRY_ENABLED` | `false` | Enable telemetry collection for usage analytics. Telemetry is **local-only** - it is stored locally in your state directory and is never transmitted over the network. Data is only used for local analytics and debugging. |
+
 ## Sample Configuration File
 
 ```toml
@@ -132,6 +138,9 @@ logging_max_files = 10
 # Debugging
 debug = false
 quiet = false
+
+# Telemetry
+telemetry_enabled = false
 ```
 
 ## Overriding Configuration
