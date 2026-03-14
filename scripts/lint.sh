@@ -35,6 +35,7 @@ check_file_length() {
         -not -path "*/vendor/*" \
         -not -path "*/integration/*" \
         -not -regex ".*/_gen\.go$" \
+        -not -regex ".*\.sql\.go$" \
         -not -regex ".*/integration/.*\.go$" \
         -print0)
     if [[ $fail -eq 1 ]]; then
