@@ -26,3 +26,8 @@ var validStates = map[string]bool{
 	"dismissed": true,
 	"all":       true,
 }
+
+var validFeatureCategories = map[string]bool{
+	"cli": true,
+	"tui": true,
+}
