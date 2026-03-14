@@ -89,7 +89,45 @@ With the configuration above, `tmux-intray` only collapses notifications when th
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TMUX_INTRAY_TELEMETRY_ENABLED` | `false` | Enable telemetry collection for usage analytics. Telemetry is **local-only** - it is stored locally in your state directory and is never transmitted over the network. Data is only used for local analytics and debugging. |
+| `TMUX_INTRAY_TELEMETRY_ENABLED` | `false` | Enable telemetry collection for usage analytics. Telemetry is **local-only** - it is stored locally in your state directory and is never transmitted over the network. Data is only used for local analytics and understanding feature usage patterns. No personal information is collected. |
+
+**Privacy Guarantees:**
+
+- **Local-only storage**: Data is stored in `~/.local/state/tmux-intray/notifications.db`
+- **No network transmission**: No data ever leaves your device
+- **No personal information**: Only feature usage patterns are tracked
+- **Full user control**: You can view, export, clear, and disable telemetry at any time
+
+**What is tracked:**
+
+- Feature name (e.g., `add`, `list`, `jump`, `tui`)
+- Feature category (`cli` or `tui`)
+- Timestamp of feature usage
+- Optional context data (e.g., TUI actions, CLI command usage)
+
+**Examples:**
+
+```bash
+# Enable telemetry
+export TMUX_INTRAY_TELEMETRY_ENABLED=true
+
+# Or in config.toml
+telemetry_enabled = true
+
+# View telemetry data
+tmux-intray telemetry show --days 7
+
+# Export telemetry data
+tmux-intray telemetry export --output telemetry.jsonl
+
+# Clear old telemetry data
+tmux-intray telemetry clear --days 30
+
+# Disable telemetry
+export TMUX_INTRAY_TELEMETRY_ENABLED=false
+```
+
+For detailed telemetry command documentation, see the [CLI Reference](./cli/CLI_REFERENCE.md#telemetry) and the [Privacy Documentation](./privacy.md).
 
 ## Sample Configuration File
 
