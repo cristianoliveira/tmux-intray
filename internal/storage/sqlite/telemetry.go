@@ -7,24 +7,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cristianoliveira/tmux-intray/internal/ports"
 	"github.com/cristianoliveira/tmux-intray/internal/storage/sqlite/sqlcgen"
 )
 
-// TelemetryEventType represents a telemetry event returned from storage.
-type TelemetryEventType struct {
-	ID              int64
-	Timestamp       string
-	FeatureName     string
-	FeatureCategory string
-	ContextData     string
-}
-
-// FeatureUsage represents feature usage statistics.
-type FeatureUsage struct {
-	FeatureName     string
-	FeatureCategory string
-	UsageCount      int64
-}
+// Local type aliases for convenience within sqlite package.
+// The canonical types are defined in internal/ports package.
+type TelemetryEventType = ports.TelemetryEventType
+type FeatureUsage = ports.FeatureUsage
 
 // LogTelemetryEvent logs a telemetry event to storage.
 func (s *SQLiteStorage) LogTelemetryEvent(timestamp, featureName, featureCategory, contextData string) error {
