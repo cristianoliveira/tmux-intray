@@ -186,3 +186,135 @@ See [Status Command Guide](../status-command-guide.md) for:
 - Real-world use cases (status bar integration, scripts, etc.)
 - Troubleshooting section
 - Advanced examples
+
+### telemetry
+
+```
+tmux-intray telemetry [command]
+```
+
+Manage telemetry data and settings. Telemetry tracks feature usage patterns for informed development decisions.
+
+#### Privacy
+
+**Telemetry is local-only and never transmitted.**
+
+- Data is stored exclusively on your device in `~/.local/state/tmux-intray/notifications.db`
+- No personal information is collected
+- No network calls are made
+- Data ownership remains entirely with you
+
+For detailed privacy information, see the [Privacy Documentation](../privacy.md).
+
+#### Subcommands
+
+**show** - Display feature usage summary
+```
+tmux-intray telemetry show [--days N]
+```
+
+Displays feature usage statistics grouped by feature name and category.
+
+**Flags:**
+- `--days int` - Show usage from the last N days (default: all time)
+
+**Examples:**
+```bash
+# Show all-time usage
+tmux-intray telemetry show
+
+# Show usage from the last 7 days
+tmux-intray telemetry show --days 7
+
+# Show usage from the last 30 days
+tmux-intray telemetry show --days 30
+```
+
+**export** - Export telemetry data to JSONL format
+```
+tmux-intray telemetry export --output FILE
+```
+
+Exports all telemetry events to a JSONL file (one JSON object per line).
+
+**Flags:**
+- `--output string` - Output file path (required)
+
+**Examples:**
+```bash
+# Export to file
+tmux-intray telemetry export --output telemetry.jsonl
+
+# Export to specific directory
+tmux-intray telemetry export --output ~/backups/telemetry.jsonl
+```
+
+**clear** - Clear old telemetry data
+```
+tmux-intray telemetry clear [--days N]
+```
+
+Clears telemetry events older than N days. Requires confirmation unless using `--force` (not yet implemented).
+
+**Flags:**
+- `--days int` - Clear events older than N days (default: 90)
+
+**Examples:**
+```bash
+# Clear data older than 90 days (default)
+tmux-intray telemetry clear
+
+# Clear data older than 30 days
+tmux-intray telemetry clear --days 30
+
+# Clear all telemetry data
+tmux-intray telemetry clear --days 0
+```
+
+**status** - Show telemetry status
+```
+tmux-intray telemetry status
+```
+
+Displays telemetry status including:
+- Enabled/disabled state
+- Total number of events
+- First and last event timestamps
+- Database size
+
+**Examples:**
+```bash
+tmux-intray telemetry status
+# Output:
+# Telemetry Status
+#   Enabled: true
+#   Total Events: 1,234
+#   First Event: 2026-03-01 10:00:00
+#   Last Event: 2026-03-14 13:00:00
+#   Database Size: 45.2 KB
+```
+
+#### Environment Variables
+
+- `TMUX_INTRAY_TELEMETRY_ENABLED` - Enable (true) or disable (false) telemetry collection (default: false)
+
+#### Data Schema
+
+Telemetry events are stored with the following structure:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | integer | Unique event identifier |
+| `timestamp` | string | ISO 8601 timestamp |
+| `feature_name` | string | Name of the feature used (e.g., "add", "list", "tui") |
+| `feature_category` | string | Category of the feature ("cli" or "tui") |
+| `context_data` | string | JSON string with additional context |
+
+#### Exit Codes
+
+- `0` - Success
+- `1` - Error (telemetry disabled, database error, etc.)
+
+#### Architecture
+
+For detailed telemetry architecture information, see [Telemetry Architecture](../design/telemetry-architecture.md).
