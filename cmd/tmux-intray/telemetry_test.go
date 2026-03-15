@@ -69,6 +69,14 @@ func (f *fakeTelemetryStorage) ClearTelemetryEvents(olderThanDays int) (int64, e
 	return f.deletedCount, nil
 }
 
+func (f *fakeTelemetryStorage) VacuumDatabase() error {
+	return nil
+}
+
+func (f *fakeTelemetryStorage) EnforceRetentionPolicy() (int64, error) {
+	return 0, nil
+}
+
 type fakeTelemetryConfig struct {
 	enabled bool
 }
@@ -494,4 +502,213 @@ func TestTelemetryConfigAdapter(t *testing.T) {
 	enabled := adapter.IsEnabled()
 	// The result depends on config, just check it returns a bool
 	assert.IsType(t, false, enabled)
+}
+
+// Additional edge case tests for improved coverage
+
+func TestTelemetryShowCategoryGrouping(t *testing.T) {
+	// Test proper grouping and sorting by category
+	client := &telemetryClient{
+		storage: &fakeTelemetryStorage{
+			features: []sqlite.FeatureUsage{
+				{FeatureName: "feature-a", FeatureCategory: "cli", UsageCount: 5},
+				{FeatureName: "feature-b", FeatureCategory: "cli", UsageCount: 3},
+				{FeatureName: "feature-c", FeatureCategory: "tui", UsageCount: 7},
+				{FeatureName: "feature-d", FeatureCategory: "tui", UsageCount: 2},
+				{FeatureName: "feature-e", FeatureCategory: "api", UsageCount: 4},
+			},
+		},
+		config: &fakeTelemetryConfig{enabled: true},
+	}
+	cmd := newShowTelemetryCmd(client)
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+
+	err := cmd.RunE(cmd, []string{})
+	require.NoError(t, err)
+	output := stdout.String()
+	// Check that all categories are present
+	assert.Contains(t, output, "Category: api")
+	assert.Contains(t, output, "Category: cli")
+	assert.Contains(t, output, "Category: tui")
+}
+
+func TestTelemetryExportCreateFileError(t *testing.T) {
+	client := &telemetryClient{
+		storage: &fakeTelemetryStorage{
+			events: []sqlite.TelemetryEventType{
+				{ID: 1, Timestamp: "2026-01-01T00:00:00Z", FeatureName: "test", FeatureCategory: "cli", ContextData: "{}"},
+			},
+		},
+		config: &fakeTelemetryConfig{enabled: true},
+	}
+	cmd := newExportCmd(client)
+	// Use an invalid path that will cause file creation to fail
+	require.NoError(t, cmd.Flags().Set("output", "/invalid/path/that/does/not/exist/test.jsonl"))
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+
+	err := cmd.RunE(cmd, []string{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create output file")
+}
+
+func TestTelemetryNewTelemetryCmdCreatesAllSubcommands(t *testing.T) {
+	cmd := NewTelemetryCmd(&fakeTelemetryStorage{}, &fakeTelemetryConfig{})
+	assert.NotNil(t, cmd)
+	assert.Equal(t, "telemetry", cmd.Use)
+
+	// Check that all subcommands are added
+	subcommands := make(map[string]bool)
+	for _, c := range cmd.Commands() {
+		subcommands[c.Name()] = true
+	}
+
+	assert.True(t, subcommands["show"], "show subcommand should exist")
+	assert.True(t, subcommands["export"], "export subcommand should exist")
+	assert.True(t, subcommands["clear"], "clear subcommand should exist")
+	assert.True(t, subcommands["status"], "status subcommand should exist")
+}
+
+func TestGetTelemetryStatusWhenDisabled(t *testing.T) {
+	client := &telemetryClient{
+		storage: &fakeTelemetryStorage{},
+		config:  &fakeTelemetryConfig{enabled: false},
+	}
+	status, err := getTelemetryStatus(client)
+	require.NoError(t, err)
+	assert.False(t, status.Enabled)
+	assert.Equal(t, int64(0), status.TotalEvents)
+}
+
+func TestGetTelemetryStatusWithEvents(t *testing.T) {
+	events := []sqlite.TelemetryEventType{
+		{Timestamp: "2026-01-01T00:00:00Z", FeatureName: "feature1"},
+		{Timestamp: "2026-01-02T00:00:00Z", FeatureName: "feature2"},
+		{Timestamp: "2026-01-03T00:00:00Z", FeatureName: "feature3"},
+	}
+	client := &telemetryClient{
+		storage: &fakeTelemetryStorage{
+			events: events,
+		},
+		config: &fakeTelemetryConfig{enabled: true},
+	}
+	status, err := getTelemetryStatus(client)
+	require.NoError(t, err)
+	assert.True(t, status.Enabled)
+	assert.Equal(t, int64(3), status.TotalEvents)
+	assert.Equal(t, "2026-01-01T00:00:00Z", status.FirstEvent)
+	assert.Equal(t, "2026-01-03T00:00:00Z", status.LastEvent)
+}
+
+func TestFormatBoolTrue(t *testing.T) {
+	result := formatBool(true)
+	assert.Contains(t, result, "true")
+	assert.Contains(t, result, "\033") // Should contain color codes
+}
+
+func TestFormatBoolFalse(t *testing.T) {
+	result := formatBool(false)
+	assert.Contains(t, result, "false")
+	assert.Contains(t, result, "\033") // Should contain color codes
+}
+
+func TestTelemetryShowWithZeroDays(t *testing.T) {
+	client := &telemetryClient{
+		storage: &fakeTelemetryStorage{
+			features: []sqlite.FeatureUsage{
+				{FeatureName: "test-feature", FeatureCategory: "cli", UsageCount: 5},
+			},
+		},
+		config: &fakeTelemetryConfig{enabled: true},
+	}
+	cmd := newShowTelemetryCmd(client)
+	require.NoError(t, cmd.Flags().Set("days", "0"))
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+
+	err := cmd.RunE(cmd, []string{})
+	require.NoError(t, err)
+	// days=0 should not filter
+	assert.Contains(t, stdout.String(), "test-feature")
+}
+
+func TestFilterFeaturesByDaysEmptyResult(t *testing.T) {
+	// Test filtering when no features match the time range
+	client := &telemetryClient{
+		storage: &fakeTelemetryStorage{
+			events: []sqlite.TelemetryEventType{},
+		},
+		config: &fakeTelemetryConfig{enabled: true},
+	}
+	features := []sqlite.FeatureUsage{
+		{FeatureName: "old-feature", FeatureCategory: "cli", UsageCount: 5},
+	}
+
+	filtered, err := filterFeaturesByDays(client, features, 7)
+	require.NoError(t, err)
+	assert.Empty(t, filtered)
+}
+
+func TestFilterFeaturesByDaysWithError(t *testing.T) {
+	// Test filtering when storage returns an error
+	client := &telemetryClient{
+		storage: &fakeTelemetryStorage{
+			getEventsErr: assert.AnError,
+		},
+		config: &fakeTelemetryConfig{enabled: true},
+	}
+	features := []sqlite.FeatureUsage{
+		{FeatureName: "feature", FeatureCategory: "cli", UsageCount: 5},
+	}
+
+	_, err := filterFeaturesByDays(client, features, 7)
+	require.Error(t, err)
+}
+
+func TestTelemetryShowFilterByDaysNoMatches(t *testing.T) {
+	client := &telemetryClient{
+		storage: &fakeTelemetryStorage{
+			features: []sqlite.FeatureUsage{
+				{FeatureName: "old-feature", FeatureCategory: "cli", UsageCount: 5},
+			},
+			events: []sqlite.TelemetryEventType{},
+		},
+		config: &fakeTelemetryConfig{enabled: true},
+	}
+	cmd := newShowTelemetryCmd(client)
+	require.NoError(t, cmd.Flags().Set("days", "7"))
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+
+	err := cmd.RunE(cmd, []string{})
+	require.NoError(t, err)
+	output := stdout.String() + stderr.String()
+	assert.Contains(t, output, "No telemetry data available in the specified time range")
+}
+
+func TestTelemetryStatusWithEventsRange(t *testing.T) {
+	events := []sqlite.TelemetryEventType{
+		{Timestamp: "2026-01-01T10:00:00Z", FeatureName: "feature1"},
+		{Timestamp: "2026-01-15T14:00:00Z", FeatureName: "feature2"},
+	}
+	client := &telemetryClient{
+		storage: &fakeTelemetryStorage{events: events},
+		config:  &fakeTelemetryConfig{enabled: true},
+	}
+	cmd := newStatusTelemetryCmd(client)
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+
+	err := cmd.RunE(cmd, []string{})
+	require.NoError(t, err)
+	output := stdout.String()
+	assert.Contains(t, output, "Total Events: 2")
+	assert.Contains(t, output, "First Event:")
+	assert.Contains(t, output, "Last Event:")
 }

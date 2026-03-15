@@ -12,6 +12,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
+	"github.com/cristianoliveira/tmux-intray/internal/telemetry"
 	"github.com/pelletier/go-toml/v2"
 )
 
@@ -266,7 +267,10 @@ func Load() (*Settings, error) {
 	// If file doesn't exist, return defaults
 	if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
 		colors.Debug("Settings file does not exist, using defaults")
-		return DefaultSettings(), nil
+		defaultSettings := DefaultSettings()
+		// Log default settings load
+		logSettingsLoad(defaultSettings)
+		return defaultSettings, nil
 	}
 
 	var settings *Settings
@@ -307,6 +311,11 @@ func Load() (*Settings, error) {
 
 	if err != nil {
 		return nil, err
+	}
+
+	// Log settings load to telemetry
+	if settings != nil {
+		logSettingsLoad(settings)
 	}
 
 	return settings, loadErr
@@ -423,6 +432,35 @@ func Reset() (*Settings, error) {
 	defaults := DefaultSettings()
 	colors.Debug("Settings reset to defaults")
 	return defaults, nil
+}
+
+// logSettingsLoad logs settings load event to telemetry.
+// Captures key settings that indicate user preferences and configurations.
+func logSettingsLoad(settings *Settings) {
+	if settings == nil {
+		return
+	}
+
+	settingsMap := map[string]interface{}{
+		"view_mode":            settings.ViewMode,
+		"active_tab":           settings.ActiveTab,
+		"group_by":             settings.GroupBy,
+		"sort_by":              settings.SortBy,
+		"sort_order":           settings.SortOrder,
+		"unread_first":         settings.UnreadFirst,
+		"default_expand_level": settings.DefaultExpandLevel,
+		"auto_expand_unread":   settings.AutoExpandUnread,
+		"show_help":            settings.ShowHelp,
+		"columns_count":        len(settings.Columns),
+		"has_filter_level":     settings.Filters.Level != "",
+		"has_filter_state":     settings.Filters.State != "",
+		"has_filter_read":      settings.Filters.Read != "",
+		"has_filter_session":   settings.Filters.Session != "",
+		"has_filter_window":    settings.Filters.Window != "",
+		"has_filter_pane":      settings.Filters.Pane != "",
+	}
+
+	telemetry.LogSettingsLoad(settingsMap)
 }
 
 // getSettingsPath is implemented in path.go.

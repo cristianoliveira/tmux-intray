@@ -42,6 +42,9 @@ EXAMPLES:
     tmux-intray clear`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Log the command invocation
+			logCLICommand("clear", args)
+
 			// Skip confirmation if running in CI or test environment
 			if allowTmuxlessMode() {
 				// In CI/test mode, proceed without confirmation

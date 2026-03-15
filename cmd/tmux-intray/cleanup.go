@@ -34,6 +34,11 @@ Automatically cleans up notifications that have been dismissed and are older
 than the configured auto-cleanup days. This helps prevent storage bloat.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Log the command invocation
+			logCLICommandWithContext("cleanup", args, map[string]interface{}{
+				"dryrun": dryRunFlag,
+			})
+
 			config.Load()
 
 			// Ensure tmux is running (matches bash behavior)
