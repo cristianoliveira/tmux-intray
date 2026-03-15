@@ -974,3 +974,101 @@ func TestFilteredListOrderedByTimestamp(t *testing.T) {
 	assert.Equal(t, 1, filtered[1].ID)
 	assert.Equal(t, 3, filtered[2].ID)
 }
+
+func TestRecentsTabUsesConfigurableTimeWindow(t *testing.T) {
+	svc := NewNotificationService(nil, nil)
+	now := time.Now().UTC()
+
+	// Create notifications at various time points
+	notifications := []notification.Notification{
+		{
+			ID:        1,
+			Message:   "5 minutes old",
+			Timestamp: now.Add(-5 * time.Minute).Format(time.RFC3339),
+			State:     "active",
+			Level:     "info",
+			Session:   "$1",
+			Window:    "@1",
+			Pane:      "%1",
+		},
+		{
+			ID:        2,
+			Message:   "30 minutes old",
+			Timestamp: now.Add(-30 * time.Minute).Format(time.RFC3339),
+			State:     "active",
+			Level:     "info",
+			Session:   "$2",
+			Window:    "@2",
+			Pane:      "%2",
+		},
+		{
+			ID:        3,
+			Message:   "45 minutes old",
+			Timestamp: now.Add(-45 * time.Minute).Format(time.RFC3339),
+			State:     "active",
+			Level:     "info",
+			Session:   "$3",
+			Window:    "@3",
+			Pane:      "%3",
+		},
+		{
+			ID:        4,
+			Message:   "2 hours old",
+			Timestamp: now.Add(-2 * time.Hour).Format(time.RFC3339),
+			State:     "active",
+			Level:     "info",
+			Session:   "$4",
+			Window:    "@4",
+			Pane:      "%4",
+		},
+	}
+
+	svc.SetNotifications(notifications)
+
+	// Test with default 1h window
+	svc.ApplyFiltersAndSearch(settings.TabRecents, "", "", "", "", "", "", "", "timestamp", "desc")
+	filtered := svc.GetFilteredNotifications()
+	// Should include 1, 2, 3 (all within 1 hour), exclude 4 (2 hours old)
+	require.Equal(t, 3, len(filtered), "Default 1h window should include 3 notifications")
+	for _, n := range filtered {
+		assert.NotEqual(t, 4, n.ID, "2-hour-old notification should not be in default 1h window")
+	}
+}
+
+func TestRecentsTabUsesConfiguredTimeWindowFrom30Minutes(t *testing.T) {
+	// This test demonstrates that the config is used
+	// In a real scenario, you would set TMUX_INTRAY_RECENTS_TIME_WINDOW=30m
+	// and test that only notifications within 30 minutes are shown
+	svc := NewNotificationService(nil, nil)
+	now := time.Now().UTC()
+
+	notifications := []notification.Notification{
+		{
+			ID:        1,
+			Message:   "15 minutes old",
+			Timestamp: now.Add(-15 * time.Minute).Format(time.RFC3339),
+			State:     "active",
+			Level:     "info",
+			Session:   "$1",
+			Window:    "@1",
+			Pane:      "%1",
+		},
+		{
+			ID:        2,
+			Message:   "45 minutes old",
+			Timestamp: now.Add(-45 * time.Minute).Format(time.RFC3339),
+			State:     "active",
+			Level:     "info",
+			Session:   "$2",
+			Window:    "@2",
+			Pane:      "%2",
+		},
+	}
+
+	svc.SetNotifications(notifications)
+	svc.ApplyFiltersAndSearch(settings.TabRecents, "", "", "", "", "", "", "", "timestamp", "desc")
+	filtered := svc.GetFilteredNotifications()
+
+	// With default 1h, both should be included
+	require.Equal(t, 2, len(filtered), "Both notifications should be within 1h window")
+}

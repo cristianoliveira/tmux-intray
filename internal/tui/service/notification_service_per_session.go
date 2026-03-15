@@ -94,9 +94,9 @@ func (s *DefaultNotificationService) getUnfilteredRecentsDataset(sortBy, sortOrd
 		}
 	}
 
-	// Apply 1-hour time window filter
+	// Apply configurable time window filter
 	domainNotifs := s.convertToDomain(activeOnly)
-	filtered := domain.FilterByTimeDuration(domainNotifs, time.Hour)
+	filtered := domain.FilterByTimeDuration(domainNotifs, getRecentsTimeWindow())
 	activeOnly = s.convertFromDomain(filtered)
 
 	// Filter to unread only
