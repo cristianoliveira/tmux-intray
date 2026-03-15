@@ -3,6 +3,7 @@ package service
 
 import (
 	"strings"
+	"time"
 
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
@@ -326,6 +327,13 @@ func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortB
 	normalizedTab := settings.NormalizeTab(string(activeTab))
 	if normalizedTab == settings.TabAll {
 		return activeOnly
+	}
+
+	// For Recents tab, apply 1-hour time window filter
+	if normalizedTab == settings.TabRecents {
+		domainNotifs := s.convertToDomain(activeOnly)
+		filtered := domain.FilterByTimeDuration(domainNotifs, time.Hour)
+		activeOnly = s.convertFromDomain(filtered)
 	}
 
 	unreadOnly := make([]notification.Notification, 0, len(activeOnly))

@@ -110,10 +110,12 @@ func normalizeTestNotifications(notifications []notification.Notification) []not
 	normalized := make([]notification.Notification, len(notifications))
 	copy(normalized, notifications)
 
-	base := time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC)
+	// Use current time as base so timestamps are recent and pass the 1-hour filter for Recents tab
+	// Generate timestamps going backwards from now, so first item is newest
+	base := time.Now().UTC()
 	for i := range normalized {
 		if normalized[i].Timestamp == "" {
-			normalized[i].Timestamp = base.Add(time.Duration(i) * time.Minute).Format(time.RFC3339)
+			normalized[i].Timestamp = base.Add(-time.Duration(i) * time.Minute).Format(time.RFC3339)
 		}
 		if normalized[i].State == "" {
 			normalized[i].State = "active"
@@ -124,6 +126,95 @@ func normalizeTestNotifications(notifications []notification.Notification) []not
 	}
 
 	return normalized
+}
+
+// normalizeTestNotificationsWithCurrentTime updates test notifications to use current timestamps
+// This is useful for tests that check Recents tab which filters by 1-hour window
+// Timestamps are generated in order from newest (first item) to oldest (last item)
+func normalizeTestNotificationsWithCurrentTime(notifications []notification.Notification) []notification.Notification {
+	normalized := make([]notification.Notification, len(notifications))
+	copy(normalized, notifications)
+
+	base := time.Now().UTC()
+	for i := range normalized {
+		// Generate timestamps from now going backwards, so the first item is newest and last is oldest
+		// Item 0: now (or close to it)
+		// Item 1: now - 1 minute
+		// Item 2: now - 2 minutes, etc.
+		normalized[i].Timestamp = base.Add(-time.Duration(i) * time.Minute).Format(time.RFC3339)
+		if normalized[i].State == "" {
+			normalized[i].State = "active"
+		}
+		if normalized[i].Level == "" {
+			normalized[i].Level = "info"
+		}
+	}
+
+	return normalized
+}
+
+// newTestModelWithCurrentTimestamps creates a test model with current timestamps for Recents tests.
+// It skips the normalizeTestNotifications step since the notifications are already normalized.
+func newTestModelWithCurrentTimestamps(t *testing.T, notifications []notification.Notification) *Model {
+	t.Helper()
+	// Ensure State and Level are set if missing before current time normalization
+	for i := range notifications {
+		if notifications[i].State == "" {
+			notifications[i].State = "active"
+		}
+		if notifications[i].Level == "" {
+			notifications[i].Level = "info"
+		}
+	}
+	// Use current timestamps for Recents tests
+	notifications = normalizeTestNotificationsWithCurrentTime(notifications)
+	// Don't call newTestModel because it would normalize again - create directly
+	return createTestModelFromNotifications(t, notifications)
+}
+
+// createTestModelFromNotifications creates a test model from already-normalized notifications.
+func createTestModelFromNotifications(t *testing.T, notifications []notification.Notification) *Model {
+	t.Helper()
+
+	// Create mock client with stubbed session fetchers
+	mockClient := stubSessionFetchers(t)
+
+	// Initialize UI state
+	uiState := NewUIState()
+
+	// Initialize runtime coordinator with mock client and core
+	runtimeCoordinator := service.NewRuntimeCoordinator(mockClient)
+
+	// Initialize tree service
+	treeService := service.NewTreeService(uiState.GetGroupBy())
+
+	// Initialize notification service with default search provider
+	searchProvider := search.NewTokenProvider(
+		search.WithCaseInsensitive(true),
+		search.WithSessionNames(runtimeCoordinator.GetSessionNames()),
+		search.WithWindowNames(runtimeCoordinator.GetWindowNames()),
+		search.WithPaneNames(runtimeCoordinator.GetPaneNames()),
+	)
+	notificationService := service.NewNotificationService(searchProvider, runtimeCoordinator)
+	notificationService.SetNotifications(notifications)
+
+	// Create model without loading from storage
+	m := Model{
+		uiState:             uiState,
+		runtimeCoordinator:  runtimeCoordinator,
+		treeService:         treeService,
+		notificationService: notificationService,
+		errorHandler:        errors.NewTUIHandler(nil),
+		// Legacy fields kept for backward compatibility but now using services
+		client:             mockClient,
+		sessionNames:       runtimeCoordinator.GetSessionNames(),
+		windowNames:        runtimeCoordinator.GetWindowNames(),
+		paneNames:          runtimeCoordinator.GetPaneNames(),
+		groupHeaderOptions: settings.DefaultGroupHeaderOptions(),
+	}
+	m.syncNotificationMirrors()
+
+	return &m
 }
 
 // newTestModelWithOptions creates a test model with custom options, useful for tests that need to override services.
@@ -331,6 +422,7 @@ func TestModelGroupedModeBuildsVisibleNodes(t *testing.T) {
 	model.uiState.SetGroupBy(settings.GroupByPane)
 
 	disableModelGroupOptions(model)
+	model.uiState.SetActiveTab(settings.TabAll) // Use TabAll to avoid 1-hour time filter
 	model.applySearchFilter()
 	model.resetCursor()
 
@@ -380,6 +472,7 @@ func TestModelGroupedModeRespectsGroupByDepth(t *testing.T) {
 			model.uiState.SetViewMode(viewModeGrouped)
 			model.uiState.SetGroupBy(uimodel.GroupBy(tt.groupBy))
 
+			model.uiState.SetActiveTab(settings.TabAll) // Use TabAll to avoid 1-hour time filter
 			model.applySearchFilter()
 			model.resetCursor()
 
@@ -399,6 +492,7 @@ func TestModelSwitchesViewModes(t *testing.T) {
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(viewModeGrouped)
 
+	model.uiState.SetActiveTab(settings.TabAll) // Use TabAll to avoid 1-hour time filter
 	model.applySearchFilter()
 	model.resetCursor()
 	require.NotNil(t, model.getTreeRootForTest())
@@ -406,6 +500,7 @@ func TestModelSwitchesViewModes(t *testing.T) {
 
 	// Switch to detailed mode (not grouped) - should not have tree structure
 	model.uiState.SetViewMode(settings.ViewModeDetailed)
+	model.uiState.SetActiveTab(settings.TabAll) // Use TabAll to avoid 1-hour time filter
 	model.applySearchFilter()
 	model.resetCursor()
 	assert.Nil(t, model.getTreeRootForTest())
@@ -421,6 +516,7 @@ func TestToggleNodeExpansionGroupedView(t *testing.T) {
 	m.uiState.SetViewMode(viewModeGrouped)
 	m.uiState.SetGroupBy(settings.GroupByPane)
 
+	m.uiState.SetActiveTab(settings.TabAll) // Use TabAll to avoid 1-hour time filter
 	m.applySearchFilter()
 	m.resetCursor()
 
@@ -460,6 +556,7 @@ func TestToggleFoldWorksAtPaneDepth(t *testing.T) {
 	model.uiState.SetViewMode(viewModeGrouped)
 	model.uiState.SetGroupBy(settings.GroupByPane)
 
+	model.uiState.SetActiveTab(settings.TabAll) // Use TabAll to avoid 1-hour time filter
 	model.applySearchFilter()
 	model.resetCursor()
 
@@ -494,6 +591,7 @@ func TestModelUpdateHandlesCollapseExpandKeys(t *testing.T) {
 	model.uiState.SetViewMode(viewModeGrouped)
 	model.uiState.SetGroupBy(settings.GroupByPane)
 
+	model.uiState.SetActiveTab(settings.TabAll) // Use TabAll to avoid 1-hour time filter
 	model.applySearchFilter()
 	model.resetCursor()
 
@@ -584,6 +682,7 @@ func TestCollapseNodeMovesCursorToParent(t *testing.T) {
 	model.uiState.SetViewMode(viewModeGrouped)
 	model.uiState.SetGroupBy(settings.GroupByPane)
 
+	model.uiState.SetActiveTab(settings.TabAll) // Use TabAll to avoid 1-hour time filter
 	model.applySearchFilter()
 	model.resetCursor()
 
@@ -626,6 +725,7 @@ func TestToggleNodeExpansionIgnoresLeafNodes(t *testing.T) {
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(viewModeGrouped)
 
+	model.uiState.SetActiveTab(settings.TabAll) // Use TabAll to avoid 1-hour time filter
 	model.applySearchFilter()
 	model.resetCursor()
 
@@ -658,6 +758,7 @@ func TestToggleFoldIgnoresLeafNodes(t *testing.T) {
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(viewModeGrouped)
 
+	model.uiState.SetActiveTab(settings.TabAll) // Use TabAll to avoid 1-hour time filter
 	model.applySearchFilter()
 	model.resetCursor()
 
@@ -691,6 +792,7 @@ func TestToggleFoldExpandsDefaultWhenAllCollapsed(t *testing.T) {
 	model.uiState.SetGroupBy(settings.GroupByPane)
 	model.uiState.SetExpandLevel(2)
 
+	model.uiState.SetActiveTab(settings.TabAll) // Use TabAll to avoid 1-hour time filter
 	model.applySearchFilter()
 	model.resetCursor()
 
@@ -735,6 +837,7 @@ func TestModelSelectedNotificationGroupedView(t *testing.T) {
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(viewModeGrouped)
 
+	model.uiState.SetActiveTab(settings.TabAll) // Use TabAll to avoid 1-hour time filter
 	model.applySearchFilter()
 	model.resetCursor()
 	cursorIndex := -1
@@ -854,11 +957,11 @@ func TestModelUpdateTabSwitchRefreshesFilterWithSearchQuery(t *testing.T) {
 	setupConfig(t, tmpDir)
 
 	notifications := []notification.Notification{
-		{ID: 1, Message: "active alpha", Timestamp: "2024-01-03T10:00:00Z", State: "active", Level: "info"},
-		{ID: 2, Message: "dismissed alpha", Timestamp: "2024-01-04T10:00:00Z", State: "dismissed", Level: "warning"},
+		{ID: 1, Message: "active alpha", State: "active", Level: "info"},
+		{ID: 2, Message: "dismissed alpha", State: "dismissed", Level: "warning"},
 	}
 
-	model := newTestModel(t, notifications)
+	model := newTestModelWithCurrentTimestamps(t, notifications)
 	baseService := model.notificationService
 	spyService := &spyNotificationService{NotificationService: baseService}
 	model.notificationService = spyService
@@ -890,10 +993,10 @@ func TestModelTabDefaultAndSwitchKeysRemainActiveOnly(t *testing.T) {
 	tmpDir := t.TempDir()
 	setupConfig(t, tmpDir)
 
-	model := newTestModel(t, []notification.Notification{
-		{ID: 1, Message: "active newest", Timestamp: "2024-01-03T10:00:00Z", State: "active", Level: "info"},
-		{ID: 2, Message: "dismissed newest", Timestamp: "2024-01-04T10:00:00Z", State: "dismissed", Level: "warning"},
-		{ID: 3, Message: "active older", Timestamp: "2024-01-01T10:00:00Z", State: "active", Level: "error"},
+	model := newTestModelWithCurrentTimestamps(t, []notification.Notification{
+		{ID: 1, Message: "active newest", State: "active", Level: "info"},
+		{ID: 2, Message: "dismissed newest", State: "dismissed", Level: "warning"},
+		{ID: 3, Message: "active older", State: "active", Level: "error"},
 	})
 
 	model.uiState.SetWidth(80)
@@ -1027,6 +1130,7 @@ func TestModelUpdateHandlesSearch(t *testing.T) {
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(settings.ViewModeDetailed)
+	model.uiState.SetActiveTab(settings.TabAll) // Use TabAll to avoid 1-hour time filter
 
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}}
 	updated, _ := model.Update(msg)
@@ -1069,6 +1173,7 @@ func TestModelUpdateSlashInGroupedViewKeepsGroupedModeAndFilters(t *testing.T) {
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(settings.ViewModeGrouped)
+	model.uiState.SetActiveTab(settings.TabAll) // Use TabAll to avoid 1-hour time filter
 	model.applySearchFilter()
 	model.resetCursor()
 
@@ -1311,7 +1416,7 @@ func TestModelUpdateHandlesReadUnreadKeys(t *testing.T) {
 	setupStorage(t)
 	mockClient := stubSessionFetchers(t)
 
-	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "", "", "", "", "info")
+	id, err := storage.AddNotification("Test message", time.Now().UTC().Format(time.RFC3339), "", "", "", "", "info")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 
@@ -1638,7 +1743,7 @@ func TestCtrlBindingsAllowDismissInSearchMode(t *testing.T) {
 	setupStorage(t)
 	mockClient := stubSessionFetchers(t)
 
-	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "", "", "", "1234", "info")
+	id, err := storage.AddNotification("Test message", time.Now().UTC().Format(time.RFC3339), "", "", "", "1234", "info")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 
@@ -1661,7 +1766,7 @@ func TestCtrlBindingsAllowDismissInSearchViewMode(t *testing.T) {
 	setupStorage(t)
 	mockClient := stubSessionFetchers(t)
 
-	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "", "", "", "1234", "info")
+	id, err := storage.AddNotification("Test message", time.Now().UTC().Format(time.RFC3339), "", "", "", "1234", "info")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 
@@ -1685,7 +1790,7 @@ func TestCtrlBindingsAllowDismissWhenSearchStartedWithSlash(t *testing.T) {
 	setupConfig(t, tmpDir)
 	mockClient := stubSessionFetchers(t)
 
-	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "", "", "", "1234", "info")
+	id, err := storage.AddNotification("Test message", time.Now().UTC().Format(time.RFC3339), "", "", "", "1234", "info")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 
@@ -1801,10 +1906,10 @@ func TestCtrlJKNavigationInSearchModeWithFilter(t *testing.T) {
 // in grouped view mode, including tree rebuilding and empty group pruning.
 func TestApplySearchFilterGroupedView(t *testing.T) {
 	model := newTestModel(t, []notification.Notification{
-		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Error: connection failed", Timestamp: "2024-01-03T10:00:00Z"},
-		{ID: 2, Session: "$1", Window: "@1", Pane: "%2", Message: "Warning: low memory", Timestamp: "2024-01-02T10:00:00Z"},
-		{ID: 3, Session: "$2", Window: "@1", Pane: "%1", Message: "Error: file not found", Timestamp: "2024-01-01T10:00:00Z"},
-		{ID: 4, Session: "$2", Window: "@2", Pane: "%1", Message: "Info: task completed", Timestamp: "2024-01-04T10:00:00Z"},
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Error: connection failed"},
+		{ID: 2, Session: "$1", Window: "@1", Pane: "%2", Message: "Warning: low memory"},
+		{ID: 3, Session: "$2", Window: "@1", Pane: "%1", Message: "Error: file not found"},
+		{ID: 4, Session: "$2", Window: "@2", Pane: "%1", Message: "Info: task completed"},
 	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
@@ -1843,8 +1948,8 @@ func TestApplySearchFilterGroupedView(t *testing.T) {
 // from the tree after filtering.
 func TestBuildFilteredTreePrunesEmptyGroups(t *testing.T) {
 	model := newTestModel(t, []notification.Notification{
-		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Unique message here", Timestamp: "2024-01-01T10:00:00Z"},
-		{ID: 2, Session: "$2", Window: "@1", Pane: "%1", Message: "Different message", Timestamp: "2024-01-02T10:00:00Z"},
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Unique message here"},
+		{ID: 2, Session: "$2", Window: "@1", Pane: "%1", Message: "Different message"},
 	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
@@ -1881,9 +1986,9 @@ func TestBuildFilteredTreePrunesEmptyGroups(t *testing.T) {
 // is preserved across searches when possible.
 func TestBuildFilteredTreePreservesExpansionState(t *testing.T) {
 	model := newTestModel(t, []notification.Notification{
-		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Test message 1", Timestamp: "2024-01-01T10:00:00Z"},
-		{ID: 2, Session: "$1", Window: "@2", Pane: "%1", Message: "Test message 2", Timestamp: "2024-01-02T10:00:00Z"},
-		{ID: 3, Session: "$2", Window: "@1", Pane: "%1", Message: "Test message 3", Timestamp: "2024-01-03T10:00:00Z"},
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Test message 1"},
+		{ID: 2, Session: "$1", Window: "@2", Pane: "%1", Message: "Test message 2"},
+		{ID: 3, Session: "$2", Window: "@1", Pane: "%1", Message: "Test message 3"},
 	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
@@ -1941,8 +2046,8 @@ func TestBuildFilteredTreeHandlesNoMatches(t *testing.T) {
 // shows all notifications.
 func TestBuildFilteredTreeWithEmptyQuery(t *testing.T) {
 	model := newTestModel(t, []notification.Notification{
-		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "First", Timestamp: "2024-01-01T10:00:00Z"},
-		{ID: 2, Session: "$1", Window: "@2", Pane: "%1", Message: "Second", Timestamp: "2024-01-02T10:00:00Z"},
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "First"},
+		{ID: 2, Session: "$1", Window: "@2", Pane: "%1", Message: "Second"},
 	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
@@ -1964,9 +2069,9 @@ func TestBuildFilteredTreeWithEmptyQuery(t *testing.T) {
 // only matching notifications.
 func TestBuildFilteredTreeGroupCounts(t *testing.T) {
 	model := newTestModel(t, []notification.Notification{
-		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Error: connection failed", Timestamp: "2024-01-01T10:00:00Z"},
-		{ID: 2, Session: "$1", Window: "@1", Pane: "%1", Message: "Warning: low memory", Timestamp: "2024-01-02T10:00:00Z"},
-		{ID: 3, Session: "$1", Window: "@1", Pane: "%2", Message: "Error: timeout", Timestamp: "2024-01-03T10:00:00Z"},
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Error: connection failed"},
+		{ID: 2, Session: "$1", Window: "@1", Pane: "%1", Message: "Warning: low memory"},
+		{ID: 3, Session: "$1", Window: "@1", Pane: "%2", Message: "Error: timeout"},
 	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
@@ -2310,7 +2415,7 @@ func TestHandleDismiss(t *testing.T) {
 	setupStorage(t)
 	mockClient := stubSessionFetchers(t)
 
-	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "", "", "", "1234", "info")
+	id, err := storage.AddNotification("Test message", time.Now().UTC().Format(time.RFC3339), "", "", "", "1234", "info")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 
@@ -2331,7 +2436,7 @@ func TestMarkSelectedRead(t *testing.T) {
 	setupStorage(t)
 	mockClient := stubSessionFetchers(t)
 
-	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "", "", "", "", "info")
+	id, err := storage.AddNotification("Test message", time.Now().UTC().Format(time.RFC3339), "", "", "", "", "info")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 
@@ -2361,7 +2466,7 @@ func TestMarkSelectedUnread(t *testing.T) {
 	setupStorage(t)
 	mockClient := stubSessionFetchers(t)
 
-	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "", "", "", "", "info")
+	id, err := storage.AddNotification("Test message", time.Now().UTC().Format(time.RFC3339), "", "", "", "", "info")
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 	require.NoError(t, storage.MarkNotificationRead(id))
@@ -2394,9 +2499,10 @@ func TestHandleDismissGroupedViewUsesVisibleNodes(t *testing.T) {
 	mockClient.On("GetSessionName", "a").Return("", stderrors.New("session not found")).Once()
 	mockClient.On("GetSessionName", "b").Return("", stderrors.New("session not found")).Once()
 
-	_, err := storage.AddNotification("B msg", "2024-02-02T12:00:00Z", "b", "@1", "%1", "", "info")
+	base := time.Now().UTC()
+	_, err := storage.AddNotification("B msg", base.Format(time.RFC3339), "b", "@1", "%1", "", "info")
 	require.NoError(t, err)
-	_, err = storage.AddNotification("A msg", "2024-01-01T12:00:00Z", "a", "@1", "%1", "", "info")
+	_, err = storage.AddNotification("A msg", base.Add(-time.Minute).Format(time.RFC3339), "a", "@1", "%1", "", "info")
 	require.NoError(t, err)
 
 	model, err := NewModel(mockClient)
@@ -2484,7 +2590,7 @@ func TestHandleJumpWithMissingContext(t *testing.T) {
 func TestHandleJumpMarksNotificationReadOnSuccess(t *testing.T) {
 	setupStorage(t)
 
-	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "$1", "@2", "%3", "", "info")
+	id, err := storage.AddNotification("Test message", time.Now().UTC().Format(time.RFC3339), "$1", "@2", "%3", "", "info")
 	require.NoError(t, err)
 
 	mockClient := stubSessionFetchers(t)
@@ -2511,7 +2617,7 @@ func TestHandleJumpMarksNotificationReadOnSuccess(t *testing.T) {
 func TestModelUpdateEnterJumpsUsingExplicitWindowAndPane(t *testing.T) {
 	setupStorage(t)
 
-	_, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "$1", "@2", "%3", "", "info")
+	_, err := storage.AddNotification("Test message", time.Now().UTC().Format(time.RFC3339), "$1", "@2", "%3", "", "info")
 	require.NoError(t, err)
 
 	mockClient := stubSessionFetchers(t)
@@ -2548,7 +2654,7 @@ func TestModelUpdateEnterJumpsUsingExplicitWindowAndPane(t *testing.T) {
 func TestHandleJumpDoesNotMarkReadWhenJumpFails(t *testing.T) {
 	setupStorage(t)
 
-	id, err := storage.AddNotification("Test message", "2024-01-01T12:00:00Z", "$1", "@2", "%3", "", "info")
+	id, err := storage.AddNotification("Test message", time.Now().UTC().Format(time.RFC3339), "$1", "@2", "%3", "", "info")
 	require.NoError(t, err)
 
 	mockClient := stubSessionFetchers(t)

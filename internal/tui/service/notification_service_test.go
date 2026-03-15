@@ -2,12 +2,23 @@ package service
 
 import (
 	"testing"
+	"time"
 
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// nowMinutes returns current time minus specified minutes (for testing recent notifications)
+func nowMinutes(minutes int) string {
+	return time.Now().UTC().Add(-time.Duration(minutes) * time.Minute).Format(time.RFC3339)
+}
+
+// oldTime returns a timestamp that's very old (for testing non-recent notifications)
+func oldTime() string {
+	return "2024-01-01T10:00:00Z"
+}
 
 func TestSortNotificationsUnreadFirst(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
@@ -58,8 +69,8 @@ func TestFilterByReadStatus(t *testing.T) {
 func TestApplyFiltersAndSearchRespectsReadFilter(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
 	notifications := []notification.Notification{
-		{ID: 1, Message: "alpha", Timestamp: "2024-01-01T09:00:00Z", State: "active", Level: "info", ReadTimestamp: ""},
-		{ID: 2, Message: "beta", Timestamp: "2024-01-01T10:00:00Z", State: "active", Level: "info", ReadTimestamp: "2024-01-01T10:05:00Z"},
+		{ID: 1, Message: "alpha", Timestamp: nowMinutes(30), State: "active", Level: "info", ReadTimestamp: ""},
+		{ID: 2, Message: "beta", Timestamp: nowMinutes(25), State: "active", Level: "info", ReadTimestamp: nowMinutes(20)},
 	}
 
 	svc.SetNotifications(notifications)
@@ -72,8 +83,8 @@ func TestApplyFiltersAndSearchRespectsReadFilter(t *testing.T) {
 func TestApplyFiltersAndSearchRecentsForcesUnreadView(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
 	notifications := []notification.Notification{
-		{ID: 1, Message: "unread", Timestamp: "2024-01-01T09:00:00Z", State: "active", Level: "info", Session: "$1", Window: "@1", Pane: "%1", ReadTimestamp: ""},
-		{ID: 2, Message: "read", Timestamp: "2024-01-01T10:00:00Z", State: "active", Level: "info", Session: "$1", Window: "@1", Pane: "%1", ReadTimestamp: "2024-01-01T10:05:00Z"},
+		{ID: 1, Message: "unread", Timestamp: nowMinutes(30), State: "active", Level: "info", Session: "$1", Window: "@1", Pane: "%1", ReadTimestamp: ""},
+		{ID: 2, Message: "read", Timestamp: nowMinutes(25), State: "active", Level: "info", Session: "$1", Window: "@1", Pane: "%1", ReadTimestamp: nowMinutes(20)},
 	}
 
 	svc.SetNotifications(notifications)
@@ -130,10 +141,10 @@ func TestSearchFunction(t *testing.T) {
 func TestApplyFiltersAndSearchLevelFilter(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
 	notifications := []notification.Notification{
-		{ID: 1, Message: "Error one", Level: "error", Timestamp: "2024-01-01T10:00:00Z", State: "active", Session: "$1", Window: "@1", Pane: "%1"},
-		{ID: 2, Message: "Warning one", Level: "warning", Timestamp: "2024-01-01T10:00:00Z", State: "active", Session: "$1", Window: "@1", Pane: "%2"},
-		{ID: 3, Message: "Error two", Level: "error", Timestamp: "2024-01-01T10:00:00Z", State: "active", Session: "$1", Window: "@1", Pane: "%3"},
-		{ID: 4, Message: "Info one", Level: "info", Timestamp: "2024-01-01T10:00:00Z", State: "active", Session: "$1", Window: "@1", Pane: "%4"},
+		{ID: 1, Message: "Error one", Level: "error", Timestamp: nowMinutes(30), State: "active", Session: "$1", Window: "@1", Pane: "%1"},
+		{ID: 2, Message: "Warning one", Level: "warning", Timestamp: nowMinutes(28), State: "active", Session: "$1", Window: "@1", Pane: "%2"},
+		{ID: 3, Message: "Error two", Level: "error", Timestamp: nowMinutes(26), State: "active", Session: "$1", Window: "@1", Pane: "%3"},
+		{ID: 4, Message: "Info one", Level: "info", Timestamp: nowMinutes(24), State: "active", Session: "$1", Window: "@1", Pane: "%4"},
 	}
 	svc.SetNotifications(notifications)
 
@@ -161,10 +172,10 @@ func TestApplyFiltersAndSearchLevelFilter(t *testing.T) {
 func TestApplyFiltersAndSearchSessionWindowPaneFilter(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
 	notifications := []notification.Notification{
-		{ID: 1, Message: "Msg 1", Session: "$1", Window: "@1", Pane: "%1", Timestamp: "2024-01-01T10:00:00Z", State: "active", Level: "info"},
-		{ID: 2, Message: "Msg 2", Session: "$1", Window: "@1", Pane: "%2", Timestamp: "2024-01-01T10:00:00Z", State: "active", Level: "info"},
-		{ID: 3, Message: "Msg 3", Session: "$2", Window: "@1", Pane: "%1", Timestamp: "2024-01-01T10:00:00Z", State: "active", Level: "info"},
-		{ID: 4, Message: "Msg 4", Session: "$2", Window: "@2", Pane: "%1", Timestamp: "2024-01-01T10:00:00Z", State: "active", Level: "info"},
+		{ID: 1, Message: "Msg 1", Session: "$1", Window: "@1", Pane: "%1", Timestamp: nowMinutes(30), State: "active", Level: "info"},
+		{ID: 2, Message: "Msg 2", Session: "$1", Window: "@1", Pane: "%2", Timestamp: nowMinutes(28), State: "active", Level: "info"},
+		{ID: 3, Message: "Msg 3", Session: "$2", Window: "@1", Pane: "%1", Timestamp: nowMinutes(26), State: "active", Level: "info"},
+		{ID: 4, Message: "Msg 4", Session: "$2", Window: "@2", Pane: "%1", Timestamp: nowMinutes(24), State: "active", Level: "info"},
 	}
 	svc.SetNotifications(notifications)
 
@@ -201,9 +212,9 @@ func TestApplyFiltersAndSearchSessionWindowPaneFilter(t *testing.T) {
 func TestApplyFiltersAndSearchActiveOnlyAcrossTabs(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
 	notifications := []notification.Notification{
-		{ID: 1, Message: "active 1", Timestamp: "2024-01-01T10:00:00Z", State: "active", Level: "info"},
-		{ID: 2, Message: "dismissed", Timestamp: "2024-01-02T10:00:00Z", State: "dismissed", Level: "info"},
-		{ID: 3, Message: "active 2", Timestamp: "2024-01-03T10:00:00Z", State: "active", Level: "warning"},
+		{ID: 1, Message: "active 1", Timestamp: nowMinutes(30), State: "active", Level: "info"},
+		{ID: 2, Message: "dismissed", Timestamp: nowMinutes(28), State: "dismissed", Level: "info"},
+		{ID: 3, Message: "active 2", Timestamp: nowMinutes(26), State: "active", Level: "warning"},
 	}
 	svc.SetNotifications(notifications)
 
@@ -237,7 +248,7 @@ func TestApplyFiltersAndSearchRecentsUsesLimitedDataset(t *testing.T) {
 		notifications = append(notifications, notification.Notification{
 			ID:        i,
 			Message:   "msg",
-			Timestamp: "2024-01-01T10:00:00Z",
+			Timestamp: nowMinutes(25 - i),
 			State:     "active",
 			Level:     "info",
 			Session:   session,
@@ -303,4 +314,82 @@ func TestApplyFiltersAndSearchTabScopeSearchesWithinTabDataset(t *testing.T) {
 	filtered := svc.GetFilteredNotifications()
 	require.Len(t, filtered, 1)
 	assert.Equal(t, 1, filtered[0].ID)
+}
+
+func TestRecentsTabApplies1HourTimeWindow(t *testing.T) {
+	svc := NewNotificationService(nil, nil)
+	now := time.Now().UTC()
+
+	notifications := []notification.Notification{
+		{
+			ID:        1,
+			Message:   "recent notification",
+			Timestamp: now.Add(-30 * time.Minute).Format(time.RFC3339),
+			State:     "active",
+			Level:     "info",
+			Session:   "$1",
+			Window:    "@1",
+			Pane:      "%1",
+		},
+		{
+			ID:        2,
+			Message:   "older notification",
+			Timestamp: now.Add(-2 * time.Hour).Format(time.RFC3339),
+			State:     "active",
+			Level:     "info",
+			Session:   "$1",
+			Window:    "@1",
+			Pane:      "%1",
+		},
+		{
+			ID:        3,
+			Message:   "warning in window",
+			Timestamp: now.Add(-45 * time.Minute).Format(time.RFC3339),
+			State:     "active",
+			Level:     "warning",
+			Session:   "$1",
+			Window:    "@1",
+			Pane:      "%1",
+		},
+	}
+
+	svc.SetNotifications(notifications)
+	svc.ApplyFiltersAndSearch(settings.TabRecents, "", "", "", "", "", "", "", "timestamp", "desc")
+	filtered := svc.GetFilteredNotifications()
+
+	// Should only include notifications within the last 1 hour
+	require.Len(t, filtered, 2)
+	ids := []int{filtered[0].ID, filtered[1].ID}
+	assert.Contains(t, ids, 1)
+	assert.Contains(t, ids, 3)
+	// Ensure notification 2 (2 hours old) is not included
+	for _, n := range filtered {
+		assert.NotEqual(t, 2, n.ID)
+	}
+}
+
+func TestRecentsTabCanBeEmpty(t *testing.T) {
+	svc := NewNotificationService(nil, nil)
+	now := time.Now().UTC()
+
+	// Only old notifications
+	notifications := []notification.Notification{
+		{
+			ID:        1,
+			Message:   "very old notification",
+			Timestamp: now.Add(-3 * time.Hour).Format(time.RFC3339),
+			State:     "active",
+			Level:     "info",
+			Session:   "$1",
+			Window:    "@1",
+			Pane:      "%1",
+		},
+	}
+
+	svc.SetNotifications(notifications)
+	svc.ApplyFiltersAndSearch(settings.TabRecents, "", "", "", "", "", "", "", "timestamp", "desc")
+	filtered := svc.GetFilteredNotifications()
+
+	// Should be empty since all notifications are older than 1 hour
+	assert.Empty(t, filtered)
 }
