@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
@@ -27,6 +28,19 @@ const (
 	recentsPerSessionLimit = 1  // Per-session smart selection for Story 2
 	filteredListLimit      = 10 // Max items for filtered views (drill-down) per Story 3
 )
+
+// getRecentsTimeWindow returns the configured time window for the Recents tab.
+// Parses the recents_time_window config value and returns as time.Duration.
+// Defaults to 1 hour if config is missing or invalid.
+func getRecentsTimeWindow() time.Duration {
+	windowStr := config.Get("recents_time_window", "1h")
+	duration, err := time.ParseDuration(windowStr)
+	if err != nil {
+		// This should not happen if validation is working, but fallback to 1 hour
+		return time.Hour
+	}
+	return duration
+}
 
 // NewNotificationService creates a new DefaultNotificationService.
 func NewNotificationService(provider search.Provider, resolver model.NameResolver) model.NotificationService {
@@ -293,10 +307,10 @@ func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortB
 		return activeOnly
 	}
 
-	// For Recents tab, apply 1-hour time window filter
+	// For Recents tab, apply configurable time window filter
 	if normalizedTab == settings.TabRecents {
 		domainNotifs := s.convertToDomain(activeOnly)
-		filtered := domain.FilterByTimeDuration(domainNotifs, time.Hour)
+		filtered := domain.FilterByTimeDuration(domainNotifs, getRecentsTimeWindow())
 		activeOnly = s.convertFromDomain(filtered)
 
 		unreadOnly := make([]notification.Notification, 0, len(activeOnly))
