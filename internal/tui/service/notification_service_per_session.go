@@ -8,45 +8,6 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 )
 
-// severityRank returns a numeric rank for severity comparison (higher = more severe).
-// Used for per-session selection: error > warning > info.
-func severityRank(level string) int {
-	switch level {
-	case "error":
-		return 3
-	case "warning":
-		return 2
-	case "info":
-		return 1
-	default:
-		return 0
-	}
-}
-
-// isBetterRepresentative returns true if candidate is a better representative
-// for a session than current. Selection priority:
-// 1. Higher severity (error > warning > info)
-// 2. More recent timestamp (if severity ties)
-func isBetterRepresentative(candidate, current notification.Notification) bool {
-	candidateRank := severityRank(candidate.Level)
-	currentRank := severityRank(current.Level)
-
-	if candidateRank != currentRank {
-		return candidateRank > currentRank
-	}
-
-	// Severity ties: prefer more recent
-	candidateTime, errC := time.Parse(time.RFC3339, candidate.Timestamp)
-	currentTime, errCurr := time.Parse(time.RFC3339, current.Timestamp)
-
-	if errC != nil || errCurr != nil {
-		// If we can't parse, keep current
-		return false
-	}
-
-	return candidateTime.After(currentTime)
-}
-
 // selectBestNotificationPerSession groups notifications by session and selects
 // the best representative from each session based on severity and recency.
 // Returns the selected notifications up to the dataset limit, ordered by:

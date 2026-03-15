@@ -2070,14 +2070,12 @@ func TestBuildFilteredTreeWithEmptyQuery(t *testing.T) {
 func TestBuildFilteredTreeGroupCounts(t *testing.T) {
 	model := newTestModel(t, []notification.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Error: connection failed"},
-		{ID: 2, Session: "$1", Window: "@1", Pane: "%1", Message: "Warning: low memory"},
-		{ID: 3, Session: "$1", Window: "@1", Pane: "%2", Message: "Error: timeout"},
+		{ID: 2, Session: "$2", Window: "@1", Pane: "%1", Message: "Warning: low memory"},
+		{ID: 3, Session: "$3", Window: "@1", Pane: "%2", Message: "Error: timeout"},
 	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 
-	// Use All tab to avoid per-session selection limiting
-	model.uiState.SetActiveTab(settings.TabAll)
 	model.uiState.SetViewMode(viewModeGrouped)
 	model.uiState.SetGroupBy(settings.GroupByPane)
 
