@@ -76,6 +76,9 @@ EXAMPLES:
 
 func makeJumpRunE(client jumpClient, noMarkReadFlag *bool) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
+		// Log the command invocation
+		logCLICommand("jump", args)
+
 		id := args[0]
 
 		if !client.EnsureTmuxRunning() {

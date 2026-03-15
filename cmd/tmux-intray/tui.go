@@ -46,6 +46,9 @@ USAGE:
     :w          Save settings
     q           Quit TUI`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Log the command invocation
+			logCLICommand("tui", args)
+
 			// Load settings from disk (use defaults if missing/corrupted)
 			loadedSettings, err := client.LoadSettings()
 			if err != nil {

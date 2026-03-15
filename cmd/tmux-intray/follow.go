@@ -53,6 +53,12 @@ OPTIONS:
     --interval <secs>  Poll interval (default: 1)
     -h, --help         Show this help`,
 		RunE: func(c *cobra.Command, args []string) error {
+			// Log the command invocation
+			logCLICommandWithContext("follow", args, map[string]interface{}{
+				"level":    followLevel,
+				"interval": followInterval,
+			})
+
 			// Determine state filter
 			state := "active"
 			if followAll {

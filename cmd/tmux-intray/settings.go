@@ -115,6 +115,11 @@ func newShowCmd(client settingsClient) *cobra.Command {
 
 // runResetCmd executes the reset subcommand.
 func runResetCmd(client settingsClient, force bool) error {
+	// Log the command invocation
+	logCLICommandWithContext("settings reset", []string{}, map[string]interface{}{
+		"force": force,
+	})
+
 	// Skip confirmation if --force flag is set or running in CI/test environment
 	if !force && os.Getenv("CI") == "" && os.Getenv("BATS_TMPDIR") == "" {
 		if !confirmReset() {
@@ -135,6 +140,9 @@ func runResetCmd(client settingsClient, force bool) error {
 
 // runShowCmd executes the show subcommand.
 func runShowCmd(client settingsClient) error {
+	// Log the command invocation
+	logCLICommand("settings show", []string{})
+
 	// Load settings
 	currentSettings, err := client.LoadSettings()
 	if err != nil {

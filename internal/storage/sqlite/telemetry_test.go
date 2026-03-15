@@ -1,6 +1,7 @@
 package sqlite
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -295,4 +296,120 @@ func TestTelemetryIntegration(t *testing.T) {
 	allEvents, err := s.GetTelemetryEvents("", "")
 	require.NoError(t, err)
 	require.Empty(t, allEvents)
+}
+
+// Test EnforceRetentionPolicy and VacuumDatabase
+func TestEnforceRetentionPolicy(t *testing.T) {
+	db := newTestStorage(t)
+
+	// Set retention to 1 day
+	SetRetentionDays(1)
+	defer SetRetentionDays(90) // Reset to default
+
+	// Add events: one recent, one old
+	err := db.LogTelemetryEvent("", "feature1", "cli", "{}")
+	if err != nil {
+		t.Fatalf("Failed to log recent event: %v", err)
+	}
+
+	// Add an old event (2 days ago)
+	oldTime := time.Now().UTC().AddDate(0, 0, -2).Format("2006-01-02T15:04:05Z")
+	err = db.LogTelemetryEvent(oldTime, "feature2", "cli", "{}")
+	if err != nil {
+		t.Fatalf("Failed to log old event: %v", err)
+	}
+
+	// Verify we have 2 events
+	events, err := db.GetTelemetryEvents("", "")
+	if err != nil {
+		t.Fatalf("Failed to get events: %v", err)
+	}
+	if len(events) != 2 {
+		t.Errorf("Expected 2 events, got %d", len(events))
+	}
+
+	// Enforce retention policy
+	deleted, err := db.EnforceRetentionPolicy()
+	if err != nil {
+		t.Fatalf("Failed to enforce retention policy: %v", err)
+	}
+
+	// Should have deleted 1 event (the old one)
+	if deleted != 1 {
+		t.Errorf("Expected 1 deleted event, got %d", deleted)
+	}
+
+	// Verify only 1 event remains
+	events, err = db.GetTelemetryEvents("", "")
+	if err != nil {
+		t.Fatalf("Failed to get remaining events: %v", err)
+	}
+	if len(events) != 1 {
+		t.Errorf("Expected 1 event after cleanup, got %d", len(events))
+	}
+	if events[0].FeatureName != "feature1" {
+		t.Errorf("Expected feature1 to remain, got %s", events[0].FeatureName)
+	}
+}
+
+func TestVacuumDatabase(t *testing.T) {
+	db := newTestStorage(t)
+
+	// Add and delete some data
+	for i := 0; i < 10; i++ {
+		err := db.LogTelemetryEvent("", "feature"+strconv.Itoa(i), "cli", "{}")
+		if err != nil {
+			t.Fatalf("Failed to log event %d: %v", i, err)
+		}
+	}
+
+	// Delete all events
+	_, err := db.ClearTelemetryEvents(0)
+	if err != nil {
+		t.Fatalf("Failed to clear events: %v", err)
+	}
+
+	// Vacuum the database (should not error)
+	err = db.VacuumDatabase()
+	if err != nil {
+		t.Fatalf("Failed to vacuum database: %v", err)
+	}
+
+	// Verify database is still usable
+	events, err := db.GetTelemetryEvents("", "")
+	if err != nil {
+		t.Fatalf("Failed to query after vacuum: %v", err)
+	}
+	if len(events) != 0 {
+		t.Errorf("Expected 0 events after vacuum, got %d", len(events))
+	}
+}
+
+func TestRetentionConfiguration(t *testing.T) {
+	tests := []struct {
+		name     string
+		days     int
+		expected int
+	}{
+		{"Valid 90 days", 90, 90},
+		{"Valid 7 days (minimum)", 7, 7},
+		{"Valid 365 days (maximum)", 365, 365},
+		{"Invalid 0 days (below minimum)", 0, 90}, // Should not change
+		{"Invalid 6 days (below minimum)", 6, 90},
+		{"Invalid 366 days (above maximum)", 366, 90},
+		{"Invalid negative", -1, 90},
+	}
+
+	// Reset to default for each test
+	SetRetentionDays(90)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			SetRetentionDays(tt.days)
+			result := GetRetentionDays()
+			if result != tt.expected {
+				t.Errorf("SetRetentionDays(%d): expected %d, got %d", tt.days, tt.expected, result)
+			}
+		})
+	}
 }
