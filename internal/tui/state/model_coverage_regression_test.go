@@ -27,6 +27,7 @@ func TestTreeViewPublicWrappersAndTabCycle(t *testing.T) {
 	assert.True(t, m.IsGroupedView())
 
 	m.uiState.SetGroupBy(settings.GroupByPane)
+	m.uiState.SetActiveTab(settings.TabAll) // Use TabAll to avoid 1-hour time filter
 	m.applySearchFilter()
 	m.resetCursor()
 	require.NotEmpty(t, m.computeVisibleNodes())

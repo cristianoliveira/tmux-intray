@@ -2,6 +2,7 @@ package domain
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -314,5 +315,66 @@ func TestNotificationMatchesFilter(t *testing.T) {
 	t.Run("matches read filter", func(t *testing.T) {
 		filter := Filter{ReadFilter: ReadFilterUnread}
 		assert.True(t, notif.MatchesFilter(filter))
+	})
+}
+
+func TestFilterByTimeDuration(t *testing.T) {
+	now := time.Now().UTC()
+
+	notifications := []Notification{
+		{
+			ID:        1,
+			Timestamp: now.Add(-30 * time.Minute).Format(time.RFC3339),
+			State:     StateActive,
+			Level:     LevelInfo,
+			Session:   "$1",
+			Message:   "recent notification",
+		},
+		{
+			ID:        2,
+			Timestamp: now.Add(-2 * time.Hour).Format(time.RFC3339),
+			State:     StateActive,
+			Level:     LevelInfo,
+			Session:   "$1",
+			Message:   "older notification",
+		},
+		{
+			ID:        3,
+			Timestamp: now.Add(-45 * time.Minute).Format(time.RFC3339),
+			State:     StateActive,
+			Level:     LevelWarning,
+			Session:   "$1",
+			Message:   "warning notification",
+		},
+	}
+
+	t.Run("filters notifications within 1 hour", func(t *testing.T) {
+		result := FilterByTimeDuration(notifications, time.Hour)
+		assert.Len(t, result, 2)
+		// Should include only notifications from last 1 hour
+		ids := []int{result[0].ID, result[1].ID}
+		assert.Contains(t, ids, 1)
+		assert.Contains(t, ids, 3)
+	})
+
+	t.Run("filters notifications within 30 minutes", func(t *testing.T) {
+		result := FilterByTimeDuration(notifications, 30*time.Minute)
+		assert.Len(t, result, 1)
+		assert.Equal(t, 1, result[0].ID)
+	})
+
+	t.Run("includes all with 3 hour window", func(t *testing.T) {
+		result := FilterByTimeDuration(notifications, 3*time.Hour)
+		assert.Len(t, result, 3)
+	})
+
+	t.Run("returns empty with zero duration", func(t *testing.T) {
+		result := FilterByTimeDuration(notifications, 0)
+		assert.Len(t, result, 3)
+	})
+
+	t.Run("returns empty with negative duration", func(t *testing.T) {
+		result := FilterByTimeDuration(notifications, -1*time.Hour)
+		assert.Len(t, result, 3)
 	})
 }

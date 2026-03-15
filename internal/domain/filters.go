@@ -179,6 +179,22 @@ func FilterByTimeRange(notifs []Notification, olderThan, newerThan int) []Notifi
 	return FilterNotifications(notifs, filter)
 }
 
+// FilterByTimeDuration filters notifications to only include those from the last duration.
+// duration should be a time.Duration value (e.g., time.Hour for 1 hour).
+// Only returns notifications newer than (now - duration).
+func FilterByTimeDuration(notifs []Notification, duration time.Duration) []Notification {
+	if duration <= 0 {
+		return notifs
+	}
+
+	cutoffTime := time.Now().UTC().Add(-duration)
+	cutoffTimestamp := cutoffTime.Format(time.RFC3339)
+
+	// Use NewerThan to get only notifications within the duration
+	filter := Filter{NewerThan: cutoffTimestamp}
+	return FilterNotifications(notifs, filter)
+}
+
 // SearchNotifications filters notifications by searching for a pattern.
 // This is a simple substring search across multiple fields.
 func SearchNotifications(notifs []Notification, query string, caseInsensitive bool) []Notification {
