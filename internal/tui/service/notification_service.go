@@ -24,7 +24,8 @@ type DefaultNotificationService struct {
 const (
 	recentsDatasetLimit    = 20
 	recentsPerSourceLimit  = 3
-	recentsPerSessionLimit = 1 // Per-session smart selection for Story 2
+	recentsPerSessionLimit = 1  // Per-session smart selection for Story 2
+	filteredListLimit      = 10 // Max items for filtered views (drill-down) per Story 3
 )
 
 // NewNotificationService creates a new DefaultNotificationService.
@@ -377,8 +378,9 @@ func (s *DefaultNotificationService) ApplyFiltersAndSearch(tab settings.Tab, que
 
 	// If Recents tab with specific filters, show all notifications matching filters
 	// (not just the per-session smart selection). Re-fetch without per-session limiting.
+	// Apply 10-item limit for filtered views (Story 3).
 	if isFilteredView && settings.NormalizeTab(string(tab)) == settings.TabRecents {
-		result = s.getUnfilteredRecentsDataset(sortBy, sortOrder)
+		result = s.getUnfilteredRecentsDataset(sortBy, sortOrder, filteredListLimit)
 	}
 
 	// Apply state filter

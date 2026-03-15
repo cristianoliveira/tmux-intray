@@ -85,7 +85,8 @@ func (s *DefaultNotificationService) selectBestNotificationPerSession(sorted []n
 
 // getUnfilteredRecentsDataset returns active, unread notifications from the last hour
 // without per-session limiting (used for filtered views).
-func (s *DefaultNotificationService) getUnfilteredRecentsDataset(sortBy, sortOrder string) []notification.Notification {
+// The limit parameter controls the maximum number of items returned (e.g., 10 for filtered views, 20 for unfiltered).
+func (s *DefaultNotificationService) getUnfilteredRecentsDataset(sortBy, sortOrder string, limit int) []notification.Notification {
 	activeOnly := make([]notification.Notification, 0, len(s.notifications))
 	for _, n := range s.notifications {
 		if n.State == "" || n.State == "active" {
@@ -110,8 +111,8 @@ func (s *DefaultNotificationService) getUnfilteredRecentsDataset(sortBy, sortOrd
 	sorted := s.SortNotifications(unreadOnly, sortBy, sortOrder)
 
 	// Apply dataset limit without per-session logic
-	if len(sorted) > recentsDatasetLimit {
-		sorted = sorted[:recentsDatasetLimit]
+	if len(sorted) > limit {
+		sorted = sorted[:limit]
 	}
 
 	return sorted
