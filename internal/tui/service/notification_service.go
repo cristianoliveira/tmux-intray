@@ -266,44 +266,6 @@ func (s *DefaultNotificationService) Search(notifications []notification.Notific
 	return results
 }
 
-// simpleMatch performs a simple string matching check.
-func (s *DefaultNotificationService) simpleMatch(notif notification.Notification, query string) bool {
-	lowerQuery := strings.ToLower(query)
-	lowerMessage := strings.ToLower(notif.Message)
-
-	if strings.Contains(lowerMessage, lowerQuery) {
-		return true
-	}
-
-	return s.matchResolvedNames(notif, lowerQuery)
-}
-
-// matchResolvedNames checks if the query matches any resolved name.
-func (s *DefaultNotificationService) matchResolvedNames(notif notification.Notification, lowerQuery string) bool {
-	if s.nameResolver == nil {
-		return false
-	}
-
-	if s.matchesName(s.nameResolver.ResolveSessionName(notif.Session), lowerQuery) {
-		return true
-	}
-	if s.matchesName(s.nameResolver.ResolveWindowName(notif.Window), lowerQuery) {
-		return true
-	}
-	if s.matchesName(s.nameResolver.ResolvePaneName(notif.Pane), lowerQuery) {
-		return true
-	}
-	return false
-}
-
-// matchesName checks if the resolved name contains the query (case-insensitive).
-func (s *DefaultNotificationService) matchesName(name, lowerQuery string) bool {
-	if name == "" {
-		return false
-	}
-	return strings.Contains(strings.ToLower(name), lowerQuery)
-}
-
 // SetNotifications updates the underlying notification dataset.
 func (s *DefaultNotificationService) SetNotifications(notifications []notification.Notification) {
 	s.notifications = notifications
@@ -366,17 +328,6 @@ func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortB
 	}
 
 	return activeOnly
-}
-
-func notificationSourceKey(notif notification.Notification) string {
-	return notif.Session + "\x00" + notif.Window + "\x00" + notif.Pane
-}
-
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // ApplyFiltersAndSearch applies tab scope, then filters/search/sorting and stores filtered results.

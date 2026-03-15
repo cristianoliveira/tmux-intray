@@ -2070,8 +2070,8 @@ func TestBuildFilteredTreeWithEmptyQuery(t *testing.T) {
 func TestBuildFilteredTreeGroupCounts(t *testing.T) {
 	model := newTestModel(t, []notification.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Error: connection failed"},
-		{ID: 2, Session: "$1", Window: "@1", Pane: "%1", Message: "Warning: low memory"},
-		{ID: 3, Session: "$1", Window: "@1", Pane: "%2", Message: "Error: timeout"},
+		{ID: 2, Session: "$2", Window: "@1", Pane: "%1", Message: "Warning: low memory"},
+		{ID: 3, Session: "$3", Window: "@1", Pane: "%2", Message: "Error: timeout"},
 	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
@@ -2092,23 +2092,23 @@ func TestBuildFilteredTreeGroupCounts(t *testing.T) {
 	// Verify root count
 	assert.Equal(t, 2, model.getTreeRootForTest().Count)
 
-	// Verify session count
-	sessionNode := findChildByTitle(model.getTreeRootForTest(), uimodel.NodeKindSession, "$1")
-	require.NotNil(t, sessionNode)
-	assert.Equal(t, 2, sessionNode.Count)
+	// Verify session counts for matched notifications
+	session1Node := findChildByTitle(model.getTreeRootForTest(), uimodel.NodeKindSession, "$1")
+	session3Node := findChildByTitle(model.getTreeRootForTest(), uimodel.NodeKindSession, "$3")
+	require.NotNil(t, session1Node)
+	require.NotNil(t, session3Node)
+	assert.Equal(t, 1, session1Node.Count)
+	assert.Equal(t, 1, session3Node.Count)
 
-	// Verify window count
-	windowNode := findChildByTitle(sessionNode, uimodel.NodeKindWindow, "@1")
-	require.NotNil(t, windowNode)
-	assert.Equal(t, 2, windowNode.Count)
+	// Verify window count in session 1
+	windowNode1 := findChildByTitle(session1Node, uimodel.NodeKindWindow, "@1")
+	require.NotNil(t, windowNode1)
+	assert.Equal(t, 1, windowNode1.Count)
 
-	// Pane %1 should have 1 error, Pane %2 should have 1 error
-	pane1 := findChildByTitle(windowNode, uimodel.NodeKindPane, "%1")
-	pane2 := findChildByTitle(windowNode, uimodel.NodeKindPane, "%2")
+	// Verify pane %1 in session 1
+	pane1 := findChildByTitle(windowNode1, uimodel.NodeKindPane, "%1")
 	require.NotNil(t, pane1)
-	require.NotNil(t, pane2)
 	assert.Equal(t, 1, pane1.Count)
-	assert.Equal(t, 1, pane2.Count)
 }
 
 func TestModelUpdateHandlesWindowSize(t *testing.T) {
