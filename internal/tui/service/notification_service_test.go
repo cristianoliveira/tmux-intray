@@ -304,3 +304,99 @@ func TestApplyFiltersAndSearchTabScopeSearchesWithinTabDataset(t *testing.T) {
 	require.Len(t, filtered, 1)
 	assert.Equal(t, 1, filtered[0].ID)
 }
+
+// TestRecentsPerSourceLimitWithLevelFilter verifies that per-source limit is applied after level filter
+func TestRecentsPerSourceLimitWithLevelFilter(t *testing.T) {
+	svc := NewNotificationService(nil, nil)
+	notifications := []notification.Notification{
+		{ID: 1, Message: "error 1", Session: "$1", Window: "@1", Pane: "%1", Timestamp: "2024-01-01T10:00:00Z", State: "active", Level: "error"},
+		{ID: 2, Message: "error 2", Session: "$1", Window: "@1", Pane: "%1", Timestamp: "2024-01-01T10:01:00Z", State: "active", Level: "error"},
+		{ID: 3, Message: "error 3", Session: "$1", Window: "@1", Pane: "%1", Timestamp: "2024-01-01T10:02:00Z", State: "active", Level: "error"},
+		{ID: 4, Message: "error 4", Session: "$1", Window: "@1", Pane: "%1", Timestamp: "2024-01-01T10:03:00Z", State: "active", Level: "error"},
+		{ID: 5, Message: "warning 1", Session: "$1", Window: "@1", Pane: "%1", Timestamp: "2024-01-01T10:04:00Z", State: "active", Level: "warning"},
+	}
+	svc.SetNotifications(notifications)
+
+	// Apply level filter for errors in Recents tab
+	// Should get max 3 per source, so only 3 out of 4 errors
+	svc.ApplyFiltersAndSearch(settings.TabRecents, "", "", "error", "", "", "", "", "timestamp", "desc")
+	filtered := svc.GetFilteredNotifications()
+	require.Len(t, filtered, 3)
+	// Should be the last 3 in timestamp order (highest IDs with desc sort)
+	assert.Equal(t, 4, filtered[0].ID)
+	assert.Equal(t, 3, filtered[1].ID)
+	assert.Equal(t, 2, filtered[2].ID)
+}
+
+// TestRecentsPerSourceLimitWithSessionFilter verifies that per-source limit is applied after session filter
+func TestRecentsPerSourceLimitWithSessionFilter(t *testing.T) {
+	svc := NewNotificationService(nil, nil)
+	notifications := []notification.Notification{
+		{ID: 1, Message: "msg 1", Session: "$1", Window: "@1", Pane: "%1", Timestamp: "2024-01-01T10:00:00Z", State: "active", Level: "info"},
+		{ID: 2, Message: "msg 2", Session: "$1", Window: "@1", Pane: "%1", Timestamp: "2024-01-01T10:01:00Z", State: "active", Level: "info"},
+		{ID: 3, Message: "msg 3", Session: "$1", Window: "@1", Pane: "%1", Timestamp: "2024-01-01T10:02:00Z", State: "active", Level: "info"},
+		{ID: 4, Message: "msg 4", Session: "$1", Window: "@1", Pane: "%1", Timestamp: "2024-01-01T10:03:00Z", State: "active", Level: "info"},
+		{ID: 5, Message: "msg 5", Session: "$2", Window: "@2", Pane: "%2", Timestamp: "2024-01-01T10:04:00Z", State: "active", Level: "info"},
+	}
+	svc.SetNotifications(notifications)
+
+	// Apply session filter for $1 in Recents tab
+	// Should get all 4 from $1, but limited to 3 per source
+	svc.ApplyFiltersAndSearch(settings.TabRecents, "", "", "", "$1", "", "", "", "timestamp", "desc")
+	filtered := svc.GetFilteredNotifications()
+	require.Len(t, filtered, 3)
+	assert.Equal(t, 4, filtered[0].ID)
+	assert.Equal(t, 3, filtered[1].ID)
+	assert.Equal(t, 2, filtered[2].ID)
+}
+
+// TestRecentsPerSourceLimitWithMultipleSources verifies per-source limit across multiple sources
+func TestRecentsPerSourceLimitWithMultipleSources(t *testing.T) {
+	svc := NewNotificationService(nil, nil)
+	notifications := []notification.Notification{
+		// Source 1: 4 messages
+		{ID: 1, Message: "s1 msg 1", Session: "$1", Window: "@1", Pane: "%1", Timestamp: "2024-01-01T10:00:00Z", State: "active", Level: "info"},
+		{ID: 2, Message: "s1 msg 2", Session: "$1", Window: "@1", Pane: "%1", Timestamp: "2024-01-01T10:01:00Z", State: "active", Level: "info"},
+		{ID: 3, Message: "s1 msg 3", Session: "$1", Window: "@1", Pane: "%1", Timestamp: "2024-01-01T10:02:00Z", State: "active", Level: "info"},
+		{ID: 4, Message: "s1 msg 4", Session: "$1", Window: "@1", Pane: "%1", Timestamp: "2024-01-01T10:03:00Z", State: "active", Level: "info"},
+		// Source 2: 4 messages
+		{ID: 5, Message: "s2 msg 1", Session: "$2", Window: "@2", Pane: "%2", Timestamp: "2024-01-01T10:04:00Z", State: "active", Level: "info"},
+		{ID: 6, Message: "s2 msg 2", Session: "$2", Window: "@2", Pane: "%2", Timestamp: "2024-01-01T10:05:00Z", State: "active", Level: "info"},
+		{ID: 7, Message: "s2 msg 3", Session: "$2", Window: "@2", Pane: "%2", Timestamp: "2024-01-01T10:06:00Z", State: "active", Level: "info"},
+		{ID: 8, Message: "s2 msg 4", Session: "$2", Window: "@2", Pane: "%2", Timestamp: "2024-01-01T10:07:00Z", State: "active", Level: "info"},
+	}
+	svc.SetNotifications(notifications)
+
+	// In Recents tab, should get 3 per source (max 6 total)
+	svc.ApplyFiltersAndSearch(settings.TabRecents, "", "", "", "", "", "", "", "timestamp", "desc")
+	filtered := svc.GetFilteredNotifications()
+	require.Len(t, filtered, 6)
+	// Should have 3 from source 1 and 3 from source 2 (in desc timestamp order)
+	assert.Equal(t, 8, filtered[0].ID) // s2 msg 4
+	assert.Equal(t, 7, filtered[1].ID) // s2 msg 3
+	assert.Equal(t, 6, filtered[2].ID) // s2 msg 2
+	assert.Equal(t, 4, filtered[3].ID) // s1 msg 4
+	assert.Equal(t, 3, filtered[4].ID) // s1 msg 3
+	assert.Equal(t, 2, filtered[5].ID) // s1 msg 2
+}
+
+// TestRecentsPerSourceLimitWithSearchFilter verifies per-source limit is applied after search
+func TestRecentsPerSourceLimitWithSearchFilter(t *testing.T) {
+	svc := NewNotificationService(nil, nil)
+	notifications := []notification.Notification{
+		{ID: 1, Message: "alpha error", Session: "$1", Window: "@1", Pane: "%1", Timestamp: "2024-01-01T10:00:00Z", State: "active", Level: "info"},
+		{ID: 2, Message: "beta error", Session: "$1", Window: "@1", Pane: "%1", Timestamp: "2024-01-01T10:01:00Z", State: "active", Level: "info"},
+		{ID: 3, Message: "gamma error", Session: "$1", Window: "@1", Pane: "%1", Timestamp: "2024-01-01T10:02:00Z", State: "active", Level: "info"},
+		{ID: 4, Message: "delta error", Session: "$1", Window: "@1", Pane: "%1", Timestamp: "2024-01-01T10:03:00Z", State: "active", Level: "info"},
+		{ID: 5, Message: "epsilon alpha", Session: "$1", Window: "@1", Pane: "%1", Timestamp: "2024-01-01T10:04:00Z", State: "active", Level: "info"},
+	}
+	svc.SetNotifications(notifications)
+
+	// Search for "error" in Recents tab - should get max 3 results per source
+	svc.ApplyFiltersAndSearch(settings.TabRecents, "error", "", "", "", "", "", "", "timestamp", "desc")
+	filtered := svc.GetFilteredNotifications()
+	require.Len(t, filtered, 3)
+	assert.Equal(t, 4, filtered[0].ID)
+	assert.Equal(t, 3, filtered[1].ID)
+	assert.Equal(t, 2, filtered[2].ID)
+}

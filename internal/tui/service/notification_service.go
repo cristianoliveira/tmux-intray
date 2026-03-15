@@ -315,6 +315,8 @@ func (s *DefaultNotificationService) FilterByReadStatus(notifications []notifica
 }
 
 // selectDataset filters active notifications and applies tab-specific logic.
+// NOTE: This function applies the dataset limit and unread filtering but NOT the per-source limit.
+// The per-source limit is applied later after all filters are applied (see ApplyFiltersAndSearch).
 func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortBy, sortOrder string) []notification.Notification {
 	activeOnly := make([]notification.Notification, 0, len(s.notifications))
 	for _, n := range s.notifications {
@@ -336,17 +338,10 @@ func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortB
 	}
 
 	sorted := s.SortNotifications(unreadOnly, sortBy, sortOrder)
+	// Limit to recentsDatasetLimit to avoid processing excessive notifications
 	result := make([]notification.Notification, 0, minInt(len(sorted), recentsDatasetLimit))
-	perSourceCount := make(map[string]int, len(sorted))
-
 	for _, notif := range sorted {
-		sourceKey := notificationSourceKey(notif)
-		if perSourceCount[sourceKey] >= recentsPerSourceLimit {
-			continue
-		}
-
 		result = append(result, notif)
-		perSourceCount[sourceKey]++
 		if len(result) >= recentsDatasetLimit {
 			break
 		}
@@ -359,6 +354,25 @@ func notificationSourceKey(notif notification.Notification) string {
 	return notif.Session + "\x00" + notif.Window + "\x00" + notif.Pane
 }
 
+// limitPerSource limits the notifications to at most recentsPerSourceLimit per source.
+// This should be called after all filters are applied to ensure the invariant is maintained.
+func (s *DefaultNotificationService) limitPerSource(notifications []notification.Notification) []notification.Notification {
+	result := make([]notification.Notification, 0, len(notifications))
+	perSourceCount := make(map[string]int)
+
+	for _, notif := range notifications {
+		sourceKey := notificationSourceKey(notif)
+		if perSourceCount[sourceKey] >= recentsPerSourceLimit {
+			continue
+		}
+
+		result = append(result, notif)
+		perSourceCount[sourceKey]++
+	}
+
+	return result
+}
+
 func minInt(a, b int) int {
 	if a < b {
 		return a
@@ -367,8 +381,10 @@ func minInt(a, b int) int {
 }
 
 // ApplyFiltersAndSearch applies tab scope, then filters/search/sorting and stores filtered results.
+// For the Recents tab, it enforces the per-source limit after all filters are applied.
 func (s *DefaultNotificationService) ApplyFiltersAndSearch(tab settings.Tab, query, state, level, sessionID, windowID, paneID, readFilter, sortBy, sortOrder string) {
-	if settings.NormalizeTab(string(tab)) == settings.TabRecents {
+	normalizedTab := settings.NormalizeTab(string(tab))
+	if normalizedTab == settings.TabRecents {
 		readFilter = "unread"
 	}
 
@@ -403,5 +419,12 @@ func (s *DefaultNotificationService) ApplyFiltersAndSearch(tab settings.Tab, que
 	}
 	// Apply sorting
 	result = s.SortNotifications(result, sortBy, sortOrder)
+
+	// For Recents tab, enforce the per-source limit after all filters are applied
+	// This ensures the invariant: max 3 messages per source, regardless of filters
+	if normalizedTab == settings.TabRecents {
+		result = s.limitPerSource(result)
+	}
+
 	s.filtered = result
 }
