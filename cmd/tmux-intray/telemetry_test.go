@@ -69,6 +69,14 @@ func (f *fakeTelemetryStorage) ClearTelemetryEvents(olderThanDays int) (int64, e
 	return f.deletedCount, nil
 }
 
+func (f *fakeTelemetryStorage) VacuumDatabase() error {
+	return nil
+}
+
+func (f *fakeTelemetryStorage) EnforceRetentionPolicy() (int64, error) {
+	return 0, nil
+}
+
 type fakeTelemetryConfig struct {
 	enabled bool
 }

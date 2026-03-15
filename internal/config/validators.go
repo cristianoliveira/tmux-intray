@@ -59,6 +59,21 @@ func PositiveIntValidator() Validator {
 	}
 }
 
+// RangeIntValidator returns a validator that ensures a value is an integer within the specified range (inclusive).
+func RangeIntValidator(min, max int) Validator {
+	return func(key, value, defaultValue string) (string, error) {
+		if value == "" {
+			return defaultValue, nil
+		}
+		n, err := strconv.Atoi(value)
+		if err != nil || n < min || n > max {
+			colors.Warning(fmt.Sprintf("invalid %s value '%s': must be an integer between %d and %d, using default: %s", key, value, min, max, defaultValue))
+			return defaultValue, nil
+		}
+		return value, nil
+	}
+}
+
 // EnumValidator returns a validator that ensures a value is one of the allowed enum values.
 func EnumValidator(allowed map[string]bool) Validator {
 	return func(key, value, defaultValue string) (string, error) {
@@ -152,6 +167,7 @@ func initValidators() {
 
 	// Telemetry validators
 	RegisterValidator("telemetry_enabled", boolValidator)
+	RegisterValidator("telemetry_retention_days", RangeIntValidator(7, 365))
 
 	registerDedupValidators()
 }

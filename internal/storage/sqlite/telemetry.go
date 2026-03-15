@@ -147,6 +147,25 @@ func (s *SQLiteStorage) InitTelemetryTable() error {
 	return nil
 }
 
+// EnforceRetentionPolicy removes telemetry events older than the configured retention period.
+// Returns the number of events deleted.
+func (s *SQLiteStorage) EnforceRetentionPolicy() (int64, error) {
+	// Get the configured retention period from the global config
+	// This is done at runtime to allow configuration changes without restart
+	retentionDays := getRetentionDays()
+	if retentionDays < 0 {
+		// Retention disabled (negative value means no cleanup)
+		return 0, nil
+	}
+	return s.ClearTelemetryEvents(retentionDays)
+}
+
+// getRetentionDays retrieves the configured retention period.
+// Returns the configured value from the global retention config, or 90 days default.
+func getRetentionDays() int {
+	return GetRetentionDays()
+}
+
 func validateTelemetryInputs(timestamp, featureName, featureCategory, contextData string) error {
 	if featureName == "" {
 		return fmt.Errorf("validation error: feature_name cannot be empty")

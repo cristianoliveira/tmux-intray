@@ -24,4 +24,6 @@ type TelemetryStorage interface {
 	GetAllFeatures() ([]FeatureUsage, error)
 	GetTelemetryEvents(startTime, endTime string) ([]TelemetryEventType, error)
 	ClearTelemetryEvents(olderThanDays int) (int64, error)
+	VacuumDatabase() error
+	EnforceRetentionPolicy() (int64, error)
 }

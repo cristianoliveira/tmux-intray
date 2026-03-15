@@ -57,6 +57,16 @@ func (s *SQLiteStorage) Close() error {
 	return s.db.Close()
 }
 
+// VacuumDatabase performs database maintenance to reclaim space from deleted records.
+// This should be called after bulk deletions to optimize database size.
+func (s *SQLiteStorage) VacuumDatabase() error {
+	_, err := s.db.ExecContext(context.Background(), "VACUUM")
+	if err != nil {
+		return fmt.Errorf("sqlite storage: vacuum database: %w", err)
+	}
+	return nil
+}
+
 func (s *SQLiteStorage) init() error {
 	if _, err := s.db.Exec("PRAGMA busy_timeout = 5000"); err != nil {
 		return fmt.Errorf("sqlite storage: set busy timeout: %w", err)
