@@ -2076,6 +2076,8 @@ func TestBuildFilteredTreeGroupCounts(t *testing.T) {
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 
+	// Use All tab to avoid per-session selection limiting
+	model.uiState.SetActiveTab(settings.TabAll)
 	model.uiState.SetViewMode(viewModeGrouped)
 	model.uiState.SetGroupBy(settings.GroupByPane)
 

@@ -153,6 +153,18 @@ func initValidators() {
 	// Telemetry validators
 	RegisterValidator("telemetry_enabled", boolValidator)
 
+	// Recents tab configuration
+	RegisterValidator("recents_time_window", EnumValidator(map[string]bool{
+		"5m":  true,
+		"15m": true,
+		"30m": true,
+		"1h":  true,
+		"2h":  true,
+		"6h":  true,
+		"12h": true,
+		"24h": true,
+	}))
+
 	registerDedupValidators()
 }
 
