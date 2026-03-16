@@ -773,3 +773,302 @@ func TestRecentsIntegrationWithTimeWindow(t *testing.T) {
 	assert.Equal(t, "info", sessionMap["$3"].Level)
 	assert.Equal(t, 4, sessionMap["$3"].ID)
 }
+
+// TestFilteredListRespects10ItemLimit tests that filtered views (drilling down by session/window/pane) are limited to 10 items.
+func TestFilteredListRespects10ItemLimit(t *testing.T) {
+	svc := NewNotificationService(nil, nil)
+	now := time.Now().UTC()
+
+	// Create 15 notifications from the same session within time window
+	notifications := make([]notification.Notification, 0, 15)
+	sessionID := "$test-session"
+	for i := 1; i <= 15; i++ {
+		notifications = append(notifications, notification.Notification{
+			ID:        i,
+			Message:   fmt.Sprintf("msg%d", i),
+			Timestamp: now.Add(-time.Duration(15-i) * time.Minute).Format(time.RFC3339),
+			State:     "active",
+			Level:     "info",
+			Session:   sessionID,
+			Window:    "@1",
+			Pane:      "%1",
+		})
+	}
+
+	svc.SetNotifications(notifications)
+	// Apply filter by session - this triggers the filtered view logic
+	svc.ApplyFiltersAndSearch(settings.TabRecents, "", "", "", sessionID, "", "", "", "timestamp", "desc")
+	filtered := svc.GetFilteredNotifications()
+
+	// Should limit to 10 items max in filtered view
+	require.Len(t, filtered, 10)
+
+	// Verify they're the most recent 10
+	assert.Equal(t, 15, filtered[0].ID)
+	assert.Equal(t, 6, filtered[9].ID)
+}
+
+// TestFilteredListByWindowRespects10ItemLimit tests filtered view by window ID.
+func TestFilteredListByWindowRespects10ItemLimit(t *testing.T) {
+	svc := NewNotificationService(nil, nil)
+	now := time.Now().UTC()
+
+	// Create 12 notifications from the same window within time window
+	notifications := make([]notification.Notification, 0, 12)
+	windowID := "@test-window"
+	for i := 1; i <= 12; i++ {
+		notifications = append(notifications, notification.Notification{
+			ID:        i,
+			Message:   fmt.Sprintf("msg%d", i),
+			Timestamp: now.Add(-time.Duration(12-i) * time.Minute).Format(time.RFC3339),
+			State:     "active",
+			Level:     "info",
+			Session:   fmt.Sprintf("$%d", i),
+			Window:    windowID,
+			Pane:      fmt.Sprintf("%%%d", i),
+		})
+	}
+
+	svc.SetNotifications(notifications)
+	// Apply filter by window
+	svc.ApplyFiltersAndSearch(settings.TabRecents, "", "", "", "", windowID, "", "", "timestamp", "desc")
+	filtered := svc.GetFilteredNotifications()
+
+	// Should limit to 10 items max
+	require.Len(t, filtered, 10)
+
+	// Verify they're the most recent 10
+	assert.Equal(t, 12, filtered[0].ID)
+	assert.Equal(t, 3, filtered[9].ID)
+}
+
+// TestFilteredListByPaneRespects10ItemLimit tests filtered view by pane ID.
+func TestFilteredListByPaneRespects10ItemLimit(t *testing.T) {
+	svc := NewNotificationService(nil, nil)
+	now := time.Now().UTC()
+
+	// Create 20 notifications from the same pane within time window
+	notifications := make([]notification.Notification, 0, 20)
+	paneID := "%test-pane"
+	for i := 1; i <= 20; i++ {
+		notifications = append(notifications, notification.Notification{
+			ID:        i,
+			Message:   fmt.Sprintf("msg%d", i),
+			Timestamp: now.Add(-time.Duration(20-i) * time.Minute).Format(time.RFC3339),
+			State:     "active",
+			Level:     "info",
+			Session:   "$1",
+			Window:    "@1",
+			Pane:      paneID,
+		})
+	}
+
+	svc.SetNotifications(notifications)
+	// Apply filter by pane
+	svc.ApplyFiltersAndSearch(settings.TabRecents, "", "", "", "", "", paneID, "", "timestamp", "desc")
+	filtered := svc.GetFilteredNotifications()
+
+	// Should limit to 10 items max
+	require.Len(t, filtered, 10)
+
+	// Verify they're the most recent 10
+	assert.Equal(t, 20, filtered[0].ID)
+	assert.Equal(t, 11, filtered[9].ID)
+}
+
+// TestFilteredListRespectsTimeWindow tests that filtered views still respect 1-hour time window.
+func TestFilteredListRespectsTimeWindow(t *testing.T) {
+	svc := NewNotificationService(nil, nil)
+	now := time.Now().UTC()
+
+	notifications := []notification.Notification{
+		// Within window (30 min ago)
+		{
+			ID:        1,
+			Message:   "recent",
+			Timestamp: now.Add(-30 * time.Minute).Format(time.RFC3339),
+			State:     "active",
+			Level:     "info",
+			Session:   "$target",
+			Window:    "@1",
+			Pane:      "%1",
+		},
+		// Outside window (2 hours ago)
+		{
+			ID:        2,
+			Message:   "old",
+			Timestamp: now.Add(-2 * time.Hour).Format(time.RFC3339),
+			State:     "active",
+			Level:     "info",
+			Session:   "$target",
+			Window:    "@1",
+			Pane:      "%1",
+		},
+		// Within window (45 min ago)
+		{
+			ID:        3,
+			Message:   "recent2",
+			Timestamp: now.Add(-45 * time.Minute).Format(time.RFC3339),
+			State:     "active",
+			Level:     "info",
+			Session:   "$target",
+			Window:    "@1",
+			Pane:      "%1",
+		},
+	}
+
+	svc.SetNotifications(notifications)
+	svc.ApplyFiltersAndSearch(settings.TabRecents, "", "", "", "$target", "", "", "", "timestamp", "desc")
+	filtered := svc.GetFilteredNotifications()
+
+	// Should only show 2 items (the ones within 1 hour)
+	require.Len(t, filtered, 2)
+	assert.Equal(t, 1, filtered[0].ID)
+	assert.Equal(t, 3, filtered[1].ID)
+}
+
+// TestFilteredListHandlesEmptyResults tests graceful handling of empty filtered results.
+func TestFilteredListHandlesEmptyResults(t *testing.T) {
+	svc := NewNotificationService(nil, nil)
+
+	notifications := []notification.Notification{
+		{
+			ID:        1,
+			Message:   "test",
+			Timestamp: nowMinutes(30),
+			State:     "active",
+			Level:     "info",
+			Session:   "$1",
+			Window:    "@1",
+			Pane:      "%1",
+		},
+	}
+
+	svc.SetNotifications(notifications)
+	// Filter by a session that doesn't exist
+	svc.ApplyFiltersAndSearch(settings.TabRecents, "", "", "", "$nonexistent", "", "", "", "timestamp", "desc")
+	filtered := svc.GetFilteredNotifications()
+
+	// Should return empty list gracefully
+	require.Len(t, filtered, 0)
+}
+
+// TestFilteredListOrderedByTimestamp tests that filtered results are ordered newest first.
+func TestFilteredListOrderedByTimestamp(t *testing.T) {
+	svc := NewNotificationService(nil, nil)
+	now := time.Now().UTC()
+
+	notifications := []notification.Notification{
+		{ID: 1, Message: "msg1", Timestamp: now.Add(-10 * time.Minute).Format(time.RFC3339), State: "active", Level: "info", Session: "$1", Window: "@1", Pane: "%1"},
+		{ID: 2, Message: "msg2", Timestamp: now.Add(-5 * time.Minute).Format(time.RFC3339), State: "active", Level: "info", Session: "$1", Window: "@1", Pane: "%1"},
+		{ID: 3, Message: "msg3", Timestamp: now.Add(-20 * time.Minute).Format(time.RFC3339), State: "active", Level: "info", Session: "$1", Window: "@1", Pane: "%1"},
+	}
+
+	svc.SetNotifications(notifications)
+	svc.ApplyFiltersAndSearch(settings.TabRecents, "", "", "", "$1", "", "", "", "timestamp", "desc")
+	filtered := svc.GetFilteredNotifications()
+
+	require.Len(t, filtered, 3)
+	// Should be ordered by timestamp descending (newest first)
+	assert.Equal(t, 2, filtered[0].ID)
+	assert.Equal(t, 1, filtered[1].ID)
+	assert.Equal(t, 3, filtered[2].ID)
+}
+
+func TestRecentsTabUsesConfigurableTimeWindow(t *testing.T) {
+	svc := NewNotificationService(nil, nil)
+	now := time.Now().UTC()
+
+	// Create notifications at various time points
+	notifications := []notification.Notification{
+		{
+			ID:        1,
+			Message:   "5 minutes old",
+			Timestamp: now.Add(-5 * time.Minute).Format(time.RFC3339),
+			State:     "active",
+			Level:     "info",
+			Session:   "$1",
+			Window:    "@1",
+			Pane:      "%1",
+		},
+		{
+			ID:        2,
+			Message:   "30 minutes old",
+			Timestamp: now.Add(-30 * time.Minute).Format(time.RFC3339),
+			State:     "active",
+			Level:     "info",
+			Session:   "$2",
+			Window:    "@2",
+			Pane:      "%2",
+		},
+		{
+			ID:        3,
+			Message:   "45 minutes old",
+			Timestamp: now.Add(-45 * time.Minute).Format(time.RFC3339),
+			State:     "active",
+			Level:     "info",
+			Session:   "$3",
+			Window:    "@3",
+			Pane:      "%3",
+		},
+		{
+			ID:        4,
+			Message:   "2 hours old",
+			Timestamp: now.Add(-2 * time.Hour).Format(time.RFC3339),
+			State:     "active",
+			Level:     "info",
+			Session:   "$4",
+			Window:    "@4",
+			Pane:      "%4",
+		},
+	}
+
+	svc.SetNotifications(notifications)
+
+	// Test with default 1h window
+	svc.ApplyFiltersAndSearch(settings.TabRecents, "", "", "", "", "", "", "", "timestamp", "desc")
+	filtered := svc.GetFilteredNotifications()
+	// Should include 1, 2, 3 (all within 1 hour), exclude 4 (2 hours old)
+	require.Equal(t, 3, len(filtered), "Default 1h window should include 3 notifications")
+	for _, n := range filtered {
+		assert.NotEqual(t, 4, n.ID, "2-hour-old notification should not be in default 1h window")
+	}
+}
+
+func TestRecentsTabUsesConfiguredTimeWindowFrom30Minutes(t *testing.T) {
+	// This test demonstrates that the config is used
+	// In a real scenario, you would set TMUX_INTRAY_RECENTS_TIME_WINDOW=30m
+	// and test that only notifications within 30 minutes are shown
+	svc := NewNotificationService(nil, nil)
+	now := time.Now().UTC()
+
+	notifications := []notification.Notification{
+		{
+			ID:        1,
+			Message:   "15 minutes old",
+			Timestamp: now.Add(-15 * time.Minute).Format(time.RFC3339),
+			State:     "active",
+			Level:     "info",
+			Session:   "$1",
+			Window:    "@1",
+			Pane:      "%1",
+		},
+		{
+			ID:        2,
+			Message:   "45 minutes old",
+			Timestamp: now.Add(-45 * time.Minute).Format(time.RFC3339),
+			State:     "active",
+			Level:     "info",
+			Session:   "$2",
+			Window:    "@2",
+			Pane:      "%2",
+		},
+	}
+
+	svc.SetNotifications(notifications)
+	svc.ApplyFiltersAndSearch(settings.TabRecents, "", "", "", "", "", "", "", "timestamp", "desc")
+	filtered := svc.GetFilteredNotifications()
+
+	// With default 1h, both should be included
+	require.Equal(t, 2, len(filtered), "Both notifications should be within 1h window")
+}

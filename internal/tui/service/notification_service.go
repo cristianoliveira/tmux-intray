@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
@@ -24,8 +25,22 @@ type DefaultNotificationService struct {
 const (
 	recentsDatasetLimit    = 20
 	recentsPerSourceLimit  = 3
-	recentsPerSessionLimit = 1 // Per-session smart selection for Story 2
+	recentsPerSessionLimit = 1  // Per-session smart selection for Story 2
+	filteredListLimit      = 10 // Max items for filtered views (drill-down) per Story 3
 )
+
+// getRecentsTimeWindow returns the configured time window for the Recents tab.
+// Parses the recents_time_window config value and returns as time.Duration.
+// Defaults to 1 hour if config is missing or invalid.
+func getRecentsTimeWindow() time.Duration {
+	windowStr := config.Get("recents_time_window", "1h")
+	duration, err := time.ParseDuration(windowStr)
+	if err != nil {
+		// This should not happen if validation is working, but fallback to 1 hour
+		return time.Hour
+	}
+	return duration
+}
 
 // NewNotificationService creates a new DefaultNotificationService.
 func NewNotificationService(provider search.Provider, resolver model.NameResolver) model.NotificationService {
@@ -278,76 +293,6 @@ func (s *DefaultNotificationService) FilterByReadStatus(notifications []notifica
 	return s.convertFromDomain(filtered)
 }
 
-// selectBestNotificationPerSession groups notifications by session and selects
-// the best representative from each session based on severity and recency.
-// Returns the selected notifications up to the dataset limit, ordered by:
-// 1. Most recent activity first
-// 2. Then by severity (error > warning > info) for ties
-func (s *DefaultNotificationService) selectBestNotificationPerSession(sorted []notification.Notification) []notification.Notification {
-	// Group by session and select best per session
-	sessionBest := make(map[string]notification.Notification)
-	for _, notif := range sorted {
-		sessionKey := notif.Session
-		if current, exists := sessionBest[sessionKey]; !exists {
-			// First notification for this session
-			sessionBest[sessionKey] = notif
-		} else if isBetterRepresentative(notif, current) {
-			// Found better representative for this session
-			sessionBest[sessionKey] = notif
-		}
-	}
-
-	// Convert map to slice and re-sort by recency and severity
-	result := make([]notification.Notification, 0, len(sessionBest))
-	for _, notif := range sessionBest {
-		result = append(result, notif)
-	}
-
-	// Sort by timestamp (descending) then by severity (descending) for ties
-	result = s.SortNotifications(result, "timestamp", "desc")
-
-	// Apply dataset limit
-	if len(result) > recentsDatasetLimit {
-		result = result[:recentsDatasetLimit]
-	}
-
-	return result
-}
-
-// getUnfilteredRecentsDataset returns active, unread notifications from the last hour
-// without per-session limiting (used for filtered views).
-func (s *DefaultNotificationService) getUnfilteredRecentsDataset(sortBy, sortOrder string) []notification.Notification {
-	activeOnly := make([]notification.Notification, 0, len(s.notifications))
-	for _, n := range s.notifications {
-		if n.State == "" || n.State == "active" {
-			activeOnly = append(activeOnly, n)
-		}
-	}
-
-	// Apply 1-hour time window filter
-	domainNotifs := s.convertToDomain(activeOnly)
-	filtered := domain.FilterByTimeDuration(domainNotifs, time.Hour)
-	activeOnly = s.convertFromDomain(filtered)
-
-	// Filter to unread only
-	unreadOnly := make([]notification.Notification, 0, len(activeOnly))
-	for _, n := range activeOnly {
-		if !n.IsRead() {
-			unreadOnly = append(unreadOnly, n)
-		}
-	}
-
-	// Sort without per-session limiting
-	sorted := s.SortNotifications(unreadOnly, sortBy, sortOrder)
-
-	// Apply dataset limit without per-session logic
-	if len(sorted) > recentsDatasetLimit {
-		sorted = sorted[:recentsDatasetLimit]
-	}
-
-	return sorted
-}
-
 // selectDataset filters active notifications and applies tab-specific logic.
 func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortBy, sortOrder string) []notification.Notification {
 	activeOnly := make([]notification.Notification, 0, len(s.notifications))
@@ -362,25 +307,27 @@ func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortB
 		return activeOnly
 	}
 
-	// For Recents tab, apply 1-hour time window filter
+	// For Recents tab, apply configurable time window filter
 	if normalizedTab == settings.TabRecents {
 		domainNotifs := s.convertToDomain(activeOnly)
-		filtered := domain.FilterByTimeDuration(domainNotifs, time.Hour)
+		filtered := domain.FilterByTimeDuration(domainNotifs, getRecentsTimeWindow())
 		activeOnly = s.convertFromDomain(filtered)
-	}
 
-	unreadOnly := make([]notification.Notification, 0, len(activeOnly))
-	for _, n := range activeOnly {
-		if !n.IsRead() {
-			unreadOnly = append(unreadOnly, n)
+		unreadOnly := make([]notification.Notification, 0, len(activeOnly))
+		for _, n := range activeOnly {
+			if !n.IsRead() {
+				unreadOnly = append(unreadOnly, n)
+			}
 		}
+
+		sorted := s.SortNotifications(unreadOnly, sortBy, sortOrder)
+
+		// Apply per-session smart selection for Recents tab
+		// This ensures max 1 notification per session with intelligent selection
+		return s.selectBestNotificationPerSession(sorted)
 	}
 
-	sorted := s.SortNotifications(unreadOnly, sortBy, sortOrder)
-
-	// Apply per-session smart selection for Recents tab
-	// This ensures max 1 notification per session with intelligent selection
-	return s.selectBestNotificationPerSession(sorted)
+	return activeOnly
 }
 
 // ApplyFiltersAndSearch applies tab scope, then filters/search/sorting and stores filtered results.
@@ -396,8 +343,9 @@ func (s *DefaultNotificationService) ApplyFiltersAndSearch(tab settings.Tab, que
 
 	// If Recents tab with specific filters, show all notifications matching filters
 	// (not just the per-session smart selection). Re-fetch without per-session limiting.
+	// Apply 10-item limit for filtered views (Story 3).
 	if isFilteredView && settings.NormalizeTab(string(tab)) == settings.TabRecents {
-		result = s.getUnfilteredRecentsDataset(sortBy, sortOrder)
+		result = s.getUnfilteredRecentsDataset(sortBy, sortOrder, filteredListLimit)
 	}
 
 	// Apply state filter

@@ -41,6 +41,8 @@ func TestDefaultConfig(t *testing.T) {
 	require.Equal(t, "10", Get("max_hooks", ""))
 	require.Equal(t, "message", Get("dedup.criteria", ""))
 	require.Equal(t, "", Get("dedup.window", ""))
+	require.Equal(t, "false", Get("telemetry_enabled", ""))
+	require.Equal(t, "1h", Get("recents_time_window", ""))
 	// Directories should be non-empty.
 	require.NotEmpty(t, Get("state_dir", ""))
 	require.NotEmpty(t, Get("config_dir", ""))
@@ -60,6 +62,7 @@ func TestEnvironmentOverrides(t *testing.T) {
 	t.Setenv("TMUX_INTRAY_DEDUP__CRITERIA", "exact")
 	t.Setenv("TMUX_INTRAY_DEDUP__WINDOW", "2m")
 	t.Setenv("TMUX_INTRAY_TELEMETRY_ENABLED", "true")
+	t.Setenv("TMUX_INTRAY_RECENTS_TIME_WINDOW", "6h")
 
 	Load()
 
@@ -71,6 +74,8 @@ func TestEnvironmentOverrides(t *testing.T) {
 	require.Equal(t, "5", Get("max_hooks", ""))
 	require.Equal(t, "exact", Get("dedup.criteria", ""))
 	require.Equal(t, "2m0s", Get("dedup.window", ""))
+	require.Equal(t, "true", Get("telemetry_enabled", ""))
+	require.Equal(t, "6h", Get("recents_time_window", ""))
 }
 
 func TestConfigFileTOML(t *testing.T) {
@@ -767,4 +772,77 @@ func TestValidatorReturningError(t *testing.T) {
 
 	// Should use default value when validator returns error
 	require.Equal(t, "", Get("error_test_key", ""))
+}
+
+func TestRecentsTimeWindowDefault(t *testing.T) {
+	reset()
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+	t.Setenv("HOME", tmpDir)
+	Load()
+
+	// Check default value for recents_time_window
+	require.Equal(t, "1h", Get("recents_time_window", ""))
+}
+
+func TestRecentsTimeWindowValidValues(t *testing.T) {
+	reset()
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	testCases := []string{"5m", "15m", "30m", "1h", "2h", "6h", "12h", "24h"}
+
+	for _, timeWindow := range testCases {
+		t.Run(fmt.Sprintf("recents_time_window=%s", timeWindow), func(t *testing.T) {
+			reset()
+			t.Setenv("TMUX_INTRAY_RECENTS_TIME_WINDOW", timeWindow)
+			Load()
+			require.Equal(t, timeWindow, Get("recents_time_window", ""))
+		})
+	}
+}
+
+func TestRecentsTimeWindowInvalidValue(t *testing.T) {
+	reset()
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	// Invalid time window should default to 1h
+	t.Setenv("TMUX_INTRAY_RECENTS_TIME_WINDOW", "invalid")
+	Load()
+	require.Equal(t, "1h", Get("recents_time_window", ""))
+}
+
+func TestRecentsTimeWindowFromTOML(t *testing.T) {
+	reset()
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.toml")
+	data := `
+	recents_time_window = "2h"
+`
+	err := os.WriteFile(configPath, []byte(data), 0644)
+	require.NoError(t, err)
+
+	t.Setenv("TMUX_INTRAY_CONFIG_PATH", configPath)
+	Load()
+
+	require.Equal(t, "2h", Get("recents_time_window", ""))
+}
+
+func TestRecentsTimeWindowEnvironmentOverridesToOML(t *testing.T) {
+	reset()
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.toml")
+	data := `
+	recents_time_window = "2h"
+`
+	err := os.WriteFile(configPath, []byte(data), 0644)
+	require.NoError(t, err)
+
+	t.Setenv("TMUX_INTRAY_CONFIG_PATH", configPath)
+	t.Setenv("TMUX_INTRAY_RECENTS_TIME_WINDOW", "6h")
+	Load()
+
+	// Environment variable should override TOML file
+	require.Equal(t, "6h", Get("recents_time_window", ""))
 }

@@ -60,6 +60,32 @@ With the configuration above, `tmux-intray` only collapses notifications when th
 | `TMUX_INTRAY_STATUS_FORMAT` | `compact` | Status format (`compact`, `detailed`, `count-only`). |
 | `TMUX_INTRAY_SHOW_LEVELS` | `0` | Show level counts (1) or only total count (0) in status bar. |
 
+### Recents Tab
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TMUX_INTRAY_RECENTS_TIME_WINDOW` | `1h` | Time window for the Recents tab. Only notifications from within this time window are shown. Valid values: `5m`, `15m`, `30m`, `1h`, `2h`, `6h`, `12h`, `24h`. |
+
+**Behavior:**
+
+- The Recents tab automatically filters notifications to show only those within the configured time window
+- The time window is measured from the current time (when the app is running)
+- Changes to this config require restarting tmux-intray
+- If an invalid value is provided, the app will warn and use the default (`1h`)
+
+**Examples:**
+
+```bash
+# Show only notifications from the last 30 minutes
+export TMUX_INTRAY_RECENTS_TIME_WINDOW=30m
+
+# Or in config.toml
+recents_time_window = "30m"
+
+# Show notifications from the last 6 hours
+export TMUX_INTRAY_RECENTS_TIME_WINDOW=6h
+```
+
 ### Hook System
 
 | Variable | Default | Description |
