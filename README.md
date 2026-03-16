@@ -447,11 +447,11 @@ For detailed configuration options, see the [configuration guide](docs/configura
 
 Enable debug logging:
 ```bash
-export TMUX_INTRAY_DEBUG=1
+export TMUX_INTRAY_LOG_LEVEL=debug
 tmux-intray add "Test notification"
 ```
 
-Debug logs are written to `~/.local/state/tmux-intray/debug.log`.
+Logs are written to stderr. For detailed debugging guidance, see the [Debugging Guide](./docs/debugging.md).
 
 ## Fzf Integration
 
@@ -578,46 +578,45 @@ tmux-intray is built with a modular architecture that separates concerns:
 
 ## Debugging
 
-### Debug Logging
+tmux-intray includes built-in logging to help troubleshoot issues. For comprehensive debugging guidance, see the **[Debugging Guide](./docs/debugging.md)**.
 
-tmux-intray includes optional debug logging to help troubleshoot issues:
+### Quick Start
 
 ```bash
 # Enable debug logging
 export TMUX_INTRAY_LOG_LEVEL=debug
 
-# Run command with logging
+# Run your command
 tmux-intray list
 
 # Supported levels: debug, info, warn, error, off
 ```
 
-Logs are written to stderr and are local-only. No data is transmitted to external services.
+Logs are written to **stderr** (not stdout) with timestamps and are local-only—no external transmission.
 
 ### Common Issues
 
 **CLI not found after installation**
-- Ensure installation directory is in PATH
+- Ensure installation directory is in PATH: `echo $PATH`
 - For npm: May require `npm bin -g` to be in PATH
+- Test with: `which tmux-intray`
 
 **Tmux plugin not loading**
+- Verify plugin path in `.tmux.conf`: `run '~/.local/share/tmux-plugins/tmux-intray/tmux-intray.tmux'`
+- Reload tmux: `tmux source-file ~/.tmux.conf`
 - Check `.tmux.conf` syntax
-- Verify plugin path exists
-- Reload tmux with `tmux source-file ~/.tmux.conf`
 
 **Notifications not appearing in status bar**
-- Ensure `status` command works: `tmux-intray status --format=compact`
-- Check status-right configuration in `.tmux.conf`
+- Test the status command: `tmux-intray status --format=compact`
+- Verify your `.tmux.conf` has `set -g status-right "...#(tmux-intray status)..."`
+- Enable debug mode to diagnose: `export TMUX_INTRAY_LOG_LEVEL=debug`
 
-### Debug Logging
+### Getting More Help
 
-```bash
-# Enable verbose debugging
-export TMUX_INTRAY_DEBUG=2
-
-# Check debug log
-tail -f ~/.local/state/tmux-intray/debug.log
-```
+For detailed troubleshooting and debugging scenarios:
+- **[Debugging Guide](./docs/debugging.md)** - Complete guide with examples for all common issues
+- **[Configuration Guide](./docs/configuration.md)** - All environment variables and config options
+- **[Troubleshooting Guide](./docs/troubleshooting.md)** - Additional solutions and tips
 
 ## Testing
 

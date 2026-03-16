@@ -79,11 +79,9 @@ With the configuration above, `tmux-intray` only collapses notifications when th
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TMUX_INTRAY_DEBUG` | *unset* | Enable debug output when set to `1`, `true`, `yes`, or `on`. Debug messages are printed to stderr. |
-| `TMUX_INTRAY_QUIET` | *unset* | Suppress non‑error output when set to `1`, `true`, `yes`, or `on`. |
-| `TMUX_INTRAY_LOGGING_ENABLED` | `false` | Enable structured file logging when set to `true`. See [Structured Logging](./logging.md) for details. |
-| `TMUX_INTRAY_LOGGING_LEVEL` | `info` | Minimum log level to record (`debug`, `info`, `warn`, `error`). |
-| `TMUX_INTRAY_LOGGING_MAX_FILES` | `10` | Maximum number of log files to retain (older files are rotated out). |
+| `TMUX_INTRAY_LOG_LEVEL` | `info` | Console logging level: `debug`, `info`, `warn`, `error`, or `off`. See [Debugging Guide](./debugging.md) for details. |
+
+For comprehensive debugging guidance including troubleshooting scenarios and examples, see the **[Debugging Guide](./debugging.md)**.
 
 ### Telemetry
 
@@ -168,14 +166,10 @@ hooks_enabled_post_dismiss = true
 hooks_enabled_cleanup = true
 hooks_enabled_post_cleanup = true
 
-# Logging
-logging_enabled = false
-logging_level = "info"
-logging_max_files = 10
-
-# Debugging
-debug = false
-quiet = false
+# Logging (see docs/debugging.md for details)
+# Options: debug, info, warn, error, off
+# Default: info
+log_level = "info"
 
 # Telemetry
 telemetry_enabled = false
@@ -186,10 +180,17 @@ telemetry_enabled = false
 You can also set environment variables directly in your shell, which take precedence over the configuration file. For example:
 
 ```bash
-export TMUX_INTRAY_DEBUG=1
+# Enable debug logging
+export TMUX_INTRAY_LOG_LEVEL=debug
+
+# Adjust notification retention
 export TMUX_INTRAY_AUTO_CLEANUP_DAYS=7
+
+# Run command
 tmux-intray list
 ```
+
+For detailed debugging examples and troubleshooting, see the [Debugging Guide](./debugging.md).
 
 This is useful for temporary debugging or for per‑session customization.
 
