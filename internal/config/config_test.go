@@ -41,7 +41,6 @@ func TestDefaultConfig(t *testing.T) {
 	require.Equal(t, "10", Get("max_hooks", ""))
 	require.Equal(t, "message", Get("dedup.criteria", ""))
 	require.Equal(t, "", Get("dedup.window", ""))
-	require.Equal(t, "false", Get("telemetry_enabled", ""))
 	require.Equal(t, "1h", Get("recents_time_window", ""))
 	// Directories should be non-empty.
 	require.NotEmpty(t, Get("state_dir", ""))
@@ -61,7 +60,6 @@ func TestEnvironmentOverrides(t *testing.T) {
 	t.Setenv("TMUX_INTRAY_MAX_HOOKS", "5")
 	t.Setenv("TMUX_INTRAY_DEDUP__CRITERIA", "exact")
 	t.Setenv("TMUX_INTRAY_DEDUP__WINDOW", "2m")
-	t.Setenv("TMUX_INTRAY_TELEMETRY_ENABLED", "true")
 	t.Setenv("TMUX_INTRAY_RECENTS_TIME_WINDOW", "6h")
 
 	Load()
@@ -74,7 +72,6 @@ func TestEnvironmentOverrides(t *testing.T) {
 	require.Equal(t, "5", Get("max_hooks", ""))
 	require.Equal(t, "exact", Get("dedup.criteria", ""))
 	require.Equal(t, "2m0s", Get("dedup.window", ""))
-	require.Equal(t, "true", Get("telemetry_enabled", ""))
 	require.Equal(t, "6h", Get("recents_time_window", ""))
 }
 

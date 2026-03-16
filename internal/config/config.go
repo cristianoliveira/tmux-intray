@@ -112,7 +112,6 @@ func setDefaults() {
 	setDefault("logging_level", "info")
 	setDefault("logging_max_files", "10")
 	setDefault("log_file", "")
-	setDefault("telemetry_enabled", "false")
 	setDefault("recents_time_window", "1h")
 	setDedupDefaults()
 }

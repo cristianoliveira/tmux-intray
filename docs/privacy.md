@@ -61,7 +61,7 @@ The logging system is implemented with simplicity and privacy as core principles
 
 - **Local-only**: All logging stays on your machine
 - **Minimal output**: Only essential diagnostic information is logged
-- **No external dependencies**: No telemetry services or tracking
+- **No external services**: No third-party services are used for analytics
 - **Open source**: The logging implementation is fully auditable in the source code
 - **Transparent**: Log levels are documented and easy to control
 
