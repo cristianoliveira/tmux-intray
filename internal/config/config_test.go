@@ -41,7 +41,6 @@ func TestDefaultConfig(t *testing.T) {
 	require.Equal(t, "10", Get("max_hooks", ""))
 	require.Equal(t, "message", Get("dedup.criteria", ""))
 	require.Equal(t, "", Get("dedup.window", ""))
-	require.Equal(t, "false", Get("telemetry_enabled", ""))
 	// Directories should be non-empty.
 	require.NotEmpty(t, Get("state_dir", ""))
 	require.NotEmpty(t, Get("config_dir", ""))
@@ -72,7 +71,6 @@ func TestEnvironmentOverrides(t *testing.T) {
 	require.Equal(t, "5", Get("max_hooks", ""))
 	require.Equal(t, "exact", Get("dedup.criteria", ""))
 	require.Equal(t, "2m0s", Get("dedup.window", ""))
-	require.Equal(t, "true", Get("telemetry_enabled", ""))
 }
 
 func TestConfigFileTOML(t *testing.T) {
@@ -84,7 +82,6 @@ func TestConfigFileTOML(t *testing.T) {
 	status_enabled = false
 	storage_backend = "sqlite"
 	table_format = "minimal"
-	telemetry_enabled = true
 `
 	err := os.WriteFile(configPath, []byte(data), 0644)
 	require.NoError(t, err)
@@ -96,7 +93,6 @@ func TestConfigFileTOML(t *testing.T) {
 	require.Equal(t, "false", Get("status_enabled", ""))
 	require.Equal(t, "sqlite", Get("storage_backend", ""))
 	require.Equal(t, "minimal", Get("table_format", ""))
-	require.Equal(t, "true", Get("telemetry_enabled", ""))
 }
 
 func TestNestedDedupConfig(t *testing.T) {
@@ -138,7 +134,6 @@ hooks_async_timeout = 12
 	require.Equal(t, "true", Get("status_enabled", ""))
 	require.Equal(t, "minimal", Get("table_format", ""))
 	require.Equal(t, "12", Get("hooks_async_timeout", ""))
-	require.Equal(t, "false", Get("telemetry_enabled", ""))
 }
 
 func TestValidation(t *testing.T) {
@@ -221,7 +216,6 @@ func TestGetIntGetBool(t *testing.T) {
 	require.Equal(t, time.Minute, GetDuration("missing_duration", time.Minute))
 	// Verify that GetBool returns the config default (false) not the parameter default (true)
 	// when the key exists in config but is not set in environment variables.
-	require.Equal(t, false, GetBool("telemetry_enabled", true))
 	// Missing key returns default.
 	require.Equal(t, 999, GetInt("missing_key", 999))
 	require.Equal(t, true, GetBool("missing_key", true))
@@ -527,7 +521,6 @@ func TestInitValidators(t *testing.T) {
 	require.NotNil(t, getValidator("auto_cleanup_days"))
 	require.NotNil(t, getValidator("hooks_async_timeout"))
 	require.NotNil(t, getValidator("max_hooks"))
-	require.NotNil(t, getValidator("telemetry_enabled"))
 
 	// Enum validators (3 keys)
 	require.NotNil(t, getValidator("table_format"))

@@ -150,9 +150,6 @@ func initValidators() {
 	RegisterValidator("logging_max_files", PositiveIntValidator())
 	// log_file has no validator (any string)
 
-	// Telemetry validators
-	RegisterValidator("telemetry_enabled", boolValidator)
-
 	registerDedupValidators()
 }
 

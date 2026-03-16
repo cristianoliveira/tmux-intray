@@ -106,45 +106,4 @@ ON CONFLICT(id) DO UPDATE SET
     pane_created = excluded.pane_created,
     level = excluded.level,
     read_timestamp = excluded.read_timestamp,
-    updated_at = excluded.updated_at;
-
--- name: NextTelemetryEventID :one
-SELECT COALESCE(MAX(id), 0) + 1 AS next_id
-FROM telemetry_events;
-
--- name: InsertTelemetryEvent :exec
-INSERT INTO telemetry_events (
-    id,
-    timestamp,
-    feature_name,
-    feature_category,
-    context_data
-)
-VALUES (?, ?, ?, ?, ?);
-
--- name: ListTelemetryEventsByTimeRange :many
-SELECT id, timestamp, feature_name, feature_category, context_data
-FROM telemetry_events
-WHERE (sqlc.arg(start_time) = '' OR timestamp >= sqlc.arg(start_time))
-  AND (sqlc.arg(end_time) = '' OR timestamp <= sqlc.arg(end_time))
-ORDER BY timestamp DESC;
-
--- name: CountFeatureUsage :one
-SELECT COUNT(1)
-FROM telemetry_events
-WHERE feature_name = sqlc.arg(feature_name);
-
--- name: GetFeatureUsageStats :many
-SELECT feature_name, feature_category, COUNT(1) as usage_count
-FROM telemetry_events
-GROUP BY feature_name, feature_category
-ORDER BY usage_count DESC;
-
--- name: CountTelemetryEventsOlderThan :one
-SELECT COUNT(1)
-FROM telemetry_events
-WHERE timestamp < sqlc.arg(cutoff);
-
--- name: DeleteTelemetryEventsOlderThan :exec
-DELETE FROM telemetry_events
-WHERE timestamp < sqlc.arg(cutoff);
+     updated_at = excluded.updated_at;
