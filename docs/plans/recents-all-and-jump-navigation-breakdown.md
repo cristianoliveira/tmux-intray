@@ -36,7 +36,6 @@ The tabs implementation follows the architecture defined in [Tabs Architecture](
 ## Constraints for This Phase
 
 - `all` tab is intentionally active-only in this phase.
-- No telemetry additions are included in this phase.
 
 ## Verification Coverage Added
 

@@ -75,11 +75,6 @@ func (m *MockStorage) GetActiveCount() int {
 	return args.Int(0)
 }
 
-func (m *MockStorage) LogTelemetryEvent(timestamp, featureName, featureCategory, contextData string) error {
-	args := m.Called(timestamp, featureName, featureCategory, contextData)
-	return args.Error(0)
-}
-
 var _ Storage = (*MockStorage)(nil)
 
 func TestDomainRepositoryAdapter_Add(t *testing.T) {

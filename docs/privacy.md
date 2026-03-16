@@ -2,185 +2,84 @@
 
 This document outlines the privacy guarantees and data handling practices for tmux-intray.
 
-## Telemetry Privacy
+## Simple Logging
 
-**Telemetry is local-only and never transmitted.**
+**tmux-intray uses simple, local-only logging for debugging.**
 
-tmux-intray includes an optional telemetry feature that tracks feature usage patterns to inform development decisions. This data is stored exclusively on your device and is never sent to any external service.
+tmux-intray includes optional debug logging to help troubleshoot issues. This logging is purely for diagnostic purposes and is stored exclusively on your device. No data is ever transmitted to external services.
 
-### What Data is Collected
+### What Gets Logged
 
-When telemetry is enabled, tmux-intray collects:
+When logging is enabled via `TMUX_INTRAY_LOG_LEVEL`, tmux-intray may log:
 
-- **Feature name**: Which command or TUI feature was used (e.g., "add", "list", "jump", "tui")
-- **Feature category**: Whether it's a CLI or TUI feature
-- **Timestamp**: When the feature was used (ISO 8601 format)
-- **Context data**: Optional JSON-formatted additional information about feature usage
+- **Command execution**: Which command was run and basic outcome
+- **Configuration loading**: Which configuration files were loaded
+- **Settings changes**: When settings are modified
+- **TUI actions**: Basic interactions in the terminal UI
+- **Error messages**: Diagnostic information when errors occur
 
-Example telemetry event:
-```json
-{
-  "id": 1,
-  "timestamp": "2026-03-14T13:00:00Z",
-  "feature_name": "add",
-  "feature_category": "cli",
-  "context_data": "{}"
-}
-```
+### What Data is NOT Logged
 
-### What Data is NOT Collected
-
-tmux-intray telemetry **does NOT** collect:
+tmux-intray does NOT log:
 
 - Personal information (name, email, IP address, etc.)
 - Notification content or message text
 - Tmux session names, window names, or pane contents
-- File paths or directory contents
+- File paths or directory contents (except config file locations)
 - Any information that could identify you or your specific environment
 - Any data from other applications or processes
 
-### Data Storage
+### Controlling Logging
 
-- **Location**: `~/.local/state/tmux-intray/notifications.db` (respects `TMUX_INTRAY_STATE_DIR` and XDG Base Directory Specification)
-- **Format**: SQLite database with encrypted-at-rest optional (not currently implemented)
-- **Access**: Only accessible by your user account (standard Unix file permissions)
-- **Transmission**: **No network calls are ever made**
-
-### Data Control
-
-You have complete control over your telemetry data:
-
-#### View Telemetry Data
+Logging is **disabled by default**. Enable it only when debugging:
 
 ```bash
-# Show feature usage summary
-tmux-intray telemetry show
+# Enable debug logging via environment variable
+export TMUX_INTRAY_LOG_LEVEL=debug
 
-# Show usage from the last 7 days
-tmux-intray telemetry show --days 7
-
-# Show telemetry status
-tmux-intray telemetry status
+# Supported levels: debug, info, warn, error, off
+# Run with logging
+tmux-intray list
 ```
 
-#### Export Telemetry Data
+To disable logging:
 
 ```bash
-# Export all telemetry data to JSONL format
-tmux-intray telemetry export --output telemetry.jsonl
+unset TMUX_INTRAY_LOG_LEVEL
 ```
 
-This allows you to:
-- Backup your telemetry data
-- Analyze it with your own tools
-- Share it with developers for debugging (optional)
-- Migrate data to another system
+### Log Output
 
-#### Clear Telemetry Data
-
-```bash
-# Clear telemetry data older than 90 days (default)
-tmux-intray telemetry clear
-
-# Clear telemetry data older than 30 days
-tmux-intray telemetry clear --days 30
-
-# Clear all telemetry data
-tmux-intray telemetry clear --days 0
-```
-
-**Important**: The `clear` command requires confirmation before deleting data.
-
-#### Disable Telemetry
-
-```bash
-# Disable telemetry via environment variable
-export TMUX_INTRAY_TELEMETRY_ENABLED=false
-
-# Or in config.toml
-echo "telemetry_enabled = false" >> ~/.config/tmux-intray/config.toml
-```
-
-When disabled, no telemetry data is collected, but existing data remains until you explicitly clear it.
-
-### Telemetry is Opt-In
-
-- **Default**: Telemetry is **disabled by default**
-- **Opt-in**: You must explicitly enable it to start collection
-- **Opt-out**: You can disable it at any time without losing existing data
-- **Data deletion**: You can delete all telemetry data with a single command
-
-### Why Telemetry Exists
-
-The telemetry feature exists to:
-
-1. **Understand feature usage**: Identify which features are most used and which are rarely used
-2. **Inform development decisions**: Make data-driven decisions about feature development and deprecation
-3. **Improve user experience**: Focus development effort on features that matter most to users
-4. **Local analytics**: Provide you with insights into your own usage patterns
-
-### Data Ownership
-
-- **Your data, your choice**: All telemetry data belongs to you
-- **No sharing**: No data is ever shared with third parties
-- **No profiling**: No user profiling or behavior analysis beyond feature usage counts
-- **No advertising**: No use of data for advertising or marketing purposes
+- **Default**: Logs are written to stderr
+- **Location**: Terminal output only (no persistent log file by default)
+- **Access**: Only visible to you in your terminal session
+- **Transmission**: No network calls are made
 
 ### Technical Implementation
 
-The telemetry system is implemented with privacy as a core principle:
+The logging system is implemented with simplicity and privacy as core principles:
 
-- **Local-first architecture**: All data storage and processing happens locally
-- **No external dependencies**: No cloud services or APIs are used
-- **Open source**: The telemetry implementation is fully auditable in the source code
-- **Transparent**: Data schema and storage format are documented and open
+- **Local-only**: All logging stays on your machine
+- **Minimal output**: Only essential diagnostic information is logged
+- **No external services**: No third-party services are used for analytics
+- **Open source**: The logging implementation is fully auditable in the source code
+- **Transparent**: Log levels are documented and easy to control
 
-### Configuration
+## Notification Data
 
-See the [Configuration Guide](./configuration.md#telemetry) for detailed telemetry configuration options.
+tmux-intray stores notification data in a SQLite database:
 
-### Architecture
-
-For technical details about the telemetry system architecture, see [Telemetry Architecture](./design/telemetry-architecture.md).
-
-### Questions or Concerns
-
-If you have questions or concerns about privacy:
-
-1. Review this privacy documentation
-2. Check the [Configuration Guide](./configuration.md#telemetry)
-3. Examine the telemetry source code in `internal/storage/sqlite/schema.sql` and `cmd/tmux-intray/telemetry.go`
-4. File an issue on [GitHub](https://github.com/cristianoliveira/tmux-intray/issues)
-
-### Summary
-
-| Aspect | Details |
-|--------|---------|
-| **Data Collection** | Opt-in, disabled by default |
-| **Data Storage** | Local SQLite database only |
-| **Data Transmission** | Never transmitted over network |
-| **Personal Information** | Not collected |
-| **Data Control** | Full control: view, export, clear, disable |
-| **Data Ownership** | Belongs entirely to the user |
-| **Third-party Access** | Never shared with third parties |
-| **Purpose** | Feature usage analytics for development decisions |
-
-## Additional Privacy Considerations
-
-### Notification Data
-
-Beyond telemetry, tmux-intray stores notification data in the same SQLite database:
-
-- **Location**: Same as telemetry (`~/.local/state/tmux-intray/notifications.db`)
+- **Location**: `~/.local/state/tmux-intray/notifications.db` (respects `TMUX_INTRAY_STATE_DIR` and XDG Base Directory Specification)
 - **Content**: Message text, severity levels, timestamps, tmux context (session/window/pane IDs)
-- **Access**: Only accessible by your user account
-- **Transmission**: No network calls are made for notification data either
+- **Access**: Only accessible by your user account (standard Unix file permissions)
+- **Transmission**: No network calls are made for notification data
+- **Privacy**: This data is local-only and never shared
 
-### Hooks System
+## Hooks System
 
 The hooks system allows you to execute custom scripts before/after events. If you configure hooks to send data to external services, this is your responsibility and independent of tmux-intray's privacy practices.
 
-### Configuration Files
+## Configuration Files
 
 Configuration files are stored in `~/.config/tmux-intray/` (or `TMUX_INTRAY_CONFIG_DIR`):
 
@@ -188,10 +87,31 @@ Configuration files are stored in `~/.config/tmux-intray/` (or `TMUX_INTRAY_CONF
 - `tui.toml` - TUI settings
 - `hooks/` - Hook scripts
 
-These files contain your preferences and settings, not telemetry or notification data.
+These files contain your preferences and settings, not diagnostic or notification data.
+
+## Privacy Summary
+
+| Aspect | Details |
+|--------|---------|
+| **Data Collection** | Minimal, diagnostic only |
+| **Data Storage** | Local SQLite database and stderr output |
+| **Data Transmission** | Never transmitted over network |
+| **Personal Information** | Not collected |
+| **Data Control** | You control all logging via environment variables |
+| **Third-party Access** | Never shared with third parties |
+| **Purpose** | Local debugging and problem diagnosis |
+
+## Questions or Concerns
+
+If you have questions or concerns about privacy:
+
+1. Review this privacy documentation
+2. Check the [Configuration Guide](./configuration.md)
+3. Examine the logging source code in `internal/log/log.go`
+4. File an issue on [GitHub](https://github.com/cristianoliveira/tmux-intray/issues)
 
 ---
 
-**Last Updated**: 2026-03-14
+**Last Updated**: 2026-03-16
 
-This privacy policy is part of tmux-intray's commitment to user privacy and transparent data handling.
+This privacy policy reflects tmux-intray's commitment to user privacy and transparent data handling.

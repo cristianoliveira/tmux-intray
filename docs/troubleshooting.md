@@ -14,10 +14,10 @@ This guide covers common issues and how to resolve them. If you encounter a prob
    Check `echo $TMUX_INTRAY_STATE_DIR`, `echo $TMUX_INTRAY_CONFIG_DIR`. Ensure these directories exist and are writable.
 
 4. **Enable debug mode**  
-   `export TMUX_INTRAY_DEBUG=1` and re‑run the failing command. Look for debug messages on stderr.
+    `export TMUX_INTRAY_LOG_LEVEL=debug` and re‑run the failing command. Look for debug messages on stderr.
 
-5. **Check the log file**  
-   If `TMUX_INTRAY_LOG_FILE` is set, examine that file. Otherwise, debug output goes to stderr.
+5. **For comprehensive debugging help**  
+    See the [Debugging Guide](./debugging.md) for detailed troubleshooting scenarios and examples.
 
 6. **Verify hooks permissions**  
    Ensure hook scripts are executable (`chmod +x ~/.config/tmux-intray/hooks/*/*.sh`).
@@ -70,11 +70,11 @@ This guide covers common issues and how to resolve them. If you encounter a prob
 
 **Solutions:**  
 1. **Verify hooks are enabled**  
-   ```bash
-   export TMUX_INTRAY_DEBUG=1
-   tmux-intray add "test hook"
-   ```
-   Look for debug messages about hooks.
+    ```bash
+    export TMUX_INTRAY_LOG_LEVEL=debug
+    tmux-intray add "test hook"
+    ```
+    Look for debug messages about hooks.
 
 2. **Check hook directory structure**  
    Hooks should be placed in `$TMUX_INTRAY_HOOKS_DIR/<hook-point>/`. Example:
@@ -204,44 +204,25 @@ This guide covers common issues and how to resolve them. If you encounter a prob
    ```
 
 4. **Collect debug output for issue reports**
-   ```bash
-   TMUX_INTRAY_DEBUG=1 tmux-intray list --all 2>&1
-   ```
+    ```bash
+    TMUX_INTRAY_LOG_LEVEL=debug tmux-intray list --all 2>&1
+    ```
 
 5. **Recreate the database (if corrupted)**
-   ```bash
-   rm -f "$TMUX_INTRAY_STATE_DIR/notifications.db"
-   tmux-intray add "test"
-   ```
+    ```bash
+    rm -f "$TMUX_INTRAY_STATE_DIR/notifications.db"
+    tmux-intray add "test"
+    ```
 
-### Debugging tips
+### Debugging Tips
 
-**Enable verbose output**  
-```bash
-export TMUX_INTRAY_DEBUG=1
-tmux-intray list
-```
+For comprehensive debugging help including scenarios, log level explanations, and advanced techniques, see the **[Debugging Guide](./debugging.md)**.
 
-Debug messages are printed to stderr and include:
-- Configuration loading
-- Storage operations
-- Hook execution
-- Command‑line parsing
-
-**Check the storage file directly**  
-Examine the SQLite database:
-```bash
-sqlite3 "$TMUX_INTRAY_STATE_DIR/notifications.db" "SELECT * FROM notifications LIMIT 20"
-```
-
-**Run the test suite**  
-The project includes a comprehensive test suite that can verify your installation:
-```bash
-make test
-```
-
-**Increase debug level**  
-Some components may have additional debug levels (e.g., `TMUX_INTRAY_DEBUG=2`). Check the source code for details.
+**Quick debug checklist:**
+- Enable logging: `export TMUX_INTRAY_LOG_LEVEL=debug`
+- Run command and capture output to file: `tmux-intray <cmd> 2>&1 > debug.log`
+- Check storage directly: `sqlite3 "$TMUX_INTRAY_STATE_DIR/notifications.db" "SELECT * FROM notifications LIMIT 20"`
+- Run test suite: `make test`
 
 ### “No tmux session running”
 
@@ -265,23 +246,12 @@ Commands fail with “No tmux session running”.
 
 **Causes & Solutions:**  
 
-1. **Logs not being written**  
-   - Ensure `TMUX_INTRAY_LOGGING_ENABLED=true`.  
-   - Verify the log directory is writable (`{state_dir}/logs`).  
-   - Check log level (`TMUX_INTRAY_LOGGING_LEVEL`) – if set to `error`, only errors are logged.  
-   - Run with `TMUX_INTRAY_DEBUG=1` to see logging initialization errors.
+1. **Logs not appearing**  
+    - Verify `TMUX_INTRAY_LOG_LEVEL` is not set to `off`.  
+    - Check that logs are going to stderr (use `2>&1` to see them).  
+    - Run with `TMUX_INTRAY_LOG_LEVEL=debug` to see more details.
 
-2. **Log files not rotating**  
-   - Check `TMUX_INTRAY_LOGGING_MAX_FILES` (default 10). Set to `0` to disable rotation (not recommended).  
-   - Ensure the process has permission to delete old log files.  
-   - Rotation only affects files matching `tmux-intray_*.log`.
-
-3. **Sensitive data in logs**  
-   - The system redacts keys containing: `secret`, `password`, `token`, `key`, `auth`, `credential`.  
-   - Keys must contain these words as separate segments (e.g., `api_token` redacts, `apitoken` does not).  
-   - If you need additional redaction, modify `internal/logging/redactor.go`.
-
-For more details, see the [Structured Logging](./logging.md) documentation.
+For more details, see the [Debugging Guide](./debugging.md).
 
 ---
 
@@ -290,13 +260,13 @@ For more details, see the [Structured Logging](./logging.md) documentation.
 If none of the above solutions work, please collect the following information and open an issue:
 
 1. **tmux-intray --version**  
-   `tmux-intray --version`
+    `tmux-intray --version`
 
 2. **Debug output**  
-   `TMUX_INTRAY_DEBUG=1 tmux-intray <command> 2>&1`
+    `TMUX_INTRAY_LOG_LEVEL=debug tmux-intray <command> 2>&1`
 
 3. **Environment**  
-   `env | grep TMUX_INTRAY`
+    `env | grep TMUX_INTRAY`
 
 4. **Storage directory listing**  
    `ls -la "$TMUX_INTRAY_STATE_DIR"`

@@ -105,55 +105,9 @@ export TMUX_INTRAY_RECENTS_TIME_WINDOW=6h
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TMUX_INTRAY_DEBUG` | *unset* | Enable debug output when set to `1`, `true`, `yes`, or `on`. Debug messages are printed to stderr. |
-| `TMUX_INTRAY_QUIET` | *unset* | Suppress non‑error output when set to `1`, `true`, `yes`, or `on`. |
-| `TMUX_INTRAY_LOGGING_ENABLED` | `false` | Enable structured file logging when set to `true`. See [Structured Logging](./logging.md) for details. |
-| `TMUX_INTRAY_LOGGING_LEVEL` | `info` | Minimum log level to record (`debug`, `info`, `warn`, `error`). |
-| `TMUX_INTRAY_LOGGING_MAX_FILES` | `10` | Maximum number of log files to retain (older files are rotated out). |
+| `TMUX_INTRAY_LOG_LEVEL` | `info` | Console logging level: `debug`, `info`, `warn`, `error`, or `off`. See [Debugging Guide](./debugging.md) for details. |
 
-### Telemetry
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `TMUX_INTRAY_TELEMETRY_ENABLED` | `false` | Enable telemetry collection for usage analytics. Telemetry is **local-only** - it is stored locally in your state directory and is never transmitted over the network. Data is only used for local analytics and understanding feature usage patterns. No personal information is collected. |
-
-**Privacy Guarantees:**
-
-- **Local-only storage**: Data is stored in `~/.local/state/tmux-intray/notifications.db`
-- **No network transmission**: No data ever leaves your device
-- **No personal information**: Only feature usage patterns are tracked
-- **Full user control**: You can view, export, clear, and disable telemetry at any time
-
-**What is tracked:**
-
-- Feature name (e.g., `add`, `list`, `jump`, `tui`)
-- Feature category (`cli` or `tui`)
-- Timestamp of feature usage
-- Optional context data (e.g., TUI actions, CLI command usage)
-
-**Examples:**
-
-```bash
-# Enable telemetry
-export TMUX_INTRAY_TELEMETRY_ENABLED=true
-
-# Or in config.toml
-telemetry_enabled = true
-
-# View telemetry data
-tmux-intray telemetry show --days 7
-
-# Export telemetry data
-tmux-intray telemetry export --output telemetry.jsonl
-
-# Clear old telemetry data
-tmux-intray telemetry clear --days 30
-
-# Disable telemetry
-export TMUX_INTRAY_TELEMETRY_ENABLED=false
-```
-
-For detailed telemetry command documentation, see the [CLI Reference](./cli/CLI_REFERENCE.md#telemetry) and the [Privacy Documentation](./privacy.md).
+For comprehensive debugging guidance including troubleshooting scenarios and examples, see the **[Debugging Guide](./debugging.md)**.
 
 ## Sample Configuration File
 
@@ -194,17 +148,10 @@ hooks_enabled_post_dismiss = true
 hooks_enabled_cleanup = true
 hooks_enabled_post_cleanup = true
 
-# Logging
-logging_enabled = false
-logging_level = "info"
-logging_max_files = 10
-
-# Debugging
-debug = false
-quiet = false
-
-# Telemetry
-telemetry_enabled = false
+# Logging (see docs/debugging.md for details)
+# Options: debug, info, warn, error, off
+# Default: info
+log_level = "info"
 ```
 
 ## Overriding Configuration
@@ -212,10 +159,17 @@ telemetry_enabled = false
 You can also set environment variables directly in your shell, which take precedence over the configuration file. For example:
 
 ```bash
-export TMUX_INTRAY_DEBUG=1
+# Enable debug logging
+export TMUX_INTRAY_LOG_LEVEL=debug
+
+# Adjust notification retention
 export TMUX_INTRAY_AUTO_CLEANUP_DAYS=7
+
+# Run command
 tmux-intray list
 ```
+
+For detailed debugging examples and troubleshooting, see the [Debugging Guide](./debugging.md).
 
 This is useful for temporary debugging or for per‑session customization.
 

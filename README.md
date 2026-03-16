@@ -32,7 +32,6 @@ Quick links to key sections:
 - [Usage](#usage)
 - [Fzf Integration](#fzf-integration)
 - [Architecture Overview](#architecture-overview)
-- [Telemetry](#telemetry)
 - [Debugging](#debugging)
 - [Testing](#testing)
 - [Linting](#linting)
@@ -448,11 +447,11 @@ For detailed configuration options, see the [configuration guide](docs/configura
 
 Enable debug logging:
 ```bash
-export TMUX_INTRAY_DEBUG=1
+export TMUX_INTRAY_LOG_LEVEL=debug
 tmux-intray add "Test notification"
 ```
 
-Debug logs are written to `~/.local/state/tmux-intray/debug.log`.
+Logs are written to stderr. For detailed debugging guidance, see the [Debugging Guide](./docs/debugging.md).
 
 ## Fzf Integration
 
@@ -577,121 +576,47 @@ tmux-intray is built with a modular architecture that separates concerns:
 3. **Tmux Integration**: Plugin updates status bar via `@tmux_intray_active_count`
 4. **Pane Navigation**: `tmux-intray jump` uses captured pane IDs to navigate
 
-## Telemetry
-
-tmux-intray includes an optional telemetry feature that tracks feature usage patterns to inform development decisions. This is designed to help understand which features are most used and which might be candidates for deprecation or improvement.
-
-### Telemetry Privacy
-
-**Telemetry is local-only and never transmitted.**
-
-- Data is stored exclusively on your device in `~/.local/state/tmux-intray/notifications.db`
-- No personal information is collected
-- No network calls are made
-- Data ownership remains entirely with you
-
-### Enabling/Disabling Telemetry
-
-Telemetry is **disabled by default**. You can enable it by setting:
-
-```bash
-export TMUX_INTRAY_TELEMETRY_ENABLED=true
-```
-
-Or add to `~/.config/tmux-intray/config.toml`:
-
-```toml
-telemetry_enabled = true
-```
-
-To disable telemetry:
-
-```bash
-export TMUX_INTRAY_TELEMETRY_ENABLED=false
-```
-
-### Viewing Telemetry Data
-
-You can view your telemetry data using the `telemetry` command:
-
-```bash
-# Show feature usage summary (all time)
-tmux-intray telemetry show
-
-# Show usage from the last 7 days
-tmux-intray telemetry show --days 7
-
-# Show telemetry status
-tmux-intray telemetry status
-
-# Export telemetry data to JSONL format
-tmux-intray telemetry export --output telemetry.jsonl
-
-# Clear old telemetry data (default: 90 days)
-tmux-intray telemetry clear
-
-# Clear telemetry data older than 30 days
-tmux-intray telemetry clear --days 30
-```
-
-### What Data is Collected
-
-Telemetry tracks:
-
-- **Feature name**: Which command or TUI feature was used
-- **Feature category**: Whether it's a CLI or TUI feature
-- **Timestamp**: When the feature was used
-- **Context data**: Additional information about feature usage (stored as JSON)
-
-Example telemetry event:
-
-```json
-{
-  "id": 1,
-  "timestamp": "2026-03-14T13:00:00Z",
-  "feature_name": "add",
-  "feature_category": "cli",
-  "context_data": "{}"
-}
-```
-
-### Managing Telemetry Data
-
-You have full control over your telemetry data:
-
-- **View**: See what's being tracked with `tmux-intray telemetry show`
-- **Export**: Download your data with `tmux-intray telemetry export --output FILE`
-- **Clear**: Delete old data with `tmux-intray telemetry clear`
-- **Disable**: Stop collection by setting `TMUX_INTRAY_TELEMETRY_ENABLED=false`
-
-For detailed telemetry command documentation, see the [CLI Reference](docs/cli/CLI_REFERENCE.md#telemetry).
-
 ## Debugging
+
+tmux-intray includes built-in logging to help troubleshoot issues. For comprehensive debugging guidance, see the **[Debugging Guide](./docs/debugging.md)**.
+
+### Quick Start
+
+```bash
+# Enable debug logging
+export TMUX_INTRAY_LOG_LEVEL=debug
+
+# Run your command
+tmux-intray list
+
+# Supported levels: debug, info, warn, error, off
+```
+
+Logs are written to **stderr** (not stdout) with timestamps and are local-only—no external transmission.
 
 ### Common Issues
 
 **CLI not found after installation**
-- Ensure installation directory is in PATH
+- Ensure installation directory is in PATH: `echo $PATH`
 - For npm: May require `npm bin -g` to be in PATH
+- Test with: `which tmux-intray`
 
 **Tmux plugin not loading**
+- Verify plugin path in `.tmux.conf`: `run '~/.local/share/tmux-plugins/tmux-intray/tmux-intray.tmux'`
+- Reload tmux: `tmux source-file ~/.tmux.conf`
 - Check `.tmux.conf` syntax
-- Verify plugin path exists
-- Reload tmux with `tmux source-file ~/.tmux.conf`
 
 **Notifications not appearing in status bar**
-- Ensure `status` command works: `tmux-intray status --format=compact`
-- Check status-right configuration in `.tmux.conf`
+- Test the status command: `tmux-intray status --format=compact`
+- Verify your `.tmux.conf` has `set -g status-right "...#(tmux-intray status)..."`
+- Enable debug mode to diagnose: `export TMUX_INTRAY_LOG_LEVEL=debug`
 
-### Debug Logging
+### Getting More Help
 
-```bash
-# Enable verbose debugging
-export TMUX_INTRAY_DEBUG=2
-
-# Check debug log
-tail -f ~/.local/state/tmux-intray/debug.log
-```
+For detailed troubleshooting and debugging scenarios:
+- **[Debugging Guide](./docs/debugging.md)** - Complete guide with examples for all common issues
+- **[Configuration Guide](./docs/configuration.md)** - All environment variables and config options
+- **[Troubleshooting Guide](./docs/troubleshooting.md)** - Additional solutions and tips
 
 ## Testing
 

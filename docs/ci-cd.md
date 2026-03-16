@@ -93,7 +93,7 @@ pre-commit install
 #### Test Failures
 - Check Bats test output in CI logs
 - Ensure tmux is available (tests require tmux server)
-- Environment variables: `TMUX_INTRAY_CONFIG_LOADED=1`, `TMUX_INTRAY_DEBUG=0`
+- Logging can be enabled during tests with `TMUX_INTRAY_LOG_LEVEL=debug` for debugging
 
 #### Lint/Security Failures
 - Run `make lint-strict` locally to reproduce CI lint failures
