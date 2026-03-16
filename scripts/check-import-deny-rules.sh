@@ -30,7 +30,7 @@ detect_layer() {
     "$module_path/internal/domain" | "$module_path/internal/notification" | "$module_path/internal/search" | "$module_path/internal/dedup" | "$module_path/internal/ports")
         printf 'domain\n'
         ;;
-    "$module_path/internal/storage" | "$module_path/internal/storage/"* | "$module_path/internal/tmux" | "$module_path/internal/config" | "$module_path/internal/dedupconfig" | "$module_path/internal/settings" | "$module_path/internal/hooks" | "$module_path/internal/colors" | "$module_path/internal/errors" | "$module_path/internal/logging" | "$module_path/internal/version" | "$module_path/internal/telemetry")
+    "$module_path/internal/storage" | "$module_path/internal/storage/"* | "$module_path/internal/tmux" | "$module_path/internal/config" | "$module_path/internal/dedupconfig" | "$module_path/internal/settings" | "$module_path/internal/hooks" | "$module_path/internal/colors" | "$module_path/internal/errors" | "$module_path/internal/logging" | "$module_path/internal/version")
         printf 'infrastructure\n'
         ;;
     *)
