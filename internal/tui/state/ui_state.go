@@ -2,6 +2,7 @@ package state
 
 import (
 	"github.com/charmbracelet/bubbles/viewport"
+	"github.com/cristianoliveira/tmux-intray/internal/logging"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
@@ -306,6 +307,8 @@ func (u *UIState) SetViewMode(mode model.ViewMode) {
 
 // CycleViewMode cycles to the next available view mode.
 func (u *UIState) CycleViewMode() {
+	oldMode := u.viewMode
+
 	// Cycle through modes: detailed -> grouped -> search -> detailed
 	// Note: ViewModeCompact is deprecated and not part of the active cycle
 	// It is only kept for backward compatibility (migration logic)
@@ -319,6 +322,9 @@ func (u *UIState) CycleViewMode() {
 	default:
 		u.viewMode = model.ViewModeDetailed
 	}
+
+	// Log view mode change
+	logging.Info("View mode changed: %s -> %s", oldMode, u.viewMode)
 }
 
 // GetGroupBy returns the current grouping mode.

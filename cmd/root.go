@@ -76,7 +76,8 @@ func init() {
 	// Cobra supports persistent flags which, if defined here,
 	// will be global for your application.
 
-	// RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.tmux-intray.yaml)")
+	// Add --log-file flag for explicit log file path
+	RootCmd.PersistentFlags().String("log-file", "", "explicit log file path (overrides config)")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.

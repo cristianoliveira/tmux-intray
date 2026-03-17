@@ -8,6 +8,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/charmbracelet/log"
 )
 
 var (
@@ -66,7 +68,7 @@ type StructuredLogEntry struct {
 	Fields    map[string]interface{} `json:"fields,omitempty"`
 }
 
-// StructuredLog writes a structured log entry to stderr.
+// StructuredLog writes a structured log entry to stderr and optionally to file.
 // Redaction of sensitive fields should be applied before calling this function.
 func StructuredLog(level StructuredLogLevel, component, action, status string, err error, id string, fields map[string]interface{}) {
 	if !IsDebugEnabled() {
@@ -97,10 +99,48 @@ func StructuredLog(level StructuredLogLevel, component, action, status string, e
 
 	structuredMu.Lock()
 	defer structuredMu.Unlock()
+
+	// Always write to stderr (existing behavior)
 	_, writeErr := fmt.Fprintf(os.Stderr, "%s\n", data)
 	if writeErr != nil {
-		errorFallback(fmt.Sprintf("failed to write structured log: %v", writeErr))
+		errorFallback(fmt.Sprintf("failed to write structured log to stderr: %v", writeErr))
 	}
+
+	// Also write to file logger if enabled
+	if IsEnabled() && GetLogger() != nil {
+		// Convert StructuredLogLevel to charmbracelet/log.Level
+		logLevel := structuredToCharmLevel(level)
+		logger := GetLogger()
+		logger.Log(logLevel, fmt.Sprintf("%s.%s", component, action), convertFields(fields))
+	}
+}
+
+// structuredToCharmLevel converts StructuredLogLevel to charmbracelet/log.Level.
+func structuredToCharmLevel(level StructuredLogLevel) log.Level {
+	switch level {
+	case LevelDebug:
+		return log.DebugLevel
+	case LevelInfo:
+		return log.InfoLevel
+	case LevelWarn:
+		return log.WarnLevel
+	case LevelError:
+		return log.ErrorLevel
+	default:
+		return log.InfoLevel
+	}
+}
+
+// convertFields converts map[string]interface{} to map[string]any.
+func convertFields(fields map[string]interface{}) map[string]any {
+	if fields == nil {
+		return nil
+	}
+	result := make(map[string]any, len(fields))
+	for k, v := range fields {
+		result[k] = v
+	}
+	return result
 }
 
 // StructuredDebug logs a structured debug entry.

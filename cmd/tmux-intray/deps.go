@@ -5,7 +5,10 @@ import (
 	"sync"
 
 	"github.com/cristianoliveira/tmux-intray/cmd"
+	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
+	"github.com/cristianoliveira/tmux-intray/internal/logging"
 	"github.com/cristianoliveira/tmux-intray/internal/ports"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
@@ -118,6 +121,42 @@ func registerCommands(root *cobra.Command, deps cliDeps) {
 }
 
 func initCLI() error {
+	// Load configuration first
+	config.Load()
+
+	// Check for --log-file flag
+	var logFile string
+	if cmd.RootCmd.PersistentFlags().Changed("log-file") {
+		logFile, _ = cmd.RootCmd.PersistentFlags().GetString("log-file")
+	} else {
+		logFile = config.Get("log_file", "")
+	}
+
+	// Initialize structured logging if enabled
+	loggingEnabled := config.GetBool("logging_enabled", false)
+	logLevel := config.Get("logging_level", "info")
+	maxFiles := config.GetInt("logging_max_files", 10)
+	stateDir := config.Get("state_dir", "")
+
+	cfg := &logging.LoggingConfig{
+		Enabled:  loggingEnabled,
+		Level:    logLevel,
+		MaxFiles: maxFiles,
+		LogFile:  logFile,
+		StateDir: stateDir,
+	}
+
+	if err := logging.Init(cfg); err != nil {
+		// Log initialization error should not prevent startup
+		colors.Warning("failed to initialize logging: " + err.Error())
+	}
+
+	// Log startup information if logging is enabled
+	if loggingEnabled {
+		logging.LogStartup()
+	}
+
+	// Build and register CLI commands
 	deps, err := buildCLIDeps()
 	if err != nil {
 		return err

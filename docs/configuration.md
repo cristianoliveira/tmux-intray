@@ -106,6 +106,53 @@ export TMUX_INTRAY_RECENTS_TIME_WINDOW=6h
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `TMUX_INTRAY_LOG_LEVEL` | `info` | Console logging level: `debug`, `info`, `warn`, `error`, or `off`. See [Debugging Guide](./debugging.md) for details. |
+| `TMUX_INTRAY_LOGGING_ENABLED` | `false` | Enable structured JSON logging to file. When enabled, logs are written to `$TMUX_INTRAY_STATE_DIR/logs/tmux-intray_YYYY-MM-DDTHH-MM-SS_PID{pid}_{command}.log`. |
+| `TMUX_INTRAY_LOGGING_LEVEL` | `info` | File logging level: `debug`, `info`, `warn`, or `error`. This controls the level of detail in structured log files. |
+| `TMUX_INTRAY_LOGGING_MAX_FILES` | `10` | Maximum number of log files to keep. Older log files are automatically deleted on startup. |
+| `TMUX_INTRAY_LOG_FILE` | *(empty)* | Explicit log file path. If set, overrides the default log file location. Useful for temporary debugging or directing logs to a specific location. |
+
+**Structured Logging:**
+
+tmux-intray supports structured JSON logging that provides detailed, machine-readable logs for debugging and analysis. When enabled:
+
+- Logs are written to a per-run file named `tmux-intray_YYYY-MM-DDTHH-MM-SS_PID{pid}_{command}.log`
+- The log file location is `$TMUX_INTRAY_STATE_DIR/logs` (default: `~/.local/state/tmux-intray/logs`)
+- Old log files are automatically rotated to keep only the most recent `TMUX_INTRAY_LOGGING_MAX_FILES` files
+- Sensitive data (passwords, tokens, keys, etc.) is automatically redacted from logs
+- The log file path is printed to stdout on startup when logging is enabled
+
+**Example usage:**
+
+```bash
+# Enable structured logging to the default location
+export TMUX_INTRAY_LOGGING_ENABLED=true
+export TMUX_INTRAY_LOGGING_LEVEL=debug
+tmux-intray list
+
+# Specify a custom log file
+export TMUX_INTRAY_LOGGING_ENABLED=true
+export TMUX_INTRAY_LOG_FILE=/tmp/tmux-intray-debug.log
+tmux-intray add "test notification"
+
+# Or use the --log-file flag
+tmux-intray --log-file=/tmp/debug.log list
+```
+
+**Configuration file example:**
+
+```toml
+# Enable structured logging
+logging_enabled = true
+
+# Set logging level
+logging_level = "info"
+
+# Keep at most 20 log files
+logging_max_files = 20
+
+# Optional: explicit log file path
+# log_file = "/var/log/tmux-intray/debug.log"
+```
 
 For comprehensive debugging guidance including troubleshooting scenarios and examples, see the **[Debugging Guide](./debugging.md)**.
 
@@ -148,10 +195,26 @@ hooks_enabled_post_dismiss = true
 hooks_enabled_cleanup = true
 hooks_enabled_post_cleanup = true
 
-# Logging (see docs/debugging.md for details)
+# Console logging (see docs/debugging.md for details)
 # Options: debug, info, warn, error, off
 # Default: info
 log_level = "info"
+
+# Structured JSON logging to file
+# Options: true, false
+# Default: false
+logging_enabled = false
+
+# File logging level: debug, info, warn, error
+# Default: info
+logging_level = "info"
+
+# Maximum number of log files to keep
+# Default: 10
+logging_max_files = 10
+
+# Optional: explicit log file path (overrides default location)
+# log_file = "/var/log/tmux-intray/debug.log"
 ```
 
 ## Overriding Configuration

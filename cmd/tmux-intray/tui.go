@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/logging"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/app"
 	"github.com/spf13/cobra"
@@ -71,6 +72,19 @@ USAGE:
 				// Continue with default settings
 			}
 			colors.Debug("Applied settings to TUI model")
+
+			// Log TUI startup
+			logging.Info("TUI started")
+
+			// Log entire config for debugging
+			logging.Info("TUI config: active_tab=%s, view_mode=%s, sort_by=%s, sort_order=%s, unread_first=%v, group_header=%+v",
+				loadedSettings.ActiveTab,
+				loadedSettings.ViewMode,
+				loadedSettings.SortBy,
+				loadedSettings.SortOrder,
+				loadedSettings.UnreadFirst,
+				loadedSettings.GroupHeader,
+			)
 
 			// Run the program
 			return client.RunProgram(model)
