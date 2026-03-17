@@ -381,3 +381,59 @@ func LogStartup() {
 func getGoVersion() string {
 	return runtime.Version()
 }
+
+// Info logs an info-level message with formatted arguments.
+func Info(format string, args ...interface{}) {
+	mu.RLock()
+	l := logger
+	mu.RUnlock()
+
+	if l == nil {
+		return
+	}
+
+	msg := fmt.Sprintf(format, args...)
+	l.Info(msg)
+}
+
+// Debug logs a debug-level message with formatted arguments.
+func Debug(format string, args ...interface{}) {
+	mu.RLock()
+	l := logger
+	mu.RUnlock()
+
+	if l == nil {
+		return
+	}
+
+	msg := fmt.Sprintf(format, args...)
+	l.Debug(msg)
+}
+
+// Warn logs a warning-level message with formatted arguments.
+func Warn(format string, args ...interface{}) {
+	mu.RLock()
+	l := logger
+	mu.RUnlock()
+
+	if l == nil {
+		return
+	}
+
+	msg := fmt.Sprintf(format, args...)
+	l.Warn(msg)
+}
+
+// Error logs an error-level message with formatted arguments.
+func Error(format string, args ...interface{}) {
+	mu.RLock()
+	l := logger
+	mu.RUnlock()
+
+	if l == nil {
+		return
+	}
+
+	msg := fmt.Sprintf(format, args...)
+	l.Error(msg)
+}
