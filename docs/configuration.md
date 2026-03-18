@@ -173,7 +173,6 @@ show_levels = false
 level_colors = "info:green,warning:yellow,error:red,critical:magenta"
 
 # Hook system
-hooks_enabled = true
 hooks_dir = "~/.config/tmux-intray/hooks"
 
 # Console logging (see docs/debugging.md for details)
