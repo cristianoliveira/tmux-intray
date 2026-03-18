@@ -62,11 +62,9 @@ This guide covers common issues and how to resolve them. If you encounter a prob
 - No output from hooks.
 
 **Causes:**  
-- Hooks are disabled globally (`TMUX_INTRAY_HOOKS_ENABLED=0`).
-- The specific hook point is disabled (e.g., `TMUX_INTRAY_HOOKS_ENABLED_pre_add=0`).
 - Hook scripts are not executable.
 - Hook directory structure is incorrect.
-- Hook failure mode is set to `abort` and a previous hook failed.
+- All hooks are temporarily disabled (hooks can be disabled by removing hook scripts from the hooks directory).
 
 **Solutions:**  
 1. **Verify hooks are enabled**  
@@ -89,10 +87,7 @@ This guide covers common issues and how to resolve them. If you encounter a prob
    ```
    Each script must be executable (`chmod +x`).
 
-3. **Enable per‑hook logging**  
-   Set `TMUX_INTRAY_HOOKS_FAILURE_MODE=warn` to see warnings when a hook fails.
-
-4. **Test a simple hook**  
+3. **Test a simple hook**  
    Create a test hook that writes to a file:
    ```bash
    echo '#!/bin/bash' > ~/.config/tmux-intray/hooks/post-add/test.sh

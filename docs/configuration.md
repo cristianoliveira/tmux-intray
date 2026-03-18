@@ -90,16 +90,7 @@ export TMUX_INTRAY_RECENTS_TIME_WINDOW=6h
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TMUX_INTRAY_HOOKS_ENABLED` | `1` | Enable (1) or disable (0) hooks globally. |
-| `TMUX_INTRAY_HOOKS_FAILURE_MODE` | `warn` | Behavior when a hook fails: `ignore` (silently continue), `warn` (log warning), `abort` (stop operation). |
-| `TMUX_INTRAY_HOOKS_ASYNC` | `0` | Run hooks asynchronously (1) or synchronously (0). *Not yet implemented*. |
 | `TMUX_INTRAY_HOOKS_DIR` | `$TMUX_INTRAY_CONFIG_DIR/hooks` | Directory containing hook scripts. |
-| `TMUX_INTRAY_HOOKS_ENABLED_pre_add` | `1` | Enable/disable pre‑add hooks (0/1). |
-| `TMUX_INTRAY_HOOKS_ENABLED_post_add` | `1` | Enable/disable post‑add hooks (0/1). |
-| `TMUX_INTRAY_HOOKS_ENABLED_pre_dismiss` | `1` | Enable/disable pre‑dismiss hooks (0/1). |
-| `TMUX_INTRAY_HOOKS_ENABLED_post_dismiss` | `1` | Enable/disable post‑dismiss hooks (0/1). |
-| `TMUX_INTRAY_HOOKS_ENABLED_cleanup` | `1` | Enable/disable cleanup hooks (0/1). |
-| `TMUX_INTRAY_HOOKS_ENABLED_post_cleanup` | `1` | Enable/disable post‑cleanup hooks (0/1). |
 
 ### Debugging & Logging
 
@@ -182,18 +173,7 @@ show_levels = false
 level_colors = "info:green,warning:yellow,error:red,critical:magenta"
 
 # Hook system
-hooks_enabled = true
-hooks_failure_mode = "warn"
-hooks_async = false
 hooks_dir = "~/.config/tmux-intray/hooks"
-
-# Per-hook enable/disable
-hooks_enabled_pre_add = true
-hooks_enabled_post_add = true
-hooks_enabled_pre_dismiss = true
-hooks_enabled_post_dismiss = true
-hooks_enabled_cleanup = true
-hooks_enabled_post_cleanup = true
 
 # Console logging (see docs/debugging.md for details)
 # Options: debug, info, warn, error, off

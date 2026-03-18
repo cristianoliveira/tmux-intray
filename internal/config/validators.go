@@ -124,7 +124,7 @@ func initValidators() {
 	RegisterValidator("status_format", EnumValidator(map[string]bool{"compact": true, "detailed": true, "count-only": true}))
 	RegisterValidator("hooks_failure_mode", EnumValidator(map[string]bool{"ignore": true, "warn": true, "abort": true}))
 
-	// Boolean validators (12 keys) - shared instance
+	// Boolean validators (6 keys) - shared instance
 	boolValidator := BoolValidator()
 	RegisterValidator("status_enabled", boolValidator)
 	RegisterValidator("show_levels", boolValidator)
@@ -132,12 +132,6 @@ func initValidators() {
 	RegisterValidator("hooks_async", boolValidator)
 	RegisterValidator("debug", boolValidator)
 	RegisterValidator("quiet", boolValidator)
-	RegisterValidator("hooks_enabled_pre_add", boolValidator)
-	RegisterValidator("hooks_enabled_post_add", boolValidator)
-	RegisterValidator("hooks_enabled_pre_dismiss", boolValidator)
-	RegisterValidator("hooks_enabled_post_dismiss", boolValidator)
-	RegisterValidator("hooks_enabled_cleanup", boolValidator)
-	RegisterValidator("hooks_enabled_post_cleanup", boolValidator)
 
 	// Logging validators
 	RegisterValidator("logging_enabled", boolValidator)
