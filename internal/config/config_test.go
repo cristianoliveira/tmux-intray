@@ -530,19 +530,13 @@ func TestInitValidators(t *testing.T) {
 	require.NotNil(t, getValidator("status_format"))
 	require.NotNil(t, getValidator("hooks_failure_mode"))
 
-	// Boolean validators (12 keys)
+	// Boolean validators (6 keys)
 	require.NotNil(t, getValidator("status_enabled"))
 	require.NotNil(t, getValidator("show_levels"))
 	require.NotNil(t, getValidator("hooks_enabled"))
 	require.NotNil(t, getValidator("hooks_async"))
 	require.NotNil(t, getValidator("debug"))
 	require.NotNil(t, getValidator("quiet"))
-	require.NotNil(t, getValidator("hooks_enabled_pre_add"))
-	require.NotNil(t, getValidator("hooks_enabled_post_add"))
-	require.NotNil(t, getValidator("hooks_enabled_pre_dismiss"))
-	require.NotNil(t, getValidator("hooks_enabled_post_dismiss"))
-	require.NotNil(t, getValidator("hooks_enabled_cleanup"))
-	require.NotNil(t, getValidator("hooks_enabled_post_cleanup"))
 }
 
 // TestPositiveIntValidatorEmpty tests that empty value returns default.

@@ -99,13 +99,6 @@ func setDefaults() {
 	setDefault("hooks_async", "false")
 	setDefault("hooks_async_timeout", "30")
 	setDefault("max_hooks", "10")
-	// Optional per-hook keys default to "true"
-	setDefault("hooks_enabled_pre_add", "true")
-	setDefault("hooks_enabled_post_add", "true")
-	setDefault("hooks_enabled_pre_dismiss", "true")
-	setDefault("hooks_enabled_post_dismiss", "true")
-	setDefault("hooks_enabled_cleanup", "true")
-	setDefault("hooks_enabled_post_cleanup", "true")
 	setDefault("debug", "false")
 	setDefault("quiet", "false")
 	setDefault("logging_enabled", "false")

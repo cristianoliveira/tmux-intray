@@ -63,10 +63,9 @@ This guide covers common issues and how to resolve them. If you encounter a prob
 
 **Causes:**  
 - Hooks are disabled globally (`TMUX_INTRAY_HOOKS_ENABLED=0`).
-- The specific hook point is disabled (e.g., `TMUX_INTRAY_HOOKS_ENABLED_pre_add=0`).
 - Hook scripts are not executable.
 - Hook directory structure is incorrect.
-- Hook failure mode is set to `abort` and a previous hook failed.
+- All hooks are temporarily disabled (hooks can be disabled by removing hook scripts from the hooks directory).
 
 **Solutions:**  
 1. **Verify hooks are enabled**  

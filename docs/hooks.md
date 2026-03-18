@@ -101,7 +101,7 @@ mkdir -p "$(dirname "$LOG_FILE")"
 ### Synchronous vs Asynchronous Hooks
 - **Synchronous (default)**: Hook script runs and tmux-intray waits for completion
 - **Asynchronous**: Hook script runs in background, tmux-intray continues immediately
-- **Configuration**: Set `TMUX_INTRAY_HOOKS_ASYNC=1` for all hooks, or per-hook with `TMUX_INTRAY_HOOKS_ASYNC_pre_add=1`
+- **Configuration**: Set `TMUX_INTRAY_HOOKS_ASYNC=1` to enable asynchronous execution for all hooks
 
 ### Error Handling
 - **Ignore (default)**: Hook failures are logged but don't block the operation
@@ -197,12 +197,9 @@ TMUX_INTRAY_HOOKS_ASYNC=0
 
 # Enable verbose output for hooks (0=silent, 1=verbose)
 TMUX_INTRAY_HOOKS_VERBOSE=0
-
-# Per-hook configuration
-TMUX_INTRAY_HOOKS_ENABLED_pre_add=1
-TMUX_INTRAY_HOOKS_ASYNC_pre_add=0
-TMUX_INTRAY_HOOKS_FAILURE_MODE_pre_add="warn"
 ```
+
+**Note:** Hooks are enabled by the presence of script files in the hook directories. Use `TMUX_INTRAY_HOOKS_ENABLED=0` to disable all hooks temporarily.
 
 ## Example Use Cases
 
