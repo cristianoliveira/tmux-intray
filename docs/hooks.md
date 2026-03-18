@@ -98,17 +98,6 @@ mkdir -p "$(dirname "$LOG_FILE")"
 
 ## Hook Execution
 
-### Synchronous vs Asynchronous Hooks
-- **Synchronous (default)**: Hook script runs and tmux-intray waits for completion
-- **Asynchronous**: Hook script runs in background, tmux-intray continues immediately
-- **Configuration**: Set `TMUX_INTRAY_HOOKS_ASYNC=1` to enable asynchronous execution for all hooks
-
-### Error Handling
-- **Ignore (default)**: Hook failures are logged but don't block the operation
-- **Warn**: Hook failures generate warnings but don't block the operation
-- **Abort**: Hook failures abort the tmux-intray operation
-- **Configuration**: `TMUX_INTRAY_HOOKS_FAILURE_MODE=ignore|warn|abort`
-
 ### Performance Considerations
 - Hooks add overhead to notification operations
 - Asynchronous hooks use double-fork to avoid zombie processes; the parent process does not wait for child termination
@@ -186,20 +175,11 @@ Hooks are configured via environment variables or the configuration file:
 ```bash
 # In ~/.config/tmux-intray/config.sh
 
-# Enable/disable hooks globally
-TMUX_INTRAY_HOOKS_ENABLED=1
-
-# Hook failure mode (ignore, warn, abort)
-TMUX_INTRAY_HOOKS_FAILURE_MODE="ignore"
-
-# Run hooks asynchronously (0=sync, 1=async)
-TMUX_INTRAY_HOOKS_ASYNC=0
-
 # Enable verbose output for hooks (0=silent, 1=verbose)
 TMUX_INTRAY_HOOKS_VERBOSE=0
 ```
 
-**Note:** Hooks are enabled by the presence of script files in the hook directories. Use `TMUX_INTRAY_HOOKS_ENABLED=0` to disable all hooks temporarily.
+**Note:** Hooks are enabled by the presence of script files in the hook directories. Remove or rename hook scripts in the hook directory to disable specific hooks.
 
 ## Example Use Cases
 
@@ -291,12 +271,11 @@ echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") DISMISSED $NOTIFICATION_ID by user $(whoa
 ### Common Issues
 
 1. **Hooks not executing**
-   - Check `TMUX_INTRAY_HOOKS_ENABLED` setting
+   - Verify hook scripts are present in the hooks directory
    - Verify hook script permissions (`chmod +x script.sh`)
    - Check hook script location and naming
 
-2. **Hook failures blocking operations**
-   - Check `TMUX_INTRAY_HOOKS_FAILURE_MODE` setting
+2. **Hook failures**
    - Review hook script error messages
    - Test hook script manually with same environment variables
 

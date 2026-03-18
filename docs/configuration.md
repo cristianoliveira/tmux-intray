@@ -90,9 +90,6 @@ export TMUX_INTRAY_RECENTS_TIME_WINDOW=6h
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TMUX_INTRAY_HOOKS_ENABLED` | `1` | Enable (1) or disable (0) hooks globally. When disabled, no hooks will run regardless of script presence. Hooks are enabled by presence of scripts in hook directories. |
-| `TMUX_INTRAY_HOOKS_FAILURE_MODE` | `warn` | Behavior when a hook fails: `ignore` (silently continue), `warn` (log warning), `abort` (stop operation). |
-| `TMUX_INTRAY_HOOKS_ASYNC` | `0` | Run hooks asynchronously (1) or synchronously (0). *Not yet implemented*. |
 | `TMUX_INTRAY_HOOKS_DIR` | `$TMUX_INTRAY_CONFIG_DIR/hooks` | Directory containing hook scripts. |
 
 ### Debugging & Logging
