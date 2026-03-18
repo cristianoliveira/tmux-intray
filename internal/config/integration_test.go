@@ -22,29 +22,19 @@ func TestConfigLoadingPrecedence(t *testing.T) {
 	require.NoError(t, os.MkdirAll(configDir, 0755))
 	configFile := filepath.Join(configDir, "config.toml")
 	configContent := `
-max_notifications = 500
 storage_backend = "sqlite"
-hooks_enabled = false
-hooks_failure_mode = "abort"
 `
 	require.NoError(t, os.WriteFile(configFile, []byte(configContent), 0644))
 
 	// Set environment variables (should override config file)
 	t.Setenv("TMUX_INTRAY_CONFIG_PATH", configFile)
-	t.Setenv("TMUX_INTRAY_MAX_NOTIFICATIONS", "200")
 	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "sqlite")
-	t.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "true")
 
 	reset()
 	Load()
 
 	// Verify precedence: environment should win
-	require.Equal(t, "200", Get("max_notifications", ""), "Environment should override config file")
 	require.Equal(t, "sqlite", Get("storage_backend", ""), "Environment should override config file")
-	require.Equal(t, "true", Get("hooks_enabled", ""), "Environment should override config file")
-
-	// Config file values (not overridden by env) should be used
-	require.Equal(t, "abort", Get("hooks_failure_mode", ""), "Config file value should be used when not overridden by env")
 }
 
 // TestConfigFileBashCompatibility verifies that Go and Bash implementations
@@ -57,17 +47,7 @@ func TestConfigFileBashCompatibility(t *testing.T) {
 	require.NoError(t, os.MkdirAll(configDir, 0755))
 	configFile := filepath.Join(configDir, "config.toml")
 	configContent := `
-max_notifications = 800
 storage_backend = "sqlite"
-hooks_enabled = true
-hooks_failure_mode = "warn"
-hooks_async = true
-hooks_async_timeout = 45
-max_hooks = 15
-table_format = "minimal"
-status_enabled = false
-show_levels = true
-date_format = "%Y-%m-%d"
 `
 	require.NoError(t, os.WriteFile(configFile, []byte(configContent), 0644))
 
@@ -78,31 +58,11 @@ date_format = "%Y-%m-%d"
 
 	// Verify Go loaded all values correctly
 	goConfig := map[string]string{
-		"max_notifications":   Get("max_notifications", ""),
-		"storage_backend":     Get("storage_backend", ""),
-		"hooks_enabled":       Get("hooks_enabled", ""),
-		"hooks_failure_mode":  Get("hooks_failure_mode", ""),
-		"hooks_async":         Get("hooks_async", ""),
-		"hooks_async_timeout": Get("hooks_async_timeout", ""),
-		"max_hooks":           Get("max_hooks", ""),
-		"table_format":        Get("table_format", ""),
-		"status_enabled":      Get("status_enabled", ""),
-		"show_levels":         Get("show_levels", ""),
-		"date_format":         Get("date_format", ""),
+		"storage_backend": Get("storage_backend", ""),
 	}
 
 	// Verify expected values
-	require.Equal(t, "800", goConfig["max_notifications"])
 	require.Equal(t, "sqlite", goConfig["storage_backend"])
-	require.Equal(t, "true", goConfig["hooks_enabled"])
-	require.Equal(t, "warn", goConfig["hooks_failure_mode"])
-	require.Equal(t, "true", goConfig["hooks_async"])
-	require.Equal(t, "45", goConfig["hooks_async_timeout"])
-	require.Equal(t, "15", goConfig["max_hooks"])
-	require.Equal(t, "minimal", goConfig["table_format"])
-	require.Equal(t, "false", goConfig["status_enabled"])
-	require.Equal(t, "true", goConfig["show_levels"])
-	require.Equal(t, "%Y-%m-%d", goConfig["date_format"])
 }
 
 // TestEnvironmentVariableConfigBashCompatibility verifies that environment
@@ -115,21 +75,13 @@ func TestEnvironmentVariableConfigBashCompatibility(t *testing.T) {
 	require.NoError(t, os.MkdirAll(configDir, 0755))
 	configFile := filepath.Join(configDir, "config.toml")
 	configContent := `
-	max_notifications = 1000
-	hooks_enabled = true
 	storage_backend = "sqlite"
 `
 	require.NoError(t, os.WriteFile(configFile, []byte(configContent), 0644))
 
 	// Set environment variables
 	envVars := map[string]string{
-		"TMUX_INTRAY_MAX_NOTIFICATIONS":   "500",
-		"TMUX_INTRAY_HOOKS_ENABLED":       "false",
-		"TMUX_INTRAY_STORAGE_BACKEND":     "sqlite",
-		"TMUX_INTRAY_HOOKS_FAILURE_MODE":  "abort",
-		"TMUX_INTRAY_HOOKS_ASYNC":         "true",
-		"TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT": "60",
-		"TMUX_INTRAY_MAX_HOOKS":           "20",
+		"TMUX_INTRAY_STORAGE_BACKEND": "sqlite",
 	}
 
 	for k, v := range envVars {
@@ -143,13 +95,7 @@ func TestEnvironmentVariableConfigBashCompatibility(t *testing.T) {
 	Load()
 
 	// Verify all env vars override config file
-	require.Equal(t, "500", Get("max_notifications", ""))
-	require.Equal(t, "false", Get("hooks_enabled", ""))
 	require.Equal(t, "sqlite", Get("storage_backend", ""))
-	require.Equal(t, "abort", Get("hooks_failure_mode", ""))
-	require.Equal(t, "true", Get("hooks_async", ""))
-	require.Equal(t, "60", Get("hooks_async_timeout", ""))
-	require.Equal(t, "20", Get("max_hooks", ""))
 }
 
 // TestDefaultConfigBashCompatibility verifies that Go and Bash implementations
@@ -167,19 +113,8 @@ func TestDefaultConfigBashCompatibility(t *testing.T) {
 
 	// Verify defaults match expected values from documentation
 	defaults := map[string]string{
-		"max_notifications":   "1000",
-		"storage_backend":     "sqlite",
-		"table_format":        "default",
-		"status_format":       "compact",
-		"status_enabled":      "true",
-		"show_levels":         "false",
-		"hooks_enabled":       "true",
-		"hooks_failure_mode":  "warn",
-		"hooks_async":         "false",
-		"hooks_async_timeout": "30",
-		"max_hooks":           "10",
-		"date_format":         "%Y-%m-%d %H:%M:%S",
-		"auto_cleanup_days":   "30",
+		"storage_backend":   "sqlite",
+		"auto_cleanup_days": "30",
 	}
 
 	for key, expectedValue := range defaults {
@@ -213,12 +148,12 @@ func TestBooleanConfigNormalization(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv("TMUX_INTRAY_HOOKS_ENABLED", tc.input)
+			t.Setenv("TMUX_INTRAY_DEBUG", tc.input)
 			t.Setenv("XDG_CONFIG_HOME", tmpDir)
 			reset()
 			Load()
 
-			actualValue := Get("hooks_enabled", "")
+			actualValue := Get("debug", "")
 			require.Equal(t, tc.expected, actualValue)
 		})
 	}
@@ -272,36 +207,29 @@ func TestConfigFileFormats(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	testCases := []struct {
-		name       string
-		ext        string
-		content    string
-		checkValue string
+		name    string
+		ext     string
+		content string
 	}{
 		{
 			name: "TOML",
 			ext:  ".toml",
 			content: `
-max_notifications = 777
-table_format = "minimal"
+storage_backend = "sqlite"
 `,
-			checkValue: "777",
 		},
 		{
 			name: "JSON",
 			ext:  ".json",
 			content: `{
-  "max_notifications": 777,
-  "table_format": "minimal"
+  "storage_backend": "sqlite"
 }`,
-			checkValue: "777",
 		},
 		{
 			name: "YAML",
 			ext:  ".yaml",
-			content: `max_notifications: 777
-table_format: minimal
+			content: `storage_backend: sqlite
 `,
-			checkValue: "777",
 		},
 	}
 
@@ -316,8 +244,7 @@ table_format: minimal
 			reset()
 			Load()
 
-			require.Equal(t, tc.checkValue, Get("max_notifications", ""))
-			require.Equal(t, "minimal", Get("table_format", ""))
+			require.Equal(t, "sqlite", Get("storage_backend", ""))
 		})
 	}
 }
@@ -335,46 +262,11 @@ func TestInvalidConfigValues(t *testing.T) {
 		configSnippet string
 	}{
 		{
-			name:          "negative_max_notifications",
-			configKey:     "max_notifications",
-			invalidValue:  "-5",
-			defaultValue:  "1000",
-			configSnippet: `max_notifications = -5`,
-		},
-		{
-			name:          "invalid_table_format",
-			configKey:     "table_format",
-			invalidValue:  "invalid",
-			defaultValue:  "default",
-			configSnippet: `table_format = "invalid"`,
-		},
-		{
 			name:          "invalid_storage_backend",
 			configKey:     "storage_backend",
 			invalidValue:  "unknown",
 			defaultValue:  "sqlite",
 			configSnippet: `storage_backend = "unknown"`,
-		},
-		{
-			name:          "invalid_hooks_failure_mode",
-			configKey:     "hooks_failure_mode",
-			invalidValue:  "unknown",
-			defaultValue:  "warn",
-			configSnippet: `hooks_failure_mode = "unknown"`,
-		},
-		{
-			name:          "invalid_hooks_async_timeout",
-			configKey:     "hooks_async_timeout",
-			invalidValue:  "-10",
-			defaultValue:  "30",
-			configSnippet: `hooks_async_timeout = -10`,
-		},
-		{
-			name:          "zero_max_hooks",
-			configKey:     "max_hooks",
-			invalidValue:  "0",
-			defaultValue:  "10",
-			configSnippet: `max_hooks = 0`,
 		},
 	}
 
@@ -423,12 +315,8 @@ func TestConfigGetIntGetBoolBashCompatibility(t *testing.T) {
 	require.NoError(t, os.MkdirAll(configDir, 0755))
 	configFile := filepath.Join(configDir, "config.toml")
 	configContent := `
-max_notifications = 500
-hooks_async_timeout = 60
-max_hooks = 15
-hooks_enabled = true
-status_enabled = false
-hooks_async = true
+auto_cleanup_days = 15
+debug = true
 `
 	require.NoError(t, os.WriteFile(configFile, []byte(configContent), 0644))
 
@@ -437,14 +325,10 @@ hooks_async = true
 	Load()
 
 	// Test GetInt
-	require.Equal(t, 500, GetInt("max_notifications", 0))
-	require.Equal(t, 60, GetInt("hooks_async_timeout", 0))
-	require.Equal(t, 15, GetInt("max_hooks", 0))
+	require.Equal(t, 15, GetInt("auto_cleanup_days", 0))
 
 	// Test GetBool
-	require.Equal(t, true, GetBool("hooks_enabled", false))
-	require.Equal(t, false, GetBool("status_enabled", true))
-	require.Equal(t, true, GetBool("hooks_async", false))
+	require.Equal(t, true, GetBool("debug", false))
 
 	// Test missing keys return defaults
 	require.Equal(t, 999, GetInt("missing_key", 999))
@@ -458,7 +342,6 @@ func TestEnvironmentVariableCasing(t *testing.T) {
 
 	// Set env vars with different casings for values
 	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "SQLITE") // uppercase value
-	t.Setenv("TMUX_INTRAY_TABLE_FORMAT", "Minimal")   // mixed case value
 	t.Setenv("XDG_CONFIG_HOME", tmpDir)
 
 	reset()
@@ -466,7 +349,6 @@ func TestEnvironmentVariableCasing(t *testing.T) {
 
 	// Values should be normalized to lowercase (for enum values)
 	require.Equal(t, "sqlite", Get("storage_backend", ""))
-	require.Equal(t, "minimal", Get("table_format", ""))
 }
 
 // TestConfigSampleCreation verifies that a sample config file is created
@@ -487,8 +369,6 @@ func TestConfigSampleCreation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check for some expected keys
-	require.Contains(t, string(content), "max_notifications")
 	require.Contains(t, string(content), "storage_backend")
-	require.Contains(t, string(content), "hooks_enabled")
 	require.Contains(t, string(content), "state_dir")
 }

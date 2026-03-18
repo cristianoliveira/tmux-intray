@@ -22,16 +22,7 @@ All configuration options are controlled by environment variables with the `TMUX
 | `TMUX_INTRAY_CONFIG_DIR` | `$XDG_CONFIG_HOME/tmux-intray` (`~/.config/tmux-intray`) | Directory for configuration files and hooks. |
 | `TMUX_INTRAY_TUI_SETTINGS_PATH` | *unset* (defaults to `$TMUX_INTRAY_CONFIG_DIR/tui.toml`) | Optional override for the TUI settings file location. |
 | `TMUX_INTRAY_STORAGE_BACKEND` | `sqlite` | Storage backend (only `sqlite` is supported). |
-| `TMUX_INTRAY_MAX_NOTIFICATIONS` | `1000` | Maximum number of notifications to keep (oldest are automatically cleaned up). |
 | `TMUX_INTRAY_AUTO_CLEANUP_DAYS` | `30` | Automatically clean up notifications that have been dismissed for more than this many days. |
-
-### Display & Formatting
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `TMUX_INTRAY_DATE_FORMAT` | `%Y-%m-%d %H:%M:%S` | Date format used in output (see `man date` for format codes). |
-| `TMUX_INTRAY_TABLE_FORMAT` | `default` | Table style for `--format=table` output (`default`, `minimal`, `fancy`). |
-| `TMUX_INTRAY_LEVEL_COLORS` | `info:green,warning:yellow,error:red,critical:magenta` | Color mapping for notification levels in status bar. Available colors: black, red, green, yellow, blue, magenta, cyan, white. |
 
 ### Deduplication
 
@@ -52,13 +43,7 @@ window = "5m"
 
 With the configuration above, `tmux-intray` only collapses notifications when they share the same message text and tmux source (session/window/pane) and were emitted within five minutes of each other.
 
-### Status Bar Integration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `TMUX_INTRAY_STATUS_ENABLED` | `1` | Enable (1) or disable (0) the status bar indicator. |
-| `TMUX_INTRAY_STATUS_FORMAT` | `compact` | Status format (`compact`, `detailed`, `count-only`). |
-| `TMUX_INTRAY_SHOW_LEVELS` | `0` | Show level counts (1) or only total count (0) in status bar. |
 
 ### Recents Tab
 
@@ -159,18 +144,7 @@ config_dir = "~/.config/tmux-intray"
 storage_backend = "sqlite"
 
 # Storage limits
-max_notifications = 1000
 auto_cleanup_days = 30
-
-# Display settings
-date_format = "%Y-%m-%d %H:%M:%S"
-table_format = "default"
-
-# Status bar integration
-status_enabled = true
-status_format = "compact"
-show_levels = false
-level_colors = "info:green,warning:yellow,error:red,critical:magenta"
 
 # Hook system
 hooks_dir = "~/.config/tmux-intray/hooks"
@@ -195,6 +169,11 @@ logging_max_files = 10
 
 # Optional: explicit log file path (overrides default location)
 # log_file = "/var/log/tmux-intray/debug.log"
+
+# Recents tab configuration
+# Valid values: 5m, 15m, 30m, 1h, 2h, 6h, 12h, 24h
+# Default: 1h
+recents_time_window = "1h"
 ```
 
 ## Overriding Configuration
