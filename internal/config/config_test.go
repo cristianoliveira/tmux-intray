@@ -27,18 +27,8 @@ func TestDefaultConfig(t *testing.T) {
 	Load()
 
 	// Check some default values.
-	require.Equal(t, "1000", Get("max_notifications", ""))
 	require.Equal(t, "30", Get("auto_cleanup_days", ""))
 	require.Equal(t, "sqlite", Get("storage_backend", ""))
-	require.Equal(t, "default", Get("table_format", ""))
-	require.Equal(t, "compact", Get("status_format", ""))
-	require.Equal(t, "true", Get("status_enabled", ""))
-	require.Equal(t, "false", Get("show_levels", ""))
-	require.Equal(t, "true", Get("hooks_enabled", ""))
-	require.Equal(t, "warn", Get("hooks_failure_mode", ""))
-	require.Equal(t, "false", Get("hooks_async", ""))
-	require.Equal(t, "30", Get("hooks_async_timeout", ""))
-	require.Equal(t, "10", Get("max_hooks", ""))
 	require.Equal(t, "message", Get("dedup.criteria", ""))
 	require.Equal(t, "", Get("dedup.window", ""))
 	require.Equal(t, "1h", Get("recents_time_window", ""))
@@ -52,24 +42,14 @@ func TestEnvironmentOverrides(t *testing.T) {
 	reset()
 	tmpDir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", tmpDir)
-	t.Setenv("TMUX_INTRAY_MAX_NOTIFICATIONS", "500")
-	t.Setenv("TMUX_INTRAY_STATUS_ENABLED", "0")
 	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "SQLITE")
-	t.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore")
-	t.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "60")
-	t.Setenv("TMUX_INTRAY_MAX_HOOKS", "5")
 	t.Setenv("TMUX_INTRAY_DEDUP__CRITERIA", "exact")
 	t.Setenv("TMUX_INTRAY_DEDUP__WINDOW", "2m")
 	t.Setenv("TMUX_INTRAY_RECENTS_TIME_WINDOW", "6h")
 
 	Load()
 
-	require.Equal(t, "500", Get("max_notifications", ""))
-	require.Equal(t, "false", Get("status_enabled", ""))
 	require.Equal(t, "sqlite", Get("storage_backend", ""))
-	require.Equal(t, "ignore", Get("hooks_failure_mode", ""))
-	require.Equal(t, "60", Get("hooks_async_timeout", ""))
-	require.Equal(t, "5", Get("max_hooks", ""))
 	require.Equal(t, "exact", Get("dedup.criteria", ""))
 	require.Equal(t, "2m0s", Get("dedup.window", ""))
 	require.Equal(t, "6h", Get("recents_time_window", ""))
@@ -80,10 +60,7 @@ func TestConfigFileTOML(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.toml")
 	data := `
-	max_notifications = 200
-	status_enabled = false
 	storage_backend = "sqlite"
-	table_format = "minimal"
 `
 	err := os.WriteFile(configPath, []byte(data), 0644)
 	require.NoError(t, err)
@@ -91,10 +68,7 @@ func TestConfigFileTOML(t *testing.T) {
 	t.Setenv("TMUX_INTRAY_CONFIG_PATH", configPath)
 	Load()
 
-	require.Equal(t, "200", Get("max_notifications", ""))
-	require.Equal(t, "false", Get("status_enabled", ""))
 	require.Equal(t, "sqlite", Get("storage_backend", ""))
-	require.Equal(t, "minimal", Get("table_format", ""))
 }
 
 func TestNestedDedupConfig(t *testing.T) {
@@ -121,77 +95,30 @@ func TestConfigFileTypeValidation(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", tmpDir)
 	configPath := filepath.Join(tmpDir, "config.toml")
 	data := `
-max_notifications = [1, 2]
-status_enabled = {value = true}
-table_format = "minimal"
-hooks_async_timeout = 12
+storage_backend = "sqlite"
 `
 	require.NoError(t, os.WriteFile(configPath, []byte(data), 0644))
 
 	t.Setenv("TMUX_INTRAY_CONFIG_PATH", configPath)
 	Load()
 
-	// Unsupported types should be skipped, using defaults
-	require.Equal(t, "1000", Get("max_notifications", ""))
-	require.Equal(t, "true", Get("status_enabled", ""))
-	require.Equal(t, "minimal", Get("table_format", ""))
-	require.Equal(t, "12", Get("hooks_async_timeout", ""))
+	// Valid type
+	require.Equal(t, "sqlite", Get("storage_backend", ""))
 }
 
 func TestValidation(t *testing.T) {
-	// Invalid max_notifications (negative)
+	// Invalid storage_backend
 	reset()
 	tmpDir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", tmpDir)
-	t.Setenv("TMUX_INTRAY_MAX_NOTIFICATIONS", "-5")
-	Load()
-	// Should be reset to default (1000)
-	require.Equal(t, "1000", Get("max_notifications", ""))
-
-	// Invalid table_format
-	reset()
-	tmpDir2 := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", tmpDir2)
-	t.Setenv("TMUX_INTRAY_TABLE_FORMAT", "invalid")
-	Load()
-	require.Equal(t, "default", Get("table_format", ""))
-
-	// Invalid hooks_failure_mode
-	reset()
-	tmpDir3 := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", tmpDir3)
-	t.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "invalid")
-	Load()
-	require.Equal(t, "warn", Get("hooks_failure_mode", ""))
-
-	// Invalid hooks_async_timeout
-	reset()
-	tmpDir4 := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", tmpDir4)
-	t.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "-10")
-	Load()
-	require.Equal(t, "30", Get("hooks_async_timeout", ""))
-
-	// Invalid max_hooks
-	reset()
-	tmpDir5 := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", tmpDir5)
-	t.Setenv("TMUX_INTRAY_MAX_HOOKS", "0")
-	Load()
-	require.Equal(t, "10", Get("max_hooks", ""))
-
-	// Invalid storage_backend
-	reset()
-	tmpDir6 := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", tmpDir6)
 	t.Setenv("TMUX_INTRAY_STORAGE_BACKEND", "unknown")
 	Load()
 	require.Equal(t, "sqlite", Get("storage_backend", ""))
 
 	// Invalid dedup settings
 	reset()
-	tmpDir7 := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", tmpDir7)
+	tmpDir2 := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir2)
 	t.Setenv("TMUX_INTRAY_DEDUP__CRITERIA", "invalid")
 	t.Setenv("TMUX_INTRAY_DEDUP__WINDOW", "abc")
 	Load()
@@ -203,21 +130,11 @@ func TestGetIntGetBool(t *testing.T) {
 	reset()
 	tmpDir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", tmpDir)
-	t.Setenv("TMUX_INTRAY_MAX_NOTIFICATIONS", "123")
-	t.Setenv("TMUX_INTRAY_STATUS_ENABLED", "1")
-	t.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "45")
-	t.Setenv("TMUX_INTRAY_MAX_HOOKS", "7")
 	t.Setenv("TMUX_INTRAY_DEDUP__WINDOW", "90s")
 	Load()
 
-	require.Equal(t, 123, GetInt("max_notifications", 0))
-	require.Equal(t, true, GetBool("status_enabled", false))
-	require.Equal(t, 45, GetInt("hooks_async_timeout", 0))
-	require.Equal(t, 7, GetInt("max_hooks", 0))
 	require.Equal(t, 90*time.Second, GetDuration("dedup.window", 0))
 	require.Equal(t, time.Minute, GetDuration("missing_duration", time.Minute))
-	// Verify that GetBool returns the config default (false) not the parameter default (true)
-	// when the key exists in config but is not set in environment variables.
 	// Missing key returns default.
 	require.Equal(t, 999, GetInt("missing_key", 999))
 	require.Equal(t, true, GetBool("missing_key", true))
@@ -239,7 +156,6 @@ func TestSampleConfigCreation(t *testing.T) {
 	err = toml.Unmarshal(data, &cfg)
 	require.NoError(t, err)
 	// Should contain expected keys.
-	require.Contains(t, cfg, "max_notifications")
 	require.Contains(t, cfg, "state_dir")
 	require.Contains(t, cfg, "storage_backend")
 }
@@ -251,7 +167,7 @@ func TestLoadWithoutConfigFile(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", tmpDir)
 	Load()
 	// Should not crash, defaults should be present.
-	require.Equal(t, "1000", Get("max_notifications", ""))
+	require.Equal(t, "sqlite", Get("storage_backend", ""))
 }
 
 func TestGetWithMissingKey(t *testing.T) {
@@ -268,15 +184,14 @@ func TestPriority(t *testing.T) {
 	reset()
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.toml")
-	data := `max_notifications = 800`
+	data := `storage_backend = "sqlite"`
 	err := os.WriteFile(configPath, []byte(data), 0644)
 	require.NoError(t, err)
 
 	t.Setenv("TMUX_INTRAY_CONFIG_PATH", configPath)
-	t.Setenv("TMUX_INTRAY_MAX_NOTIFICATIONS", "500") // should override config file
 	Load()
 
-	require.Equal(t, "500", Get("max_notifications", ""))
+	require.Equal(t, "sqlite", Get("storage_backend", ""))
 }
 
 // Test XDG directory defaults.
@@ -329,7 +244,7 @@ func TestConfigFileNotFound(t *testing.T) {
 	require.Contains(t, output, nonExistentPath)
 
 	// Defaults should still be loaded.
-	require.Equal(t, "1000", Get("max_notifications", ""))
+	require.Equal(t, "sqlite", Get("storage_backend", ""))
 }
 
 // Test that a malformed config file is handled gracefully and logged at warning level.
@@ -365,7 +280,7 @@ func TestConfigFileMalformed(t *testing.T) {
 	require.Contains(t, output, configPath)
 
 	// Defaults should still be loaded.
-	require.Equal(t, "1000", Get("max_notifications", ""))
+	require.Equal(t, "sqlite", Get("storage_backend", ""))
 }
 
 // Test that read errors (permission denied) are logged at debug level.
@@ -404,7 +319,7 @@ func TestConfigFileReadError(t *testing.T) {
 	require.Contains(t, output, configPath)
 
 	// Defaults should still be loaded.
-	require.Equal(t, "1000", Get("max_notifications", ""))
+	require.Equal(t, "sqlite", Get("storage_backend", ""))
 }
 
 // Test that debug messages are not shown when TMUX_INTRAY_DEBUG is not set.
@@ -437,7 +352,7 @@ func TestConfigFileNotFoundNoDebug(t *testing.T) {
 	require.NotContains(t, output, "unable to read config file")
 
 	// Defaults should still be loaded.
-	require.Equal(t, "1000", Get("max_notifications", ""))
+	require.Equal(t, "sqlite", Get("storage_backend", ""))
 }
 
 // TestRegisterValidatorPanic tests that registering a duplicate validator panics.
@@ -519,22 +434,12 @@ func TestGetValidatorNonExistent(t *testing.T) {
 func TestInitValidators(t *testing.T) {
 	reset()
 	// Reinitialize validators (init() already ran, but we can test the registry)
-	require.NotNil(t, getValidator("max_notifications"))
 	require.NotNil(t, getValidator("auto_cleanup_days"))
-	require.NotNil(t, getValidator("hooks_async_timeout"))
-	require.NotNil(t, getValidator("max_hooks"))
 
-	// Enum validators (3 keys)
-	require.NotNil(t, getValidator("table_format"))
+	// Enum validators (1 key)
 	require.NotNil(t, getValidator("storage_backend"))
-	require.NotNil(t, getValidator("status_format"))
-	require.NotNil(t, getValidator("hooks_failure_mode"))
 
-	// Boolean validators (6 keys)
-	require.NotNil(t, getValidator("status_enabled"))
-	require.NotNil(t, getValidator("show_levels"))
-	require.NotNil(t, getValidator("hooks_enabled"))
-	require.NotNil(t, getValidator("hooks_async"))
+	// Boolean validators (2 keys)
 	require.NotNil(t, getValidator("debug"))
 	require.NotNil(t, getValidator("quiet"))
 }

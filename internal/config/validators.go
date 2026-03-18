@@ -111,25 +111,15 @@ func DurationValidator(allowEmpty bool) Validator {
 
 // initValidators registers all configuration validators.
 func initValidators() {
-	// Positive integer validators (4 keys)
+	// Positive integer validators (1 key)
 	positiveIntValidator := PositiveIntValidator()
-	RegisterValidator("max_notifications", positiveIntValidator)
 	RegisterValidator("auto_cleanup_days", positiveIntValidator)
-	RegisterValidator("hooks_async_timeout", positiveIntValidator)
-	RegisterValidator("max_hooks", positiveIntValidator)
 
-	// Enum validators (3 keys)
-	RegisterValidator("table_format", EnumValidator(map[string]bool{"default": true, "minimal": true, "fancy": true}))
+	// Enum validators (1 key)
 	RegisterValidator("storage_backend", EnumValidator(map[string]bool{"sqlite": true}))
-	RegisterValidator("status_format", EnumValidator(map[string]bool{"compact": true, "detailed": true, "count-only": true}))
-	RegisterValidator("hooks_failure_mode", EnumValidator(map[string]bool{"ignore": true, "warn": true, "abort": true}))
 
-	// Boolean validators (6 keys) - shared instance
+	// Boolean validators (2 keys) - shared instance
 	boolValidator := BoolValidator()
-	RegisterValidator("status_enabled", boolValidator)
-	RegisterValidator("show_levels", boolValidator)
-	RegisterValidator("hooks_enabled", boolValidator)
-	RegisterValidator("hooks_async", boolValidator)
 	RegisterValidator("debug", boolValidator)
 	RegisterValidator("quiet", boolValidator)
 
