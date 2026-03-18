@@ -43,25 +43,6 @@ func init() {
 	})
 }
 
-// Custom error handling to match bash messages
-func handleCommandError(cmd *cobra.Command, args []string) error {
-	if len(args) > 0 {
-		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Unknown command '%s'\n", args[0])
-		return fmt.Errorf("")
-	}
-	return nil
-}
-
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the RootCmd.
-func ExecuteOriginal() error {
-	defer hooks.WaitForPendingHooks()
-	if err := hooks.Init(); err != nil {
-		return err
-	}
-	return RootCmd.Execute()
-}
-
 func init() {
 	// Set version for use in help output and --version flag
 	RootCmd.Version = version.String()
