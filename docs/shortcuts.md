@@ -27,6 +27,8 @@ Applies when the TUI is open and not in search input or confirmation mode.
 | `u` | Mark selected notification as unread | |
 | `r` | Switch tab to Recents | |
 | `a` | Switch tab to All | |
+| `Ctrl+r` | Switch tab to Recents | Works in all views |
+| `Ctrl+a` | Switch tab to All | Works in all views |
 | `/` | Enter search input mode | |
 | `v` | Cycle view mode | `detailed -> grouped -> search -> detailed` |
 | `?` | Toggle help text | |
@@ -64,8 +66,8 @@ In search contexts (search input mode and search view mode), `Ctrl+<letter>` fal
 
 Examples:
 - `Ctrl+d` behaves like `d` (dismiss).
-- `Ctrl+r` / `Ctrl+a` switch tabs.
-- `Ctrl+r` / `Ctrl+u` mark read/unread.
+- `Ctrl+R` / `Ctrl+u` mark read/unread.
+- `Ctrl+r` / `Ctrl+a` switch tabs (also work in all views).
 
 ## Search view mode
 
