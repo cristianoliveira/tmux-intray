@@ -165,8 +165,8 @@ func parseTimestamp(value string) time.Time {
 	return t
 }
 
-// BucketFromKey returns the window bucket index encoded in the key, or -1 if none.
-func BucketFromKey(key string) int {
+// bucketFromKey returns the window bucket index encoded in the key, or -1 if none.
+func bucketFromKey(key string) int {
 	idx := strings.Index(key, bucketSeparator)
 	if idx < 0 {
 		return -1
