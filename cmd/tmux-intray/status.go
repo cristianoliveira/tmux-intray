@@ -6,9 +6,9 @@ package main
 import (
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
+	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/format"
 	"github.com/cristianoliveira/tmux-intray/internal/formatter"
@@ -97,12 +97,16 @@ See docs/status-command-guide.md for detailed documentation and more examples.`,
 	return statusCmd
 }
 
-// determineStatusFormat determines the output format, preferring flag over env.
+// determineStatusFormat determines the output format, preferring flag over config.
 func determineStatusFormat(cmd *cobra.Command, formatFlag string) string {
 	format := formatFlag
 	if !cmd.Flag("format").Changed {
-		if envFormat := os.Getenv("TMUX_INTRAY_STATUS_FORMAT"); envFormat != "" {
-			format = envFormat
+		// Load config to pick up environment variables (TMUX_INTRAY_STATUS_FORMAT)
+		// and configuration files with proper precedence
+		config.Load()
+		configFormat := config.Get("status_format", "compact")
+		if configFormat != "" {
+			format = configFormat
 		}
 	}
 	if format == "" {

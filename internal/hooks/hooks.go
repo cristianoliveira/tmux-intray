@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -81,15 +80,14 @@ func Init() error {
 // getHooksDir returns the hooks directory path.
 func getHooksDir() string {
 	config.Load()
-	// First check environment variable (highest precedence)
-	if dir := os.Getenv("TMUX_INTRAY_HOOKS_DIR"); dir != "" {
-		return dir
+	// Use config system which handles environment variables (TMUX_INTRAY_HOOKS_DIR)
+	// and configuration files with proper precedence
+	hooksDir := config.Get("hooks_dir", "")
+	if hooksDir != "" {
+		colors.Debug(fmt.Sprintf("hooks_dir from config: %s", hooksDir))
+		return hooksDir
 	}
-	// Then check config
-	if dir := config.Get("hooks_dir", ""); dir != "" {
-		colors.Debug(fmt.Sprintf("hooks_dir from config: %s", dir))
-		return dir
-	}
+	// Fallback should not happen if config.Load() is working, but keep as safety net
 	// Default: $XDG_CONFIG_HOME/tmux-intray/hooks
 	if configDir := os.Getenv("XDG_CONFIG_HOME"); configDir != "" {
 		return filepath.Join(configDir, "tmux-intray", "hooks")
@@ -100,39 +98,22 @@ func getHooksDir() string {
 
 // getFailureMode returns the failure mode (abort, warn, ignore).
 func getFailureMode() string {
-	// Environment variable takes precedence
-	if mode := os.Getenv("TMUX_INTRAY_HOOKS_FAILURE_MODE"); mode != "" {
-		return mode
-	}
-	return "warn"
+	return config.Get("hooks_failure_mode", "warn")
 }
 
 // getAsyncEnabled returns true if async hooks are enabled.
 func getAsyncEnabled() bool {
-	if async := os.Getenv("TMUX_INTRAY_HOOKS_ASYNC"); async != "" {
-		return async == "1" || async == "true" || async == "yes" || async == "on"
-	}
-	return false
+	return config.GetBool("hooks_async", false)
 }
 
-// getAsyncTimeout returns the timeout in seconds for async hooks.
+// getAsyncTimeout returns the timeout for async hooks.
 func getAsyncTimeout() time.Duration {
-	if timeoutStr := os.Getenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT"); timeoutStr != "" {
-		if seconds, err := time.ParseDuration(timeoutStr + "s"); err == nil {
-			return seconds
-		}
-	}
-	return 30 * time.Second
+	return config.GetDuration("hooks_async_timeout", 30*time.Second)
 }
 
 // getMaxAsyncHooks returns maximum number of concurrent async hooks.
 func getMaxAsyncHooks() int {
-	if maxStr := os.Getenv("TMUX_INTRAY_MAX_HOOKS"); maxStr != "" {
-		if max, err := strconv.Atoi(maxStr); err == nil && max > 0 {
-			return max
-		}
-	}
-	return 10
+	return config.GetInt("max_hooks", 10)
 }
 
 // runSyncHook executes a hook script synchronously.

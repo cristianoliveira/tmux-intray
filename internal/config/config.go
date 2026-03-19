@@ -94,6 +94,13 @@ func setDefaults() {
 	setDefault("logging_max_files", "10")
 	setDefault("log_file", "")
 	setDefault("recents_time_window", "1h")
+	// Hooks configuration defaults
+	setDefault("hooks_failure_mode", "warn")
+	setDefault("hooks_async", "false")
+	setDefault("hooks_async_timeout", "30s")
+	setDefault("max_hooks", "10")
+	// Status command configuration defaults
+	setDefault("status_format", "compact")
 	setDedupDefaults()
 }
 
