@@ -60,7 +60,6 @@ type Model struct {
 	paneNames         map[string]string
 	ensureTmuxRunning func() bool
 	jumpToPane        func(sessionID, windowID, paneID string) bool
-	searchProvider    search.Provider
 }
 
 // Init initializes the TUI model.

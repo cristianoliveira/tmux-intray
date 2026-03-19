@@ -99,19 +99,13 @@ type JumpFailedMsg struct {
 type saveSettingsSuccessMsg struct{}
 
 // SaveSettingsSuccessMsg is exported version of saveSettingsSuccessMsg.
-type SaveSettingsSuccessMsg struct {
-	saveSettingsSuccessMsg
-}
+type SaveSettingsSuccessMsg struct{}
 
 // saveSettingsFailedMsg is sent when settings save fails.
-type saveSettingsFailedMsg struct {
-	err error
-}
+type saveSettingsFailedMsg struct{}
 
 // SaveSettingsFailedMsg is exported version of saveSettingsFailedMsg.
-type SaveSettingsFailedMsg struct {
-	saveSettingsFailedMsg
-}
+type SaveSettingsFailedMsg struct{}
 
 // errorMsg is sent when an error message should be cleared after a duration.
 type errorMsg struct{}

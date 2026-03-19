@@ -135,7 +135,7 @@ func TestHandleSaveSettingsSuccessMsg(t *testing.T) {
 func TestHandleSaveSettingsFailedMsg(t *testing.T) {
 	m := newTestModel(t, nil)
 
-	next, cmd := m.handleSaveSettingsFailed(saveSettingsFailedMsg{err: assert.AnError})
+	next, cmd := m.handleSaveSettingsFailed(saveSettingsFailedMsg{})
 	assert.Same(t, m, next)
 	assert.Nil(t, cmd)
 }

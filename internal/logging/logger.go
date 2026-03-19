@@ -22,9 +22,6 @@ var (
 	// mu protects access to logger initialization
 	mu sync.RWMutex
 
-	// config holds the current logging configuration
-	config *LoggingConfig
-
 	// configFileWriter is the file writer for logs
 	configFileWriter *os.File
 
@@ -46,8 +43,6 @@ type LoggingConfig struct {
 func Init(cfg *LoggingConfig) error {
 	mu.Lock()
 	defer mu.Unlock()
-
-	config = cfg
 
 	// If logging is disabled, don't initialize anything
 	if !cfg.Enabled {
@@ -376,10 +371,6 @@ func LogStartup() {
 	}
 
 	l.Info("startup", fields)
-}
-
-func getGoVersion() string {
-	return runtime.Version()
 }
 
 // Info logs an info-level message with formatted arguments.

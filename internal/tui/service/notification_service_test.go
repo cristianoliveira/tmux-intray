@@ -16,11 +16,6 @@ func nowMinutes(minutes int) string {
 	return time.Now().UTC().Add(-time.Duration(minutes) * time.Minute).Format(time.RFC3339)
 }
 
-// oldTime returns a timestamp that's very old (for testing non-recent notifications)
-func oldTime() string {
-	return "2024-01-01T10:00:00Z"
-}
-
 func TestSortNotificationsUnreadFirst(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
 

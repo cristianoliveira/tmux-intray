@@ -45,19 +45,6 @@ func isBetterRepresentative(candidate, current notification.Notification) bool {
 	return candidateTime.After(currentTime)
 }
 
-// notificationSourceKey creates a unique key for a notification source.
-func notificationSourceKey(notif notification.Notification) string {
-	return notif.Session + "\x00" + notif.Window + "\x00" + notif.Pane
-}
-
-// minInt returns the minimum of two integers.
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // simpleMatch performs a simple string matching check.
 func (s *DefaultNotificationService) simpleMatch(notif notification.Notification, query string) bool {
 	lowerQuery := strings.ToLower(query)

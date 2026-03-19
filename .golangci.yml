@@ -12,9 +12,9 @@ linters:
     - staticcheck  # Static analysis
     - errcheck     # Error checking
     - depguard     # Import/dependency guardrails
+    - unused       # Dead code and unused code detection
   disable:
     - govet
-    - unused
     - ineffassign
     - revive
   settings:

@@ -4,19 +4,6 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
 
-// expandTreeRecursive is a helper that expands all group nodes.
-func (m *Model) expandTreeRecursive(node *model.TreeNode) {
-	if node == nil {
-		return
-	}
-	if node.Kind != model.NodeKindNotification {
-		node.Expanded = true
-	}
-	for _, child := range node.Children {
-		m.expandTreeRecursive(child)
-	}
-}
-
 func (m *Model) nodePathSegments(path []*model.TreeNode) (session string, window string, pane string) {
 	for _, current := range path {
 		switch current.Kind {

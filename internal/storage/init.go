@@ -22,11 +22,10 @@ const (
 )
 
 var (
-	stateDir    string
-	initOnce    = &sync.Once{}
-	initMu      sync.RWMutex
-	initErr     error
-	initialized bool
+	stateDir string
+	initOnce = &sync.Once{}
+	initMu   sync.RWMutex
+	initErr  error
 )
 
 // Init initializes storage directories.
@@ -56,9 +55,8 @@ func Init() error {
 			return
 		}
 
-		// Mark initialized only if all steps succeeded
+		// Mark initialization error for retry logic
 		initMu.Lock()
-		initialized = true
 		initErr = nil
 		initMu.Unlock()
 
@@ -101,7 +99,6 @@ func Reset() {
 	defer initMu.Unlock()
 
 	stateDir = ""
-	initialized = false
 	initErr = nil
 
 	// Reset sync.Once by creating a new one

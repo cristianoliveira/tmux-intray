@@ -23,14 +23,6 @@ func mockLines() string {
 5	2025-01-01T14:00:00Z	active	sess3	win3	pane5	message five	127	info	2025-01-01T14:05:00Z`
 }
 
-func setupMock() {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
-		// We'll apply basic filters here for simplicity.
-		// In real tests we can filter based on parameters.
-		return mockLines(), nil
-	}
-}
-
 func restoreMock() {
 	listListFunc = nil
 }
