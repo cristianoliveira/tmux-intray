@@ -183,19 +183,6 @@ func TestDebugDisabled(t *testing.T) {
 	}
 }
 
-func TestEnvironmentDebugEnabled(t *testing.T) {
-	// Temporarily set environment variable
-	if err := os.Setenv("TMUX_INTRAY_DEBUG", "true"); err != nil {
-		t.Fatal(err)
-	}
-	// Reset the package-level variable by re-initializing
-	// Since init() already ran, we need to manually set
-	// We'll just test that SetDebug works; environment variable is read in init()
-	// but we can't easily re-run init. We'll skip this test for now.
-	// Instead we'll test SetDebug separately.
-	t.Skip("environment variable test requires package reload")
-}
-
 func TestMultipleArguments(t *testing.T) {
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
