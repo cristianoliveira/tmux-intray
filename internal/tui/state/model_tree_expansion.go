@@ -168,33 +168,3 @@ func serializeLegacyNodeExpansionPath(kind model.NodeKind, parts ...string) stri
 	}
 	return fmt.Sprintf("%s:%s", kind, strings.Join(parts, ":"))
 }
-
-func (m *Model) expansionStateValue(node *model.TreeNode) (bool, bool) {
-	expansionState := m.uiState.GetExpansionState()
-	if expansionState == nil {
-		return false, false
-	}
-
-	key := m.nodeExpansionKey(node)
-	if key != "" {
-		expanded, ok := expansionState[key]
-		if ok {
-			return expanded, true
-		}
-	}
-
-	legacyKey := m.nodeExpansionLegacyKey(node)
-	if legacyKey == "" {
-		return false, false
-	}
-
-	expanded, ok := expansionState[legacyKey]
-	if !ok {
-		return false, false
-	}
-	if key != "" {
-		m.uiState.UpdateExpansionState(key, expanded)
-		delete(expansionState, legacyKey)
-	}
-	return expanded, true
-}

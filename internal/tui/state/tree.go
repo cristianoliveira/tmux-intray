@@ -254,15 +254,6 @@ func findChildByTitle(node *model.TreeNode, kind model.NodeKind, title string) *
 	return nil
 }
 
-func findChildByNotification(node *Node, notif notification.Notification) *Node {
-	for _, child := range node.Children {
-		if notificationNodeMatches(child, notif) {
-			return child
-		}
-	}
-	return nil
-}
-
 func notificationNodeMatches(node *Node, notif notification.Notification) bool {
 	if node == nil || node.Kind != NodeKindNotification || node.Notification == nil {
 		return false

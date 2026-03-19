@@ -44,24 +44,15 @@ var (
 	once    sync.Once
 )
 
-type pendingHook struct {
-	cmd    *exec.Cmd
-	cancel context.CancelFunc
-	start  time.Time
-}
-
 type hookManager struct {
 	mu          sync.Mutex
-	pending     map[int]*pendingHook // key is PID
 	shutdown    chan struct{}
-	wg          sync.WaitGroup
 	initialized bool
 }
 
 func getManager() *hookManager {
 	once.Do(func() {
 		manager = &hookManager{
-			pending:  make(map[int]*pendingHook),
 			shutdown: make(chan struct{}),
 		}
 	})

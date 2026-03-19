@@ -189,16 +189,6 @@ func stylesWithUnread() GroupRowStyles {
 	}
 }
 
-func truncateGroupRow(value string, width int) string {
-	if width <= 0 {
-		return value
-	}
-	if utf8.RuneCountInString(value) <= width {
-		return value
-	}
-	return string([]rune(value)[:width])
-}
-
 func resolveGroupRowOptions(options settings.GroupHeaderOptions) settings.GroupHeaderOptions {
 	if options.BadgeColors == nil && !options.ShowTimeRange && !options.ShowLevelBadges && !options.ShowSourceAggregation {
 		return settings.DefaultGroupHeaderOptions()

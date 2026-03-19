@@ -18,19 +18,3 @@ const (
 	NumFields
 	MinFields = NumFields - 1
 )
-
-// Backward-compatible aliases used internally in storage package.
-const (
-	fieldID            = FieldID
-	fieldTimestamp     = FieldTimestamp
-	fieldState         = FieldState
-	fieldSession       = FieldSession
-	fieldWindow        = FieldWindow
-	fieldPane          = FieldPane
-	fieldMessage       = FieldMessage
-	fieldPaneCreated   = FieldPaneCreated
-	fieldLevel         = FieldLevel
-	fieldReadTimestamp = FieldReadTimestamp
-	numFields          = NumFields
-	minFields          = MinFields
-)

@@ -84,55 +84,6 @@ func (s *treeService) getNodeIdentifier(root *Node, node *Node) string {
 	return strings.Join(parts, ":")
 }
 
-func (s *treeService) findNodeByIdentifier(root *Node, visibleNodes []*Node, identifier string) *Node {
-	for _, node := range visibleNodes {
-		if s.getNodeIdentifier(root, node) == identifier {
-			return node
-		}
-	}
-	return nil
-}
-
-func (s *treeService) applyDefaultExpansion(root *Node, level int, expansionState map[string]bool) {
-	if root == nil {
-		return
-	}
-
-	var walk func(node *Node)
-	walk = func(node *Node) {
-		if node == nil {
-			return
-		}
-		if treeIsGroupNode(node) {
-			nodeLevel := treeNodeLevel(node) + 1
-			expanded := nodeLevel <= level
-			node.Expanded = expanded
-			s.updateExpansionState(root, expansionState, node, expanded)
-		}
-		for _, child := range node.Children {
-			walk(child)
-		}
-	}
-
-	walk(root)
-}
-
-func (s *treeService) updateExpansionState(root *Node, expansionState map[string]bool, node *Node, expanded bool) {
-	if expansionState == nil {
-		return
-	}
-
-	key := s.nodeExpansionKey(root, node)
-	if key == "" {
-		return
-	}
-	legacyKey := s.nodeExpansionLegacyKey(root, node)
-	if legacyKey != "" && legacyKey != key {
-		delete(expansionState, legacyKey)
-	}
-	expansionState[key] = expanded
-}
-
 func (s *treeService) pruneEmptyGroups(node *Node) {
 	if node == nil {
 		return
@@ -268,24 +219,6 @@ func treeIsGroupNode(node *Node) bool {
 		return false
 	}
 	return node.Kind != NodeKindNotification && node.Kind != NodeKindRoot
-}
-
-func treeNodeLevel(node *Node) int {
-	if node == nil {
-		return 0
-	}
-	switch node.Kind {
-	case NodeKindSession:
-		return 0
-	case NodeKindWindow:
-		return 1
-	case NodeKindPane:
-		return 2
-	case NodeKindMessage:
-		return 3
-	default:
-		return 0
-	}
 }
 
 func expandTree(node *Node) {
