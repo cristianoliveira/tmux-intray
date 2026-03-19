@@ -285,48 +285,6 @@ func TestMarkNotificationUnread_WithStorage(t *testing.T) {
 	assert.Contains(t, unreadResult, id)
 }
 
-func TestMarkNotificationReadWithTimestamp_WithStorage(t *testing.T) {
-	setupStorageTest(t)
-
-	require.NoError(t, Init())
-
-	// Add a notification first
-	id, err := AddNotification("test message", "2025-01-01T12:00:00Z", "session1", "window0", "pane0", "123456", "info")
-	require.NoError(t, err)
-
-	// Mark as read with specific timestamp
-	err = MarkNotificationReadWithTimestamp(id, "2025-01-02T10:00:00Z")
-	require.NoError(t, err)
-
-	// Verify it's read
-	readResult, err := ListNotifications("", "", "", "", "", "", "", "read")
-	require.NoError(t, err)
-	assert.Contains(t, readResult, id)
-}
-
-func TestMarkNotificationUnreadWithTimestamp_WithStorage(t *testing.T) {
-	setupStorageTest(t)
-
-	require.NoError(t, Init())
-
-	// Add a notification first
-	id, err := AddNotification("test message", "2025-01-01T12:00:00Z", "session1", "window0", "pane0", "123456", "info")
-	require.NoError(t, err)
-
-	// Mark as read first
-	err = MarkNotificationRead(id)
-	require.NoError(t, err)
-
-	// Mark as unread with timestamp (timestamp is ignored per implementation)
-	err = MarkNotificationUnreadWithTimestamp(id, "2025-01-02T10:00:00Z")
-	require.NoError(t, err)
-
-	// Verify we can still get the notification (should be active)
-	notif, err := GetNotificationByID(id)
-	require.NoError(t, err)
-	assert.Contains(t, notif, "test message")
-}
-
 func TestCleanupOldNotifications_WithStorage(t *testing.T) {
 	setupStorageTest(t)
 

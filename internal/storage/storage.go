@@ -97,24 +97,6 @@ func MarkNotificationUnread(id string) error {
 	return store.MarkNotificationUnread(id)
 }
 
-// MarkNotificationReadWithTimestamp marks a notification as read with the provided timestamp.
-func MarkNotificationReadWithTimestamp(id, timestamp string) error {
-	store, err := getDefaultStorage()
-	if err != nil {
-		return fmt.Errorf("failed to get storage: %w", err)
-	}
-	return store.MarkNotificationReadWithTimestamp(id, timestamp)
-}
-
-// MarkNotificationUnreadWithTimestamp marks a notification as unread with the provided timestamp.
-func MarkNotificationUnreadWithTimestamp(id, timestamp string) error {
-	store, err := getDefaultStorage()
-	if err != nil {
-		return fmt.Errorf("failed to get storage: %w", err)
-	}
-	return store.MarkNotificationUnreadWithTimestamp(id, timestamp)
-}
-
 // CleanupOldNotifications cleans up old notifications using the default storage backend.
 func CleanupOldNotifications(daysThreshold int, dryRun bool) error {
 	store, err := getDefaultStorage()

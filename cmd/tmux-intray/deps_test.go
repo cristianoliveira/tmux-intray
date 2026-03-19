@@ -46,14 +46,6 @@ func (f *fakeStorage) MarkNotificationUnread(id string) error {
 	return nil
 }
 
-func (f *fakeStorage) MarkNotificationReadWithTimestamp(id, timestamp string) error {
-	return nil
-}
-
-func (f *fakeStorage) MarkNotificationUnreadWithTimestamp(id, timestamp string) error {
-	return nil
-}
-
 func (f *fakeStorage) CleanupOldNotifications(daysThreshold int, dryRun bool) error {
 	return nil
 }
