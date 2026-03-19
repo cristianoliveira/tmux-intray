@@ -3936,3 +3936,298 @@ func TestSaveSettings_Success(t *testing.T) {
 	err = model.SaveSettings()
 	assert.NoError(t, err)
 }
+
+func TestCtrlASwitchesToAllTabInDetailedView(t *testing.T) {
+	setupConfig(t, t.TempDir())
+
+	model := newTestModelWithCurrentTimestamps(t, []notification.Notification{
+		{ID: 1, Message: "First", Session: "$1", Window: "@1", Pane: "%1"},
+		{ID: 2, Message: "Second", Session: "$2", Window: "@1", Pane: "%1"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(settings.ViewModeDetailed)
+	model.uiState.SetActiveTab(settings.TabRecents)
+	model.applySearchFilter()
+
+	// Start in Recents tab
+	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
+
+	// Press Ctrl+a to switch to All tab
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyCtrlA})
+	model = updated.(*Model)
+
+	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab())
+}
+
+func TestCtrlRSwitchesToRecentsTabInDetailedView(t *testing.T) {
+	setupConfig(t, t.TempDir())
+
+	model := newTestModelWithCurrentTimestamps(t, []notification.Notification{
+		{ID: 1, Message: "First", Session: "$1", Window: "@1", Pane: "%1"},
+		{ID: 2, Message: "Second", Session: "$2", Window: "@1", Pane: "%1"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(settings.ViewModeDetailed)
+	model.uiState.SetActiveTab(settings.TabAll)
+	model.applySearchFilter()
+
+	// Start in All tab
+	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab())
+
+	// Press Ctrl+r to switch to Recents tab
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyCtrlR})
+	model = updated.(*Model)
+
+	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
+}
+
+func TestCtrlASwitchesToAllTabInGroupedView(t *testing.T) {
+	setupConfig(t, t.TempDir())
+
+	model := newTestModelWithCurrentTimestamps(t, []notification.Notification{
+		{ID: 1, Message: "First", Session: "$1", Window: "@1", Pane: "%1"},
+		{ID: 2, Message: "Second", Session: "$2", Window: "@1", Pane: "%1"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(settings.ViewModeGrouped)
+	model.uiState.SetActiveTab(settings.TabRecents)
+	model.applySearchFilter()
+
+	// Start in Recents tab
+	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
+
+	// Press Ctrl+a to switch to All tab
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyCtrlA})
+	model = updated.(*Model)
+
+	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab())
+}
+
+func TestCtrlRSwitchesToRecentsTabInGroupedView(t *testing.T) {
+	setupConfig(t, t.TempDir())
+
+	model := newTestModelWithCurrentTimestamps(t, []notification.Notification{
+		{ID: 1, Message: "First", Session: "$1", Window: "@1", Pane: "%1"},
+		{ID: 2, Message: "Second", Session: "$2", Window: "@1", Pane: "%1"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(settings.ViewModeGrouped)
+	model.uiState.SetActiveTab(settings.TabAll)
+	model.applySearchFilter()
+
+	// Start in All tab
+	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab())
+
+	// Press Ctrl+r to switch to Recents tab
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyCtrlR})
+	model = updated.(*Model)
+
+	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
+}
+
+func TestCtrlASwitchesToAllTabInSearchView(t *testing.T) {
+	setupConfig(t, t.TempDir())
+
+	model := newTestModelWithCurrentTimestamps(t, []notification.Notification{
+		{ID: 1, Message: "First", Session: "$1", Window: "@1", Pane: "%1"},
+		{ID: 2, Message: "Second", Session: "$2", Window: "@1", Pane: "%1"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(settings.ViewModeSearch)
+	model.uiState.SetActiveTab(settings.TabRecents)
+	model.applySearchFilter()
+
+	// Start in Recents tab
+	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
+
+	// Press Ctrl+a to switch to All tab
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyCtrlA})
+	model = updated.(*Model)
+
+	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab())
+}
+
+func TestCtrlRSwitchesToRecentsTabInSearchView(t *testing.T) {
+	setupConfig(t, t.TempDir())
+
+	model := newTestModelWithCurrentTimestamps(t, []notification.Notification{
+		{ID: 1, Message: "First", Session: "$1", Window: "@1", Pane: "%1"},
+		{ID: 2, Message: "Second", Session: "$2", Window: "@1", Pane: "%1"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(settings.ViewModeSearch)
+	model.uiState.SetActiveTab(settings.TabAll)
+	model.applySearchFilter()
+
+	// Start in All tab
+	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab())
+
+	// Press Ctrl+r to switch to Recents tab
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyCtrlR})
+	model = updated.(*Model)
+
+	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
+}
+
+func TestCtrlATabSwitchWithSearchQuery(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	notifications := []notification.Notification{
+		{ID: 1, Message: "active alpha", State: "active", Level: "info"},
+		{ID: 2, Message: "dismissed alpha", State: "dismissed", Level: "warning"},
+	}
+
+	model := newTestModelWithCurrentTimestamps(t, notifications)
+	baseService := model.notificationService
+	spyService := &spyNotificationService{NotificationService: baseService}
+	model.notificationService = spyService
+
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetActiveTab(settings.TabRecents)
+	model.uiState.SetSearchQuery("alpha")
+	model.applySearchFilter()
+
+	require.Len(t, model.filtered, 1)
+	assert.Equal(t, 1, model.filtered[0].ID)
+	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
+
+	beforeCalls := spyService.applyCalls
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyCtrlA})
+	model = updated.(*Model)
+
+	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab())
+	assert.Equal(t, "alpha", model.uiState.GetSearchQuery())
+	assert.Greater(t, spyService.applyCalls, beforeCalls)
+	assert.Equal(t, settings.TabAll, spyService.lastTab)
+	assert.Equal(t, "alpha", spyService.lastQuery)
+	require.Len(t, model.filtered, 1)
+	assert.Equal(t, 1, model.filtered[0].ID)
+}
+
+func TestCtrlRTabSwitchWithSearchQuery(t *testing.T) {
+	tmpDir := t.TempDir()
+	setupConfig(t, tmpDir)
+
+	notifications := []notification.Notification{
+		{ID: 1, Message: "active beta", State: "active", Level: "info"},
+		{ID: 2, Message: "active beta 2", State: "active", Level: "warning"},
+	}
+
+	model := newTestModelWithCurrentTimestamps(t, notifications)
+	baseService := model.notificationService
+	spyService := &spyNotificationService{NotificationService: baseService}
+	model.notificationService = spyService
+
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetActiveTab(settings.TabAll)
+	model.uiState.SetSearchQuery("beta")
+	model.applySearchFilter()
+
+	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab())
+
+	beforeCalls := spyService.applyCalls
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyCtrlR})
+	model = updated.(*Model)
+
+	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
+	assert.Equal(t, "beta", model.uiState.GetSearchQuery())
+	assert.Greater(t, spyService.applyCalls, beforeCalls)
+	assert.Equal(t, settings.TabRecents, spyService.lastTab)
+	assert.Equal(t, "beta", spyService.lastQuery)
+	// Search query should still filter the results
+	assert.Greater(t, len(model.filtered), 0)
+}
+
+func TestCtrlASwitchesMultipleTimes(t *testing.T) {
+	setupConfig(t, t.TempDir())
+
+	model := newTestModelWithCurrentTimestamps(t, []notification.Notification{
+		{ID: 1, Message: "First", Session: "$1", Window: "@1", Pane: "%1"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(settings.ViewModeDetailed)
+
+	// Start in Recents
+	model.uiState.SetActiveTab(settings.TabRecents)
+	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
+
+	// Switch to All
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyCtrlA})
+	model = updated.(*Model)
+	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab())
+
+	// Switch to All again (should stay on All)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyCtrlA})
+	model = updated.(*Model)
+	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab())
+}
+
+func TestCtrlRSwitchesMultipleTimes(t *testing.T) {
+	setupConfig(t, t.TempDir())
+
+	model := newTestModelWithCurrentTimestamps(t, []notification.Notification{
+		{ID: 1, Message: "First", Session: "$1", Window: "@1", Pane: "%1"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(settings.ViewModeDetailed)
+
+	// Start in All
+	model.uiState.SetActiveTab(settings.TabAll)
+	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab())
+
+	// Switch to Recents
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyCtrlR})
+	model = updated.(*Model)
+	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
+
+	// Switch to Recents again (should stay on Recents)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyCtrlR})
+	model = updated.(*Model)
+	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
+}
+
+func TestCtrlAAndCtrlRToggleBetweenTabs(t *testing.T) {
+	setupConfig(t, t.TempDir())
+
+	model := newTestModelWithCurrentTimestamps(t, []notification.Notification{
+		{ID: 1, Message: "First", Session: "$1", Window: "@1", Pane: "%1"},
+	})
+	model.uiState.SetWidth(80)
+	model.uiState.GetViewport().Width = 80
+	model.uiState.SetViewMode(settings.ViewModeDetailed)
+
+	// Start in Recents
+	model.uiState.SetActiveTab(settings.TabRecents)
+	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
+
+	// Switch to All with Ctrl+a
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyCtrlA})
+	model = updated.(*Model)
+	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab())
+
+	// Switch back to Recents with Ctrl+r
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyCtrlR})
+	model = updated.(*Model)
+	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
+
+	// Switch to All again with Ctrl+a
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyCtrlA})
+	model = updated.(*Model)
+	assert.Equal(t, settings.TabAll, model.uiState.GetActiveTab())
+
+	// Switch back to Recents with Ctrl+r
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyCtrlR})
+	model = updated.(*Model)
+	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
+}
