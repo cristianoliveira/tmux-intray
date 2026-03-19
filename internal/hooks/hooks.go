@@ -108,6 +108,7 @@ func getAsyncEnabled() bool {
 
 // getAsyncTimeout returns the timeout for async hooks.
 func getAsyncTimeout() time.Duration {
+	config.Load() // Reload config to pick up environment variables
 	return config.GetDuration("hooks_async_timeout", 30*time.Second)
 }
 
@@ -177,8 +178,14 @@ func runAsyncHook(scriptPath, scriptName string, envMap map[string]string, failu
 	}
 	// Track start time for hung hook detection
 	startTime := time.Now()
+	done := make(chan error, 1)
 
-	// Wait for completion in goroutine, then decrement count
+	// Wait for command completion in a separate goroutine
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	// Wait for completion or timeout in main goroutine
 	go func() {
 		// Ensure we always clean up, even on panic
 		defer func() {
@@ -193,14 +200,26 @@ func runAsyncHook(scriptPath, scriptName string, envMap map[string]string, failu
 			pendingHooksMu.Unlock()
 			// Always signal completion, even on panic
 			pendingHooks.Done()
-			cancel() // ensure cancel is called after wait returns
+			cancel() // ensure cancel is called to release context resources
 		}()
 
-		// Wait for command completion
-		err := cmd.Wait()
+		var err error
+		select {
+		case err = <-done:
+			// Process finished naturally
+		case <-ctx.Done():
+			// Timeout occurred - force kill the process
+			if cmd.Process != nil {
+				_ = cmd.Process.Kill()
+				// Wait for the process to actually die
+				<-done
+				err = fmt.Errorf("hook timed out after %v (killed)", timeout)
+			}
+		}
+
 		duration := time.Since(startTime)
 
-		// Check if hook exceeded timeout (context was canceled)
+		// Log timeout explicitly
 		if ctx.Err() == context.DeadlineExceeded && isHooksVerbose() {
 			fmt.Fprintf(os.Stderr, "warning: async hook %s timed out after %.2fs\n", scriptName, duration.Seconds())
 		}

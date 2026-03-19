@@ -196,7 +196,7 @@ func TestAsyncHookTimeoutDetection(t *testing.T) {
 	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1"))
 	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1"))
 	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore"))
-	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "0.5"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "0.5s"))
 
 	start := time.Now()
 	err := Run("pre-add")
@@ -265,7 +265,7 @@ func TestAsyncHookCleanupAlwaysCalled(t *testing.T) {
 	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1"))
 	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1"))
 	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "warn"))
-	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "0.5"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "0.5s"))
 
 	err := Run("pre-add")
 	require.NoError(t, err)
@@ -292,7 +292,7 @@ func TestAsyncHookContextCancellation(t *testing.T) {
 	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ENABLED", "1"))
 	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ASYNC", "1"))
 	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_FAILURE_MODE", "ignore"))
-	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "0.5"))
+	require.NoError(t, os.Setenv("TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT", "0.5s"))
 
 	start := time.Now()
 	err := Run("pre-add")
