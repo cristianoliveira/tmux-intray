@@ -179,7 +179,6 @@ func buildFullHelpSearchModeItems(state FooterState) []string {
 func buildFullHelpNormalModeItems(state FooterState) []string {
 	var items []string
 	items = append(items, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
-	items = append(items, fmt.Sprintf("tab: %s", tabIndicator(state.ActiveTab)))
 	items = append(items, "Ctrl+r: recents")
 	items = append(items, "Ctrl+a: all")
 	items = append(items, fmt.Sprintf("read: %s", readFilterIndicator(state.ReadFilter)))
@@ -224,7 +223,6 @@ func buildMinimalSearchModeItems(state FooterState) []string {
 func buildMinimalNormalModeItems(state FooterState) []string {
 	var items []string
 	items = append(items, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
-	items = append(items, fmt.Sprintf("tab: %s", tabIndicator(state.ActiveTab)))
 	items = append(items, "Ctrl+r: recents")
 	items = append(items, "Ctrl+a: all")
 	items = append(items, "j/k: move")
