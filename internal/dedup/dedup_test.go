@@ -35,16 +35,16 @@ func TestBuildKeysWindow(t *testing.T) {
 	require.Len(t, keys, 3)
 	require.Equal(t, "alert", keys[0])
 	require.Equal(t, "alert", keys[1])
-	require.Equal(t, -1, BucketFromKey(keys[0]))
-	require.Equal(t, -1, BucketFromKey(keys[1]))
+	require.Equal(t, -1, bucketFromKey(keys[0]))
+	require.Equal(t, -1, bucketFromKey(keys[1]))
 	require.True(t, strings.Contains(keys[2], "\u001f"))
-	require.Equal(t, 1, BucketFromKey(keys[2]))
+	require.Equal(t, 1, bucketFromKey(keys[2]))
 	require.Equal(t, "alert", StripBucketSuffix(keys[2]))
 
 	keys = BuildKeys(records, Options{Criteria: CriteriaMessage, Window: 5 * time.Minute})
-	require.Equal(t, -1, BucketFromKey(keys[0]))
-	require.Equal(t, -1, BucketFromKey(keys[1]))
-	require.Equal(t, 1, BucketFromKey(keys[2]))
+	require.Equal(t, -1, bucketFromKey(keys[0]))
+	require.Equal(t, -1, bucketFromKey(keys[1]))
+	require.Equal(t, 1, bucketFromKey(keys[2]))
 }
 
 func TestStripBucketSuffixWithoutSuffix(t *testing.T) {
