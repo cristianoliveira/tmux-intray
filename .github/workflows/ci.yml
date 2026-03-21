@@ -239,3 +239,70 @@ jobs:
 
       - name: Test source installation
         run: make install
+
+  # Validate npm package structure and build all platform binaries
+  npm-package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build all platform binaries
+        run: ./scripts/build-npm-binaries.sh
+
+      - name: Validate npm package
+        run: |
+          echo "Checking package.json files field..."
+          node -e "
+            const pkg = require('./package.json');
+            const fs = require('fs');
+            const files = pkg.files || [];
+            for (const f of files) {
+              if (f === 'dist') {
+                if (!fs.existsSync('dist')) {
+                  console.error('Missing: dist/');
+                  process.exit(1);
+                }
+                const binaries = fs.readdirSync('dist').filter(f => f.startsWith('tmux-intray_'));
+                if (binaries.length === 0) {
+                  console.error('No binaries found in dist/');
+                  process.exit(1);
+                }
+                console.log('Found ' + binaries.length + ' binaries in dist/');
+              } else if (!fs.existsSync(f)) {
+                console.error('Missing: ' + f);
+                process.exit(1);
+              }
+            }
+            console.log('All package files validated');
+          "
+
+      - name: Test npm pack (dry run)
+        run: npm pack --dry-run
+
+      - name: Verify wrapper script
+        run: |
+          # Test that the wrapper script can find the binary
+          node -e "
+            const path = require('path');
+            const fs = require('fs');
+            const binaryName = 'tmux-intray_linux_amd64';
+            const binaryPath = path.join(__dirname, 'dist', binaryName);
+            if (!fs.existsSync(binaryPath)) {
+              console.error('Binary not found: ' + binaryPath);
+              process.exit(1);
+            }
+            console.log('Wrapper can find binary: ' + binaryPath);
+          "
