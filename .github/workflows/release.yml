@@ -166,3 +166,77 @@ jobs:
           files: |
             ${{ steps.package.outputs.TARBALL_PATH }}
             dist/tmux-intray_*
+
+  publish-npm:
+    runs-on: ubuntu-latest
+    needs: create-release
+    permissions:
+      contents: read
+      id-token: write  # For npm provenance
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Get version from tag
+        id: tag
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Update package.json version
+        run: |
+          VERSION="${{ steps.tag.outputs.VERSION }}"
+          VERSION="${VERSION#v}"  # Remove leading 'v'
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '${VERSION}';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          echo "Updated package.json to version ${VERSION}"
+
+      - name: Build all platform binaries
+        run: ./scripts/build-npm-binaries.sh
+
+      - name: Validate npm package
+        run: |
+          echo "Validating package structure..."
+          node -e "
+            const pkg = require('./package.json');
+            const fs = require('fs');
+            const files = pkg.files || [];
+            for (const f of files) {
+              if (f === 'dist') {
+                if (!fs.existsSync('dist')) {
+                  console.error('Missing: dist/');
+                  process.exit(1);
+                }
+                const binaries = fs.readdirSync('dist').filter(f => f.startsWith('tmux-intray_'));
+                if (binaries.length === 0) {
+                  console.error('No binaries found in dist/');
+                  process.exit(1);
+                }
+                console.log('Found ' + binaries.length + ' binaries in dist/');
+              } else if (!fs.existsSync(f)) {
+                console.error('Missing: ' + f);
+                process.exit(1);
+              }
+            }
+            console.log('✓ Package structure validated');
+          "
+
+      - name: Publish to npm
+        run: npm publish --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

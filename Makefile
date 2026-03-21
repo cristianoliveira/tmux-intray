@@ -155,11 +155,8 @@ install:
 
 install-npm:
 	@echo "Installing via npm..."
-	@echo "Building Go binary for npm package..."
-	@echo "  Version: $(VERSION)"
-	@echo "  Commit: $(COMMIT)"
-	@mkdir -p bin
-	@go build $(LDFLAGS) -o bin/tmux-intray ./cmd/tmux-intray
+	@echo "Building all platform binaries for npm package..."
+	@./scripts/build-npm-binaries.sh
 	npm install -g .
 
 install-go:

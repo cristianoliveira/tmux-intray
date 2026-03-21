@@ -14,21 +14,23 @@
     "url": "https://github.com/cristianoliveira/tmux-intray.git"
   },
   "bin": {
-    "tmux-intray": "./bin/tmux-intray"
+    "tmux-intray": "./bin/tmux-intray.js"
   },
   "files": [
-    "bin",
-    "commands",
-    "lib",
-    "scripts",
+    "bin/tmux-intray.js",
+    "dist",
     "tmux-intray.tmux"
   ],
   "scripts": {
+    "build": "./scripts/build-npm-binaries.sh",
+    "prepublishOnly": "npm run build",
     "test": "make tests",
     "lint": "make lint"
   },
   "preferGlobal": true,
   "engines": {
     "node": ">=12"
-  }
+  },
+  "os": ["darwin", "linux", "win32"],
+  "cpu": ["x64", "arm64"]
 }

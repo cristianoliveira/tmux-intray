@@ -93,13 +93,15 @@ tmux source-file ~/.tmux.conf
 
 Install just the command-line interface for use within tmux sessions:
 
-#### npm
+#### npm (No Go required)
 
 ```bash
 npm install -g tmux-intray
 ```
 
-#### Go (Recommended)
+Includes pre-built binaries for macOS (x64, arm64), Linux (x64, arm64), and Windows (x64).
+
+#### Go (Recommended for Go users)
 
 ```bash
 go install github.com/cristianoliveira/tmux-intray@latest
@@ -113,7 +115,10 @@ cd tmux-intray
 make install
 ```
 
-**Note**: The CLI requires tmux to be running for most commands. Installations via package managers provide the CLI only; you'll need to manually set up tmux integration if desired.
+**Note**: The CLI requires tmux to be running for most commands. 
+- **npm**: Pre-built binaries - no additional dependencies required
+- **go install**: Requires Go toolchain
+- **From source**: Requires Go toolchain and make
 
 ### Option 3: Tmux Plugin Only
 
@@ -181,7 +186,7 @@ The tmux-intray CLI is a command-line interface for managing notifications withi
 ### CLI Requirements
 
 - **tmux**: Most commands require an active tmux session
-- **Go**: Required for installation and execution
+- **Go**: Required only for `go install` and building from source (not needed for npm or one-click installation)
 
 ### CLI Commands
 
