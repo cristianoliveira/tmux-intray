@@ -2,7 +2,7 @@
 # Example: Using tmux-intray from a script
 
 # Check if tmux is running
-if ! tmux has-session 2>/dev/null; then
+if ! tmux list-sessions 2>/dev/null | grep -q .; then
     echo "Error: No tmux session running"
     echo "Start tmux first: tmux new-session"
     exit 1
