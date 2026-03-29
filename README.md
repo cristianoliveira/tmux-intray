@@ -171,7 +171,7 @@ See the [CLI Reference](docs/cli/CLI_REFERENCE.md) for a complete list of comman
 Comprehensive documentation is available:
 
 - [CLI Reference](docs/cli/CLI_REFERENCE.md) - Complete command reference
-- [Status Command Guide](docs/status-command-guide.md) - Template variables, presets, real-world examples, and troubleshooting
+- [Status Guide](docs/status-guide.md) - Template variables, presets, real-world examples, and troubleshooting
 - [Configuration Guide](docs/configuration.md) - All environment variables and settings (including TUI settings persistence)
 - [Troubleshooting Guide](docs/troubleshooting.md) - Common issues and solutions
 - [Advanced Filtering Example](examples/advanced-filtering.sh) - Complex filter combinations

@@ -180,7 +180,7 @@ set -g status-right "Inbox: #(tmux-intray status --format=count-only) %H:%M"
 
 #### Full Documentation
 
-See [Status Command Guide](../status-command-guide.md) for:
+See [Status Guide](../status-guide.md) for:
 - Detailed variable descriptions and use cases
 - All 6 preset definitions with examples
 - Real-world use cases (status bar integration, scripts, etc.)
