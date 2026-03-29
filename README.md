@@ -21,6 +21,8 @@
 I use it on a daily basis, I'm a heavy tmux user and so far it works great! At this stage of development I can't promise there won't be
 breaking changes.
 
+For the guiding principles that inform all design decisions, see [Project Philosophy](docs/philosophy.md).
+
 ## Summary
 
 Quick links to key sections:

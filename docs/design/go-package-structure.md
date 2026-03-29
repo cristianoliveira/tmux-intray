@@ -144,6 +144,5 @@ Each command is implemented as a Cobra command defined directly in `cmd/*.go` fi
 
 ## References
 
-- [Current Bash Implementation](../implementation/tmux-intray-implementation-plan.md)
 - [Go Standard Project Layout](https://github.com/golang-standards/project-layout)
 - [Go Package Design](https://rakyll.org/style-packages/)
