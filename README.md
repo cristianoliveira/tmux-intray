@@ -115,10 +115,28 @@ cd tmux-intray
 make install
 ```
 
-**Note**: The CLI requires tmux to be running for most commands. 
+#### Nix (Flakes)
+
+```bash
+# Run directly from the flake
+nix run github:cristianoliveira/tmux-intray
+
+# Or build and install locally
+nix build .#
+nix run .# -- --version
+
+# Add to PATH (bash/zsh)
+export PATH="$(pwd)/result/bin:$PATH"
+
+# For permanent installation, add to your shell config:
+# echo 'export PATH="$HOME/.nix-profile/bin:$PATH"' >> ~/.bashrc
+```
+
+**Note**: The CLI requires tmux to be running for most commands.
 - **npm**: Pre-built binaries - no additional dependencies required
 - **go install**: Requires Go toolchain
 - **From source**: Requires Go toolchain and make
+- **Nix**: Requires Nix with flakes enabled
 
 ### Option 3: Tmux Plugin Only
 
