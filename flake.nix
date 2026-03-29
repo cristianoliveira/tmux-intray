@@ -46,13 +46,17 @@
             pname = "tmux-intray";
             version = "0.1.0";
             src = ./.;
-            nativeBuildInputs = with pkgs; [ bats tmux shfmt shellcheck ];
-            preBuild = ''
-              export XDG_STATE_HOME=$(mktemp -d)
-              export XDG_CONFIG_HOME=$(mktemp -d)
-              export HOME=$(mktemp -d)
-            '';
+            nativeBuildInputs = with pkgs; [
+                go
+                bats
+                tmux
+                shfmt
+                shellcheck
+            ];
             buildPhase = ''
+              export GOCACHE=$TMPDIR/go-cache
+              export GOMODCACHE=$TMPDIR/go-mod-cache
+              mkdir -p $GOCACHE $GOMODCACHE
               go build -o tmux-intray ./cmd/tmux-intray
             '';
             installPhase = ''
