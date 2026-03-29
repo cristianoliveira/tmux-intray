@@ -93,14 +93,6 @@ tmux source-file ~/.tmux.conf
 
 Install just the command-line interface for use within tmux sessions:
 
-#### npm (No Go required)
-
-```bash
-npm install -g tmux-intray
-```
-
-Includes pre-built binaries for macOS (x64, arm64), Linux (x64, arm64), and Windows (x64).
-
 #### Go (Recommended for Go users)
 
 ```bash
