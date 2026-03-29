@@ -3,13 +3,19 @@
 
 set -euo pipefail
 
-TMUX_INTRAY_BIN="./bin/tmux-intray"
+# Check if tmux-intray is available
+if ! command -v tmux-intray &>/dev/null; then
+    echo "Error: tmux-intray not found"
+    echo "Install it first: go install github.com/cristianoliveira/tmux-intray@latest"
+    exit 1
+fi
+
 PROJECT_NAME="Example Build"
 
 echo "Starting $PROJECT_NAME..."
 
 # Notify start
-"$TMUX_INTRAY_BIN" add "🚀 Starting $PROJECT_NAME..."
+tmux-intray add "🚀 Starting $PROJECT_NAME..."
 
 # Simulate some work
 for step in {1..5}; do
@@ -18,8 +24,8 @@ for step in {1..5}; do
 done
 
 # Notify completion
-"$TMUX_INTRAY_BIN" add "✅ $PROJECT_NAME completed successfully!"
+tmux-intray add "✅ $PROJECT_NAME completed successfully!"
 
 echo ""
 echo "Tray contents:"
-"$TMUX_INTRAY_BIN" list
+tmux-intray list
