@@ -1,8 +1,8 @@
 # tmux-intray Configuration
 
-> **Note**: This project follows a minimalist, Unix‑style philosophy. See [Project Philosophy](./philosophy.md) for design principles and rationale.
-
 tmux-intray can be configured via environment variables, which can be set in your shell profile or in a dedicated configuration file. This guide covers all available configuration options.
+
+> **Note**: For the guiding principles behind configuration design (one format, explicit defaults, etc.), see [Project Philosophy](philosophy.md).
 
 ## Configuration File
 

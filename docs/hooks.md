@@ -627,4 +627,4 @@ The hooks system is designed to be extensible. Future enhancements may include:
 
 ---
 
-*Note: The hooks system is a planned feature. Implementation details may change before release. Check the [tmux-intray changelog](../CHANGELOG.md) for updates.*
+*Note: The hooks system is implemented and available since tmux-intray v1.0. For details on the latest features, check the [GitHub releases](https://github.com/cristianoliveira/tmux-intray/releases).*

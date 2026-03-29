@@ -474,4 +474,3 @@ The Tmux Abstraction Layer provides a clean, testable, and maintainable way to i
 For questions or contributions, please refer to:
 - [DEVELOPMENT.md](../../DEVELOPMENT.md) - Development workflow
 - [CLI Reference](./cli/CLI_REFERENCE.md) - Command usage examples
-- [Testing Strategy](../testing/testing-strategy.md) - Testing guidelines

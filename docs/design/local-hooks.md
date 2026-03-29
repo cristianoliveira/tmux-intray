@@ -679,7 +679,6 @@ The design maintains full backward compatibility:
 - [Hooks System Documentation](../hooks.md)
 - [Go Package Structure](./go-package-structure.md)
 - [Configuration Guide](../configuration.md)
-- [Testing Strategy](../testing/testing-strategy.md)
 
 ## Appendix
 

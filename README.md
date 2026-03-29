@@ -4,7 +4,7 @@
 
 <div style="display:flex">
     <div>
-        A quiet inbox for things that happen while you're not looking. 
+        A quiet inbox for things that happen while you're not looking.
         tmux-intray provides a persistent in-tmux in-tray where panes, windows, and scripts can drop messages and events without interrupting your flow. Instead of loud notifications or forced context switching.
     </div>
     <div>
@@ -21,6 +21,8 @@
 I use it on a daily basis, I'm a heavy tmux user and so far it works great! At this stage of development I can't promise there won't be
 breaking changes.
 
+For the guiding principles that inform all design decisions, see [Project Philosophy](docs/philosophy.md).
+
 ## Summary
 
 Quick links to key sections:
@@ -29,7 +31,7 @@ Quick links to key sections:
 - [Installation Options](#installation-options)
 - [CLI Installation](#cli-installation)
 - [Tmux Plugin Installation](#tmux-plugin-installation)
-- [Usage](#usage)
+- [Hooks system](#hooks-system)
 - [Fzf Integration](#fzf-integration)
 - [Architecture Overview](#architecture-overview)
 - [Debugging](#debugging)
@@ -42,19 +44,38 @@ Quick links to key sections:
 - **CLI Only**: Install via [npm](#npm) or [Go](#go) for tmux-integrated use
 - **Plugin Only**: Install via [Tmux Plugin Manager](#using-tmux-plugin-manager-recommended) if CLI already installed
 
-## Basic usage
+## Basic Usage
 
 ```bash
 tmux-intray add "my message!"
 tmux-intray list
 tmux-intray jump <id>
+
+```
+
+### Managing Notifications
+Once messages arrive you can manage them with the following commands:
+```bash
+tmux-intray tui
 # or using fzf
 tmux-intray list | fzf | awk '{ print $1 }' | xargs -I {} tmux-intray jump {}
 ```
 
-## SQLite Storage
+### Tmux Integration
+We recommend attaching <prefix> + J to open TUI in popup window
 
-tmux-intray uses SQLite for notification storage, providing transactional storage and better scalability. The SQLite backend uses sqlc-generated queries from `internal/storage/sqlite/queries.sql` (generated into `internal/storage/sqlite/sqlcgen/`).
+```bash
+bind-key -T prefix J run-shell "tmux popup -E -h 50% -w 70% 'tmux-intray tui'"
+```
+
+Using `tmux-intray status` create a status bar in `.tmux.conf`:
+
+```bash
+# Shows the tmux-intray status panel
+set -g status-right "#(tmux-intray status --format='📨 {{unread-count}}/{{total-count}}') %H:%M %a %d-%b-%y"
+```
+
+See [tmux.conf](tmux-intray.tmux) for a full example.
 
 ## Installation Options
 
@@ -99,14 +120,6 @@ Install just the command-line interface for use within tmux sessions:
 go install github.com/cristianoliveira/tmux-intray@latest
 ```
 
-#### From Source
-
-```bash
-git clone https://github.com/cristianoliveira/tmux-intray.git
-cd tmux-intray
-make install
-```
-
 #### Nix (Flakes)
 
 ```bash
@@ -117,32 +130,17 @@ nix run github:cristianoliveira/tmux-intray
 nix build .#
 nix run .# -- --version
 
-# Add to PATH (bash/zsh)
-export PATH="$(pwd)/result/bin:$PATH"
-
-# For permanent installation, add to your shell config:
-# echo 'export PATH="$HOME/.nix-profile/bin:$PATH"' >> ~/.bashrc
+# Install tmux-intray globally
+nix profile install github:cristianoliveira/tmux-intray
 ```
 
-**Note**: The CLI requires tmux to be running for most commands.
-- **npm**: Pre-built binaries - no additional dependencies required
-- **go install**: Requires Go toolchain
-- **From source**: Requires Go toolchain and make
-- **Nix**: Requires Nix with flakes enabled
-
-### Option 3: Tmux Plugin Only
-
-If you already have the CLI installed (e.g., via npm), install just the tmux integration:
-
-#### Using Tmux Plugin Manager (recommended)
-
-Add to your `.tmux.conf`:
+#### From Source
 
 ```bash
-set -g @plugin 'cristianoliveira/tmux-intray'
+git clone https://github.com/cristianoliveira/tmux-intray.git
+cd tmux-intray
+make install
 ```
-
-Then press `prefix + I` to install.
 
 #### Manual Plugin Installation
 
@@ -157,46 +155,10 @@ echo "run '~/.local/share/tmux-plugins/tmux-intray/tmux-intray.tmux'" >> ~/.tmux
 tmux source-file ~/.tmux.conf
 ```
 
-### Option 4: OpenCode Plugin
+### Integrations With Code Agents
 
-If you use [OpenCode](https://github.com/opencode/opencode), you can install the OpenCode plugin to receive notifications when OpenCode sessions complete, error, or require permissions.
-
-#### Using the installation script
-
-```bash
-# Navigate to the plugin directory after cloning the repository
-cd tmux-intray/opencode/plugins/opencode-tmux-intray
-
-# Install globally (recommended)
-./install.sh --global
-
-# Or install locally
-./install.sh --local
-```
-
-The installation script will:
-- Copy plugin files to OpenCode plugin directories
-- Install npm dependencies
-- Add npm scripts for easy management
-
-For detailed installation instructions and configuration, see the [plugin README](opencode/plugins/opencode-tmux-intray/README.md).
-
-## CLI Installation
-
-### What the CLI Provides
-
-The tmux-intray CLI is a command-line interface for managing notifications within tmux sessions. It provides:
-
-- Notification storage and retrieval
-- Severity levels (info, warning, error, critical)
-- Filtering and formatting options
-- Pane association for notification origin tracking
-- Hooks system for extensibility
-
-### CLI Requirements
-
-- **tmux**: Most commands require an active tmux session
-- **Go**: Required only for `go install` and building from source (not needed for npm or one-click installation)
+- [OpenCode](opencode/plugins/opencode-tmux-intray) - See the readme
+- [Pi](pi/agent/extensions/tmux-intray) - See the Readme
 
 ### CLI Commands
 
@@ -204,30 +166,14 @@ The tmux-intray CLI is a command-line interface for managing notifications withi
 $ tmux-intray --help
 ```
 
-#### Core Commands
-- `tmux-intray add <message>` - Add a new item to the tray (options: `--level`, `--session`, `--window`, `--pane`, `--no-associate`)
-- `tmux-intray list` - List notifications with filters and formats (e.g., `--active`, `--dismissed`, `--all`, `--level`, `--pane`, `--session`, `--window`, `--older-than`, `--newer-than`, `--search`, `--regex`, `--group-by`, `--group-count`, `--format=table`)
-- `tmux-intray dismiss <id>` - Dismiss a specific notification
-- `tmux-intray dismiss --all` - Dismiss all active notifications
-- `tmux-intray clear` - Clear all items from the tray (alias for `dismiss --all`)
-- `tmux-intray cleanup` - Clean up old dismissed notifications (configurable retention)
-
-#### Navigation Commands
-- `tmux-intray jump <id>` - Jump to the pane of a notification
-- `tmux-intray status` - Show notification status summary with flexible template formatting
-- `tmux-intray follow` - Monitor notifications in real-time
-
-#### Utility Commands
-- `tmux-intray help` - Show help message
-- `tmux-intray --version` - Show version information
-- `tmux-intray status` - Generate status bar output for tmux integration (replaces status-panel)
+See the [CLI Reference](docs/cli/CLI_REFERENCE.md) for a complete list of commands and options.
 
 ## Documentation
 
 Comprehensive documentation is available:
 
 - [CLI Reference](docs/cli/CLI_REFERENCE.md) - Complete command reference
-- [Status Command Guide](docs/status-command-guide.md) - Template variables, presets, real-world examples, and troubleshooting
+- [Status Guide](docs/status-guide.md) - Template variables, presets, real-world examples, and troubleshooting
 - [Configuration Guide](docs/configuration.md) - All environment variables and settings (including TUI settings persistence)
 - [Troubleshooting Guide](docs/troubleshooting.md) - Common issues and solutions
 - [Advanced Filtering Example](examples/advanced-filtering.sh) - Complex filter combinations
@@ -239,185 +185,17 @@ Documentation is automatically generated from the command-line help texts.
 
 The TUI automatically saves your preferences on exit:
 - **Settings file**: `~/.config/tmux-intray/tui.toml`
-- **Manual save**: Press `:w` in TUI command mode
 - **Auto-save**: Settings are saved when you quit (q, :q, Ctrl+C)
 - **Reset settings**: Run `tmux-intray settings reset`
 - **View settings**: Run `tmux-intray settings show`
 
 See [Configuration Guide](docs/configuration.md) for details on available settings.
 
-### Notification Levels
-
-Notifications can have severity levels: `info` (default), `warning`, `error`, `critical`. Levels are used for filtering, color-coded display, and severity-based formatting.
-
-```bash
-# Add a notification with a level
-tmux-intray add --level=error "Something went wrong"
-
-# Filter notifications by level
-tmux-intray list --level=error
-
-# The `status` command shows counts per level
-tmux-intray status --format=levels
-# Output: Severity: 2 | Unread: 3
-
-# Or breakdown by severity in custom template
-tmux-intray status --format='C:${critical-count} E:${error-count} W:${warning-count} I:${info-count}'
-# Output: C:1 E:2 W:3 I:0
-```
-
-### Template-Based Status Formatting
-
-The `status` command supports powerful template-based formatting for flexible output:
-
-```bash
-# Use presets for common formats
-tmux-intray status --format=compact        # [3] Latest message
-tmux-intray status --format=detailed       # 3 unread, 2 read | Latest: message
-tmux-intray status --format=json           # {"unread":3,"total":3,...}
-tmux-intray status --format=count-only     # 3
-
-# Custom templates using variables
-tmux-intray status --format='📬 ${unread-count}'               # 📬 3
-tmux-intray status --format='${critical-count} critical'       # 1 critical
-tmux-intray status --format='Latest: ${latest-message}'        # Latest: message
-
-# Full documentation including all 13 variables and 6 presets
-see [Status Command Guide](docs/status-command-guide.md)
-```
-
-### Advanced Filtering
-
-tmux-intray's `list` command supports powerful filtering options to help you find notifications based on various criteria.
-
-**Common Filters:**
-- `--session <id>` / `--window <id>` / `--pane <id>` – filter by tmux context
-- `--older-than <days>` / `--newer-than <days>` – time‑based filtering
-- `--search <pattern>` – substring search in messages (use `--regex` for regular expressions)
-- `--group-by <field>` – group notifications by session, window, pane, level, or message
-- `--group-count` – show only group counts (requires `--group-by`)
-
-**Examples:**
-
-```bash
-# Notifications from a specific session with error level
-tmux-intray list --session=work --level=error
-
-# Notifications older than 7 days but newer than 1 day
-tmux-intray list --older-than=7 --newer-than=1
-
-# Search for notifications containing "error" (substring match)
-tmux-intray list --search=error
-
-# Regex search for patterns
-tmux-intray list --search='ERR[0-9]+' --regex
-
-# Group notifications by session
-tmux-intray list --group-by=session
-
-# Show only group counts
-tmux-intray list --group-by=session --group-count
-```
-
 For a comprehensive list of filters and detailed examples, see the [CLI Reference](docs/cli/CLI_REFERENCE.md) and the [advanced filtering example](examples/advanced-filtering.sh).
 
-## Tmux Plugin Installation
+### Hooks system
 
-### What the Plugin Provides
-
-The tmux plugin enhances the CLI with tmux-specific features:
-
-- **Key bindings**: `prefix+I` shows notifications in real-time (follow mode), `prefix+J` opens interactive TUI in popup window
-- **Status bar integration**: Real-time notification count in status-right
-- **Pane context capture**: Automatic tracking of notification origins
-- **Environment setup**: Proper PATH and configuration for CLI access
-
-### Plugin Configuration
-
-Add to your `.tmux.conf`:
-
-```bash
-# Basic setup
-run '~/.local/share/tmux-plugins/tmux-intray/tmux-intray.tmux'
-
-# Optional: Custom status bar configuration with flexible templates
-set -g status-right "#(tmux-intray status --format=compact) %H:%M"
-
-# Or use built-in presets: compact, detailed, json, count-only, levels, panes
-# Set default format via environment variable
-export TMUX_INTRAY_STATUS_FORMAT="compact"
-```
-
-### Key Bindings
-
-- `prefix + I` - Show notifications in real-time (follow mode)
-- `prefix + J` - Open interactive TUI in popup window
-
-### Interactive TUI
-
-The `tmux-intray tui` command provides an interactive terminal user interface for managing notifications. It can be accessed via the `prefix + J` key binding, which opens the TUI in a tmux popup window (80% width, 80% height).
-
-**TUI Key Bindings:**
-
-| Key          | Action                                     |
-|--------------|--------------------------------------------|
-| j/k          | Navigate up/down in the list               |
-| /            | Enter search mode                          |
-| ESC          | Exit search mode, or quit TUI              |
-| d            | Dismiss selected notification              |
-| Enter        | Jump to pane                                   |
-| q            | Quit TUI                                   |
-| :w           | Save settings manually                     |
-| i            | Edit search query (when in search mode)    |
-
-**Features:**
-- Table view with TYPE, STATUS, SUMMARY, SOURCE, AGE columns
-- Real-time search filtering
-- Vim-like navigation
-- Dismiss notifications directly
-- Jump to source panes
-- Notifications sorted by most recent first
-- **Settings persistence**: TUI preferences (column order, sort order, filters, view mode) are automatically saved on exit and restored on startup
-- Footer shows the active read/unread filter; adjust it live with `:filter-read <read|unread|all>` and the preference is saved automatically
-- Settings file location: `~/.config/tmux-intray/tui.toml`
-
-
-
-### Status Bar Integration
-
-The plugin updates `@tmux_intray_active_count` and provides `status` command with template formatting for status bar display. Configure the format in `~/.config/tmux-intray/config.sh`:
-
-```bash
-# Status formats: compact, detailed, count-only
-export TMUX_INTRAY_STATUS_FORMAT="compact"
-```
-
-## Usage
-
-### Basic Workflow
-
-1. **Add notifications** from scripts or manually:
-   ```bash
-   tmux-intray add "Build completed"
-   tmux-intray add --level=warning "High memory usage detected"
-   ```
-
-2. **Review notifications** when ready:
-   ```bash
-   tmux-intray list
-    # or use tmux key bindings: prefix+I (follow mode) or prefix+J (interactive TUI)
-   ```
-
-3. **Manage notifications**:
-   ```bash
-   tmux-intray dismiss 1          # Dismiss specific notification
-   tmux-intray clear              # Clear all notifications
-   tmux-intray jump 2             # Jump to notification source pane
-   ```
-
-### Hooks System
-
-tmux-intray supports a powerful hooks system that allows you to execute custom scripts before and after notification events. This makes tmux-intray extensible and integratable with other systems.
+tmux-intray supports a hooks system that allows you to execute custom scripts before and after notification events. This makes tmux-intray extensible and integratable with other systems.
 
 **Key features:**
 - **Hook points**: `pre-add`, `post-add`, `pre-dismiss`, `post-dismiss`, `cleanup`
@@ -432,31 +210,7 @@ curl -X POST https://api.example.com/notifications \
   -d "message=$TMUX_INTRAY_MESSAGE&level=$TMUX_INTRAY_LEVEL"
 ```
 
-### Cleanup
-
-tmux-intray automatically cleans up old dismissed notifications to prevent storage bloat. The `tmux-intray cleanup` command removes notifications that have been dismissed for more than a configured number of days (default: 30 days).
-
-**Retention Configuration:**
-- Set `TMUX_INTRAY_AUTO_CLEANUP_DAYS` environment variable (e.g., `export TMUX_INTRAY_AUTO_CLEANUP_DAYS=7`)
-- The default is 30 days; set to `0` to disable auto‑cleanup.
-
-**Manual Cleanup:**
-```bash
-# Dry-run to see what would be removed
-tmux-intray cleanup --dry-run
-
-# Remove notifications dismissed more than 7 days ago
-tmux-intray cleanup --days=7
-
-# Remove all dismissed notifications (use with caution)
-tmux-intray cleanup --days=0
-```
-
-**Automation:**
-- Cleanup can be run periodically via cron or systemd timer.
-- Hooks are available for `cleanup` and `post-cleanup` to integrate with external systems.
-
-For detailed configuration options, see the [configuration guide](docs/configuration.md).
+See more in the [hooks guide](docs/hooks.md)
 
 ### Debugging
 
@@ -467,6 +221,13 @@ tmux-intray add "Test notification"
 ```
 
 Logs are written to stderr. For detailed debugging guidance, see the [Debugging Guide](./docs/debugging.md).
+
+### Getting More Help
+
+For detailed troubleshooting and debugging scenarios:
+- **[Debugging Guide](./docs/debugging.md)** - Complete guide with examples for all common issues
+- **[Configuration Guide](./docs/configuration.md)** - All environment variables and config options
+- **[Troubleshooting Guide](./docs/troubleshooting.md)** - Additional solutions and tips
 
 ## Fzf Integration
 
@@ -501,59 +262,6 @@ tmux-intray list --format=table | tail -n +3 | fzf --header-lines=0 \
   --preview-window=right:60%:wrap \
   | awk '{print $1}' | xargs -I {} tmux-intray jump {}
 ```
-
-### Reusable Shell Functions
-
-Add these to your `.bashrc` or `.zshrc`:
-
-```bash
-# Fuzzy dismiss notifications
-tray-dismiss() {
-  local selected=$(tmux-intray list --format=table | tail -n +3 | fzf --header-lines=0 --with-nth=2.. | awk '{print $1}')
-  if [[ -n "$selected" ]]; then
-    echo "Dismissing: $selected"
-    tmux-intray dismiss $selected
-  fi
-}
-
-# Fuzzy jump to notification pane
-tray-jump() {
-  local selected=$(tmux-intray list --format=table | tail -n +3 | fzf --header-lines=0 --with-nth=2.. | awk '{print $1}')
-  if [[ -n "$selected" ]]; then
-    echo "Jumping to: $selected"
-    tmux-intray jump $selected
-  fi
-}
-
-# Multi-select dismissal
-tray-dismiss-multi() {
-  local selected=$(tmux-intray list --format=table | tail -n +3 | fzf --multi --header-lines=0 --with-nth=2.. | awk '{print $1}' | tr '\n' ' ')
-  if [[ -n "$selected" ]]; then
-    echo "Dismissing: $selected"
-    tmux-intray dismiss $selected
-  fi
-}
-```
-
-### Tmux Key Bindings with fzf
-
-Add to your `.tmux.conf` for quick access:
-
-```bash
-# Bind prefix + F to fuzzy dismiss
-bind-key -T prefix F run-shell "tmux-intray list --format=table | tail -n +3 | fzf --header-lines=0 --with-nth=2.. | awk '{print \\\$1}' | xargs tmux-intray dismiss"
-
-# Bind prefix + J to fuzzy jump
-bind-key -T prefix J run-shell "tmux-intray list --format=table | tail -n +3 | fzf --header-lines=0 --with-nth=2.. | awk '{print \\\$1}' | xargs tmux-intray jump"
-```
-
-### How It Works
-
-1. `tail -n +3` skips the table header (first 3 lines)
-2. `fzf --header-lines=0` treats the input as headerless
-3. `--with-nth=2..` hides the ID column from display
-4. `awk '{print $1}'` extracts the notification ID
-5. `xargs tmux-intray dismiss` or `tmux-intray jump` runs the action
 
 ## Architecture Overview
 
@@ -591,48 +299,6 @@ tmux-intray is built with a modular architecture that separates concerns:
 3. **Tmux Integration**: Plugin updates status bar via `@tmux_intray_active_count`
 4. **Pane Navigation**: `tmux-intray jump` uses captured pane IDs to navigate
 
-## Debugging
-
-tmux-intray includes built-in logging to help troubleshoot issues. For comprehensive debugging guidance, see the **[Debugging Guide](./docs/debugging.md)**.
-
-### Quick Start
-
-```bash
-# Enable debug logging
-export TMUX_INTRAY_LOG_LEVEL=debug
-
-# Run your command
-tmux-intray list
-
-# Supported levels: debug, info, warn, error, off
-```
-
-Logs are written to **stderr** (not stdout) with timestamps and are local-only—no external transmission.
-
-### Common Issues
-
-**CLI not found after installation**
-- Ensure installation directory is in PATH: `echo $PATH`
-- For npm: May require `npm bin -g` to be in PATH
-- Test with: `which tmux-intray`
-
-**Tmux plugin not loading**
-- Verify plugin path in `.tmux.conf`: `run '~/.local/share/tmux-plugins/tmux-intray/tmux-intray.tmux'`
-- Reload tmux: `tmux source-file ~/.tmux.conf`
-- Check `.tmux.conf` syntax
-
-**Notifications not appearing in status bar**
-- Test the status command: `tmux-intray status --format=compact`
-- Verify your `.tmux.conf` has `set -g status-right "...#(tmux-intray status)..."`
-- Enable debug mode to diagnose: `export TMUX_INTRAY_LOG_LEVEL=debug`
-
-### Getting More Help
-
-For detailed troubleshooting and debugging scenarios:
-- **[Debugging Guide](./docs/debugging.md)** - Complete guide with examples for all common issues
-- **[Configuration Guide](./docs/configuration.md)** - All environment variables and config options
-- **[Troubleshooting Guide](./docs/troubleshooting.md)** - Additional solutions and tips
-
 ## Testing
 
 Run the test suite:
@@ -665,7 +331,3 @@ tmux-intray is licensed under the MIT License. See [LICENSE](LICENSE) for detail
 - [GitHub Repository](https://github.com/cristianoliveira/tmux-intray)
 - [Issue Tracker](https://github.com/cristianoliveira/tmux-intray/issues)
 - [Contributing Guidelines](CONTRIBUTING.md)
-
-## Acknowledgments
-
-tmux-intray builds upon the tmux plugin ecosystem and follows XDG Base Directory Specification for configuration and data storage.
