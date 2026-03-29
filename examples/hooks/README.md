@@ -17,7 +17,7 @@ tmux-intray provides a hook system that allows you to execute custom scripts at 
 
 ## Configuration
 
-Hooks are configured via environment variables in your `~/.config/tmux-intray/config.sh`:
+Hooks are configured via environment variables (set in your shell profile or config file):
 
 ```bash
 # Enable hooks globally
@@ -36,6 +36,8 @@ TMUX_INTRAY_HOOKS_DIR="$HOME/.config/tmux-intray/hooks"
 TMUX_INTRAY_HOOKS_ENABLED_pre_add=1
 TMUX_INTRAY_HOOKS_ENABLED_post_add=1
 ```
+
+**Note**: Hooks can also be configured via TOML in `~/.config/tmux-intray/config.toml`. See [Configuration Guide](../../docs/configuration.md) for details.
 
 ## Example Scripts
 
@@ -61,6 +63,7 @@ Plays a sound on Linux without displaying any UI notification. Uses `paplay` (Pu
 
 1. Copy the example scripts to your hook directory:
    ```bash
+   mkdir -p ~/.config/tmux-intray/hooks
    cp -r examples/hooks/* ~/.config/tmux-intray/hooks/
    ```
 
@@ -69,7 +72,18 @@ Plays a sound on Linux without displaying any UI notification. Uses `paplay` (Pu
    chmod +x ~/.config/tmux-intray/hooks/*/*.sh
    ```
 
-3. Customize scripts as needed.
+3. Enable hooks in your config:
+   ```bash
+   # Via environment variable
+   export TMUX_INTRAY_HOOKS_ENABLED=1
+
+   # Or via config.toml
+   # Add to ~/.config/tmux-intray/config.toml:
+   # [hooks]
+   # enabled = true
+   ```
+
+4. Customize scripts as needed.
 
 ## Writing Your Own Hooks
 
@@ -81,3 +95,5 @@ Hook scripts are simple Bash scripts that have access to environment variables d
 - Return exit code 0 for success, non-zero for failure
 
 Hook scripts are executed in alphabetical order within each hook point directory.
+
+For complete hook system documentation, see [Hooks Guide](../../docs/hooks.md).
