@@ -88,21 +88,24 @@ chmod +x ~/.config/tmux-intray/hooks/*/*.sh
 
 ### Advanced Filtering
 
-**File**: `advanced-filtering.sh`
+**File**: `advanced-filtering.md`
 
-Comprehensive examples of filtering and searching notifications.
+Comprehensive examples of filtering and searching notifications with real-world use cases.
 
 ```bash
-# View examples (not executable, just documentation)
-./advanced-filtering.sh
+# View documentation
+cat advanced-filtering.md
+
+# Or open in your editor
+$EDITOR advanced-filtering.md
 ```
 
-**What it shows**:
+**What it covers**:
 - Filter by session, level, time
-- Search for patterns
-- Regex searches
+- Search for patterns and regex
 - Group notifications
 - Complex filter combinations
+- Real-world use cases
 
 ## Running Examples
 
