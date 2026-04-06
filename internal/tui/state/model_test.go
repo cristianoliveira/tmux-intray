@@ -4231,3 +4231,77 @@ func TestCtrlAAndCtrlRToggleBetweenTabs(t *testing.T) {
 	model = updated.(*Model)
 	assert.Equal(t, settings.TabRecents, model.uiState.GetActiveTab())
 }
+
+// TestArrowKeyNavigationInSearchMode tests that Up/Down arrow keys work for navigation in search mode.
+func TestArrowKeyNavigationInSearchMode(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{Session: "session1", Window: "window1", Pane: "pane1", Message: "test message 1", Timestamp: "2024-01-01T00:00:00Z"},
+		{Session: "session1", Window: "window1", Pane: "pane2", Message: "test message 2", Timestamp: "2024-01-01T00:00:00Z"},
+		{Session: "session1", Window: "window1", Pane: "pane3", Message: "test message 3", Timestamp: "2024-01-01T00:00:00Z"},
+	})
+	
+	// Enable search mode
+	model.uiState.SetSearchMode(true)
+	
+	// Start at top (cursor 0)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+	
+	// Test Up arrow at top stays at 0
+	msg := tea.KeyMsg{Type: tea.KeyUp}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+	
+	// Test Down arrow moves down
+	msg = tea.KeyMsg{Type: tea.KeyDown}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 1, model.uiState.GetCursor())
+	
+	// Test Down arrow moves down again
+	msg = tea.KeyMsg{Type: tea.KeyDown}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 2, model.uiState.GetCursor())
+	
+	// Test Down arrow at bottom stays at bottom
+	msg = tea.KeyMsg{Type: tea.KeyDown}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 2, model.uiState.GetCursor())
+	
+	// Test Up arrow moves up
+	msg = tea.KeyMsg{Type: tea.KeyUp}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 1, model.uiState.GetCursor())
+	
+	// Test Up arrow moves up to top
+	msg = tea.KeyMsg{Type: tea.KeyUp}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+}
+
+// TestArrowKeyNavigationInNormalMode tests that Up/Down arrows do NOT work in normal mode.
+func TestArrowKeyNavigationInNormalMode(t *testing.T) {
+	model := newTestModel(t, []notification.Notification{
+		{Session: "session1", Window: "window1", Pane: "pane1", Message: "test message 1", Timestamp: "2024-01-01T00:00:00Z"},
+		{Session: "session1", Window: "window1", Pane: "pane2", Message: "test message 2", Timestamp: "2024-01-01T00:00:00Z"},
+	})
+	
+	// Not in search mode
+	assert.Equal(t, 0, model.uiState.GetCursor())
+	
+	// Test Up arrow does not move cursor in normal mode
+	msg := tea.KeyMsg{Type: tea.KeyUp}
+	updated, _ := model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+	
+	// Test Down arrow does not move cursor in normal mode
+	msg = tea.KeyMsg{Type: tea.KeyDown}
+	updated, _ = model.Update(msg)
+	model = updated.(*Model)
+	assert.Equal(t, 0, model.uiState.GetCursor())
+}

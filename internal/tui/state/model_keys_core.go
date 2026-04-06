@@ -114,7 +114,17 @@ func (m *Model) handleKeyType(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyBackspace:
 		m.handleBackspace()
 		return nil, nil
-	case tea.KeyUp, tea.KeyDown:
+	case tea.KeyUp:
+		// In search contexts, Up arrow moves cursor up
+		if m.isSearchContext() {
+			m.handleMoveUp()
+		}
+		return nil, nil
+	case tea.KeyDown:
+		// In search contexts, Down arrow moves cursor down
+		if m.isSearchContext() {
+			m.handleMoveDown()
+		}
 		return nil, nil
 	case tea.KeyCtrlA:
 		// Switch to All tab in all views
