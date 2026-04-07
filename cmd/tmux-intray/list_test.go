@@ -1000,3 +1000,104 @@ func TestListCmdTabWithFilters(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveSessionName(t *testing.T) {
+	sessionNames := map[string]string{
+		"$1": "work/cells",
+		"$3": "other/ai",
+		"$8": "other/mesix",
+	}
+
+	tests := []struct {
+		name         string
+		sessionID    string
+		sessionNames map[string]string
+		want         string
+	}{
+		{
+			name:         "resolves known session ID",
+			sessionID:    "$1",
+			sessionNames: sessionNames,
+			want:         "work/cells",
+		},
+		{
+			name:         "resolves another known session ID",
+			sessionID:    "$3",
+			sessionNames: sessionNames,
+			want:         "other/ai",
+		},
+		{
+			name:         "returns original for unknown session ID",
+			sessionID:    "$99",
+			sessionNames: sessionNames,
+			want:         "$99",
+		},
+		{
+			name:         "returns empty for empty session ID",
+			sessionID:    "",
+			sessionNames: sessionNames,
+			want:         "",
+		},
+		{
+			name:         "handles nil session names map",
+			sessionID:    "$1",
+			sessionNames: nil,
+			want:         "$1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := resolveSessionName(tt.sessionID, tt.sessionNames)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestFormatAge(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name      string
+		timestamp string
+		wantLen   int // Expected length of result (should be short like "5m", "2h", "30s")
+	}{
+		{
+			name:      "seconds ago",
+			timestamp: now.Add(-30 * time.Second).Format(time.RFC3339),
+			wantLen:   3, // "30s"
+		},
+		{
+			name:      "minutes ago",
+			timestamp: now.Add(-5 * time.Minute).Format(time.RFC3339),
+			wantLen:   2, // "5m"
+		},
+		{
+			name:      "hours ago",
+			timestamp: now.Add(-2 * time.Hour).Format(time.RFC3339),
+			wantLen:   2, // "2h"
+		},
+		{
+			name:      "days ago",
+			timestamp: now.Add(-3 * 24 * time.Hour).Format(time.RFC3339),
+			wantLen:   2, // "3d"
+		},
+		{
+			name:      "empty timestamp",
+			timestamp: "",
+			wantLen:   0,
+		},
+		{
+			name:      "invalid timestamp",
+			timestamp: "invalid",
+			wantLen:   7, // returns "invalid" as-is
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatAge(tt.timestamp)
+			assert.Equal(t, tt.wantLen, len(got), "expected short format like '5m', got %q", got)
+		})
+	}
+}

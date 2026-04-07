@@ -547,17 +547,41 @@ func domainNotificationToPointer(n *notification.Notification) *domain.Notificat
 	}
 }
 
+// resolveSessionName resolves a session ID to its display name using tmux.
+// Returns the resolved name, or the original ID if resolution fails.
+func resolveSessionName(sessionID string, sessionNames map[string]string) string {
+	if sessionID == "" {
+		return ""
+	}
+	if name, ok := sessionNames[sessionID]; ok && name != "" {
+		return name
+	}
+	return sessionID
+}
+
+// getSessionNamesForTabs returns a map of session IDs to names from tmux.
+func getSessionNamesForTabs() map[string]string {
+	client := tmux.NewDefaultClient()
+	sessionNames, err := client.ListSessions()
+	if err != nil || sessionNames == nil {
+		return make(map[string]string)
+	}
+	return sessionNames
+}
+
 // printTabsSimple prints sessions in simple format.
 func printTabsSimple(groups []domain.SessionNotification, w io.Writer) {
+	sessionNames := getSessionNamesForTabs()
+
 	header := fmt.Sprintf("%sSessions (%d)%s\n", colors.Bold, len(groups), colors.Reset)
 	_, _ = fmt.Fprint(w, header)
 	_, _ = fmt.Fprint(w, strings.Repeat("─", 60)+"\n")
 
 	for i, sg := range groups {
 		num := i + 1
-		sessionDisplay := sg.Session
+		sessionDisplay := resolveSessionName(sg.Session, sessionNames)
 		if sg.Notification.Session != "" {
-			sessionDisplay = sg.Notification.Session
+			sessionDisplay = resolveSessionName(sg.Notification.Session, sessionNames)
 		}
 
 		level := string(sg.Notification.Level)
@@ -580,6 +604,8 @@ func printTabsSimple(groups []domain.SessionNotification, w io.Writer) {
 
 // printTabsTable prints sessions in table format.
 func printTabsTable(groups []domain.SessionNotification, w io.Writer) {
+	sessionNames := getSessionNamesForTabs()
+
 	header := fmt.Sprintf("%sSessions (%d)%s\n", colors.Bold, len(groups), colors.Reset)
 	_, _ = fmt.Fprint(w, header)
 	_, _ = fmt.Fprint(w, strings.Repeat("─", 80)+"\n")
@@ -594,7 +620,7 @@ func printTabsTable(groups []domain.SessionNotification, w io.Writer) {
 
 	for i, sg := range groups {
 		num := i + 1
-		sessionDisplay := sg.Session
+		sessionDisplay := resolveSessionName(sg.Session, sessionNames)
 		if len(sessionDisplay) > 18 {
 			sessionDisplay = sessionDisplay[:15] + "..."
 		}
@@ -626,15 +652,18 @@ type tabSessionJSON struct {
 	Window    string `json:"window,omitempty"`
 	Pane      string `json:"pane,omitempty"`
 	Unread    bool   `json:"unread"`
+	SessionID string `json:"session_id,omitempty"` // Raw session ID for debugging
 }
 
 // printTabsJSON prints sessions in JSON format.
 func printTabsJSON(groups []domain.SessionNotification, w io.Writer) {
+	sessionNames := getSessionNamesForTabs()
+
 	sessions := make([]tabSessionJSON, 0, len(groups))
 	for i, sg := range groups {
 		sessions = append(sessions, tabSessionJSON{
 			Num:       i + 1,
-			Session:   sg.Session,
+			Session:   resolveSessionName(sg.Session, sessionNames),
 			Level:     string(sg.Notification.Level),
 			Timestamp: sg.Notification.Timestamp,
 			Age:       formatAge(sg.Notification.Timestamp),
@@ -642,6 +671,7 @@ func printTabsJSON(groups []domain.SessionNotification, w io.Writer) {
 			Window:    sg.Notification.Window,
 			Pane:      sg.Notification.Pane,
 			Unread:    !sg.Notification.IsRead(),
+			SessionID: sg.Session, // Include raw session ID for debugging
 		})
 	}
 
@@ -666,12 +696,26 @@ func levelColorCode(level string) string {
 	}
 }
 
-// formatAge formats a timestamp as relative age (e.g., "2h ago").
+// formatAge formats a timestamp as relative age (e.g., "2h").
 func formatAge(timestamp string) string {
-	if len(timestamp) < 20 {
+	if timestamp == "" {
+		return ""
+	}
+	t, err := time.Parse(time.RFC3339, timestamp)
+	if err != nil {
 		return timestamp
 	}
-	return timestamp
+
+	duration := time.Since(t)
+
+	if duration < time.Minute {
+		return fmt.Sprintf("%ds", int(duration.Seconds()))
+	} else if duration < time.Hour {
+		return fmt.Sprintf("%dm", int(duration.Minutes()))
+	} else if duration < 24*time.Hour {
+		return fmt.Sprintf("%dh", int(duration.Hours()))
+	}
+	return fmt.Sprintf("%dd", int(duration.Hours()/24))
 }
 
 // truncateMessage truncates a message to maxLen characters.
@@ -755,10 +799,51 @@ func printRecents(opts RecentsOptions, w io.Writer) {
 		return sessionBest[i].Timestamp > sessionBest[j].Timestamp
 	})
 
-	if opts.Format == "table" {
+	if opts.Format == "json" {
+		printRecentsJSON(sessionBest, w)
+	} else if opts.Format == "table" {
 		printRecentsTable(sessionBest, w)
 	} else {
 		printRecentsSimple(sessionBest, w)
+	}
+}
+
+// recentsJSON represents a notification in JSON output for recents.
+type recentsJSON struct {
+	Num       int    `json:"num"`
+	Session   string `json:"session"`
+	Level     string `json:"level"`
+	Timestamp string `json:"timestamp"`
+	Age       string `json:"age"`
+	Message   string `json:"message"`
+	Window    string `json:"window,omitempty"`
+	Pane      string `json:"pane,omitempty"`
+	Unread    bool   `json:"unread"`
+}
+
+// printRecentsJSON prints recents in JSON format.
+func printRecentsJSON(notifs []notification.Notification, w io.Writer) {
+	sessionNames := getSessionNamesForTabs()
+
+	sessions := make([]recentsJSON, 0, len(notifs))
+	for i, notif := range notifs {
+		sessions = append(sessions, recentsJSON{
+			Num:       i + 1,
+			Session:   resolveSessionName(notif.Session, sessionNames),
+			Level:     notif.Level,
+			Timestamp: notif.Timestamp,
+			Age:       formatAge(notif.Timestamp),
+			Message:   notif.Message,
+			Window:    notif.Window,
+			Pane:      notif.Pane,
+			Unread:    !notif.IsRead(),
+		})
+	}
+
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(sessions); err != nil {
+		_, _ = fmt.Fprintf(w, "recents: failed to encode JSON: %v\n", err)
 	}
 }
 
@@ -810,13 +895,15 @@ func severityWeight(level string) int {
 
 // printRecentsSimple prints recents in simple format.
 func printRecentsSimple(notifs []notification.Notification, w io.Writer) {
+	sessionNames := getSessionNamesForTabs()
+
 	header := fmt.Sprintf("%sRecent Notifications (%d)%s\n", colors.Bold, len(notifs), colors.Reset)
 	_, _ = fmt.Fprint(w, header)
 	_, _ = fmt.Fprint(w, strings.Repeat("─", 60)+"\n")
 
 	for i, notif := range notifs {
 		num := i + 1
-		sessionDisplay := notif.Session
+		sessionDisplay := resolveSessionName(notif.Session, sessionNames)
 		if sessionDisplay == "" {
 			sessionDisplay = "(no session)"
 		}
@@ -841,6 +928,8 @@ func printRecentsSimple(notifs []notification.Notification, w io.Writer) {
 
 // printRecentsTable prints recents in table format.
 func printRecentsTable(notifs []notification.Notification, w io.Writer) {
+	sessionNames := getSessionNamesForTabs()
+
 	header := fmt.Sprintf("%sRecent Notifications (%d)%s\n", colors.Bold, len(notifs), colors.Reset)
 	_, _ = fmt.Fprint(w, header)
 	_, _ = fmt.Fprint(w, strings.Repeat("─", 80)+"\n")
@@ -855,7 +944,7 @@ func printRecentsTable(notifs []notification.Notification, w io.Writer) {
 
 	for i, notif := range notifs {
 		num := i + 1
-		sessionDisplay := notif.Session
+		sessionDisplay := resolveSessionName(notif.Session, sessionNames)
 		if sessionDisplay == "" {
 			sessionDisplay = "(no session)"
 		}
