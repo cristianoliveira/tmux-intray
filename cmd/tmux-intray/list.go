@@ -40,6 +40,7 @@ USAGE:
     tmux-intray list [OPTIONS]
 
 OPTIONS:
+    --tab <tab>          Show special tab view: recents, sessions, all
     --active             Show active notifications (default)
     --dismissed          Show dismissed notifications
     --all                Show all notifications
@@ -56,6 +57,11 @@ OPTIONS:
     --filter <status>    Filter notifications by read status: read, unread
     --format=<format>    Output format: simple (default), legacy, table, compact, json
 
+TAB VIEWS:
+    --tab=recents        Show recent unread notifications (max 1 per session, last hour)
+    --tab=sessions       Show unique sessions with notifications
+    --tab=all            Show all notifications (same as --all)
+
 ORDERING:
     Unread notifications are listed first, then read notifications.
     Relative order remains unchanged within each group.
@@ -65,6 +71,13 @@ ORDERING:
 func NewListCmd(client listClient) *cobra.Command {
 	if client == nil {
 		panic("NewListCmd: client dependency cannot be nil")
+	}
+
+	// Create the main list command
+	listCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List notifications with filters and formats",
+		Long:  listCommandLong,
 	}
 
 	var listPane string
@@ -79,42 +92,76 @@ func NewListCmd(client listClient) *cobra.Command {
 	var listGroupCount bool
 	var listFormat string
 	var listFilter string
+	var listTab string
 
-	listCmd := &cobra.Command{
-		Use:   "list",
-		Short: "List notifications with filters and formats",
-		Long:  listCommandLong,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			state := determineListState(cmd)
-			olderCutoff, newerCutoff := computeCutoffTimestamps(listOlderThan, listNewerThan)
-			if err := validateListOptions(listGroupBy, listFilter); err != nil {
-				return err
+	listCmd.RunE = func(cmd *cobra.Command, args []string) error {
+		// Handle --tab flag
+		if listTab != "" {
+			validTabs := []string{"recents", "sessions", "all"}
+			if !isValidTab(listTab, validTabs) {
+				return fmt.Errorf("invalid --tab value: %s (available: %s)", listTab, strings.Join(validTabs, ", "))
 			}
 
-			opts := FilterOptions{
+			olderCutoff, newerCutoff := computeCutoffTimestamps(listOlderThan, listNewerThan)
+
+			tabOpts := TabOptions{
 				Client:     client,
-				State:      state,
-				Level:      listLevel,
+				Tab:        listTab,
+				Format:     listFormat,
 				Session:    listSession,
+				Level:      listLevel,
 				Window:     listWindow,
 				Pane:       listPane,
 				OlderThan:  olderCutoff,
 				NewerThan:  newerCutoff,
-				Search:     listSearch,
-				Regex:      listRegex,
-				GroupBy:    listGroupBy,
-				GroupCount: listGroupCount,
-				Format:     listFormat,
 				ReadFilter: listFilter,
 			}
-			PrintList(opts)
+			PrintTab(tabOpts)
 			return nil
-		},
+		}
+
+		state := determineListState(cmd)
+		olderCutoff, newerCutoff := computeCutoffTimestamps(listOlderThan, listNewerThan)
+		if err := validateListOptions(listGroupBy, listFilter); err != nil {
+			return err
+		}
+
+		opts := FilterOptions{
+			Client:     client,
+			State:      state,
+			Level:      listLevel,
+			Session:    listSession,
+			Window:     listWindow,
+			Pane:       listPane,
+			OlderThan:  olderCutoff,
+			NewerThan:  newerCutoff,
+			Search:     listSearch,
+			Regex:      listRegex,
+			GroupBy:    listGroupBy,
+			GroupCount: listGroupCount,
+			Format:     listFormat,
+			ReadFilter: listFilter,
+		}
+		PrintList(opts)
+		return nil
 	}
 
 	registerListFlags(listCmd, &listPane, &listLevel, &listSession, &listWindow, &listOlderThan, &listNewerThan, &listSearch, &listRegex, &listGroupBy, &listGroupCount, &listFormat, &listFilter)
 
+	// Add --tab flag
+	listCmd.Flags().StringVar(&listTab, "tab", "", "Show special tab view: recents, sessions, all")
+
 	return listCmd
+}
+
+// isValidTab checks if a tab value is valid.
+func isValidTab(tab string, validTabs []string) bool {
+	for _, t := range validTabs {
+		if t == tab {
+			return true
+		}
+	}
+	return false
 }
 
 // registerListFlags registers all flags for the list command.
@@ -354,4 +401,475 @@ func orderUnreadFirst(notifs []*domain.Notification) []*domain.Notification {
 	})
 
 	return ordered
+}
+
+// TabsOptions holds options for the tabs command.
+type TabsOptions struct {
+	Client     listClient
+	All        bool
+	Format     string // "simple" or "table"
+	Session    string
+	Level      string
+	Window     string
+	Pane       string
+	OlderThan  string
+	NewerThan  string
+	ReadFilter string
+}
+
+// tabsOutputWriter is the writer used by PrintTabs. Can be changed for testing.
+var tabsOutputWriter io.Writer = os.Stdout
+
+// PrintTabs prints sessions with their most recent notification.
+func PrintTabs(opts TabsOptions) {
+	if tabsOutputWriter == nil {
+		tabsOutputWriter = os.Stdout
+	}
+	printTabs(opts, tabsOutputWriter)
+}
+
+func printTabs(opts TabsOptions, w io.Writer) {
+	state := "active"
+	if opts.All {
+		state = "all"
+	}
+
+	lines, err := opts.Client.ListNotifications(
+		state,
+		opts.Level,
+		opts.Session,
+		opts.Window,
+		opts.Pane,
+		opts.OlderThan,
+		opts.NewerThan,
+		opts.ReadFilter,
+	)
+	if err != nil {
+		_, _ = fmt.Fprintf(w, "tabs: failed to list notifications: %v\n", err)
+		return
+	}
+
+	notifications := parseTabsNotifications(lines)
+	if len(notifications) == 0 {
+		_, _ = fmt.Fprintf(w, "%sNo notifications found%s\n", colors.Blue, colors.Reset)
+		return
+	}
+
+	// Group by session and get most recent per session
+	sessionGroups := groupBySession(notifications)
+
+	if len(sessionGroups) == 0 {
+		_, _ = fmt.Fprintf(w, "%sNo sessions with notifications found%s\n", colors.Blue, colors.Reset)
+		return
+	}
+
+	if opts.Format == "table" {
+		printTabsTable(sessionGroups, w)
+	} else {
+		printTabsSimple(sessionGroups, w)
+	}
+}
+
+// parseTabsNotifications parses notification lines.
+func parseTabsNotifications(lines string) []notification.Notification {
+	var notifications []notification.Notification
+	for _, line := range strings.Split(lines, "\n") {
+		if line == "" {
+			continue
+		}
+		notif, err := notification.ParseNotification(line)
+		if err != nil {
+			continue
+		}
+		notifications = append(notifications, notif)
+	}
+	return notifications
+}
+
+// sessionNotification holds a session's most recent notification.
+type sessionNotification struct {
+	Session      string
+	Notification notification.Notification
+}
+
+// groupBySession groups notifications by session, keeping only the most recent.
+func groupBySession(notifications []notification.Notification) []sessionNotification {
+	// Group by session
+	sessionMap := make(map[string]notification.Notification)
+	for _, notif := range notifications {
+		session := notif.Session
+		if session == "" {
+			continue // Skip notifications without session
+		}
+
+		existing, exists := sessionMap[session]
+		if !exists || notif.Timestamp > existing.Timestamp {
+			sessionMap[session] = notif
+		}
+	}
+
+	// Convert to slice
+	result := make([]sessionNotification, 0, len(sessionMap))
+	for session, notif := range sessionMap {
+		result = append(result, sessionNotification{
+			Session:      session,
+			Notification: notif,
+		})
+	}
+
+	// Sort by timestamp descending (most recent first)
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Notification.Timestamp > result[j].Notification.Timestamp
+	})
+
+	return result
+}
+
+// printTabsSimple prints sessions in simple format.
+func printTabsSimple(groups []sessionNotification, w io.Writer) {
+	header := fmt.Sprintf("%sSessions (%d)%s\n", colors.Bold, len(groups), colors.Reset)
+	_, _ = fmt.Fprint(w, header)
+	_, _ = fmt.Fprint(w, strings.Repeat("─", 60)+"\n")
+
+	for i, sg := range groups {
+		num := i + 1
+		sessionDisplay := sg.Session
+		if sg.Notification.Session != "" {
+			sessionDisplay = sg.Notification.Session
+		}
+
+		level := string(sg.Notification.Level)
+		levelColor := levelColorCode(sg.Notification.Level)
+
+		_, _ = fmt.Fprintf(w, "%s%d.%s %s%s%s %s\n",
+			colors.Bold, num, colors.Reset,
+			colors.Yellow, sessionDisplay, colors.Reset,
+			formatAge(sg.Notification.Timestamp),
+		)
+		_, _ = fmt.Fprintf(w, "   %s[%s]%s %s\n",
+			levelColor, level, colors.Reset,
+			truncateMessage(sg.Notification.Message, 50),
+		)
+		if i < len(groups)-1 {
+			_, _ = fmt.Fprint(w, "\n")
+		}
+	}
+}
+
+// printTabsTable prints sessions in table format.
+func printTabsTable(groups []sessionNotification, w io.Writer) {
+	header := fmt.Sprintf("%sSessions (%d)%s\n", colors.Bold, len(groups), colors.Reset)
+	_, _ = fmt.Fprint(w, header)
+	_, _ = fmt.Fprint(w, strings.Repeat("─", 80)+"\n")
+	_, _ = fmt.Fprintf(w, "%-4s %-20s %-8s %-10s %s\n",
+		colors.Bold+"Num"+colors.Reset,
+		colors.Bold+"Session"+colors.Reset,
+		colors.Bold+"Level"+colors.Reset,
+		colors.Bold+"Age"+colors.Reset,
+		colors.Bold+"Message"+colors.Reset,
+	)
+	_, _ = fmt.Fprint(w, strings.Repeat("─", 80)+"\n")
+
+	for i, sg := range groups {
+		num := i + 1
+		sessionDisplay := sg.Session
+		if len(sessionDisplay) > 18 {
+			sessionDisplay = sessionDisplay[:15] + "..."
+		}
+
+		level := string(sg.Notification.Level)
+		levelColor := levelColorCode(sg.Notification.Level)
+
+		age := formatAge(sg.Notification.Timestamp)
+		msg := truncateMessage(sg.Notification.Message, 30)
+
+		_, _ = fmt.Fprintf(w, "%-4d %-20s %s%-8s%s %-10s %s\n",
+			num,
+			sessionDisplay,
+			levelColor, level, colors.Reset,
+			age,
+			msg,
+		)
+	}
+}
+
+// levelColorCode returns ANSI color code for notification level.
+func levelColorCode(level string) string {
+	switch level {
+	case "error":
+		return colors.Red
+	case "warning":
+		return colors.Yellow
+	case "critical":
+		return colors.Bold + colors.Red
+	default:
+		return colors.Reset
+	}
+}
+
+// formatAge formats a timestamp as relative age (e.g., "2h ago").
+func formatAge(timestamp string) string {
+	if len(timestamp) < 20 {
+		return timestamp
+	}
+	return timestamp
+}
+
+// truncateMessage truncates a message to maxLen characters.
+func truncateMessage(msg string, maxLen int) string {
+	if len(msg) <= maxLen {
+		return msg
+	}
+	return msg[:maxLen-3] + "..."
+}
+
+// RecentsOptions holds options for the recents command.
+type RecentsOptions struct {
+	Client     listClient
+	Hours      int
+	Format     string // "simple" or "table"
+	Session    string
+	Level      string
+	Window     string
+	Pane       string
+	OlderThan  string
+	NewerThan  string
+	ReadFilter string
+}
+
+// recentsOutputWriter is the writer used by PrintRecents. Can be changed for testing.
+var recentsOutputWriter io.Writer = os.Stdout
+
+// PrintRecents prints recent unread notifications.
+func PrintRecents(opts RecentsOptions) {
+	if recentsOutputWriter == nil {
+		recentsOutputWriter = os.Stdout
+	}
+	printRecents(opts, recentsOutputWriter)
+}
+
+func printRecents(opts RecentsOptions, w io.Writer) {
+	// Calculate time cutoff (only if not already set)
+	cutoffStr := opts.OlderThan
+	if cutoffStr == "" && opts.Hours > 0 {
+		cutoff := time.Now().UTC().Add(-time.Duration(opts.Hours) * time.Hour)
+		cutoffStr = cutoff.Format("2006-01-02T15:04:05Z")
+	}
+
+	// Build read filter - recents always wants unread, but allow override
+	readFilter := opts.ReadFilter
+	if readFilter == "" {
+		readFilter = "unread"
+	}
+
+	lines, err := opts.Client.ListNotifications(
+		"active",
+		opts.Level,
+		opts.Session,
+		opts.Window,
+		opts.Pane,
+		cutoffStr,
+		opts.NewerThan,
+		readFilter,
+	)
+	if err != nil {
+		_, _ = fmt.Fprintf(w, "recents: failed to list notifications: %v\n", err)
+		return
+	}
+
+	notifications := parseTabsNotifications(lines)
+	if len(notifications) == 0 {
+		_, _ = fmt.Fprintf(w, "%sNo recent unread notifications found%s\n", colors.Blue, colors.Reset)
+		return
+	}
+
+	// Smart selection: max 1 per session, prioritizing errors/warnings
+	sessionBest := selectBestPerSession(notifications)
+
+	// Sort by severity (errors first), then recency
+	sort.Slice(sessionBest, func(i, j int) bool {
+		sevI := severityWeight(sessionBest[i].Level)
+		sevJ := severityWeight(sessionBest[j].Level)
+		if sevI != sevJ {
+			return sevI > sevJ
+		}
+		return sessionBest[i].Timestamp > sessionBest[j].Timestamp
+	})
+
+	if opts.Format == "table" {
+		printRecentsTable(sessionBest, w)
+	} else {
+		printRecentsSimple(sessionBest, w)
+	}
+}
+
+// selectBestPerSession selects the best notification per session.
+func selectBestPerSession(notifications []notification.Notification) []notification.Notification {
+	best := make(map[string]notification.Notification)
+	for _, notif := range notifications {
+		session := notif.Session
+		if session == "" {
+			session = "__no_session__" // Group notifications without session
+		}
+		existing, ok := best[session]
+		if !ok || isBetterNotification(notif, existing) {
+			best[session] = notif
+		}
+	}
+
+	result := make([]notification.Notification, 0, len(best))
+	for _, notif := range best {
+		result = append(result, notif)
+	}
+	return result
+}
+
+// isBetterNotification returns true if a is a better notification than b.
+func isBetterNotification(a, b notification.Notification) bool {
+	sevA := severityWeight(a.Level)
+	sevB := severityWeight(b.Level)
+	if sevA != sevB {
+		return sevA > sevB
+	}
+	// Same severity, prefer more recent
+	return a.Timestamp > b.Timestamp
+}
+
+// severityWeight returns a weight for notification level (higher = more severe).
+func severityWeight(level string) int {
+	switch level {
+	case "critical":
+		return 4
+	case "error":
+		return 3
+	case "warning":
+		return 2
+	default:
+		return 1
+	}
+}
+
+// printRecentsSimple prints recents in simple format.
+func printRecentsSimple(notifs []notification.Notification, w io.Writer) {
+	header := fmt.Sprintf("%sRecent Notifications (%d)%s\n", colors.Bold, len(notifs), colors.Reset)
+	_, _ = fmt.Fprint(w, header)
+	_, _ = fmt.Fprint(w, strings.Repeat("─", 60)+"\n")
+
+	for i, notif := range notifs {
+		num := i + 1
+		sessionDisplay := notif.Session
+		if sessionDisplay == "" {
+			sessionDisplay = "(no session)"
+		}
+
+		levelColor := levelColorCode(notif.Level)
+		age := formatAge(notif.Timestamp)
+
+		_, _ = fmt.Fprintf(w, "%s%d.%s %s%s%s %s\n",
+			colors.Bold, num, colors.Reset,
+			colors.Yellow, sessionDisplay, colors.Reset,
+			age,
+		)
+		_, _ = fmt.Fprintf(w, "   %s[%s]%s %s\n",
+			levelColor, notif.Level, colors.Reset,
+			truncateMessage(notif.Message, 50),
+		)
+		if i < len(notifs)-1 {
+			_, _ = fmt.Fprint(w, "\n")
+		}
+	}
+}
+
+// printRecentsTable prints recents in table format.
+func printRecentsTable(notifs []notification.Notification, w io.Writer) {
+	header := fmt.Sprintf("%sRecent Notifications (%d)%s\n", colors.Bold, len(notifs), colors.Reset)
+	_, _ = fmt.Fprint(w, header)
+	_, _ = fmt.Fprint(w, strings.Repeat("─", 80)+"\n")
+	_, _ = fmt.Fprintf(w, "%-4s %-20s %-10s %-8s %s\n",
+		colors.Bold+"Num"+colors.Reset,
+		colors.Bold+"Session"+colors.Reset,
+		colors.Bold+"Age"+colors.Reset,
+		colors.Bold+"Level"+colors.Reset,
+		colors.Bold+"Message"+colors.Reset,
+	)
+	_, _ = fmt.Fprint(w, strings.Repeat("─", 80)+"\n")
+
+	for i, notif := range notifs {
+		num := i + 1
+		sessionDisplay := notif.Session
+		if sessionDisplay == "" {
+			sessionDisplay = "(no session)"
+		}
+		if len(sessionDisplay) > 18 {
+			sessionDisplay = sessionDisplay[:15] + "..."
+		}
+
+		levelColor := levelColorCode(notif.Level)
+		age := formatAge(notif.Timestamp)
+		msg := truncateMessage(notif.Message, 30)
+
+		_, _ = fmt.Fprintf(w, "%-4d %-20s %-10s %s%-8s%s %s\n",
+			num,
+			sessionDisplay,
+			age,
+			levelColor, notif.Level, colors.Reset,
+			msg,
+		)
+	}
+}
+
+// TabOptions holds options for the tab flag.
+type TabOptions struct {
+	Client     listClient
+	Tab        string // "recents" or "sessions" or "all"
+	Format     string
+	Session    string
+	Level      string
+	Window     string
+	Pane       string
+	OlderThan  string
+	NewerThan  string
+	ReadFilter string
+}
+
+// PrintTab prints the specified tab view.
+func PrintTab(opts TabOptions) {
+	switch opts.Tab {
+	case "recents":
+		PrintRecents(RecentsOptions{
+			Client:     opts.Client,
+			Hours:      1,
+			Format:     opts.Format,
+			Session:    opts.Session,
+			Level:      opts.Level,
+			Window:     opts.Window,
+			Pane:       opts.Pane,
+			OlderThan:  opts.OlderThan,
+			NewerThan:  opts.NewerThan,
+			ReadFilter: opts.ReadFilter,
+		})
+	case "sessions":
+		PrintTabs(TabsOptions{
+			Client:     opts.Client,
+			All:        false,
+			Format:     opts.Format,
+			Session:    opts.Session,
+			Level:      opts.Level,
+			Window:     opts.Window,
+			Pane:       opts.Pane,
+			OlderThan:  opts.OlderThan,
+			NewerThan:  opts.NewerThan,
+			ReadFilter: opts.ReadFilter,
+		})
+	case "all":
+		PrintList(FilterOptions{
+			Client:  opts.Client,
+			State:   "all",
+			Format:  opts.Format,
+			Session: opts.Session,
+			Level:   opts.Level,
+			Window:  opts.Window,
+			Pane:    opts.Pane,
+		})
+	}
 }
