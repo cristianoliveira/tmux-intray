@@ -486,47 +486,57 @@ func parseTabsNotifications(lines string) []notification.Notification {
 	return notifications
 }
 
-// sessionNotification holds a session's most recent notification.
-type sessionNotification struct {
-	Session      string
-	Notification notification.Notification
+// groupBySession groups notifications by session, keeping only the most recent.
+func groupBySession(notifications []notification.Notification) []domain.SessionNotification {
+	// Convert to domain notifications
+	domainNotifs := notificationsToDomain(notifs(notifications))
+	return domain.GroupBySessionKeepMostRecent(domainNotifs)
 }
 
-// groupBySession groups notifications by session, keeping only the most recent.
-func groupBySession(notifications []notification.Notification) []sessionNotification {
-	// Group by session
-	sessionMap := make(map[string]notification.Notification)
-	for _, notif := range notifications {
-		session := notif.Session
-		if session == "" {
-			continue // Skip notifications without session
-		}
-
-		existing, exists := sessionMap[session]
-		if !exists || notif.Timestamp > existing.Timestamp {
-			sessionMap[session] = notif
-		}
+// notifs converts []notification.Notification to []domain.Notification.
+func notifs(n []notification.Notification) []*domain.Notification {
+	result := make([]*domain.Notification, len(n))
+	for i := range n {
+		result[i] = domainNotificationToPointer(&n[i])
 	}
-
-	// Convert to slice
-	result := make([]sessionNotification, 0, len(sessionMap))
-	for session, notif := range sessionMap {
-		result = append(result, sessionNotification{
-			Session:      session,
-			Notification: notif,
-		})
-	}
-
-	// Sort by timestamp descending (most recent first)
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Notification.Timestamp > result[j].Notification.Timestamp
-	})
-
 	return result
 }
 
+// notificationsToDomain converts notification.Notification to domain.Notification.
+func notificationsToDomain(n []*domain.Notification) []domain.Notification {
+	result := make([]domain.Notification, len(n))
+	for i := range n {
+		result[i] = *n[i]
+	}
+	return result
+}
+
+// domainNotificationToPointer converts notification.Notification to *domain.Notification.
+func domainNotificationToPointer(n *notification.Notification) *domain.Notification {
+	level := domain.NotificationLevel(n.Level)
+	if n.Level == "" {
+		level = domain.LevelInfo
+	}
+	state := domain.NotificationState(n.State)
+	if n.State == "" {
+		state = domain.StateActive
+	}
+	return &domain.Notification{
+		ID:            n.ID,
+		Timestamp:     n.Timestamp,
+		State:         state,
+		Session:       n.Session,
+		Window:        n.Window,
+		Pane:          n.Pane,
+		Message:       n.Message,
+		PaneCreated:   n.PaneCreated,
+		Level:         level,
+		ReadTimestamp: n.ReadTimestamp,
+	}
+}
+
 // printTabsSimple prints sessions in simple format.
-func printTabsSimple(groups []sessionNotification, w io.Writer) {
+func printTabsSimple(groups []domain.SessionNotification, w io.Writer) {
 	header := fmt.Sprintf("%sSessions (%d)%s\n", colors.Bold, len(groups), colors.Reset)
 	_, _ = fmt.Fprint(w, header)
 	_, _ = fmt.Fprint(w, strings.Repeat("─", 60)+"\n")
@@ -539,7 +549,7 @@ func printTabsSimple(groups []sessionNotification, w io.Writer) {
 		}
 
 		level := string(sg.Notification.Level)
-		levelColor := levelColorCode(sg.Notification.Level)
+		levelColor := levelColorCode(level)
 
 		_, _ = fmt.Fprintf(w, "%s%d.%s %s%s%s %s\n",
 			colors.Bold, num, colors.Reset,
@@ -557,7 +567,7 @@ func printTabsSimple(groups []sessionNotification, w io.Writer) {
 }
 
 // printTabsTable prints sessions in table format.
-func printTabsTable(groups []sessionNotification, w io.Writer) {
+func printTabsTable(groups []domain.SessionNotification, w io.Writer) {
 	header := fmt.Sprintf("%sSessions (%d)%s\n", colors.Bold, len(groups), colors.Reset)
 	_, _ = fmt.Fprint(w, header)
 	_, _ = fmt.Fprint(w, strings.Repeat("─", 80)+"\n")
@@ -578,7 +588,7 @@ func printTabsTable(groups []sessionNotification, w io.Writer) {
 		}
 
 		level := string(sg.Notification.Level)
-		levelColor := levelColorCode(sg.Notification.Level)
+		levelColor := levelColorCode(level)
 
 		age := formatAge(sg.Notification.Timestamp)
 		msg := truncateMessage(sg.Notification.Message, 30)

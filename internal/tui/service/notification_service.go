@@ -84,6 +84,11 @@ func (s *DefaultNotificationService) convertFromDomain(notifs []domain.Notificat
 	return notification.FromDomainSlice(ptrs)
 }
 
+// convertFromDomainSingle converts a single domain.Notification to notification.Notification.
+func (s *DefaultNotificationService) convertFromDomainSingle(n domain.Notification) notification.Notification {
+	return notification.FromDomain(&n)
+}
+
 // FilterNotifications filters notifications based on a search query.
 func (s *DefaultNotificationService) FilterNotifications(notifications []notification.Notification, query string) []notification.Notification {
 	if query == "" {
@@ -325,6 +330,11 @@ func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortB
 		// Apply per-session smart selection for Recents tab
 		// This ensures max 1 notification per session with intelligent selection
 		return s.selectBestNotificationPerSession(sorted)
+	}
+
+	// For Sessions tab: get unique sessions with their most recent notification
+	if normalizedTab == settings.TabSessions {
+		return s.getMostRecentPerSession(activeOnly, sortBy, sortOrder)
 	}
 
 	return activeOnly
