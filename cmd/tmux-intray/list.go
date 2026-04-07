@@ -4,6 +4,7 @@ Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -93,8 +94,14 @@ func NewListCmd(client listClient) *cobra.Command {
 	var listFormat string
 	var listFilter string
 	var listTab string
+	var listJSON bool
 
 	listCmd.RunE = func(cmd *cobra.Command, args []string) error {
+		// Handle --json flag
+		if listJSON {
+			listFormat = "json"
+		}
+
 		// Handle --tab flag
 		if listTab != "" {
 			validTabs := []string{"recents", "sessions", "all"}
@@ -150,6 +157,9 @@ func NewListCmd(client listClient) *cobra.Command {
 
 	// Add --tab flag
 	listCmd.Flags().StringVar(&listTab, "tab", "", "Show special tab view: recents, sessions, all")
+
+	// Add --json flag
+	listCmd.Flags().BoolVar(&listJSON, "json", false, "Output in JSON format")
 
 	return listCmd
 }
@@ -407,7 +417,7 @@ func orderUnreadFirst(notifs []*domain.Notification) []*domain.Notification {
 type TabsOptions struct {
 	Client     listClient
 	All        bool
-	Format     string // "simple" or "table"
+	Format     string // "simple", "table", or "json"
 	Session    string
 	Level      string
 	Window     string
@@ -465,6 +475,8 @@ func printTabs(opts TabsOptions, w io.Writer) {
 
 	if opts.Format == "table" {
 		printTabsTable(sessionGroups, w)
+	} else if opts.Format == "json" {
+		printTabsJSON(sessionGroups, w)
 	} else {
 		printTabsSimple(sessionGroups, w)
 	}
@@ -600,6 +612,43 @@ func printTabsTable(groups []domain.SessionNotification, w io.Writer) {
 			age,
 			msg,
 		)
+	}
+}
+
+// tabSessionJSON represents a session in JSON output for tabs.
+type tabSessionJSON struct {
+	Num       int    `json:"num"`
+	Session   string `json:"session"`
+	Level     string `json:"level"`
+	Timestamp string `json:"timestamp"`
+	Age       string `json:"age"`
+	Message   string `json:"message"`
+	Window    string `json:"window,omitempty"`
+	Pane      string `json:"pane,omitempty"`
+	Unread    bool   `json:"unread"`
+}
+
+// printTabsJSON prints sessions in JSON format.
+func printTabsJSON(groups []domain.SessionNotification, w io.Writer) {
+	sessions := make([]tabSessionJSON, 0, len(groups))
+	for i, sg := range groups {
+		sessions = append(sessions, tabSessionJSON{
+			Num:       i + 1,
+			Session:   sg.Session,
+			Level:     string(sg.Notification.Level),
+			Timestamp: sg.Notification.Timestamp,
+			Age:       formatAge(sg.Notification.Timestamp),
+			Message:   sg.Notification.Message,
+			Window:    sg.Notification.Window,
+			Pane:      sg.Notification.Pane,
+			Unread:    !sg.Notification.IsRead(),
+		})
+	}
+
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(sessions); err != nil {
+		_, _ = fmt.Fprintf(w, "tabs: failed to encode JSON: %v\n", err)
 	}
 }
 
