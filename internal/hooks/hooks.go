@@ -17,6 +17,33 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/config"
 )
 
+// HookResult contains the result of running hooks with modification support.
+type HookResult struct {
+	// Modified indicates whether any hook modified the notification.
+	Modified bool
+	// ExitCode is the exit code of the last hook that executed.
+	ExitCode int
+	// EnvVars contains modified environment variables from hooks that exited with code 2.
+	// Keys are variable names, values are the modified values.
+	EnvVars map[string]string
+	// Rejected indicates whether a hook rejected the notification.
+	Rejected bool
+}
+
+// Exit codes for hook modification semantics:
+// 0 = Accept notification as-is (no modification)
+// 1 = Reject notification (don't store)
+// 2 = Accept with modifications (read modified env vars from output)
+// 3 = Route to alternative action (store + external action) - treated as accept with mod
+// 4 = Defer/delay processing - treated as accept (future enhancement)
+const (
+	ExitCodeAccept = 0
+	ExitCodeReject = 1
+	ExitCodeModify = 2
+	ExitCodeRoute  = 3
+	ExitCodeDefer  = 4
+)
+
 // File permission constants
 const (
 	// FileModeDir is the permission for directories (rwxr-xr-x)
@@ -137,6 +164,12 @@ func getMaxAsyncHooks() int {
 
 // runSyncHook executes a hook script synchronously.
 func runSyncHook(scriptPath, scriptName string, envMap map[string]string, failureMode string) error {
+	result := runSyncHookWithResult(scriptPath, scriptName, envMap, failureMode)
+	return result.Error
+}
+
+// runSyncHookWithResult executes a hook script synchronously and returns detailed result.
+func runSyncHookWithResult(scriptPath, scriptName string, envMap map[string]string, failureMode string) HookExecutionResult {
 	start := time.Now()
 	cmd := exec.Command(scriptPath)
 	cmd.Env = os.Environ()
@@ -145,20 +178,41 @@ func runSyncHook(scriptPath, scriptName string, envMap map[string]string, failur
 	}
 	output, err := cmd.CombinedOutput()
 	duration := time.Since(start)
+
+	// Get exit code
+	exitCode := 0
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		} else {
+			exitCode = 1
+		}
+	}
+
 	// Print hook output to stderr (so it appears in logs)
 	if len(output) > 0 {
 		_, _ = os.Stderr.Write(output)
 	}
+
+	result := HookExecutionResult{
+		ExitCode: exitCode,
+		Output:   string(output),
+		Duration: duration,
+	}
+
 	if err != nil {
 		switch failureMode {
 		case "abort":
-			return fmt.Errorf("hooks.Run: hook '%s' failed after %.2fs: %v, output: %s", scriptName, duration.Seconds(), err, output)
+			result.Error = fmt.Errorf("hooks.Run: hook '%s' failed after %.2fs: %v, output: %s", scriptName, duration.Seconds(), err, output)
 		case "warn":
 			if isHooksVerbose() {
 				fmt.Fprintf(os.Stderr, "warning: hook %s failed after %.2fs: %v, output: %s\n", scriptName, duration.Seconds(), err, output)
 			}
+			// In warn mode, we still log but don't abort the chain
+			result.Error = nil
 		case "ignore":
 			// do nothing
+			result.Error = nil
 		}
 	} else {
 		// Success: log duration
@@ -166,7 +220,84 @@ func runSyncHook(scriptPath, scriptName string, envMap map[string]string, failur
 			fmt.Fprintf(os.Stderr, "  Hook completed in %.2fs\n", duration.Seconds())
 		}
 	}
-	return nil
+	return result
+}
+
+// HookExecutionResult contains detailed result of a single hook execution.
+type HookExecutionResult struct {
+	ExitCode int
+	Output   string
+	Duration time.Duration
+	Error    error
+}
+
+// parseModifications extracts environment variable modifications from hook output.
+// Hooks echo export statements to signal modifications:
+//
+//	echo "export MESSAGE=modified"
+//	echo 'export LEVEL="warning"' (values with spaces must be quoted)
+func parseModifications(output string) map[string]string {
+	modifications := make(map[string]string)
+
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "export ") {
+			continue
+		}
+
+		// Parse: export KEY=value or export KEY = value
+		// Value must be either:
+		// - Quoted (single or double): "value with spaces" or 'value with spaces'
+		// - Unquoted without spaces: simple-value
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := strings.TrimSpace(strings.TrimPrefix(parts[0], "export "))
+		value := parts[1]
+
+		// Validate key format
+		if !isValidEnvVarName(key) {
+			continue
+		}
+
+		// Handle quoted values
+		if (strings.HasPrefix(value, `"`) && strings.HasSuffix(value, `"`)) ||
+			(strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) {
+			// Remove quotes
+			value = value[1 : len(value)-1]
+		} else {
+			// Unquoted value - must not contain spaces (would be invalid shell syntax)
+			if strings.Contains(value, " ") {
+				continue
+			}
+		}
+
+		modifications[key] = value
+	}
+
+	return modifications
+}
+
+// isValidEnvVarName checks if a string is a valid environment variable name.
+func isValidEnvVarName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for i, c := range name {
+		if i == 0 {
+			if (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') && c != '_' {
+				return false
+			}
+		} else {
+			if (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '_' {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // runAsyncHook executes a hook script asynchronously with timeout.
@@ -234,6 +365,8 @@ func runAsyncHook(scriptPath, scriptName string, envMap map[string]string, failu
 }
 
 // Run executes hooks for a hook point with environment variables.
+// This is the original function for backward compatibility.
+// For enhanced modification support, use RunWithModification instead.
 func Run(hookPoint string, envVars ...string) error {
 	hookDir := filepath.Join(getHooksDir(), hookPoint)
 	files, err := os.ReadDir(hookDir)
@@ -255,6 +388,112 @@ func Run(hookPoint string, envVars ...string) error {
 
 	failureMode := getFailureMode()
 	return executeHooks(scripts, envMap, failureMode, getAsyncEnabled(), getMaxAsyncHooks())
+}
+
+// RunWithModification executes hooks for a hook point and returns modification results.
+// This function supports the enhanced hook semantics where hooks can modify notification
+// content by exporting environment variables and exiting with code 2.
+//
+// Return codes:
+//   - 0: Accept notification as-is
+//   - 1: Reject notification (don't store)
+//   - 2: Accept with modifications (read export statements from output)
+//   - 3: Route to alternative action (treated as accept with modifications)
+//   - 4: Defer processing (treated as accept)
+//
+// When async mode is enabled, modifications cannot be captured (hooks run in background).
+// In this case, the function returns immediately with Modified=false.
+func RunWithModification(hookPoint string, envVars ...string) (HookResult, error) {
+	// Async hooks can't capture modifications
+	if getAsyncEnabled() {
+		// Run in async mode - no modification capture possible
+		hookDir := filepath.Join(getHooksDir(), hookPoint)
+		files, err := os.ReadDir(hookDir)
+		if err != nil {
+			return HookResult{ExitCode: 0, EnvVars: make(map[string]string)}, nil
+		}
+
+		envMap := buildHookEnv(hookPoint, envVars)
+		scripts := collectHookScripts(hookDir, files)
+		if len(scripts) == 0 {
+			return HookResult{ExitCode: 0, EnvVars: make(map[string]string)}, nil
+		}
+
+		failureMode := getFailureMode()
+		if isHooksVerbose() {
+			fmt.Fprintf(os.Stderr, "Running %s hooks (async, %d script(s))\n", hookPoint, len(scripts))
+		}
+
+		// Fire and forget - async hooks run in background
+		_ = executeHooks(scripts, envMap, failureMode, true, getMaxAsyncHooks())
+		return HookResult{ExitCode: 0, Modified: false, EnvVars: make(map[string]string)}, nil
+	}
+
+	// Sync mode - we can capture modifications
+	hookDir := filepath.Join(getHooksDir(), hookPoint)
+	files, err := os.ReadDir(hookDir)
+	if err != nil {
+		// Directory doesn't exist -> no hooks
+		return HookResult{ExitCode: 0, EnvVars: make(map[string]string)}, nil
+	}
+
+	envMap := buildHookEnv(hookPoint, envVars)
+	scripts := collectHookScripts(hookDir, files)
+	if len(scripts) == 0 {
+		return HookResult{ExitCode: 0, EnvVars: make(map[string]string)}, nil
+	}
+
+	// Log hook execution
+	if isHooksVerbose() {
+		fmt.Fprintf(os.Stderr, "Running %s hooks (%d script(s))\n", hookPoint, len(scripts))
+	}
+
+	failureMode := getFailureMode()
+
+	// Execute hooks synchronously and track modifications
+	result := HookResult{
+		EnvVars:  make(map[string]string),
+		ExitCode: 0,
+		Modified: false,
+	}
+
+	for _, script := range scripts {
+		if isHooksVerbose() {
+			fmt.Fprintf(os.Stderr, "  Executing hook: %s\n", script.name)
+		}
+
+		execResult := runSyncHookWithResult(script.path, script.name, envMap, failureMode)
+
+		// Track the last exit code
+		result.ExitCode = execResult.ExitCode
+
+		// Check for modification semantics (exit code 2, 3, or 4)
+		if execResult.ExitCode == ExitCodeModify || execResult.ExitCode == ExitCodeRoute || execResult.ExitCode == ExitCodeDefer {
+			// Parse modifications from output
+			mods := parseModifications(execResult.Output)
+			for k, v := range mods {
+				result.EnvVars[k] = v
+			}
+			result.Modified = true
+		}
+
+		// Check for rejection (exit code 1) - always return error for rejection
+		// This is a semantic signal from the hook, not just a failure
+		if execResult.ExitCode == ExitCodeReject {
+			result.Rejected = true
+			return result, fmt.Errorf("hook '%s' rejected notification", script.name)
+		}
+
+		// Handle other errors (non-rejection) based on failure mode
+		if execResult.Error != nil {
+			if failureMode == "abort" {
+				return result, execResult.Error
+			}
+			// warn or ignore: continue silently
+		}
+	}
+
+	return result, nil
 }
 
 func buildHookEnv(hookPoint string, envVars []string) map[string]string {
