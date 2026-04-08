@@ -332,9 +332,10 @@ func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortB
 		return s.selectBestNotificationPerSession(sorted)
 	}
 
-	// For Sessions tab: get unique sessions with their most recent notification
+	// For Sessions tab: get unique sessions from ALL notifications (including dismissed/read)
+	// This lists all sessions that have ever had notifications, not just active ones
 	if normalizedTab == settings.TabSessions {
-		return s.getMostRecentPerSession(activeOnly, sortBy, sortOrder)
+		return s.getMostRecentPerSession(s.notifications, sortBy, sortOrder)
 	}
 
 	return activeOnly

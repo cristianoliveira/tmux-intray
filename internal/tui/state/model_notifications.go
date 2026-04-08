@@ -221,6 +221,29 @@ func (m *Model) loadNotifications(preserveCursor bool) error {
 	return nil
 }
 
+// loadAllNotifications loads all notifications (active and dismissed) from storage.
+// This is used by the Sessions tab to show all sessions.
+func (m *Model) loadAllNotifications() error {
+	notifications, err := m.ensureInteractionController().LoadAllNotifications()
+	if err != nil {
+		return fmt.Errorf("failed to load all notifications: %w", err)
+	}
+	if len(notifications) == 0 {
+		m.ensureNotificationService().SetNotifications([]notification.Notification{})
+		m.syncNotificationMirrors()
+		m.treeService.ClearTree()
+		m.resetCursor()
+		m.updateViewportContent()
+		return nil
+	}
+
+	m.ensureNotificationService().SetNotifications(notifications)
+	m.applySearchFilter()
+	m.updateViewportContent()
+
+	return nil
+}
+
 // resetCursor resets the cursor to the first item.
 func (m *Model) resetCursor() {
 	m.uiState.ResetCursor()

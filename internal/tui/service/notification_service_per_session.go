@@ -97,7 +97,7 @@ func (s *DefaultNotificationService) getMostRecentPerSession(notifications []not
 		}
 	}
 
-	// Use shared domain function
+	// Use shared domain function to get most recent per session (no time limit)
 	sessionGroups := domain.GroupBySessionKeepMostRecent(domainNotifs)
 
 	// Convert back to notification.Notification

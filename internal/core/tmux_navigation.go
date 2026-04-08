@@ -82,7 +82,7 @@ func (c *tmuxJumpCoordinator) switchToSession(sessionID string, handler errors.E
 	colors.Debug(fmt.Sprintf("JumpToPane: switching client to session %s", sessionID))
 	_, stderr, err := c.client.Run("switch-client", "-t", sessionID)
 	if err != nil {
-		handler.Error(fmt.Sprintf("jump to pane: failed to switch client to session %s: %v", sessionID, err))
+		handler.Warning("jump: session no longer exists")
 		if stderr != "" {
 			colors.Debug("JumpToPane: stderr: " + stderr)
 		}
@@ -95,7 +95,7 @@ func (c *tmuxJumpCoordinator) selectWindow(targetWindow string, handler errors.E
 	colors.Debug(fmt.Sprintf("JumpToPane: selecting window %s", targetWindow))
 	_, stderr, err := c.client.Run("select-window", "-t", targetWindow)
 	if err != nil {
-		handler.Error(fmt.Sprintf("jump to pane: failed to select window %s: %v", targetWindow, err))
+		handler.Warning("jump: window no longer exists")
 		if stderr != "" {
 			colors.Debug("JumpToPane: stderr: " + stderr)
 		}
@@ -109,7 +109,7 @@ func (c *tmuxJumpCoordinator) selectPane(sessionID, windowID, paneID string, han
 	colors.Debug(fmt.Sprintf("JumpToPane: selecting pane %s", targetPane))
 	_, stderr, err := c.client.Run("select-pane", "-t", targetPane)
 	if err != nil {
-		handler.Error(fmt.Sprintf("jump to pane: failed to select pane %s: %v", targetPane, err))
+		handler.Warning("jump: pane no longer exists")
 		if stderr != "" {
 			colors.Debug("JumpToPane: stderr: " + stderr)
 		}
