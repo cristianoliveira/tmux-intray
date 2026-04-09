@@ -7,6 +7,7 @@ import "github.com/cristianoliveira/tmux-intray/internal/notification"
 // It encapsulates tmux/core interactions and notification persistence operations.
 type InteractionController interface {
 	LoadActiveNotifications() ([]notification.Notification, error)
+	LoadAllNotifications() ([]notification.Notification, error)
 	DismissNotification(id string) error
 	DismissByFilter(session, window, pane string) error
 	MarkNotificationRead(id string) error
