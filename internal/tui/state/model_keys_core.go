@@ -100,6 +100,8 @@ func (m *Model) executeConfirmedAction() tea.Cmd {
 }
 
 // handleKeyType handles key type-based actions (Ctrl+C, Esc, Enter, etc.).
+//
+//nolint:gocyclo // Key-dispatch intentionally centralizes input handling for readability.
 func (m *Model) handleKeyType(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyCtrlC:

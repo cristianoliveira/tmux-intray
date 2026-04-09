@@ -47,7 +47,14 @@ func GroupBySessionKeepMostRecent(notifications []Notification) []SessionNotific
 // SortByTimestampDesc sorts SessionNotifications by timestamp descending.
 func SortByTimestampDesc(sessions []SessionNotification) {
 	SortSlice(sessions, func(i, j int) bool {
-		return sessions[i].Notification.Timestamp > sessions[j].Notification.Timestamp
+		left := sessions[i]
+		right := sessions[j]
+
+		if left.Notification.Timestamp == right.Notification.Timestamp {
+			return left.Session < right.Session
+		}
+
+		return left.Notification.Timestamp > right.Notification.Timestamp
 	})
 }
 

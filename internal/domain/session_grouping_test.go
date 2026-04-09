@@ -47,6 +47,15 @@ func TestGroupBySessionKeepMostRecent(t *testing.T) {
 			wantLen:  2,
 		},
 		{
+			name: "equal timestamps are sorted by session name",
+			input: []Notification{
+				{Session: "prod", Timestamp: now, Message: "prod newest"},
+				{Session: "dev", Timestamp: now, Message: "dev newest"},
+			},
+			expected: []string{"dev", "prod"},
+			wantLen:  2,
+		},
+		{
 			name: "skips notifications without session",
 			input: []Notification{
 				{Session: "dev", Timestamp: now, Message: "dev msg"},

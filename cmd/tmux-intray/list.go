@@ -69,6 +69,8 @@ ORDERING:
     -h, --help           Show this help`
 
 // NewListCmd creates the list command with explicit dependencies.
+//
+//nolint:funlen // Command wiring with flags and handlers is intentionally centralized.
 func NewListCmd(client listClient) *cobra.Command {
 	if client == nil {
 		panic("NewListCmd: client dependency cannot be nil")
@@ -473,11 +475,12 @@ func printTabs(opts TabsOptions, w io.Writer) {
 		return
 	}
 
-	if opts.Format == "table" {
+	switch opts.Format {
+	case "table":
 		printTabsTable(sessionGroups, w)
-	} else if opts.Format == "json" {
+	case "json":
 		printTabsJSON(sessionGroups, w)
-	} else {
+	default:
 		printTabsSimple(sessionGroups, w)
 	}
 }
@@ -799,11 +802,12 @@ func printRecents(opts RecentsOptions, w io.Writer) {
 		return sessionBest[i].Timestamp > sessionBest[j].Timestamp
 	})
 
-	if opts.Format == "json" {
+	switch opts.Format {
+	case "json":
 		printRecentsJSON(sessionBest, w)
-	} else if opts.Format == "table" {
+	case "table":
 		printRecentsTable(sessionBest, w)
-	} else {
+	default:
 		printRecentsSimple(sessionBest, w)
 	}
 }

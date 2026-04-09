@@ -47,7 +47,7 @@ func TestSelectDataset_SessionsTab_IncludesAllNotifications(t *testing.T) {
 				{ID: 3, Session: "prod", State: "active", Timestamp: earlier, Message: "prod read", ReadTimestamp: earlier},
 			},
 			wantLen:      3,
-			wantSessions: []string{"dev", "staging", "prod"},
+			wantSessions: []string{"dev", "prod", "staging"},
 		},
 	}
 
