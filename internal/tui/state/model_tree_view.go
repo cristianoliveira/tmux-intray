@@ -40,8 +40,13 @@ func (m *Model) cycleViewMode() {
 func (m *Model) cycleActiveTab() {
 	current := m.uiState.GetActiveTab()
 	next := settings.TabRecents
-	if current == settings.TabRecents {
+	switch current {
+	case settings.TabRecents:
 		next = settings.TabAll
+	case settings.TabAll:
+		next = settings.TabSessions
+	default:
+		next = settings.TabRecents
 	}
 
 	m.uiState.SetActiveTab(next)

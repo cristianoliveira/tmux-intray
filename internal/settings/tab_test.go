@@ -9,6 +9,7 @@ import (
 func TestTabContract(t *testing.T) {
 	assert.True(t, TabRecents.IsValid())
 	assert.True(t, TabAll.IsValid())
+	assert.True(t, TabSessions.IsValid())
 	assert.False(t, Tab("invalid").IsValid())
 	assert.Equal(t, TabRecents, DefaultTab())
 }
@@ -21,10 +22,12 @@ func TestNormalizeTab(t *testing.T) {
 	}{
 		{name: "recents is valid", raw: string(TabRecents), want: TabRecents},
 		{name: "all is valid", raw: string(TabAll), want: TabAll},
+		{name: "sessions is valid", raw: string(TabSessions), want: TabSessions},
 		{name: "empty defaults", raw: "", want: TabRecents},
 		{name: "invalid defaults", raw: "invalid", want: TabRecents},
 		{name: "whitespace trimmed", raw: " ReCeNtS ", want: TabRecents},
 		{name: "uppercase all", raw: "ALL", want: TabAll},
+		{name: "uppercase sessions", raw: "SESSIONS", want: TabSessions},
 	}
 
 	for _, tt := range tests {

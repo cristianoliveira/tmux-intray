@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	appview "github.com/cristianoliveira/tmux-intray/internal/app"
 	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
@@ -307,6 +308,16 @@ func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortB
 		return activeOnly
 	}
 
+	// Sessions tab: shared per-session orchestration (same semantics across surfaces).
+	if normalizedTab == settings.TabSessions {
+		view := appview.NewViewOrchestrator().BuildView(appview.ViewOptions{
+			Kind:   appview.ViewKindRecentsPerSession,
+			SortBy: sortBy,
+			Order:  sortOrder,
+		}, s.convertToDomain(activeOnly))
+		return s.convertFromDomain(view.Notifications)
+	}
+
 	// For Recents tab, apply configurable time window filter
 	if normalizedTab == settings.TabRecents {
 		domainNotifs := s.convertToDomain(activeOnly)
@@ -332,7 +343,8 @@ func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortB
 
 // ApplyFiltersAndSearch applies tab scope, then filters/search/sorting and stores filtered results.
 func (s *DefaultNotificationService) ApplyFiltersAndSearch(tab settings.Tab, query, state, level, sessionID, windowID, paneID, readFilter, sortBy, sortOrder string) {
-	if settings.NormalizeTab(string(tab)) == settings.TabRecents {
+	normalizedTab := settings.NormalizeTab(string(tab))
+	if normalizedTab == settings.TabRecents || normalizedTab == settings.TabSessions {
 		readFilter = "unread"
 	}
 
@@ -344,7 +356,7 @@ func (s *DefaultNotificationService) ApplyFiltersAndSearch(tab settings.Tab, que
 	// If Recents tab with specific filters, show all notifications matching filters
 	// (not just the per-session smart selection). Re-fetch without per-session limiting.
 	// Apply 10-item limit for filtered views (Story 3).
-	if isFilteredView && settings.NormalizeTab(string(tab)) == settings.TabRecents {
+	if isFilteredView && normalizedTab == settings.TabRecents {
 		result = s.getUnfilteredRecentsDataset(sortBy, sortOrder, filteredListLimit)
 	}
 

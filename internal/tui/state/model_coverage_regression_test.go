@@ -38,6 +38,8 @@ func TestTreeViewPublicWrappersAndTabCycle(t *testing.T) {
 	m.cycleActiveTab()
 	assert.Equal(t, settings.TabAll, m.uiState.GetActiveTab())
 	m.cycleActiveTab()
+	assert.Equal(t, settings.TabSessions, m.uiState.GetActiveTab())
+	m.cycleActiveTab()
 	assert.Equal(t, settings.TabRecents, m.uiState.GetActiveTab())
 }
 

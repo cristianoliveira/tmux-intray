@@ -11,12 +11,15 @@ const (
 
 	// TabAll shows all notifications.
 	TabAll Tab = "all"
+
+	// TabSessions shows one recent representative notification per session.
+	TabSessions Tab = "sessions"
 )
 
 // IsValid returns whether the tab is one of the supported values.
 func (t Tab) IsValid() bool {
 	switch t {
-	case TabRecents, TabAll:
+	case TabRecents, TabAll, TabSessions:
 		return true
 	default:
 		return false

@@ -208,6 +208,9 @@ func (m *Model) handleTabSwitchingKeys(key string) (tea.Model, tea.Cmd) {
 	case "a":
 		m.switchActiveTab(settings.TabAll)
 		return m, nil
+	case "s":
+		m.switchActiveTab(settings.TabSessions)
+		return m, nil
 	}
 	return m, nil
 }

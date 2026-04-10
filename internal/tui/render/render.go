@@ -49,22 +49,25 @@ type RowState struct {
 	Now          time.Time
 }
 
-// Tabs renders the Recents/All tab controls.
+// Tabs renders the Recents/All/Sessions tab controls.
 func Tabs(activeTab settings.Tab, width int) string {
 	inactive := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	active := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(ansiColorNumber(colors.Blue)))
 
 	recents := inactive.Render("Recents")
 	all := inactive.Render("All")
+	sessions := inactive.Render("Sessions")
 
 	switch settings.NormalizeTab(string(activeTab)) {
 	case settings.TabAll:
 		all = active.Render("[All]")
+	case settings.TabSessions:
+		sessions = active.Render("[Sessions]")
 	default:
 		recents = active.Render("[Recents]")
 	}
 
-	line := fmt.Sprintf("Tabs: %s  %s", recents, all)
+	line := fmt.Sprintf("Tabs: %s  %s  %s", recents, all, sessions)
 	return truncateFooter(line, width)
 }
 
@@ -306,6 +309,8 @@ func tabIndicator(tab settings.Tab) string {
 	switch settings.NormalizeTab(string(tab)) {
 	case settings.TabAll:
 		return "[A]ll"
+	case settings.TabSessions:
+		return "[S]essions"
 	default:
 		return "[R]ecents"
 	}
