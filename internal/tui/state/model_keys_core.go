@@ -122,6 +122,9 @@ func (m *Model) handleKeyType(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyCtrlR:
 		// Switch to Recents tab in all views
 		return m.handleTabSwitchingKeys("r")
+	case tea.KeyCtrlS:
+		// Switch to Sessions tab in all views
+		return m.handleTabSwitchingKeys("s")
 	case tea.KeyCtrlH:
 		// In search contexts, Ctrl+h moves cursor left (same as normal navigation)
 		if m.isSearchContext() {
@@ -160,7 +163,7 @@ func (m *Model) handleKeyBinding(key string, allowInSearch bool) (tea.Model, tea
 	switch key {
 	case "j", "k", "G", "g":
 		return m.handleNavigationKeys(key, allowInSearch)
-	case "r", "a":
+	case "r", "a", "s":
 		return m.handleTabSwitchingKeys(key)
 	case "R", "u":
 		return m.handleMarkKeys(key)

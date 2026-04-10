@@ -184,6 +184,7 @@ func buildFullHelpNormalModeItems(state FooterState) []string {
 	items = append(items, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
 	items = append(items, "Ctrl+r: recents")
 	items = append(items, "Ctrl+a: all")
+	items = append(items, "Ctrl+s: sessions")
 	items = append(items, fmt.Sprintf("read: %s", readFilterIndicator(state.ReadFilter)))
 	items = append(items, "j/k: move")
 	items = append(items, "gg/G: top/bottom")
@@ -228,6 +229,7 @@ func buildMinimalNormalModeItems(state FooterState) []string {
 	items = append(items, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
 	items = append(items, "Ctrl+r: recents")
 	items = append(items, "Ctrl+a: all")
+	items = append(items, "Ctrl+s: sessions")
 	items = append(items, "j/k: move")
 	items = append(items, "?: toggle help")
 	return items

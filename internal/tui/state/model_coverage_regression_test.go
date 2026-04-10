@@ -70,6 +70,29 @@ func TestHandleTabSwitchingKeysToRecents(t *testing.T) {
 	assert.Equal(t, settings.TabRecents, m.uiState.GetActiveTab())
 }
 
+func TestHandleTabSwitchingKeysToSessions(t *testing.T) {
+	setupConfig(t, t.TempDir())
+
+	m := newTestModel(t, []notification.Notification{{ID: 1, Message: "one"}})
+	m.uiState.SetActiveTab(settings.TabAll)
+
+	next, cmd := m.handleTabSwitchingKeys("s")
+	assert.Same(t, m, next)
+	assert.Nil(t, cmd)
+	assert.Equal(t, settings.TabSessions, m.uiState.GetActiveTab())
+}
+
+func TestCtrlSKeySwitchesToSessionsTab(t *testing.T) {
+	setupConfig(t, t.TempDir())
+
+	m := newTestModel(t, []notification.Notification{{ID: 1, Message: "one"}})
+	m.uiState.SetActiveTab(settings.TabRecents)
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
+	model := updated.(*Model)
+	assert.Equal(t, settings.TabSessions, model.uiState.GetActiveTab())
+}
+
 func TestHandleBackspaceSearchModeBranches(t *testing.T) {
 	m := newTestModel(t, []notification.Notification{{ID: 1, Message: "hello"}})
 	m.uiState.SetSearchMode(true)
