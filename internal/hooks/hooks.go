@@ -2,14 +2,10 @@
 package hooks
 
 import (
-	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -162,208 +158,6 @@ func getMaxAsyncHooks() int {
 	return 10
 }
 
-// runSyncHook executes a hook script synchronously.
-func runSyncHook(scriptPath, scriptName string, envMap map[string]string, failureMode string) error {
-	result := runSyncHookWithResult(scriptPath, scriptName, envMap, failureMode)
-	return result.Error
-}
-
-// runSyncHookWithResult executes a hook script synchronously and returns detailed result.
-func runSyncHookWithResult(scriptPath, scriptName string, envMap map[string]string, failureMode string) HookExecutionResult {
-	start := time.Now()
-	cmd := exec.Command(scriptPath)
-	cmd.Env = os.Environ()
-	for k, v := range envMap {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
-	}
-	output, err := cmd.CombinedOutput()
-	duration := time.Since(start)
-
-	// Get exit code
-	exitCode := 0
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			exitCode = exitErr.ExitCode()
-		} else {
-			exitCode = 1
-		}
-	}
-
-	// Print hook output to stderr (so it appears in logs)
-	if len(output) > 0 {
-		_, _ = os.Stderr.Write(output)
-	}
-
-	result := HookExecutionResult{
-		ExitCode: exitCode,
-		Output:   string(output),
-		Duration: duration,
-	}
-
-	if err != nil {
-		switch failureMode {
-		case "abort":
-			result.Error = fmt.Errorf("hooks.Run: hook '%s' failed after %.2fs: %v, output: %s", scriptName, duration.Seconds(), err, output)
-		case "warn":
-			if isHooksVerbose() {
-				fmt.Fprintf(os.Stderr, "warning: hook %s failed after %.2fs: %v, output: %s\n", scriptName, duration.Seconds(), err, output)
-			}
-			// In warn mode, we still log but don't abort the chain
-			result.Error = nil
-		case "ignore":
-			// do nothing
-			result.Error = nil
-		}
-	} else {
-		// Success: log duration
-		if isHooksVerbose() {
-			fmt.Fprintf(os.Stderr, "  Hook completed in %.2fs\n", duration.Seconds())
-		}
-	}
-	return result
-}
-
-// HookExecutionResult contains detailed result of a single hook execution.
-type HookExecutionResult struct {
-	ExitCode int
-	Output   string
-	Duration time.Duration
-	Error    error
-}
-
-// parseModifications extracts environment variable modifications from hook output.
-// Hooks echo export statements to signal modifications:
-//
-//	echo "export MESSAGE=modified"
-//	echo 'export LEVEL="warning"' (values with spaces must be quoted)
-func parseModifications(output string) map[string]string {
-	modifications := make(map[string]string)
-
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "export ") {
-			continue
-		}
-
-		// Parse: export KEY=value or export KEY = value
-		// Value must be either:
-		// - Quoted (single or double): "value with spaces" or 'value with spaces'
-		// - Unquoted without spaces: simple-value
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-
-		key := strings.TrimSpace(strings.TrimPrefix(parts[0], "export "))
-		value := parts[1]
-
-		// Validate key format
-		if !isValidEnvVarName(key) {
-			continue
-		}
-
-		// Handle quoted values
-		if (strings.HasPrefix(value, `"`) && strings.HasSuffix(value, `"`)) ||
-			(strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) {
-			// Remove quotes
-			value = value[1 : len(value)-1]
-		} else {
-			// Unquoted value - must not contain spaces (would be invalid shell syntax)
-			if strings.Contains(value, " ") {
-				continue
-			}
-		}
-
-		modifications[key] = value
-	}
-
-	return modifications
-}
-
-// isValidEnvVarName checks if a string is a valid environment variable name.
-func isValidEnvVarName(name string) bool {
-	if name == "" {
-		return false
-	}
-	for i, c := range name {
-		if i == 0 {
-			if (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') && c != '_' {
-				return false
-			}
-		} else {
-			if (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '_' {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-// runAsyncHook executes a hook script asynchronously with timeout.
-func runAsyncHook(scriptPath, scriptName string, envMap map[string]string, failureMode string) {
-	timeout := getAsyncTimeout()
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	cmd := exec.CommandContext(ctx, scriptPath)
-	cmd.Env = os.Environ()
-	for k, v := range envMap {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
-	}
-	// Redirect stdout to stderr as Bash does
-	cmd.Stdout = os.Stderr
-	cmd.Stderr = os.Stderr
-	// Start the command
-	if err := cmd.Start(); err != nil {
-		cancel() // release context resources
-		if failureMode != "ignore" && isHooksVerbose() {
-			fmt.Fprintf(os.Stderr, "warning: async hook %s failed to start: %v\n", scriptName, err)
-		}
-		// Decrement pending count on start failure
-		pendingHooksMu.Lock()
-		pendingHookCount--
-		pendingHooksMu.Unlock()
-		pendingHooks.Done()
-		return
-	}
-	// Track start time for hung hook detection
-	startTime := time.Now()
-
-	// Wait for completion in goroutine, then decrement count
-	go func() {
-		// Ensure we always clean up, even on panic
-		defer func() {
-			if r := recover(); r != nil {
-				if isHooksVerbose() {
-					fmt.Fprintf(os.Stderr, "error: async hook %s panicked: %v\n", scriptName, r)
-				}
-			}
-			// Always decrement count, even on panic
-			pendingHooksMu.Lock()
-			pendingHookCount--
-			pendingHooksMu.Unlock()
-			// Always signal completion, even on panic
-			pendingHooks.Done()
-			cancel() // ensure cancel is called after wait returns
-		}()
-
-		// Wait for command completion
-		err := cmd.Wait()
-		duration := time.Since(startTime)
-
-		// Check if hook exceeded timeout (context was canceled)
-		if ctx.Err() == context.DeadlineExceeded && isHooksVerbose() {
-			fmt.Fprintf(os.Stderr, "warning: async hook %s timed out after %.2fs\n", scriptName, duration.Seconds())
-		}
-
-		// Log hook execution result
-		if err != nil && failureMode != "ignore" && isHooksVerbose() {
-			fmt.Fprintf(os.Stderr, "warning: async hook %s failed: %v (duration: %.2fs)\n", scriptName, err, duration.Seconds())
-		} else if err == nil && isHooksVerbose() {
-			fmt.Fprintf(os.Stderr, "  async hook %s completed in %.2fs\n", scriptName, duration.Seconds())
-		}
-	}()
-}
-
 // Run executes hooks for a hook point with environment variables.
 // This is the original function for backward compatibility.
 // For enhanced modification support, use RunWithModification instead.
@@ -496,81 +290,6 @@ func RunWithModification(hookPoint string, envVars ...string) (HookResult, error
 	return result, nil
 }
 
-func buildHookEnv(hookPoint string, envVars []string) map[string]string {
-	envMap := make(map[string]string)
-	envMap["HOOK_POINT"] = hookPoint
-	envMap["TMUX_INTRAY_HOOKS_FAILURE_MODE"] = getFailureMode()
-	envMap["HOOK_TIMESTAMP"] = time.Now().Format(time.RFC3339)
-
-	if tmuxIntrayPath := resolveTmuxIntrayPath(); tmuxIntrayPath != "" {
-		envMap["TMUX_INTRAY_BINARY"] = tmuxIntrayPath
-	}
-
-	for _, v := range envVars {
-		parts := strings.SplitN(v, "=", 2)
-		if len(parts) == 2 {
-			envMap[parts[0]] = parts[1]
-		}
-	}
-
-	return envMap
-}
-
-func resolveTmuxIntrayPath() string {
-	var tmuxIntrayPath string
-	if exe, err := os.Executable(); err == nil {
-		tmuxIntrayPath = exe
-	}
-
-	if len(os.Args) > 0 && os.Args[0] != "" {
-		if filepath.IsAbs(os.Args[0]) {
-			tmuxIntrayPath = os.Args[0]
-		} else if path, err := exec.LookPath(os.Args[0]); err == nil {
-			tmuxIntrayPath = path
-		}
-	}
-
-	if tmuxIntrayPath != "" {
-		return tmuxIntrayPath
-	}
-
-	home, _ := os.UserHomeDir()
-	commonPaths := []string{
-		filepath.Join(home, ".local", "bin", "tmux-intray"),
-		"/usr/local/bin/tmux-intray",
-		"/usr/bin/tmux-intray",
-	}
-	for _, path := range commonPaths {
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
-	return ""
-}
-
-func collectHookScripts(hookDir string, files []os.DirEntry) []hookScript {
-	scripts := []hookScript{}
-	for _, f := range files {
-		if f.IsDir() {
-			continue
-		}
-
-		scriptPath := filepath.Join(hookDir, f.Name())
-		info, err := os.Stat(scriptPath)
-		if err != nil || info.Mode()&0111 == 0 {
-			continue
-		}
-		scripts = append(scripts, hookScript{path: scriptPath, name: f.Name()})
-	}
-
-	sort.Slice(scripts, func(i, j int) bool {
-		return scripts[i].name < scripts[j].name
-	})
-
-	return scripts
-}
-
 func executeHooks(scripts []hookScript, envMap map[string]string, failureMode string, asyncEnabled bool, maxAsync int) error {
 	for _, script := range scripts {
 		if isHooksVerbose() {
@@ -597,12 +316,6 @@ func runSyncHookAndCheckAbort(script hookScript, envMap map[string]string, failu
 		// warn or ignore: continue
 	}
 	return nil
-}
-
-// hookScript holds information about a hook script
-type hookScript struct {
-	path string
-	name string
 }
 
 // tryStartAsyncHook attempts to start an async hook, returns false if limit reached.
