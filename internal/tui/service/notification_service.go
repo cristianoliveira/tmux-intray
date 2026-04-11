@@ -5,13 +5,13 @@ import (
 	"strings"
 	"time"
 
-	appview "github.com/cristianoliveira/tmux-intray/internal/app"
 	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
+	"github.com/cristianoliveira/tmux-intray/internal/views"
 )
 
 // DefaultNotificationService implements the NotificationService interface.
@@ -310,8 +310,8 @@ func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortB
 
 	// Sessions tab: shared per-session orchestration (all-time, per-session representatives).
 	if normalizedTab == settings.TabSessions {
-		view := appview.NewViewOrchestrator().BuildView(appview.ViewOptions{
-			Kind:   appview.ViewKindSessionsPerSession,
+		view := views.NewOrchestrator().Build(views.Options{
+			Kind:   views.KindSessionHistory,
 			SortBy: sortBy,
 			Order:  sortOrder,
 		}, s.convertToDomain(activeOnly))

@@ -1,4 +1,4 @@
-package app
+package views
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ import (
 // replicates the TUI Recents per-session semantics: one representative per
 // session, chosen by severity first (error > warning > info) then recency.
 func TestRecentsPerSessionSelection_Orchestrator(t *testing.T) {
-	orchestrator := NewViewOrchestrator()
+	orchestrator := NewOrchestrator()
 	now := time.Now().UTC()
 
 	notifs := []domain.Notification{
@@ -73,13 +73,13 @@ func TestRecentsPerSessionSelection_Orchestrator(t *testing.T) {
 		},
 	}
 
-	opts := ViewOptions{
-		Kind:   ViewKindRecentsPerSession,
+	opts := Options{
+		Kind:   KindRecentUnreadSessionHighlights,
 		SortBy: "timestamp",
 		Order:  "desc",
 	}
 
-	result := orchestrator.BuildView(opts, notifs)
+	result := orchestrator.Build(opts, notifs)
 
 	require.Len(t, result.Notifications, 3, "one representative per session expected")
 
@@ -119,7 +119,7 @@ func TestRecentsPerSessionSelection_Orchestrator(t *testing.T) {
 // TestRecentsPerSessionLimit_Orchestrator verifies that we respect the 20-session
 // dataset limit, returning the most recent 20 representatives.
 func TestRecentsPerSessionLimit_Orchestrator(t *testing.T) {
-	orchestrator := NewViewOrchestrator()
+	orchestrator := NewOrchestrator()
 	now := time.Now().UTC()
 
 	notifs := make([]domain.Notification, 0, 30)
@@ -136,13 +136,13 @@ func TestRecentsPerSessionLimit_Orchestrator(t *testing.T) {
 		})
 	}
 
-	opts := ViewOptions{
-		Kind:   ViewKindRecentsPerSession,
+	opts := Options{
+		Kind:   KindRecentUnreadSessionHighlights,
 		SortBy: "timestamp",
 		Order:  "desc",
 	}
 
-	result := orchestrator.BuildView(opts, notifs)
+	result := orchestrator.Build(opts, notifs)
 
 	require.Len(t, result.Notifications, 20, "should limit to 20 sessions")
 
@@ -155,7 +155,7 @@ func TestRecentsPerSessionLimit_Orchestrator(t *testing.T) {
 }
 
 func TestRecentsPerSessionFiltersActiveUnreadAndWindow_Orchestrator(t *testing.T) {
-	orchestrator := NewViewOrchestrator()
+	orchestrator := NewOrchestrator()
 	now := time.Now().UTC()
 
 	notifs := []domain.Notification{
@@ -166,14 +166,14 @@ func TestRecentsPerSessionFiltersActiveUnreadAndWindow_Orchestrator(t *testing.T
 		{ID: 5, Timestamp: now.Add(-2 * time.Hour).Format(time.RFC3339), State: domain.StateActive, Session: "$5", Level: domain.LevelInfo},
 	}
 
-	result := orchestrator.BuildView(ViewOptions{Kind: ViewKindRecentsPerSession}, notifs)
+	result := orchestrator.Build(Options{Kind: KindRecentUnreadSessionHighlights}, notifs)
 
 	require.Len(t, result.Notifications, 2)
 	assert.Equal(t, []int{2, 1}, []int{result.Notifications[0].ID, result.Notifications[1].ID})
 }
 
 func TestSessionsPerSessionIgnoresTimeWindowAndReadState_Orchestrator(t *testing.T) {
-	orchestrator := NewViewOrchestrator()
+	orchestrator := NewOrchestrator()
 	now := time.Now().UTC()
 
 	notifs := []domain.Notification{
@@ -183,7 +183,7 @@ func TestSessionsPerSessionIgnoresTimeWindowAndReadState_Orchestrator(t *testing
 		{ID: 4, Timestamp: now.Add(-30 * time.Minute).Format(time.RFC3339), State: domain.StateActive, Session: "$1", Level: domain.LevelError},
 	}
 
-	result := orchestrator.BuildView(ViewOptions{Kind: ViewKindSessionsPerSession}, notifs)
+	result := orchestrator.Build(Options{Kind: KindSessionHistory}, notifs)
 
 	require.Len(t, result.Notifications, 2, "sessions view should include all active sessions regardless of time/read state")
 	assert.Equal(t, []int{4, 2}, []int{result.Notifications[0].ID, result.Notifications[1].ID})
