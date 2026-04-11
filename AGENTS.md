@@ -14,7 +14,7 @@ bd sync               # Sync with git
 
 ## Project Philosophy
 
-This project follows a minimalist, Unix‑style philosophy. See [Project Philosophy](./docs/philosophy.md) for design principles and rationale.
+This project follows minimalist, Unix‑style principles focused on quiet notifications, persistent storage, and composable design. See [Project Philosophy](docs/philosophy.md) for the guiding principles that inform all design decisions.
 
 ## Development Guide
 

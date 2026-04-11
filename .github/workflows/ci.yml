@@ -179,7 +179,7 @@ jobs:
           path: coverage.out
 
       - name: tmux-intray-coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: coverage.out
           flags: unittests

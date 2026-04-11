@@ -238,10 +238,17 @@ func TestTabsRendersActiveIndicator(t *testing.T) {
 	recents := Tabs(settings.TabRecents, 80)
 	assert.Contains(t, stripANSI(recents), "[Recents]")
 	assert.Contains(t, stripANSI(recents), "All")
+	assert.Contains(t, stripANSI(recents), "Sessions")
 
 	all := Tabs(settings.TabAll, 80)
 	assert.Contains(t, stripANSI(all), "Recents")
 	assert.Contains(t, stripANSI(all), "[All]")
+	assert.Contains(t, stripANSI(all), "Sessions")
+
+	sessions := Tabs(settings.TabSessions, 80)
+	assert.Contains(t, stripANSI(sessions), "Recents")
+	assert.Contains(t, stripANSI(sessions), "All")
+	assert.Contains(t, stripANSI(sessions), "[Sessions]")
 }
 
 func TestFooterGroupedHelpText(t *testing.T) {
@@ -250,6 +257,7 @@ func TestFooterGroupedHelpText(t *testing.T) {
 	assert.Contains(t, footer, "mode: [G]")
 	assert.Contains(t, footer, "Ctrl+r: recents")
 	assert.Contains(t, footer, "Ctrl+a: all")
+	assert.Contains(t, footer, "Ctrl+s: sessions")
 	assert.Contains(t, footer, "read: all")
 	assert.Contains(t, footer, "v: cycle view mode")
 	assert.Contains(t, footer, "gg/G: top/bottom")

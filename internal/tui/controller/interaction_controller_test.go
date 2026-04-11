@@ -25,6 +25,10 @@ func (f *fakeNotificationStore) ListActiveNotifications() (string, error) {
 	return f.listOutput, f.listErr
 }
 
+func (f *fakeNotificationStore) ListAllNotifications() (string, error) {
+	return f.listOutput, f.listErr
+}
+
 func (f *fakeNotificationStore) DismissNotification(id string) error {
 	f.dismissID = id
 	return f.dismissErr

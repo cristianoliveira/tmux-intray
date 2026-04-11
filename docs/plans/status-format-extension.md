@@ -875,7 +875,6 @@ tests/
 
 ## Appendix: Related Documentation
 
-- [Project Philosophy](../philosophy.md) - Design principles
 - [CLI Reference](../cli/CLI_REFERENCE.md) - Current command docs
 - [Design: Go Package Structure](../design/go-package-structure.md) - Code organization
 - [Development Guide](../../DEVELOPMENT.md) - Contributing guidelines

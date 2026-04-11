@@ -12,6 +12,7 @@ import (
 
 type notificationStore interface {
 	ListActiveNotifications() (string, error)
+	ListAllNotifications() (string, error)
 	DismissNotification(id string) error
 	DismissByFilter(session, window, pane string) error
 	MarkNotificationRead(id string) error
@@ -26,6 +27,10 @@ type storageNotificationStore struct{}
 
 func (s storageNotificationStore) ListActiveNotifications() (string, error) {
 	return storage.ListNotifications("active", "", "", "", "", "", "", "")
+}
+
+func (s storageNotificationStore) ListAllNotifications() (string, error) {
+	return storage.ListNotifications("", "", "", "", "", "", "", "")
 }
 
 func (s storageNotificationStore) DismissNotification(id string) error {
@@ -86,6 +91,31 @@ func (c *DefaultInteractionController) SetRuntimeCoordinator(runtimeCoordinator 
 // LoadActiveNotifications loads all active notifications from persistent storage.
 func (c *DefaultInteractionController) LoadActiveNotifications() ([]notification.Notification, error) {
 	lines, err := c.store.ListActiveNotifications()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load notifications: %w", err)
+	}
+	if lines == "" {
+		return []notification.Notification{}, nil
+	}
+
+	items := make([]notification.Notification, 0)
+	for _, line := range strings.Split(lines, "\n") {
+		if line == "" {
+			continue
+		}
+		notif, parseErr := c.parser.Parse(line)
+		if parseErr != nil {
+			continue
+		}
+		items = append(items, notif)
+	}
+
+	return items, nil
+}
+
+// LoadAllNotifications loads all notifications (active and dismissed) from persistent storage.
+func (c *DefaultInteractionController) LoadAllNotifications() ([]notification.Notification, error) {
+	lines, err := c.store.ListAllNotifications()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load notifications: %w", err)
 	}

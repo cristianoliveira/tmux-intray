@@ -961,3 +961,186 @@ func TestListCmdRunEClientError(t *testing.T) {
 		t.Fatalf("expected error message in output, got %q", output)
 	}
 }
+
+func TestListCmdTabWithFilters(t *testing.T) {
+	tests := []struct {
+		name           string
+		tab            string
+		flags          map[string]string
+		wantSession    string
+		wantLevel      string
+		wantWindow     string
+		wantPane       string
+		wantOlderThan  string
+		wantNewerThan  string
+		wantReadFilter string
+	}{
+		{
+			name:        "sessions with session filter",
+			tab:         "sessions",
+			flags:       map[string]string{"session": "$1"},
+			wantSession: "$1",
+		},
+		{
+			name:      "sessions with level filter",
+			tab:       "sessions",
+			flags:     map[string]string{"level": "error"},
+			wantLevel: "error",
+		},
+		{
+			name:        "sessions with multiple filters",
+			tab:         "sessions",
+			flags:       map[string]string{"session": "$1", "level": "warning", "window": "win1"},
+			wantSession: "$1",
+			wantLevel:   "warning",
+			wantWindow:  "win1",
+		},
+		{
+			name:           "recents with session filter",
+			tab:            "recents",
+			flags:          map[string]string{"session": "$2"},
+			wantSession:    "$2",
+			wantReadFilter: "unread", // recents defaults to unread
+		},
+		{
+			name:           "recents with custom read filter",
+			tab:            "recents",
+			flags:          map[string]string{"filter": "read"},
+			wantReadFilter: "read",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &fakeListClient{
+				listNotificationsResult: "",
+			}
+			cmd := NewListCmd(client)
+
+			// Set tab flag
+			setFlag(t, cmd, "tab", tt.tab)
+
+			// Set filter flags
+			for flagName, flagValue := range tt.flags {
+				setFlag(t, cmd, flagName, flagValue)
+			}
+
+			err := cmd.RunE(cmd, []string{})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			// Verify exactly one call
+			if len(client.listNotificationsCalls) != 1 {
+				t.Fatalf("expected 1 call to ListNotifications, got %d", len(client.listNotificationsCalls))
+			}
+			call := client.listNotificationsCalls[0]
+			assert.Equal(t, tt.wantSession, call.sessionFilter, "session filter mismatch")
+			assert.Equal(t, tt.wantLevel, call.levelFilter, "level filter mismatch")
+			assert.Equal(t, tt.wantWindow, call.windowFilter, "window filter mismatch")
+			assert.Equal(t, tt.wantPane, call.paneFilter, "pane filter mismatch")
+			assert.Equal(t, tt.wantReadFilter, call.readFilter, "read filter mismatch")
+		})
+	}
+}
+
+func TestResolveSessionName(t *testing.T) {
+	sessionNames := map[string]string{
+		"$1": "work/cells",
+		"$3": "other/ai",
+		"$8": "other/mesix",
+	}
+
+	tests := []struct {
+		name         string
+		sessionID    string
+		sessionNames map[string]string
+		want         string
+	}{
+		{
+			name:         "resolves known session ID",
+			sessionID:    "$1",
+			sessionNames: sessionNames,
+			want:         "work/cells",
+		},
+		{
+			name:         "resolves another known session ID",
+			sessionID:    "$3",
+			sessionNames: sessionNames,
+			want:         "other/ai",
+		},
+		{
+			name:         "returns original for unknown session ID",
+			sessionID:    "$99",
+			sessionNames: sessionNames,
+			want:         "$99",
+		},
+		{
+			name:         "returns empty for empty session ID",
+			sessionID:    "",
+			sessionNames: sessionNames,
+			want:         "",
+		},
+		{
+			name:         "handles nil session names map",
+			sessionID:    "$1",
+			sessionNames: nil,
+			want:         "$1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := resolveSessionName(tt.sessionID, tt.sessionNames)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestFormatAge(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name      string
+		timestamp string
+		wantLen   int // Expected length of result (should be short like "5m", "2h", "30s")
+	}{
+		{
+			name:      "seconds ago",
+			timestamp: now.Add(-30 * time.Second).Format(time.RFC3339),
+			wantLen:   3, // "30s"
+		},
+		{
+			name:      "minutes ago",
+			timestamp: now.Add(-5 * time.Minute).Format(time.RFC3339),
+			wantLen:   2, // "5m"
+		},
+		{
+			name:      "hours ago",
+			timestamp: now.Add(-2 * time.Hour).Format(time.RFC3339),
+			wantLen:   2, // "2h"
+		},
+		{
+			name:      "days ago",
+			timestamp: now.Add(-3 * 24 * time.Hour).Format(time.RFC3339),
+			wantLen:   2, // "3d"
+		},
+		{
+			name:      "empty timestamp",
+			timestamp: "",
+			wantLen:   0,
+		},
+		{
+			name:      "invalid timestamp",
+			timestamp: "invalid",
+			wantLen:   7, // returns "invalid" as-is
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatAge(tt.timestamp)
+			assert.Equal(t, tt.wantLen, len(got), "expected short format like '5m', got %q", got)
+		})
+	}
+}

@@ -78,7 +78,7 @@ EXAMPLES:
     tmux-intray status --format='C:{{critical-count}} E:{{error-count}} W:{{warning-count}}'
     tmux-intray status --format='Level {{highest-severity}}'
 
-See docs/status-command-guide.md for detailed documentation and more examples.`,
+See docs/status-guide.md for detailed documentation and more examples.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Ensure tmux is running (mirror bash script behavior)

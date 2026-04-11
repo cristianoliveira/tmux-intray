@@ -100,6 +100,8 @@ func (m *Model) executeConfirmedAction() tea.Cmd {
 }
 
 // handleKeyType handles key type-based actions (Ctrl+C, Esc, Enter, etc.).
+//
+//nolint:gocyclo // Key-dispatch intentionally centralizes input handling for readability.
 func (m *Model) handleKeyType(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyCtrlC:
@@ -114,7 +116,17 @@ func (m *Model) handleKeyType(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyBackspace:
 		m.handleBackspace()
 		return nil, nil
-	case tea.KeyUp, tea.KeyDown:
+	case tea.KeyUp:
+		// In search contexts, Up arrow moves cursor up
+		if m.isSearchContext() {
+			m.handleMoveUp()
+		}
+		return nil, nil
+	case tea.KeyDown:
+		// In search contexts, Down arrow moves cursor down
+		if m.isSearchContext() {
+			m.handleMoveDown()
+		}
 		return nil, nil
 	case tea.KeyCtrlA:
 		// Switch to All tab in all views
@@ -122,6 +134,9 @@ func (m *Model) handleKeyType(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyCtrlR:
 		// Switch to Recents tab in all views
 		return m.handleTabSwitchingKeys("r")
+	case tea.KeyCtrlS:
+		// Switch to Sessions tab in all views
+		return m.handleTabSwitchingKeys("s")
 	case tea.KeyCtrlH:
 		// In search contexts, Ctrl+h moves cursor left (same as normal navigation)
 		if m.isSearchContext() {
@@ -207,6 +222,9 @@ func (m *Model) handleTabSwitchingKeys(key string) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "a":
 		m.switchActiveTab(settings.TabAll)
+		return m, nil
+	case "s":
+		m.switchActiveTab(settings.TabSessions)
 		return m, nil
 	}
 	return m, nil
