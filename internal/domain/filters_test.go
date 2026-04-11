@@ -316,6 +316,32 @@ func TestNotificationMatchesFilter(t *testing.T) {
 		filter := Filter{ReadFilter: ReadFilterUnread}
 		assert.True(t, notif.MatchesFilter(filter))
 	})
+
+	t.Run("matches older-than cutoff when notification is older", func(t *testing.T) {
+		filter := Filter{OlderThan: "2024-01-01T13:00:00Z"}
+		assert.True(t, notif.MatchesFilter(filter))
+	})
+
+	t.Run("does not match older-than cutoff when notification is newer", func(t *testing.T) {
+		filter := Filter{OlderThan: "2024-01-01T11:00:00Z"}
+		assert.False(t, notif.MatchesFilter(filter))
+	})
+
+	t.Run("matches newer-than cutoff when notification is newer", func(t *testing.T) {
+		filter := Filter{NewerThan: "2024-01-01T11:00:00Z"}
+		assert.True(t, notif.MatchesFilter(filter))
+	})
+
+	t.Run("does not match newer-than cutoff when notification is older", func(t *testing.T) {
+		filter := Filter{NewerThan: "2024-01-01T13:00:00Z"}
+		assert.False(t, notif.MatchesFilter(filter))
+	})
+
+	t.Run("does not match session window and pane", func(t *testing.T) {
+		assert.False(t, notif.MatchesFilter(Filter{Session: "$2"}))
+		assert.False(t, notif.MatchesFilter(Filter{Window: "@2"}))
+		assert.False(t, notif.MatchesFilter(Filter{Pane: "%2"}))
+	})
 }
 
 func TestFilterByTimeDuration(t *testing.T) {
