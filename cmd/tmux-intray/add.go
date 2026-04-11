@@ -65,47 +65,59 @@ the current tmux pane (if inside tmux). Use --no-associate to skip.`,
 
 // runAddCmd executes the add command logic.
 func runAddCmd(client addClient, args []string, sessionFlag, windowFlag, paneFlag, paneCreatedFlag string, noAssociateFlag bool, levelFlag string) error {
-	// Treat empty strings same as not provided (e.g., --session="" from plugin)
-	// This makes the CLI resilient to the plugin passing empty flag values
-	sessionFlag = strings.TrimSpace(sessionFlag)
-	windowFlag = strings.TrimSpace(windowFlag)
-	paneFlag = strings.TrimSpace(paneFlag)
+	sessionFlag, windowFlag, paneFlag = normalizeAssociationFlags(sessionFlag, windowFlag, paneFlag)
 
-	needsAutoAssociation := !noAssociateFlag && sessionFlag == "" && windowFlag == "" && paneFlag == ""
-	if needsAutoAssociation && !client.EnsureTmuxRunning() {
-		if allowTmuxlessMode() {
-			colors.Warning("tmux not running; adding notification without pane association")
-			noAssociateFlag = true
-		} else {
-			return fmt.Errorf("tmux not running")
-		}
+	resolvedNoAssociate, err := resolveAssociationMode(client, noAssociateFlag, sessionFlag, windowFlag, paneFlag)
+	if err != nil {
+		return err
 	}
 
-	// Join arguments as message (bash style)
 	message := strings.Join(args, " ")
-
-	// Validate message
 	if err := validateMessage(message); err != nil {
 		return err
 	}
 
-	// Message is stored as-is; storage layer handles timestamps
-	formattedMessage := message
+	level := resolveLevel(levelFlag)
 
-	// Determine level
-	level := levelFlag
-	if level == "" {
-		level = "info"
-	}
-
-	// Add tray item
-	_, err := client.AddTrayItem(formattedMessage, sessionFlag, windowFlag, paneFlag, paneCreatedFlag, noAssociateFlag, level)
+	_, err = client.AddTrayItem(message, sessionFlag, windowFlag, paneFlag, paneCreatedFlag, resolvedNoAssociate, level)
 	if err != nil {
 		return fmt.Errorf("add: failed to add tray item: %w", err)
 	}
 
 	colors.Success("added")
 	return nil
+}
+
+func normalizeAssociationFlags(sessionFlag, windowFlag, paneFlag string) (string, string, string) {
+	return strings.TrimSpace(sessionFlag), strings.TrimSpace(windowFlag), strings.TrimSpace(paneFlag)
+}
+
+func needsAutoAssociation(noAssociate bool, sessionFlag, windowFlag, paneFlag string) bool {
+	return !noAssociate && sessionFlag == "" && windowFlag == "" && paneFlag == ""
+}
+
+func resolveAssociationMode(client addClient, noAssociate bool, sessionFlag, windowFlag, paneFlag string) (bool, error) {
+	if !needsAutoAssociation(noAssociate, sessionFlag, windowFlag, paneFlag) {
+		return noAssociate, nil
+	}
+
+	if client.EnsureTmuxRunning() {
+		return noAssociate, nil
+	}
+
+	if allowTmuxlessMode() {
+		colors.Warning("tmux not running; adding notification without pane association")
+		return true, nil
+	}
+
+	return false, fmt.Errorf("tmux not running")
+}
+
+func resolveLevel(levelFlag string) string {
+	if levelFlag == "" {
+		return "info"
+	}
+	return levelFlag
 }
 
 // validateMessage checks message length and emptiness (matches Bash validation)
