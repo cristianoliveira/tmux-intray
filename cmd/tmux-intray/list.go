@@ -165,17 +165,33 @@ func computeCutoffTimestamps(olderThan, newerThan int) (olderCutoff, newerCutoff
 
 // validateListOptions validates list command options.
 func validateListOptions(groupBy, filter string) error {
-	// Validate group-by field
-	if groupBy != "" && groupBy != "session" && groupBy != "window" && groupBy != "pane" && groupBy != "level" && groupBy != "message" {
+	if !isValidGroupByField(groupBy) {
 		return fmt.Errorf("invalid group-by field: %s (must be session, window, pane, level, message)", groupBy)
 	}
 
-	// Validate read filter
-	if filter != "" && filter != "read" && filter != "unread" {
+	if !isValidReadFilter(filter) {
 		return fmt.Errorf("invalid filter value: %s (must be read or unread)", filter)
 	}
 
 	return nil
+}
+
+func isValidGroupByField(groupBy string) bool {
+	switch groupBy {
+	case "", "session", "window", "pane", "level", "message":
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidReadFilter(filter string) bool {
+	switch filter {
+	case "", "read", "unread":
+		return true
+	default:
+		return false
+	}
 }
 
 // listOutputWriter is the writer used by PrintList. Can be changed for testing.

@@ -782,6 +782,49 @@ func TestListCmdFlagValidation(t *testing.T) {
 	}
 }
 
+func TestIsValidGroupByField(t *testing.T) {
+	tests := []struct {
+		field string
+		want  bool
+	}{
+		{field: "", want: true},
+		{field: "session", want: true},
+		{field: "window", want: true},
+		{field: "pane", want: true},
+		{field: "level", want: true},
+		{field: "message", want: true},
+		{field: "invalid", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.field, func(t *testing.T) {
+			if got := isValidGroupByField(tt.field); got != tt.want {
+				t.Fatalf("expected %v, got %v", tt.want, got)
+			}
+		})
+	}
+}
+
+func TestIsValidReadFilter(t *testing.T) {
+	tests := []struct {
+		filter string
+		want   bool
+	}{
+		{filter: "", want: true},
+		{filter: "read", want: true},
+		{filter: "unread", want: true},
+		{filter: "invalid", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.filter, func(t *testing.T) {
+			if got := isValidReadFilter(tt.filter); got != tt.want {
+				t.Fatalf("expected %v, got %v", tt.want, got)
+			}
+		})
+	}
+}
+
 func TestListCmdRunEFlagCombinations(t *testing.T) {
 	now := time.Date(2026, time.March, 1, 12, 0, 0, 0, time.UTC)
 	previousListNow := listNow

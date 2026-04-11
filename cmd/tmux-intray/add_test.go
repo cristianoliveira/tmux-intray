@@ -136,6 +136,50 @@ func TestValidateMessage(t *testing.T) {
 	}
 }
 
+func TestResolveLevel(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "empty defaults to info", input: "", want: "info"},
+		{name: "preserves provided level", input: "warning", want: "warning"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := resolveLevel(tt.input); got != tt.want {
+				t.Fatalf("expected %q, got %q", tt.want, got)
+			}
+		})
+	}
+}
+
+func TestNeedsAutoAssociation(t *testing.T) {
+	tests := []struct {
+		name        string
+		noAssociate bool
+		session     string
+		window      string
+		pane        string
+		want        bool
+	}{
+		{name: "true when no-associate is false and no scope flags", want: true},
+		{name: "false when no-associate explicitly set", noAssociate: true, want: false},
+		{name: "false when session provided", session: "sess-1", want: false},
+		{name: "false when window provided", window: "win-2", want: false},
+		{name: "false when pane provided", pane: "pane-3", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := needsAutoAssociation(tt.noAssociate, tt.session, tt.window, tt.pane); got != tt.want {
+				t.Fatalf("expected %v, got %v", tt.want, got)
+			}
+		})
+	}
+}
+
 func TestAddRunEAutoAssociationRequiresTmux(t *testing.T) {
 	t.Setenv("TMUX_INTRAY_ALLOW_NO_TMUX", "")
 	t.Setenv("BATS_TMPDIR", "")
