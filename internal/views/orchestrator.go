@@ -12,6 +12,9 @@ import (
 type Kind string
 
 const (
+	// KindActiveNotificationTimeline returns all active notifications (read + unread), preserving input ordering.
+	KindActiveNotificationTimeline Kind = "active-notification-timeline"
+
 	// KindRecentUnreadSessionHighlights returns recent unread highlights (one representative per session).
 	KindRecentUnreadSessionHighlights Kind = "recent-unread-session-highlights"
 
@@ -42,6 +45,8 @@ func NewOrchestrator() *Orchestrator {
 // Build orchestrates a notification view based on options and input notifications.
 func (o *Orchestrator) Build(opts Options, notifs []domain.Notification) Result {
 	switch opts.Kind {
+	case KindActiveNotificationTimeline:
+		return Result{Notifications: o.buildActiveNotificationTimeline(notifs)}
 	case KindRecentUnreadSessionHighlights:
 		return Result{Notifications: o.buildRecentUnreadSessionHighlights(notifs)}
 	case KindSessionHistory:
@@ -61,6 +66,14 @@ func getRecentsTimeWindow() time.Duration {
 }
 
 const recentsDatasetLimit = 20
+
+func (o *Orchestrator) buildActiveNotificationTimeline(notifs []domain.Notification) []domain.Notification {
+	if len(notifs) == 0 {
+		return nil
+	}
+
+	return filterActiveNotifications(notifs)
+}
 
 func (o *Orchestrator) buildRecentUnreadSessionHighlights(notifs []domain.Notification) []domain.Notification {
 	if len(notifs) == 0 {

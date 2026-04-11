@@ -13,6 +13,19 @@ import (
 // TestRecentsPerSessionSelection_Orchestrator verifies that the orchestrator
 // replicates the TUI Recents per-session semantics: one representative per
 // session, chosen by severity first (error > warning > info) then recency.
+func TestActiveNotificationTimelineFiltersDismissed(t *testing.T) {
+	orchestrator := NewOrchestrator()
+	notifs := []domain.Notification{
+		{ID: 1, State: domain.StateActive, Message: "active"},
+		{ID: 2, State: domain.StateDismissed, Message: "dismissed"},
+		{ID: 3, State: "", Message: "implicit active"},
+	}
+
+	result := orchestrator.Build(Options{Kind: KindActiveNotificationTimeline}, notifs)
+	require.Len(t, result.Notifications, 2)
+	assert.Equal(t, []int{1, 3}, []int{result.Notifications[0].ID, result.Notifications[1].ID})
+}
+
 func TestRecentsPerSessionSelection_Orchestrator(t *testing.T) {
 	orchestrator := NewOrchestrator()
 	now := time.Now().UTC()

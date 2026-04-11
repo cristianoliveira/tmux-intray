@@ -296,16 +296,28 @@ func (s *DefaultNotificationService) FilterByReadStatus(notifications []notifica
 
 // selectDataset filters active notifications and applies tab-specific logic.
 func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortBy, sortOrder string) []notification.Notification {
-	activeOnly := make([]notification.Notification, 0, len(s.notifications))
-	for _, n := range s.notifications {
-		if n.State == "" || n.State == "active" {
-			activeOnly = append(activeOnly, n)
-		}
-	}
-
 	normalizedTab := settings.NormalizeTab(string(activeTab))
+
 	if normalizedTab == settings.TabAll {
-		return activeOnly
+		domainDataset := s.convertToDomain(s.notifications)
+		if len(domainDataset) == 0 && len(s.notifications) > 0 {
+			// Fallback for partial/legacy in-memory fixtures that may not fully
+			// convert to domain entities during UI-level tests.
+			activeOnly := make([]notification.Notification, 0, len(s.notifications))
+			for _, n := range s.notifications {
+				if n.State == "" || n.State == "active" {
+					activeOnly = append(activeOnly, n)
+				}
+			}
+			return activeOnly
+		}
+
+		view := views.NewOrchestrator().Build(views.Options{
+			Kind:   views.KindActiveNotificationTimeline,
+			SortBy: sortBy,
+			Order:  sortOrder,
+		}, domainDataset)
+		return s.convertFromDomain(view.Notifications)
 	}
 
 	// Sessions tab: shared per-session orchestration (all-time, per-session representatives).
@@ -314,8 +326,15 @@ func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortB
 			Kind:   views.KindSessionHistory,
 			SortBy: sortBy,
 			Order:  sortOrder,
-		}, s.convertToDomain(activeOnly))
+		}, s.convertToDomain(s.notifications))
 		return s.convertFromDomain(view.Notifications)
+	}
+
+	activeOnly := make([]notification.Notification, 0, len(s.notifications))
+	for _, n := range s.notifications {
+		if n.State == "" || n.State == "active" {
+			activeOnly = append(activeOnly, n)
+		}
 	}
 
 	// For Recents tab, apply configurable time window filter
