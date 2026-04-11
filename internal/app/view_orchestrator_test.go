@@ -153,3 +153,38 @@ func TestRecentsPerSessionLimit_Orchestrator(t *testing.T) {
 	}
 	assert.Equal(t, []int{30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11}, ids)
 }
+
+func TestRecentsPerSessionFiltersActiveUnreadAndWindow_Orchestrator(t *testing.T) {
+	orchestrator := NewViewOrchestrator()
+	now := time.Now().UTC()
+
+	notifs := []domain.Notification{
+		{ID: 1, Timestamp: now.Add(-20 * time.Minute).Format(time.RFC3339), State: domain.StateActive, Session: "$1", Level: domain.LevelInfo},
+		{ID: 2, Timestamp: now.Add(-15 * time.Minute).Format(time.RFC3339), State: "", Session: "$2", Level: domain.LevelInfo}, // blank state treated as active
+		{ID: 3, Timestamp: now.Add(-10 * time.Minute).Format(time.RFC3339), State: domain.StateDismissed, Session: "$3", Level: domain.LevelInfo},
+		{ID: 4, Timestamp: now.Add(-5 * time.Minute).Format(time.RFC3339), State: domain.StateActive, Session: "$4", Level: domain.LevelInfo, ReadTimestamp: now.Format(time.RFC3339)},
+		{ID: 5, Timestamp: now.Add(-2 * time.Hour).Format(time.RFC3339), State: domain.StateActive, Session: "$5", Level: domain.LevelInfo},
+	}
+
+	result := orchestrator.BuildView(ViewOptions{Kind: ViewKindRecentsPerSession}, notifs)
+
+	require.Len(t, result.Notifications, 2)
+	assert.Equal(t, []int{2, 1}, []int{result.Notifications[0].ID, result.Notifications[1].ID})
+}
+
+func TestSessionsPerSessionIgnoresTimeWindowAndReadState_Orchestrator(t *testing.T) {
+	orchestrator := NewViewOrchestrator()
+	now := time.Now().UTC()
+
+	notifs := []domain.Notification{
+		{ID: 1, Timestamp: now.Add(-3 * time.Hour).Format(time.RFC3339), State: domain.StateActive, Session: "$1", Level: domain.LevelInfo, ReadTimestamp: now.Add(-2 * time.Hour).Format(time.RFC3339)},
+		{ID: 2, Timestamp: now.Add(-2 * time.Hour).Format(time.RFC3339), State: domain.StateActive, Session: "$2", Level: domain.LevelWarning},
+		{ID: 3, Timestamp: now.Add(-90 * time.Minute).Format(time.RFC3339), State: domain.StateDismissed, Session: "$3", Level: domain.LevelError},
+		{ID: 4, Timestamp: now.Add(-30 * time.Minute).Format(time.RFC3339), State: domain.StateActive, Session: "$1", Level: domain.LevelError},
+	}
+
+	result := orchestrator.BuildView(ViewOptions{Kind: ViewKindSessionsPerSession}, notifs)
+
+	require.Len(t, result.Notifications, 2, "sessions view should include all active sessions regardless of time/read state")
+	assert.Equal(t, []int{4, 2}, []int{result.Notifications[0].ID, result.Notifications[1].ID})
+}

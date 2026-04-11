@@ -23,6 +23,14 @@ const (
 	// - one representative notification per session, chosen by severity then recency
 	// - at most recentsDatasetLimit sessions (currently 20)
 	ViewKindRecentsPerSession ViewKind = "recents-per-session"
+
+	// ViewKindSessionsPerSession mirrors the TUI Sessions tab behavior:
+	// - active notifications only
+	// - all-time history (no recency time window)
+	// - read and unread notifications
+	// - one representative notification per session, chosen by severity then recency
+	// - no dataset limit
+	ViewKindSessionsPerSession ViewKind = "sessions-per-session"
 )
 
 // ViewOptions controls how a view is orchestrated.
@@ -54,6 +62,8 @@ func (o *ViewOrchestrator) BuildView(opts ViewOptions, notifs []domain.Notificat
 	switch opts.Kind {
 	case ViewKindRecentsPerSession:
 		return ViewResult{Notifications: o.buildRecentsPerSession(opts, notifs)}
+	case ViewKindSessionsPerSession:
+		return ViewResult{Notifications: o.buildSessionsPerSession(opts, notifs)}
 	default:
 		// Unknown kind: return notifications as-is for now.
 		return ViewResult{Notifications: notifs}
@@ -90,71 +100,90 @@ func (o *ViewOrchestrator) buildRecentsPerSession(opts ViewOptions, notifs []dom
 		return nil
 	}
 
-	// 1) Active-only subset
+	activeOnly := filterActiveNotifications(notifs)
+	if len(activeOnly) == 0 {
+		return nil
+	}
+
+	windowFiltered := domain.FilterByTimeDuration(activeOnly, getRecentsTimeWindow())
+	if len(windowFiltered) == 0 {
+		return nil
+	}
+
+	unreadOnly := filterUnreadNotifications(windowFiltered)
+	if len(unreadOnly) == 0 {
+		return nil
+	}
+
+	result := selectSessionRepresentatives(unreadOnly)
+	sortRepresentativesByRecency(result)
+
+	if len(result) > recentsDatasetLimit {
+		return result[:recentsDatasetLimit]
+	}
+	return result
+}
+
+func (o *ViewOrchestrator) buildSessionsPerSession(opts ViewOptions, notifs []domain.Notification) []domain.Notification {
+	if len(notifs) == 0 {
+		return nil
+	}
+
+	activeOnly := filterActiveNotifications(notifs)
+	if len(activeOnly) == 0 {
+		return nil
+	}
+
+	result := selectSessionRepresentatives(activeOnly)
+	sortRepresentativesByRecency(result)
+	return result
+}
+
+func filterActiveNotifications(notifs []domain.Notification) []domain.Notification {
 	activeOnly := make([]domain.Notification, 0, len(notifs))
 	for _, n := range notifs {
 		if n.State == "" || n.State == domain.StateActive {
 			activeOnly = append(activeOnly, n)
 		}
 	}
-	if len(activeOnly) == 0 {
-		return nil
-	}
+	return activeOnly
+}
 
-	// 2) Apply time window
-	window := getRecentsTimeWindow()
-	activeOnly = domain.FilterByTimeDuration(activeOnly, window)
-	if len(activeOnly) == 0 {
-		return nil
-	}
-
-	// 3) Unread only
-	unreadOnly := make([]domain.Notification, 0, len(activeOnly))
-	for _, n := range activeOnly {
+func filterUnreadNotifications(notifs []domain.Notification) []domain.Notification {
+	unreadOnly := make([]domain.Notification, 0, len(notifs))
+	for _, n := range notifs {
 		if n.ReadTimestamp == "" {
 			unreadOnly = append(unreadOnly, n)
 		}
 	}
-	if len(unreadOnly) == 0 {
-		return nil
-	}
+	return unreadOnly
+}
 
-	// 4) One representative per session: choose best by severity, then recency
+func selectSessionRepresentatives(notifs []domain.Notification) []domain.Notification {
 	sessionBest := make(map[string]domain.Notification)
-	for _, n := range unreadOnly {
-		key := n.Session
-		if current, ok := sessionBest[key]; !ok {
-			// first notification for this session
-			sessionBest[key] = n
-		} else if isBetterDomainRepresentative(n, current) {
-			// better candidate for this session
-			sessionBest[key] = n
+	for _, n := range notifs {
+		current, exists := sessionBest[n.Session]
+		if !exists || isBetterDomainRepresentative(n, current) {
+			sessionBest[n.Session] = n
 		}
 	}
 
-	// 5) Re-sort representatives by recency (desc) and severity for ties
 	result := make([]domain.Notification, 0, len(sessionBest))
 	for _, n := range sessionBest {
 		result = append(result, n)
 	}
+	return result
+}
 
-	// Order sessions by most recent activity first, matching the TUI tests:
-	// newer representative timestamps should come first regardless of severity.
-	sort.SliceStable(result, func(i, j int) bool {
-		it, errI := time.Parse(time.RFC3339, result[i].Timestamp)
-		jt, errJ := time.Parse(time.RFC3339, result[j].Timestamp)
+func sortRepresentativesByRecency(notifs []domain.Notification) {
+	sort.SliceStable(notifs, func(i, j int) bool {
+		it, errI := time.Parse(time.RFC3339, notifs[i].Timestamp)
+		jt, errJ := time.Parse(time.RFC3339, notifs[j].Timestamp)
 		if errI != nil || errJ != nil {
 			return false
 		}
 		return it.After(jt)
 	})
-
-	// 6) Limit to recentsDatasetLimit
-	if len(result) > recentsDatasetLimit {
-		result = result[:recentsDatasetLimit]
-	}
-
-	return result
 }
 
 // severityRankDomain mirrors the TUI severityRank helper but works on the

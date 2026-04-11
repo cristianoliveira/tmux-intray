@@ -308,10 +308,10 @@ func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortB
 		return activeOnly
 	}
 
-	// Sessions tab: shared per-session orchestration (same semantics across surfaces).
+	// Sessions tab: shared per-session orchestration (all-time, per-session representatives).
 	if normalizedTab == settings.TabSessions {
 		view := appview.NewViewOrchestrator().BuildView(appview.ViewOptions{
-			Kind:   appview.ViewKindRecentsPerSession,
+			Kind:   appview.ViewKindSessionsPerSession,
 			SortBy: sortBy,
 			Order:  sortOrder,
 		}, s.convertToDomain(activeOnly))
@@ -344,7 +344,7 @@ func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortB
 // ApplyFiltersAndSearch applies tab scope, then filters/search/sorting and stores filtered results.
 func (s *DefaultNotificationService) ApplyFiltersAndSearch(tab settings.Tab, query, state, level, sessionID, windowID, paneID, readFilter, sortBy, sortOrder string) {
 	normalizedTab := settings.NormalizeTab(string(tab))
-	if normalizedTab == settings.TabRecents || normalizedTab == settings.TabSessions {
+	if normalizedTab == settings.TabRecents {
 		readFilter = "unread"
 	}
 

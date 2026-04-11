@@ -96,6 +96,22 @@ func TestApplyFiltersAndSearchRecentsForcesUnreadView(t *testing.T) {
 	assert.Equal(t, 2, filtered[0].ID)
 }
 
+func TestApplyFiltersAndSearchSessionsDoesNotForceUnread(t *testing.T) {
+	svc := NewNotificationService(nil, nil)
+	now := time.Now().UTC()
+	notifications := []notification.Notification{
+		{ID: 1, Message: "old read", Timestamp: now.Add(-3 * time.Hour).Format(time.RFC3339), State: "active", Level: "error", Session: "$1", Window: "@1", Pane: "%1", ReadTimestamp: now.Add(-2 * time.Hour).Format(time.RFC3339)},
+		{ID: 2, Message: "old unread", Timestamp: now.Add(-2 * time.Hour).Format(time.RFC3339), State: "active", Level: "info", Session: "$2", Window: "@2", Pane: "%2", ReadTimestamp: ""},
+	}
+
+	svc.SetNotifications(notifications)
+	svc.ApplyFiltersAndSearch(settings.TabSessions, "", "", "", "", "", "", "", "timestamp", "desc")
+
+	filtered := svc.GetFilteredNotifications()
+	require.Len(t, filtered, 2)
+	assert.Equal(t, []int{2, 1}, []int{filtered[0].ID, filtered[1].ID})
+}
+
 // TestSearchFunction tests the Search method with token matching.
 func TestSearchFunction(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
