@@ -1,9 +1,6 @@
 # Development Guide
-## Project Philosophy
 
-This project follows a minimalist, Unix‑style philosophy with a "one and only one way" approach to design decisions. Configuration uses TOML format exclusively. When making design decisions, follow this principle to ensure consistency and avoid unnecessary complexity.
-
-See [Project Philosophy](./docs/philosophy.md) for design principles and rationale.
+This project follows minimalist, Unix‑style principles focused on quiet notifications, persistent storage, and composable design. When making design decisions, see [Project Philosophy](docs/philosophy.md) for the guiding principles.
 
 ## Project Structure
 
@@ -358,7 +355,7 @@ func TestJumpToPane(t *testing.T) {
   - **PascalCase** violations (e.g., `ConfigDir` → should be `config_dir`)
   - **kebab-case** violations (e.g., `config-dir` → should be `config_dir`)
   - Violations in both bare and quoted keys
-- For detailed information, see [Project Philosophy](./docs/philosophy.md#why-toml) and [Configuration Guide](./docs/configuration.md)
+- For detailed information, see [Configuration Guide](./docs/configuration.md)
 
 ## Development Workflow
 

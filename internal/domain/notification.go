@@ -131,39 +131,47 @@ func (n *Notification) Validate() error {
 
 // MatchesFilter checks if the notification matches the given filter criteria.
 func (n *Notification) MatchesFilter(filter Filter) bool {
-	// Check level filter (only if non-empty)
-	if filter.Level != "" && n.Level != filter.Level {
-		return false
+	checks := []func() bool{
+		func() bool { return matchesOptionalEqual(n.Level, filter.Level, NotificationLevel("")) },
+		func() bool { return matchesOptionalEqual(n.State, filter.State, NotificationState("")) },
+		func() bool { return matchesOptionalEqual(n.Session, filter.Session, "") },
+		func() bool { return matchesOptionalEqual(n.Window, filter.Window, "") },
+		func() bool { return matchesOptionalEqual(n.Pane, filter.Pane, "") },
+		func() bool { return matchesOlderThanFilter(n.Timestamp, filter.OlderThan) },
+		func() bool { return matchesNewerThanFilter(n.Timestamp, filter.NewerThan) },
+		func() bool { return matchesReadFilter(n.IsRead(), filter.ReadFilter) },
 	}
-	// Check state filter (only if non-empty)
-	if filter.State != "" && n.State != filter.State {
-		return false
-	}
-	if filter.Session != "" && n.Session != filter.Session {
-		return false
-	}
-	if filter.Window != "" && n.Window != filter.Window {
-		return false
-	}
-	if filter.Pane != "" && n.Pane != filter.Pane {
-		return false
-	}
-	if filter.OlderThan != "" && n.Timestamp > filter.OlderThan {
-		return false
-	}
-	if filter.NewerThan != "" && n.Timestamp < filter.NewerThan {
-		return false
-	}
-	if filter.ReadFilter != "" {
-		isRead := n.IsRead()
-		if filter.ReadFilter == ReadFilterRead && !isRead {
-			return false
-		}
-		if filter.ReadFilter == ReadFilterUnread && isRead {
+
+	for _, check := range checks {
+		if !check() {
 			return false
 		}
 	}
+
 	return true
+}
+
+func matchesOptionalEqual[T comparable](value, expected, empty T) bool {
+	return expected == empty || value == expected
+}
+
+func matchesOlderThanFilter(timestamp, olderThan string) bool {
+	return olderThan == "" || timestamp <= olderThan
+}
+
+func matchesNewerThanFilter(timestamp, newerThan string) bool {
+	return newerThan == "" || timestamp >= newerThan
+}
+
+func matchesReadFilter(isRead bool, readFilter string) bool {
+	switch readFilter {
+	case "", ReadFilterRead:
+		return readFilter == "" || isRead
+	case ReadFilterUnread:
+		return !isRead
+	default:
+		return true
+	}
 }
 
 // NewNotification creates a new notification with validation.

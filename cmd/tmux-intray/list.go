@@ -40,6 +40,7 @@ USAGE:
     tmux-intray list [OPTIONS]
 
 OPTIONS:
+    --tab <tab>          Show special tab view: recents, sessions, all
     --active             Show active notifications (default)
     --dismissed          Show dismissed notifications
     --all                Show all notifications
@@ -56,15 +57,29 @@ OPTIONS:
     --filter <status>    Filter notifications by read status: read, unread
     --format=<format>    Output format: simple (default), legacy, table, compact, json
 
+TAB VIEWS:
+    --tab=recents        Show recent unread notifications (max 1 per session, last hour)
+    --tab=sessions       Show unique sessions with notifications
+    --tab=all            Show all notifications (same as --all)
+
 ORDERING:
     Unread notifications are listed first, then read notifications.
     Relative order remains unchanged within each group.
     -h, --help           Show this help`
 
 // NewListCmd creates the list command with explicit dependencies.
+//
+//nolint:funlen // Command wiring with flags and handlers is intentionally centralized.
 func NewListCmd(client listClient) *cobra.Command {
 	if client == nil {
 		panic("NewListCmd: client dependency cannot be nil")
+	}
+
+	// Create the main list command
+	listCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List notifications with filters and formats",
+		Long:  listCommandLong,
 	}
 
 	var listPane string
@@ -79,42 +94,85 @@ func NewListCmd(client listClient) *cobra.Command {
 	var listGroupCount bool
 	var listFormat string
 	var listFilter string
+	var listTab string
+	var listJSON bool
 
-	listCmd := &cobra.Command{
-		Use:   "list",
-		Short: "List notifications with filters and formats",
-		Long:  listCommandLong,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			state := determineListState(cmd)
-			olderCutoff, newerCutoff := computeCutoffTimestamps(listOlderThan, listNewerThan)
-			if err := validateListOptions(listGroupBy, listFilter); err != nil {
-				return err
+	listCmd.RunE = func(cmd *cobra.Command, args []string) error {
+		// Handle --json flag
+		if listJSON {
+			listFormat = "json"
+		}
+
+		// Handle --tab flag
+		if listTab != "" {
+			validTabs := []string{"recents", "sessions", "all"}
+			if !isValidTab(listTab, validTabs) {
+				return fmt.Errorf("invalid --tab value: %s (available: %s)", listTab, strings.Join(validTabs, ", "))
 			}
 
-			opts := FilterOptions{
+			olderCutoff, newerCutoff := computeCutoffTimestamps(listOlderThan, listNewerThan)
+
+			tabOpts := TabOptions{
 				Client:     client,
-				State:      state,
-				Level:      listLevel,
+				Tab:        listTab,
+				Format:     listFormat,
 				Session:    listSession,
+				Level:      listLevel,
 				Window:     listWindow,
 				Pane:       listPane,
 				OlderThan:  olderCutoff,
 				NewerThan:  newerCutoff,
-				Search:     listSearch,
-				Regex:      listRegex,
-				GroupBy:    listGroupBy,
-				GroupCount: listGroupCount,
-				Format:     listFormat,
 				ReadFilter: listFilter,
 			}
-			PrintList(opts)
+			PrintTab(tabOpts)
 			return nil
-		},
+		}
+
+		state := determineListState(cmd)
+		olderCutoff, newerCutoff := computeCutoffTimestamps(listOlderThan, listNewerThan)
+		if err := validateListOptions(listGroupBy, listFilter); err != nil {
+			return err
+		}
+
+		opts := FilterOptions{
+			Client:     client,
+			State:      state,
+			Level:      listLevel,
+			Session:    listSession,
+			Window:     listWindow,
+			Pane:       listPane,
+			OlderThan:  olderCutoff,
+			NewerThan:  newerCutoff,
+			Search:     listSearch,
+			Regex:      listRegex,
+			GroupBy:    listGroupBy,
+			GroupCount: listGroupCount,
+			Format:     listFormat,
+			ReadFilter: listFilter,
+		}
+		PrintList(opts)
+		return nil
 	}
 
 	registerListFlags(listCmd, &listPane, &listLevel, &listSession, &listWindow, &listOlderThan, &listNewerThan, &listSearch, &listRegex, &listGroupBy, &listGroupCount, &listFormat, &listFilter)
 
+	// Add --tab flag
+	listCmd.Flags().StringVar(&listTab, "tab", "", "Show special tab view: recents, sessions, all")
+
+	// Add --json flag
+	listCmd.Flags().BoolVar(&listJSON, "json", false, "Output in JSON format")
+
 	return listCmd
+}
+
+// isValidTab checks if a tab value is valid.
+func isValidTab(tab string, validTabs []string) bool {
+	for _, t := range validTabs {
+		if t == tab {
+			return true
+		}
+	}
+	return false
 }
 
 // registerListFlags registers all flags for the list command.
@@ -165,17 +223,33 @@ func computeCutoffTimestamps(olderThan, newerThan int) (olderCutoff, newerCutoff
 
 // validateListOptions validates list command options.
 func validateListOptions(groupBy, filter string) error {
-	// Validate group-by field
-	if groupBy != "" && groupBy != "session" && groupBy != "window" && groupBy != "pane" && groupBy != "level" && groupBy != "message" {
+	if !isValidGroupByField(groupBy) {
 		return fmt.Errorf("invalid group-by field: %s (must be session, window, pane, level, message)", groupBy)
 	}
 
-	// Validate read filter
-	if filter != "" && filter != "read" && filter != "unread" {
+	if !isValidReadFilter(filter) {
 		return fmt.Errorf("invalid filter value: %s (must be read or unread)", filter)
 	}
 
 	return nil
+}
+
+func isValidGroupByField(groupBy string) bool {
+	switch groupBy {
+	case "", "session", "window", "pane", "level", "message":
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidReadFilter(filter string) bool {
+	switch filter {
+	case "", "read", "unread":
+		return true
+	default:
+		return false
+	}
 }
 
 // listOutputWriter is the writer used by PrintList. Can be changed for testing.

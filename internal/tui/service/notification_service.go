@@ -85,6 +85,11 @@ func (s *DefaultNotificationService) convertFromDomain(notifs []domain.Notificat
 	return notification.FromDomainSlice(ptrs)
 }
 
+// convertFromDomainSingle converts a single domain.Notification to notification.Notification.
+func (s *DefaultNotificationService) convertFromDomainSingle(n domain.Notification) notification.Notification {
+	return notification.FromDomain(&n)
+}
+
 // FilterNotifications filters notifications based on a search query.
 func (s *DefaultNotificationService) FilterNotifications(notifications []notification.Notification, query string) []notification.Notification {
 	if query == "" {
@@ -327,7 +332,11 @@ func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortB
 			SortBy: sortBy,
 			Order:  sortOrder,
 		}, s.convertToDomain(s.notifications))
-		return s.convertFromDomain(view.Notifications)
+		if len(view.Notifications) > 0 {
+			return s.convertFromDomain(view.Notifications)
+		}
+		// Fallback for compatibility when orchestrator returns empty.
+		return s.getMostRecentPerSession(s.notifications, sortBy, sortOrder)
 	}
 
 	activeOnly := make([]notification.Notification, 0, len(s.notifications))
@@ -355,6 +364,12 @@ func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortB
 		// Apply per-session smart selection for Recents tab
 		// This ensures max 1 notification per session with intelligent selection
 		return s.selectBestNotificationPerSession(sorted)
+	}
+
+	// For Sessions tab: get unique sessions from ALL notifications (including dismissed/read)
+	// This lists all sessions that have ever had notifications, not just active ones
+	if normalizedTab == settings.TabSessions {
+		return s.getMostRecentPerSession(s.notifications, sortBy, sortOrder)
 	}
 
 	return activeOnly

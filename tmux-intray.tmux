@@ -10,7 +10,6 @@ echo "tmux-intray: Version $TMUX_INTRAY_BIN"
 
 # Set up tmux key bindings
 set_tmux_bindings() {
-    tmux bind-key -T prefix I run-shell "$TMUX_INTRAY follow"
     tmux bind-key -T prefix J run-shell "tmux popup -E -h 50% -w 70% \"$TMUX_INTRAY tui\""
 }
 

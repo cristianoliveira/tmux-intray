@@ -12,7 +12,7 @@ const (
 	// TabAll shows all notifications.
 	TabAll Tab = "all"
 
-	// TabSessions shows one recent representative notification per session.
+	// TabSessions shows sessions with messages, sorted by recency.
 	TabSessions Tab = "sessions"
 )
 

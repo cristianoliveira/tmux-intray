@@ -145,10 +145,6 @@ func parseModifications(output string) map[string]string {
 		key := strings.TrimSpace(strings.TrimPrefix(parts[0], "export "))
 		value := parts[1]
 
-		if !isValidEnvVarName(key) {
-			continue
-		}
-
 		if (strings.HasPrefix(value, `"`) && strings.HasSuffix(value, `"`)) ||
 			(strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) {
 			value = value[1 : len(value)-1]
@@ -160,21 +156,4 @@ func parseModifications(output string) map[string]string {
 	}
 
 	return modifications
-}
-
-// isValidEnvVarName checks if a string is a valid environment variable name.
-func isValidEnvVarName(name string) bool {
-	if name == "" {
-		return false
-	}
-	for i, c := range name {
-		if i == 0 {
-			if (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') && c != '_' {
-				return false
-			}
-		} else if (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '_' {
-			return false
-		}
-	}
-	return true
 }
