@@ -26,6 +26,28 @@ func TestActiveNotificationTimelineFiltersDismissed(t *testing.T) {
 	assert.Equal(t, []int{1, 3}, []int{result.Notifications[0].ID, result.Notifications[1].ID})
 }
 
+func TestRecentUnreadTimelineRespectsWindowUnreadAndLimit(t *testing.T) {
+	orchestrator := NewOrchestrator()
+	now := time.Now().UTC()
+	notifs := []domain.Notification{
+		{ID: 1, Timestamp: now.Add(-10 * time.Minute).Format(time.RFC3339), State: domain.StateActive, Session: "$1", Level: domain.LevelInfo},
+		{ID: 2, Timestamp: now.Add(-5 * time.Minute).Format(time.RFC3339), State: domain.StateActive, Session: "$1", Level: domain.LevelInfo, ReadTimestamp: now.Add(-1 * time.Minute).Format(time.RFC3339)},
+		{ID: 3, Timestamp: now.Add(-70 * time.Minute).Format(time.RFC3339), State: domain.StateActive, Session: "$2", Level: domain.LevelInfo},
+		{ID: 4, Timestamp: now.Add(-3 * time.Minute).Format(time.RFC3339), State: domain.StateDismissed, Session: "$3", Level: domain.LevelInfo},
+		{ID: 5, Timestamp: now.Add(-2 * time.Minute).Format(time.RFC3339), State: domain.StateActive, Session: "$4", Level: domain.LevelInfo},
+	}
+
+	result := orchestrator.Build(Options{
+		Kind:   KindRecentUnreadTimeline,
+		SortBy: "timestamp",
+		Order:  "desc",
+		Limit:  1,
+	}, notifs)
+
+	require.Len(t, result.Notifications, 1)
+	assert.Equal(t, 5, result.Notifications[0].ID)
+}
+
 func TestRecentsPerSessionSelection_Orchestrator(t *testing.T) {
 	orchestrator := NewOrchestrator()
 	now := time.Now().UTC()

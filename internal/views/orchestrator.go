@@ -15,6 +15,9 @@ const (
 	// KindActiveNotificationTimeline returns all active notifications (read + unread), preserving input ordering.
 	KindActiveNotificationTimeline Kind = "active-notification-timeline"
 
+	// KindRecentUnreadTimeline returns recent unread notifications across sessions (no per-session collapse).
+	KindRecentUnreadTimeline Kind = "recent-unread-timeline"
+
 	// KindRecentUnreadSessionHighlights returns recent unread highlights (one representative per session).
 	KindRecentUnreadSessionHighlights Kind = "recent-unread-session-highlights"
 
@@ -27,6 +30,7 @@ type Options struct {
 	Kind   Kind
 	SortBy string
 	Order  string
+	Limit  int
 }
 
 // Result contains orchestrated notifications for a given view.
@@ -47,6 +51,8 @@ func (o *Orchestrator) Build(opts Options, notifs []domain.Notification) Result 
 	switch opts.Kind {
 	case KindActiveNotificationTimeline:
 		return Result{Notifications: o.buildActiveNotificationTimeline(notifs)}
+	case KindRecentUnreadTimeline:
+		return Result{Notifications: o.buildRecentUnreadTimeline(opts, notifs)}
 	case KindRecentUnreadSessionHighlights:
 		return Result{Notifications: o.buildRecentUnreadSessionHighlights(notifs)}
 	case KindSessionHistory:
@@ -75,7 +81,7 @@ func (o *Orchestrator) buildActiveNotificationTimeline(notifs []domain.Notificat
 	return filterActiveNotifications(notifs)
 }
 
-func (o *Orchestrator) buildRecentUnreadSessionHighlights(notifs []domain.Notification) []domain.Notification {
+func (o *Orchestrator) buildRecentUnreadTimeline(opts Options, notifs []domain.Notification) []domain.Notification {
 	if len(notifs) == 0 {
 		return nil
 	}
@@ -95,7 +101,20 @@ func (o *Orchestrator) buildRecentUnreadSessionHighlights(notifs []domain.Notifi
 		return nil
 	}
 
-	result := selectSessionRepresentatives(unreadOnly)
+	sorted := sortByOptions(unreadOnly, opts.SortBy, opts.Order)
+	if opts.Limit > 0 && len(sorted) > opts.Limit {
+		return sorted[:opts.Limit]
+	}
+	return sorted
+}
+
+func (o *Orchestrator) buildRecentUnreadSessionHighlights(notifs []domain.Notification) []domain.Notification {
+	result := o.buildRecentUnreadTimeline(Options{SortBy: "timestamp", Order: "desc", Limit: recentsDatasetLimit}, notifs)
+	if len(result) == 0 {
+		return nil
+	}
+
+	result = selectSessionRepresentatives(result)
 	sortRepresentativesByRecency(result)
 
 	if len(result) > recentsDatasetLimit {
@@ -164,6 +183,20 @@ func sortRepresentativesByRecency(notifs []domain.Notification) {
 		}
 		return it.After(jt)
 	})
+}
+
+func sortByOptions(notifs []domain.Notification, sortBy, order string) []domain.Notification {
+	field, err := domain.ParseSortByField(sortBy)
+	if err != nil {
+		field = domain.SortByTimestampField
+	}
+
+	sortOrder, err := domain.ParseSortOrder(order)
+	if err != nil {
+		sortOrder = domain.SortOrderDesc
+	}
+
+	return domain.SortNotifications(notifs, domain.SortOptions{Field: field, Order: sortOrder})
 }
 
 func severityRankDomain(level domain.NotificationLevel) int {

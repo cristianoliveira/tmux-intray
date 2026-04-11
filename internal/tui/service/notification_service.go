@@ -376,7 +376,13 @@ func (s *DefaultNotificationService) ApplyFiltersAndSearch(tab settings.Tab, que
 	// (not just the per-session smart selection). Re-fetch without per-session limiting.
 	// Apply 10-item limit for filtered views (Story 3).
 	if isFilteredView && normalizedTab == settings.TabRecents {
-		result = s.getUnfilteredRecentsDataset(sortBy, sortOrder, filteredListLimit)
+		view := views.NewOrchestrator().Build(views.Options{
+			Kind:   views.KindRecentUnreadTimeline,
+			SortBy: sortBy,
+			Order:  sortOrder,
+			Limit:  filteredListLimit,
+		}, s.convertToDomain(s.notifications))
+		result = s.convertFromDomain(view.Notifications)
 	}
 
 	// Apply state filter
