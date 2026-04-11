@@ -132,11 +132,11 @@ func (n *Notification) Validate() error {
 // MatchesFilter checks if the notification matches the given filter criteria.
 func (n *Notification) MatchesFilter(filter Filter) bool {
 	checks := []func() bool{
-		func() bool { return matchesStringFilter(string(n.Level), string(filter.Level)) },
-		func() bool { return matchesStringFilter(string(n.State), string(filter.State)) },
-		func() bool { return matchesStringFilter(n.Session, filter.Session) },
-		func() bool { return matchesStringFilter(n.Window, filter.Window) },
-		func() bool { return matchesStringFilter(n.Pane, filter.Pane) },
+		func() bool { return matchesOptionalEqual(n.Level, filter.Level, NotificationLevel("")) },
+		func() bool { return matchesOptionalEqual(n.State, filter.State, NotificationState("")) },
+		func() bool { return matchesOptionalEqual(n.Session, filter.Session, "") },
+		func() bool { return matchesOptionalEqual(n.Window, filter.Window, "") },
+		func() bool { return matchesOptionalEqual(n.Pane, filter.Pane, "") },
 		func() bool { return matchesOlderThanFilter(n.Timestamp, filter.OlderThan) },
 		func() bool { return matchesNewerThanFilter(n.Timestamp, filter.NewerThan) },
 		func() bool { return matchesReadFilter(n.IsRead(), filter.ReadFilter) },
@@ -151,8 +151,8 @@ func (n *Notification) MatchesFilter(filter Filter) bool {
 	return true
 }
 
-func matchesStringFilter(value, expected string) bool {
-	return expected == "" || value == expected
+func matchesOptionalEqual[T comparable](value, expected, empty T) bool {
+	return expected == empty || value == expected
 }
 
 func matchesOlderThanFilter(timestamp, olderThan string) bool {
