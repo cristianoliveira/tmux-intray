@@ -7,31 +7,16 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
-	"github.com/cristianoliveira/tmux-intray/internal/colors"
-	"github.com/cristianoliveira/tmux-intray/internal/dedupconfig"
+	appcore "github.com/cristianoliveira/tmux-intray/internal/app"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
-	"github.com/cristianoliveira/tmux-intray/internal/format"
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
-	"github.com/cristianoliveira/tmux-intray/internal/search"
-	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	"github.com/spf13/cobra"
 )
 
 type listClient interface {
 	ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error)
-}
-
-// notificationsToValues converts a slice of notification pointers to values.
-func notificationsToValues(notifs []*domain.Notification) []domain.Notification {
-	values := make([]domain.Notification, len(notifs))
-	for i, n := range notifs {
-		values[i] = *n
-	}
-	return values
 }
 
 const listCommandLong = `List notifications with filters and formats.
@@ -243,22 +228,15 @@ var listOutputWriter io.Writer = os.Stdout
 var listListFunc func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error)
 
 // FilterOptions holds all filter parameters for listing notifications.
-type FilterOptions struct {
-	Client         listClient
-	State          string
-	Level          string
-	Session        string
-	Window         string
-	Pane           string
-	OlderThan      string // timestamp cutoff (>=)
-	NewerThan      string // timestamp cutoff (<=)
-	Search         string
-	Regex          bool
-	GroupBy        string
-	GroupCount     bool
-	Format         string          // legacy, table, compact, json
-	SearchProvider search.Provider // Optional custom search provider (for testing/extension)
-	ReadFilter     string          // read status filter: "read", "unread", or "" (no filter)
+type FilterOptions = appcore.ListOptions
+
+type listFuncClient struct{}
+
+func (listFuncClient) ListNotifications(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+	if listListFunc == nil {
+		return "", fmt.Errorf("list: missing client")
+	}
+	return listListFunc(state, level, session, window, pane, olderThan, newerThan, readFilter)
 }
 
 // PrintList prints notifications according to the provided filter options.
@@ -270,146 +248,17 @@ func PrintList(opts FilterOptions) {
 }
 
 func printList(opts FilterOptions, w io.Writer) {
-	lines, err := fetchNotifications(opts)
-	if err != nil {
-		_, _ = fmt.Fprintf(w, "list: failed to list notifications: %v\n", err)
-		return
-	}
-	if lines == "" {
-		_, _ = fmt.Fprintf(w, "%s%s%s\n", colors.Blue, "No notifications found", colors.Reset)
-		return
+	client := opts.Client
+	if client == nil {
+		client = listFuncClient{}
 	}
 
-	searchProvider := getSearchProvider(opts)
-	notifications := parseAndFilterNotifications(lines, searchProvider, opts.Search)
-	if len(notifications) == 0 {
-		_, _ = fmt.Fprintf(w, "%s%s%s\n", colors.Blue, "No notifications found", colors.Reset)
-		return
-	}
-
-	notifications = orderUnreadFirst(notifications)
-	printNotifications(notifications, opts, w)
-}
-
-// fetchNotifications retrieves notifications from storage.
-func fetchNotifications(opts FilterOptions) (string, error) {
-	if opts.Client != nil {
-		return opts.Client.ListNotifications(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, opts.OlderThan, opts.NewerThan, opts.ReadFilter)
-	}
-	if listListFunc != nil {
-		return listListFunc(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, opts.OlderThan, opts.NewerThan, opts.ReadFilter)
-	}
-	return "", fmt.Errorf("list: missing client")
-}
-
-// getSearchProvider returns the appropriate search provider based on options.
-func getSearchProvider(opts FilterOptions) search.Provider {
-	if opts.SearchProvider != nil {
-		return opts.SearchProvider
-	}
-	if opts.Search == "" {
-		return nil
-	}
-
-	// Fetch name maps for transparent name-based search
-	client := tmux.NewDefaultClient()
-	sessionNames, _ := client.ListSessions()
-	if sessionNames == nil {
-		sessionNames = make(map[string]string)
-	}
-	windowNames, _ := client.ListWindows()
-	if windowNames == nil {
-		windowNames = make(map[string]string)
-	}
-	paneNames, _ := client.ListPanes()
-	if paneNames == nil {
-		paneNames = make(map[string]string)
-	}
-
-	// Create default provider based on Regex flag
-	if opts.Regex {
-		return search.NewRegexProvider(
-			search.WithCaseInsensitive(false),
-			search.WithSessionNames(sessionNames),
-			search.WithWindowNames(windowNames),
-			search.WithPaneNames(paneNames),
-		)
-	}
-	return search.NewSubstringProvider(
-		search.WithCaseInsensitive(false),
-		search.WithSessionNames(sessionNames),
-		search.WithWindowNames(windowNames),
-		search.WithPaneNames(paneNames),
-	)
-}
-
-// parseAndFilterNotifications parses and filters notification lines.
-func parseAndFilterNotifications(lines string, searchProvider search.Provider, searchQuery string) []*domain.Notification {
-	var notifications []*domain.Notification
-	for _, line := range strings.Split(lines, "\n") {
-		if line == "" {
-			continue
-		}
-		notif, err := notification.ParseNotification(line)
-		if err != nil {
-			continue
-		}
-		// Apply search filter using search provider
-		if searchProvider != nil {
-			if !searchProvider.Match(notif, searchQuery) {
-				continue
-			}
-		}
-		notifications = append(notifications, notification.ToDomainUnsafe(notif))
-	}
-	return notifications
-}
-
-// printNotifications prints notifications based on options.
-func printNotifications(notifications []*domain.Notification, opts FilterOptions, w io.Writer) {
-	// Apply grouping if requested
-	if opts.GroupBy != "" {
-		notificationsValues := notificationsToValues(notifications)
-		var groupResult domain.GroupResult
-		if opts.GroupBy == domain.GroupByMessage.String() {
-			groupResult = domain.GroupNotificationsWithDedup(notificationsValues, domain.GroupByMode(opts.GroupBy), dedupconfig.Load())
-		} else {
-			groupResult = domain.GroupNotifications(notificationsValues, domain.GroupByMode(opts.GroupBy))
-		}
-		formatter := format.GetFormatter(opts.Format, opts.GroupCount)
-		err := formatter.FormatGroups(groupResult, w)
-		if err != nil {
-			_, _ = fmt.Fprintf(w, "list: formatting error: %v\n", err)
-		}
-		return
-	}
-
-	// No grouping, use appropriate formatter
-	formatter := format.GetFormatter(opts.Format, false)
-	err := formatter.FormatNotifications(notifications, w)
-	if err != nil {
-		_, _ = fmt.Fprintf(w, "list: formatting error: %v\n", err)
-	}
+	useCase := appcore.NewListUseCase(client)
+	useCase.Execute(appcore.ListOptions(opts), w)
 }
 
 // orderUnreadFirst places unread notifications before read notifications.
 // It keeps the existing relative order within each bucket (stable).
 func orderUnreadFirst(notifs []*domain.Notification) []*domain.Notification {
-	if len(notifs) == 0 {
-		return notifs
-	}
-
-	ordered := make([]*domain.Notification, len(notifs))
-	copy(ordered, notifs)
-
-	sort.SliceStable(ordered, func(i, j int) bool {
-		iUnread := !ordered[i].IsRead()
-		jUnread := !ordered[j].IsRead()
-		if iUnread == jUnread {
-			return false
-		}
-		return iUnread && !jUnread
-	})
-
-	return ordered
+	return appcore.OrderUnreadFirst(notifs)
 }
