@@ -4,10 +4,7 @@ Copyright © 2026 Cristian Oliveira <license@cristianoliveira.dev>
 package main
 
 import (
-	"fmt"
-	"strings"
-
-	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	appcore "github.com/cristianoliveira/tmux-intray/internal/app"
 	"github.com/spf13/cobra"
 )
 
@@ -65,59 +62,22 @@ the current tmux pane (if inside tmux). Use --no-associate to skip.`,
 
 // runAddCmd executes the add command logic.
 func runAddCmd(client addClient, args []string, sessionFlag, windowFlag, paneFlag, paneCreatedFlag string, noAssociateFlag bool, levelFlag string) error {
-	// Treat empty strings same as not provided (e.g., --session="" from plugin)
-	// This makes the CLI resilient to the plugin passing empty flag values
-	sessionFlag = strings.TrimSpace(sessionFlag)
-	windowFlag = strings.TrimSpace(windowFlag)
-	paneFlag = strings.TrimSpace(paneFlag)
-
-	needsAutoAssociation := !noAssociateFlag && sessionFlag == "" && windowFlag == "" && paneFlag == ""
-	if needsAutoAssociation && !client.EnsureTmuxRunning() {
-		if allowTmuxlessMode() {
-			colors.Warning("tmux not running; adding notification without pane association")
-			noAssociateFlag = true
-		} else {
-			return fmt.Errorf("tmux not running")
-		}
-	}
-
-	// Join arguments as message (bash style)
-	message := strings.Join(args, " ")
-
-	// Validate message
-	if err := validateMessage(message); err != nil {
-		return err
-	}
-
-	// Message is stored as-is; storage layer handles timestamps
-	formattedMessage := message
-
-	// Determine level
-	level := levelFlag
-	if level == "" {
-		level = "info"
-	}
-
-	// Add tray item
-	_, err := client.AddTrayItem(formattedMessage, sessionFlag, windowFlag, paneFlag, paneCreatedFlag, noAssociateFlag, level)
-	if err != nil {
-		return fmt.Errorf("add: failed to add tray item: %w", err)
-	}
-
-	colors.Success("added")
-	return nil
+	useCase := appcore.NewAddUseCase(client)
+	return useCase.Execute(appcore.AddInput{
+		Args:        args,
+		Session:     sessionFlag,
+		Window:      windowFlag,
+		Pane:        paneFlag,
+		PaneCreated: paneCreatedFlag,
+		NoAssociate: noAssociateFlag,
+		Level:       levelFlag,
+		AllowTmuxless: func() bool {
+			return allowTmuxlessMode()
+		},
+	})
 }
 
 // validateMessage checks message length and emptiness (matches Bash validation)
 func validateMessage(message string) error {
-	// Check length
-	if len(message) > 1000 {
-		return fmt.Errorf("add: message too long (max 1000 characters)")
-	}
-	// Check if empty after stripping whitespace
-	trimmed := strings.TrimSpace(message)
-	if trimmed == "" {
-		return fmt.Errorf("add: message cannot be empty")
-	}
-	return nil
+	return appcore.ValidateAddMessage(message)
 }
