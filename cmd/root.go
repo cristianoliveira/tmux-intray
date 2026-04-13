@@ -47,8 +47,9 @@ func init() {
 	// Set version for use in help output and --version flag
 	RootCmd.Version = version.String()
 
-	// Hide the completion command
-	RootCmd.CompletionOptions.HiddenDefaultCmd = true
+	// Unhide the completion command to enable shell autocompletion
+	// Users can now run: tmux-intray completion [bash|zsh|fish|powershell]
+	RootCmd.CompletionOptions.HiddenDefaultCmd = false
 
 	// Ensure default help command is enabled (since we removed custom help)
 	RootCmd.InitDefaultHelpCmd()
@@ -67,6 +68,32 @@ func init() {
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
+// noInitCommands lists commands that should skip tmux client and storage initialization.
+// These commands can run without tmux server or storage file present.
+var noInitCommands = map[string]bool{
+	"__complete":       true,
+	"__completeNoDesc": true,
+	"completion":       true,
+	"help":             true,
+	"version":          true,
+}
+
+// isNoInitCommand checks if the given args should skip initialization.
+func isNoInitCommand(args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+	// Check direct command match
+	if noInitCommands[args[0]] {
+		return true
+	}
+	// Check for subcommands (e.g., "completion bash")
+	if len(args) >= 2 && noInitCommands[args[0]] {
+		return true
+	}
+	return false
+}
+
 func Execute() error {
 	args := os.Args[1:]
 
@@ -81,9 +108,13 @@ func Execute() error {
 
 	colors.StructuredInfo("cli/root", "execute", "started", nil, "", map[string]interface{}{"arg_count": len(args)})
 	defer hooks.WaitForPendingHooks()
-	if err := hooks.Init(); err != nil {
-		colors.StructuredError("cli/root", "execute", "hooks_init_failed", err, "", nil)
-		return err
+
+	// Skip initialization for commands that don't need tmux client or storage
+	if !isNoInitCommand(args) {
+		if err := hooks.Init(); err != nil {
+			colors.StructuredError("cli/root", "execute", "hooks_init_failed", err, "", nil)
+			return err
+		}
 	}
 
 	// No args? show help by routing through cobra help command
