@@ -16,6 +16,7 @@ const (
 	Blue   = "\033[0;34m"
 	Cyan   = "\033[0;36m"
 	Reset  = "\033[0m"
+	Bold   = "\033[1m"
 )
 
 const checkmark = "✓"
