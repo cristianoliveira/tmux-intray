@@ -34,18 +34,23 @@ func NewTUICmd(client tuiClient) *cobra.Command {
 USAGE:
     tmux-intray tui
 
-			KEY BINDINGS:
-			    j/k         Move up/down in the list
-			    /           Enter search mode
+KEY BINDINGS:
+    j/k         Move up/down in the list
+    r/a         Switch to Recents / All tabs
+    Ctrl+s      Switch to Sessions tab
+    /           Enter search mode
+    Ctrl+v      Cycle view mode (detailed/grouped/search)
+    ESC         Exit search mode, or quit TUI
+    d           Dismiss selected notification
+    R           Mark selected notification as read
+    u           Mark selected notification as unread
+    Enter       Jump to pane/window target
+    q           Quit TUI
 
-			    v           Cycle view mode (detailed/grouped/search)
-			    ESC         Exit search mode, or quit TUI
-			    d           Dismiss selected notification
-			    r           Mark selected notification as read
-			    u           Mark selected notification as unread
-    Enter       Jump to pane
-    :w          Save settings
-    q           Quit TUI`,
+NOTES:
+    - Settings are saved automatically on quit.
+    - Up/Down arrows are supported in search contexts.
+`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Load settings from disk (use defaults if missing/corrupted)
 			loadedSettings, err := client.LoadSettings()
