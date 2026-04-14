@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
+	uimodel "github.com/cristianoliveira/tmux-intray/internal/tui/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -94,4 +95,20 @@ func TestSwitchActiveTabNoopWhenSameTab(t *testing.T) {
 
 	assert.Equal(t, settings.TabRecents, m.uiState.GetActiveTab())
 	assert.Equal(t, 1, m.uiState.GetCursor())
+}
+
+func TestSwitchToSessionsPreservesCurrentViewPreferences(t *testing.T) {
+	setupConfig(t, t.TempDir())
+
+	m := newTestModel(t, []notification.Notification{{ID: 1, Session: "$1", Message: "one"}})
+	m.uiState.SetViewMode(uimodel.ViewModeDetailed)
+	m.uiState.SetGroupBy(settings.GroupByWindow)
+	m.uiState.SetActiveTab(settings.TabAll)
+
+	m.switchActiveTab(settings.TabSessions)
+
+	assert.Equal(t, settings.TabSessions, m.uiState.GetActiveTab())
+	assert.Equal(t, settings.ViewModeDetailed, m.GetViewMode())
+	assert.Equal(t, settings.GroupByWindow, m.GetGroupBy())
+	assert.False(t, m.IsGroupedView())
 }
