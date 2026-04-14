@@ -134,7 +134,7 @@ $EDITOR advanced-filtering.md
 ./ci-pipeline.sh "MyProject"
 
 # View advanced filtering examples
-cat advanced-filtering.sh
+cat advanced-filtering.md
 ```
 
 ## Customization
@@ -143,7 +143,7 @@ All examples are designed to be modified for your needs:
 
 - **Change messages**: Edit notification text to match your use case
 - **Add filters**: Use `--level`, `--session`, `--pane` flags
-- **Custom formats**: Use `--format` flag with templates
+- **Custom formats**: Use `tmux-intray status --format` with templates
 - **Integrate**: Combine with other tools (`jq`, `fzf`, `awk`)
 
 ## Related Documentation

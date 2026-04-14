@@ -5,7 +5,9 @@ import (
 	"io"
 	"strings"
 
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/format"
+	"github.com/cristianoliveira/tmux-intray/internal/formatter"
 )
 
 // StatusClient defines dependencies for status command.
@@ -35,28 +37,12 @@ func DetermineStatusFormat(formatFlag, envFormat string, flagChanged bool) strin
 		result = envFormat
 	}
 	if result == "" {
-		result = "summary"
+		result = "compact"
 	}
 	return result
 }
 
-// ValidateStatusFormat validates status output format.
-func ValidateStatusFormat(formatValue string) error {
-	validFormats := map[string]bool{
-		"summary": true,
-		"levels":  true,
-		"panes":   true,
-		"json":    true,
-	}
-
-	if !validFormats[formatValue] {
-		return fmt.Errorf("status: unknown format: %s", formatValue)
-	}
-
-	return nil
-}
-
-// Execute runs status behavior for a validated format.
+// Execute runs status behavior for presets, legacy formats, and custom templates.
 func (u *StatusUseCase) Execute(formatValue string, w io.Writer) error {
 	if !u.client.EnsureTmuxRunning() {
 		return fmt.Errorf("tmux not running")
@@ -71,9 +57,14 @@ func (u *StatusUseCase) Execute(formatValue string, w io.Writer) error {
 		return formatPanes(u.client, w)
 	case "json":
 		return formatJSON(u.client, w)
-	default:
-		return fmt.Errorf("status: unknown format: %s", formatValue)
 	}
+
+	registry := formatter.NewPresetRegistry()
+	if preset, err := registry.Get(formatValue); err == nil {
+		return runStatusWithTemplate(u.client, preset.Template, w)
+	}
+
+	return runStatusWithTemplate(u.client, formatValue, w)
 }
 
 // CountByState counts notifications for a state.
@@ -112,6 +103,62 @@ func PaneCounts(client StatusClient) map[string]int {
 	}
 
 	return format.ParsePaneCounts(lines)
+}
+
+func buildVariableContext(client StatusClient) formatter.VariableContext {
+	active := CountByState(client, "active")
+	dismissed := CountByState(client, "dismissed")
+	read := CountByState(client, "dismissed")
+	infoCount, warningCount, errCount, criticalCount := CountByLevel(client)
+
+	latestMsg := ""
+	lines, _ := client.ListNotifications("active", "", "", "", "", "", "", "")
+	if lines != "" {
+		fields := strings.Split(strings.Split(lines, "\n")[0], "\t")
+		if len(fields) > 6 {
+			latestMsg = fields[6]
+		}
+	}
+
+	highestSeverity := domain.LevelInfo
+	if criticalCount > 0 {
+		highestSeverity = domain.LevelCritical
+	} else if errCount > 0 {
+		highestSeverity = domain.LevelError
+	} else if warningCount > 0 {
+		highestSeverity = domain.LevelWarning
+	}
+
+	return formatter.VariableContext{
+		UnreadCount:     active,
+		TotalCount:      active,
+		ReadCount:       read,
+		ActiveCount:     active,
+		DismissedCount:  dismissed,
+		InfoCount:       infoCount,
+		WarningCount:    warningCount,
+		ErrorCount:      errCount,
+		CriticalCount:   criticalCount,
+		LatestMessage:   latestMsg,
+		HasUnread:       active > 0,
+		HasActive:       active > 0,
+		HasDismissed:    dismissed > 0,
+		HighestSeverity: highestSeverity,
+		SessionList:     "",
+		WindowList:      "",
+		PaneList:        "",
+	}
+}
+
+func runStatusWithTemplate(client StatusClient, template string, w io.Writer) error {
+	ctx := buildVariableContext(client)
+	engine := formatter.NewTemplateEngine()
+	result, err := engine.Substitute(template, ctx)
+	if err != nil {
+		return fmt.Errorf("template substitution error: %w", err)
+	}
+	_, err = fmt.Fprintln(w, result)
+	return err
 }
 
 func formatSummary(client StatusClient, w io.Writer) error {

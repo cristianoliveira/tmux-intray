@@ -1227,7 +1227,7 @@ func TestModelUpdateCyclesViewModesWithPersistence(t *testing.T) {
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(settings.ViewModeDetailed)
 
-	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}}
+	msg := tea.KeyMsg{Type: tea.KeyCtrlV}
 
 	updated, _ := model.Update(msg)
 	model = updated.(*Model)
@@ -1301,7 +1301,7 @@ func TestModelViewModeCycleThreeModeBehavior(t *testing.T) {
 			model.uiState.GetViewport().Width = 80
 			model.uiState.SetViewMode(tt.startMode)
 
-			msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}}
+			msg := tea.KeyMsg{Type: tea.KeyCtrlV}
 
 			for i, expectedMode := range tt.expectedCycles {
 				updated, _ := model.Update(msg)
@@ -1320,11 +1320,11 @@ func TestModelUpdateIgnoresViewModeCycleInSearchMode(t *testing.T) {
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(settings.ViewModeDetailed)
 
-	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}}
+	msg := tea.KeyMsg{Type: tea.KeyCtrlV}
 	updated, _ := model.Update(msg)
 	model = updated.(*Model)
-	assert.Equal(t, settings.ViewModeDetailed, string(model.uiState.GetViewMode()))
-	assert.Equal(t, "v", model.uiState.GetSearchQuery())
+	assert.Equal(t, settings.ViewModeGrouped, string(model.uiState.GetViewMode()))
+	assert.Equal(t, "", model.uiState.GetSearchQuery())
 }
 
 func TestModelUpdateHandlesKeyBindingsInSearchMode(t *testing.T) {

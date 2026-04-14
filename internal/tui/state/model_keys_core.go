@@ -29,13 +29,6 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleConfirmation(msg)
 	}
 
-	// In search view mode we want `v` to keep cycling view modes.
-	// This is a special case because normal search mode treats runes as input.
-	if m.shouldCycleViewModeInSearchInput(msg) {
-		m.cycleViewMode()
-		return m, nil
-	}
-
 	if handled, cmd := m.handlePendingKey(msg); handled {
 		return m, cmd
 	}
@@ -137,6 +130,10 @@ func (m *Model) handleKeyType(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyCtrlS:
 		// Switch to Sessions tab in all views
 		return m.handleTabSwitchingKeys("s")
+	case tea.KeyCtrlV:
+		// Cycle view mode in all contexts.
+		m.cycleViewMode()
+		return m, nil
 	case tea.KeyCtrlH:
 		// In search contexts, Ctrl+h moves cursor left (same as normal navigation)
 		if m.isSearchContext() {
@@ -179,7 +176,7 @@ func (m *Model) handleKeyBinding(key string, allowInSearch bool) (tea.Model, tea
 		return m.handleTabSwitchingKeys(key)
 	case "R", "u":
 		return m.handleMarkKeys(key)
-	case "/", "?", "v":
+	case "/", "?":
 		return m.handleModeKeys(key, allowInSearch)
 	case "h", "l", "z":
 		return m.handleTreeKeys(key, allowInSearch)
@@ -242,7 +239,7 @@ func (m *Model) handleMarkKeys(key string) (tea.Model, tea.Cmd) {
 }
 
 // handleModeKeys handles mode and view key bindings.
-func (m *Model) handleModeKeys(key string, allowInSearch bool) (tea.Model, tea.Cmd) {
+func (m *Model) handleModeKeys(key string, _ bool) (tea.Model, tea.Cmd) {
 	switch key {
 	case "/":
 		m.handleSearchMode()
@@ -250,8 +247,6 @@ func (m *Model) handleModeKeys(key string, allowInSearch bool) (tea.Model, tea.C
 	case "?":
 		m.uiState.SetShowHelp(!m.uiState.ShowHelp())
 		return m, nil
-	case "v":
-		return m.handleBindingWithCheck(m.cycleViewMode, allowInSearch)
 	}
 	return m, nil
 }
@@ -334,16 +329,6 @@ func (m *Model) bindingKeyForMsg(msg tea.KeyMsg) (string, bool) {
 
 func (m *Model) isSearchContext() bool {
 	return m.currentKeyBindingContext() != keyBindingContextDefault
-}
-
-func (m *Model) shouldCycleViewModeInSearchInput(msg tea.KeyMsg) bool {
-	if m.currentKeyBindingContext() != keyBindingContextSearchInput {
-		return false
-	}
-	if m.uiState.GetViewMode() != model.ViewModeSearch {
-		return false
-	}
-	return msg.Type == tea.KeyRunes && msg.String() == "v"
 }
 
 func (m *Model) currentKeyBindingContext() keyBindingContext {

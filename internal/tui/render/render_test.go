@@ -259,7 +259,7 @@ func TestFooterGroupedHelpText(t *testing.T) {
 	assert.Contains(t, footer, "Ctrl+a: all")
 	assert.Contains(t, footer, "Ctrl+s: sessions")
 	assert.Contains(t, footer, "read: all")
-	assert.Contains(t, footer, "v: cycle view mode")
+	assert.Contains(t, footer, "Ctrl+v: cycle view mode")
 	assert.Contains(t, footer, "gg/G: top/bottom")
 	assert.Contains(t, footer, "h/l: collapse/expand")
 	assert.Contains(t, footer, "za: toggle fold")
@@ -288,7 +288,7 @@ func TestFooterSearchViewModeHelpTextShowsJumpOnEnter(t *testing.T) {
 	assert.Contains(t, footer, "mode: [S]")
 	assert.Contains(t, footer, "ESC: exit search")
 	assert.Contains(t, footer, "Ctrl+j/k: navigate")
-	assert.Contains(t, footer, "v: cycle view mode")
+	assert.Contains(t, footer, "Ctrl+v: cycle view mode")
 	assert.Contains(t, footer, "Enter: jump")
 	assert.NotContains(t, footer, "Enter: exit search")
 }
@@ -325,7 +325,7 @@ func TestFooterSearchModeWithoutHelp(t *testing.T) {
 func TestFooterMinimalSearchViewModeIncludesViewModeCycleHint(t *testing.T) {
 	footer := Footer(FooterState{SearchMode: true, SearchQuery: "", ViewMode: settings.ViewModeSearch, ShowHelp: false})
 
-	assert.Contains(t, footer, "v: cycle view mode")
+	assert.Contains(t, footer, "Ctrl+v: cycle view mode")
 	assert.Contains(t, footer, "mode: [S]")
 }
 

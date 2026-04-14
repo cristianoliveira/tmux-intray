@@ -8,7 +8,6 @@ These are tmux prefix bindings installed by `tmux-intray.tmux`:
 
 | Shortcut | Context | Action |
 |---|---|---|
-| `prefix + I` | tmux | Run `tmux-intray follow` |
 | `prefix + J` | tmux | Open `tmux-intray tui` in a tmux popup |
 
 ## TUI shortcuts (normal mode)
@@ -29,8 +28,9 @@ Applies when the TUI is open and not in search input or confirmation mode.
 | `a` | Switch tab to All | |
 | `Ctrl+r` | Switch tab to Recents | Works in all views |
 | `Ctrl+a` | Switch tab to All | Works in all views |
+| `Ctrl+s` | Switch tab to Sessions | Works in all views |
 | `/` | Enter search input mode | |
-| `v` | Cycle view mode | `detailed -> grouped -> search -> detailed` |
+| `Ctrl+v` | Cycle view mode | `detailed -> grouped -> search -> detailed` |
 | `?` | Toggle help text | |
 | `q` | Quit TUI | Saves settings before quitting |
 | `Esc` | Quit TUI | If not in search input |
@@ -74,7 +74,7 @@ Examples:
 When view mode is `search` but search input is not active, normal keybindings still work, including:
 - `j` / `k`, `gg`, `G`
 - `d`, `R`, `u`, `Enter`, `q`, `?`, `/`
-- `v` (cycle view mode)
+- `Ctrl+v` (cycle view mode)
 
 ## Confirmation dialog mode
 
@@ -88,7 +88,9 @@ Confirmation mode is used for destructive grouped actions (for example, `D` on a
 | `Esc` | Cancel action |
 | `Ctrl+c` | Cancel and quit TUI |
 
-## Not shortcuts
+## Arrow keys
 
-The following keys are currently handled as no-op and are intentionally not navigation shortcuts:
-- `Up` / `Down` arrow keys
+Arrow keys are supported in search contexts:
+- `Up` / `Down` move selection while search input is active or when using search view mode
+
+Outside search contexts, `j` / `k` remain the primary documented navigation keys.

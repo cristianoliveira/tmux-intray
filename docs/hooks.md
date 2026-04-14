@@ -16,8 +16,8 @@ tmux-intray supports the following hook points:
 | `post-add` | After a notification is successfully added | Trigger external alerts (Slack, email), log to external systems, update dashboards |
 | `pre-dismiss` | Before a notification is dismissed | Confirm dismissal, check conditions, backup before removal |
 | `post-dismiss` | After a notification is dismissed | Clean up related resources, update external systems, trigger follow-up actions |
-| `cleanup` | After garbage collection runs | Archive old notifications, update metrics, perform maintenance |
-| `post-list` | After listing notifications (planned) | Audit logging, analytics, usage tracking |
+| `cleanup` | Before garbage collection removes old notifications | Archive old notifications, update metrics, perform maintenance |
+| `post-cleanup` | After garbage collection finishes | Record deleted count, update metrics, archive summaries |
 
 ## Hook Script Location
 
@@ -162,10 +162,9 @@ TMUX_INTRAY_HOOKS_VERBOSE=1 tmux-intray add "message"
 export TMUX_INTRAY_HOOKS_VERBOSE=1
 ```
 
-**Per-session (in config file)**:
+**Per-session (via environment or shell profile)**:
 ```bash
-# In ~/.config/tmux-intray/config.sh
-TMUX_INTRAY_HOOKS_VERBOSE=1
+export TMUX_INTRAY_HOOKS_VERBOSE=1
 ```
 
 ## Configuration
@@ -173,13 +172,26 @@ TMUX_INTRAY_HOOKS_VERBOSE=1
 Hooks are configured via environment variables or the configuration file:
 
 ```bash
-# In ~/.config/tmux-intray/config.sh
+# Hook directory (default: $TMUX_INTRAY_CONFIG_DIR/hooks)
+export TMUX_INTRAY_HOOKS_DIR="$HOME/.config/tmux-intray/hooks"
 
-# Enable verbose output for hooks (0=silent, 1=verbose)
-TMUX_INTRAY_HOOKS_VERBOSE=0
+# Failure mode: warn (default), ignore, abort
+export TMUX_INTRAY_HOOKS_FAILURE_MODE=warn
+
+# Async execution: 0/1 or false/true
+export TMUX_INTRAY_HOOKS_ASYNC=0
+
+# Async timeout in seconds (default: 30)
+export TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT=30
+
+# Max concurrent async hooks (default: 10)
+export TMUX_INTRAY_MAX_HOOKS=10
+
+# Verbose framework logging for hook execution (0=silent, 1=verbose)
+export TMUX_INTRAY_HOOKS_VERBOSE=0
 ```
 
-**Note:** Hooks are enabled by the presence of script files in the hook directories. Remove or rename hook scripts in the hook directory to disable specific hooks.
+**Note:** Hooks are enabled by the presence of executable script files in the hook directories. Remove, rename, or make scripts non-executable to disable specific hooks.
 
 ## Example Use Cases
 
@@ -586,7 +598,7 @@ To use any of these notification hook examples:
    chmod +x ~/.config/tmux-intray/hooks/pre-add/*.sh
    ```
 
-4. **Configure (optional)** - Set environment variables in `~/.config/tmux-intray/config.sh` or export in your shell:
+4. **Configure (optional)** - Export environment variables in your shell profile or current shell:
    ```bash
    export MACOS_SOUND_FILE="/System/Library/Sounds/Glass.aiff"
    export TMUX_NOTIFICATION_DURATION=5000

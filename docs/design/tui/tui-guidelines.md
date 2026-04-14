@@ -161,7 +161,7 @@ type CommandService interface {
 }
 ```
 
-This interface enables extensible command handling within the TUI, supporting commands like `:q`, `:w`, `:group-by`.
+This interface sketches a possible future extension point for richer in-TUI commands. The current public TUI does not expose a `:` command palette.
 
 ### 5. RuntimeCoordinator Interface
 

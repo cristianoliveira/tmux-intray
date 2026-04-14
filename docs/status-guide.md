@@ -50,7 +50,7 @@ tmux-intray status --format='C:{{critical-count}} E:{{error-count}} W:{{warning-
 
 ## Variables Reference
 
-All 13 available variables:
+The status formatter exposes 13 core variables plus 4 severity-count variables.
 
 ### Count Variables
 
@@ -97,15 +97,15 @@ All 13 available variables:
 - `3` - At least one **warning** (no critical/error)
 - `4` - All are **info** (or no notifications)
 
-### Session/Window/Pane Variables (Future)
+### Session/Window/Pane Variables
 
-These variables are reserved for future implementation and currently return empty strings:
+These variables are recognized by the formatter. Today they return empty strings in normal template rendering:
 
-| Variable | Status |
-|----------|--------|
-| `{{session-list}}` | Reserved |
-| `{{window-list}}` | Reserved |
-| `{{pane-list}}` | Reserved |
+| Variable | Current behavior |
+|----------|------------------|
+| `{{session-list}}` | Empty string |
+| `{{window-list}}` | Empty string |
+| `{{pane-list}}` | Empty string |
 
 ## Presets
 
@@ -130,6 +130,8 @@ Presets are built-in templates for common use cases. Use `--format=preset-name`.
 ### 3. `json`
 
 **Special format** - Returns structured JSON with all counts and pane breakdown.
+
+> Note: although `json` also exists in the template preset registry, the `status` command handles `json` as a dedicated special format before template expansion.
 
 **Output example**:
 ```json
@@ -162,6 +164,8 @@ Presets are built-in templates for common use cases. Use `--format=preset-name`.
 
 **Special format** - Shows counts for each severity level.
 
+> Note: although `levels` also exists in the template preset registry, the `status` command handles it as a dedicated special format before template expansion.
+
 **Output example**:
 ```
 info:77
@@ -180,6 +184,8 @@ tmux-intray status --format='Severity: {{highest-severity}} | Unread: {{unread-c
 ### 6. `panes`
 
 **Special format** - Shows pane counts sorted by pane identifier.
+
+> Note: although `panes` also exists in the template preset registry, the `status` command handles it as a dedicated special format before template expansion.
 
 **Output example**:
 ```

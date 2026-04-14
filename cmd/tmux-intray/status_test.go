@@ -336,7 +336,7 @@ func TestStatusHelpIncludesTemplateExamples(t *testing.T) {
 	require.NoError(t, err)
 	help := stdout.String()
 
-	assert.Contains(t, help, "PRESETS (6):")
+	assert.Contains(t, help, "PRESETS / FORMATS (6):")
 	assert.Contains(t, help, "{{unread-count}}")
 	assert.Contains(t, help, "{{critical-count}}")
 	assert.Contains(t, help, "tmux-intray status --format='{{unread-count}} new messages'")

@@ -164,7 +164,7 @@ func buildFullHelpSearchModeItems(state FooterState) []string {
 	items = append(items, fmt.Sprintf("read: %s", readFilterIndicator(state.ReadFilter)))
 	items = append(items, "ESC: exit search")
 	if state.ViewMode == settings.ViewModeSearch {
-		items = append(items, "v: cycle view mode")
+		items = append(items, "Ctrl+v: cycle view mode")
 	}
 	items = append(items, "Ctrl+j/k: navigate")
 	items = append(items, "j/k: move")
@@ -189,7 +189,7 @@ func buildFullHelpNormalModeItems(state FooterState) []string {
 	items = append(items, "j/k: move")
 	items = append(items, "gg/G: top/bottom")
 	items = append(items, "/: search messages")
-	items = append(items, "v: cycle view mode")
+	items = append(items, "Ctrl+v: cycle view mode")
 	if state.Grouped {
 		items = append(items, "h/l: collapse/expand")
 		items = append(items, "za: toggle fold")
@@ -216,7 +216,7 @@ func buildMinimalSearchModeItems(state FooterState) []string {
 	items = append(items, "ESC: exit search")
 	items = append(items, "Ctrl+j/k: navigate")
 	if state.ViewMode == settings.ViewModeSearch {
-		items = append(items, "v: cycle view mode")
+		items = append(items, "Ctrl+v: cycle view mode")
 	}
 	items = append(items, fmt.Sprintf("mode: %s", viewModeIndicator(state.ViewMode)))
 	items = append(items, "?: toggle help")
