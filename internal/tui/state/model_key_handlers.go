@@ -5,7 +5,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
-	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
 
 // handleCtrlC handles Ctrl+C to exit the TUI.
@@ -81,12 +80,10 @@ func (m *Model) switchActiveTab(tab settings.Tab) {
 
 	m.uiState.SetActiveTab(nextTab)
 
-	// Sessions tab requires grouped view mode and all notifications to show session tree
+	// Sessions tab always renders as a session-grouped tree,
+	// but that is a tab-specific presentation and must not overwrite
+	// the user's persisted view mode or group-by preference.
 	if nextTab == settings.TabSessions {
-		if !m.isGroupedView() {
-			m.uiState.SetViewMode(model.ViewModeGrouped)
-			m.uiState.SetGroupBy(settings.GroupBySession)
-		}
 		if err := m.loadAllNotifications(); err != nil {
 			m.errorHandler.Warning(fmt.Sprintf("Failed to load notifications: %v", err))
 		}
