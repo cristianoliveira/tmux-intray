@@ -76,6 +76,11 @@ export TMUX_INTRAY_RECENTS_TIME_WINDOW=6h
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `TMUX_INTRAY_HOOKS_DIR` | `$TMUX_INTRAY_CONFIG_DIR/hooks` | Directory containing hook scripts. |
+| `TMUX_INTRAY_HOOKS_FAILURE_MODE` | `warn` | Hook failure handling mode: `warn`, `ignore`, or `abort`. |
+| `TMUX_INTRAY_HOOKS_ASYNC` | `false` | Run hooks asynchronously (`1`/`true`) instead of synchronously. |
+| `TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT` | `30` | Async hook timeout in seconds. |
+| `TMUX_INTRAY_MAX_HOOKS` | `10` | Maximum concurrent async hooks. |
+| `TMUX_INTRAY_HOOKS_VERBOSE` | `0` | Show framework-level hook execution logs when set to `1`. |
 
 ### Debugging & Logging
 
@@ -278,7 +283,7 @@ critical = "\u001b[0;31m"
 | `group_header.show_source_aggregation` | bool | Show aggregated pane/source info | `false` | `true`, `false` |
 | `group_header.badge_colors` | table | ANSI color codes per level (`info`, `warning`, `error`, `critical`) | defaults shown above | Strings containing ANSI escape sequences |
 
-`filters.read` lets you persist whether the TUI should show only read, only unread, or all notifications. At runtime you can toggle the same preference with the `:filter-read <read|unread|all>` command; the change is saved back to `tui.toml` automatically.
+`filters.read` lets you persist whether the TUI should show only read, only unread, or all notifications. There is no dedicated in-TUI command palette for changing this today; update the setting in `tui.toml` (or via future UI controls) and restart the TUI to apply it consistently.
 
 #### View Mode Migration
 
@@ -339,7 +344,7 @@ export TMUX_INTRAY_TUI_UNREAD_FIRST=false
 
 Set `group_by = "message"` to collapse identical notifications into a single group headed by the message text. Use `group_by = "pane_message"` if you want one unique message per pane (no duplicate rows under the group). You can do this in two ways:
 
-1. **Edit the settings file** – add `group_by = "message"` to `~/.config/tmux-intray/settings.toml` (or your `$XDG_CONFIG_HOME` variant) alongside your other preferences:
+1. **Edit the settings file** – add `group_by = "message"` to `~/.config/tmux-intray/tui.toml` (or your `$XDG_CONFIG_HOME` variant) alongside your other preferences:
 
     ```toml
     view_mode = "grouped"
@@ -347,7 +352,7 @@ Set `group_by = "message"` to collapse identical notifications into a single gro
     default_expand_level = 1
     ```
 
-2. **Use the TUI command palette** – run `:group-by message` inside the TUI; the change is saved automatically on exit or when you run `:w`.
+2. **Edit the TUI settings file** – set `group_by = "message"` in `tui.toml`, then restart the TUI.
 
 Message grouping keeps all other filters intact and works with CLI commands such as `tmux-intray list --group-by=message` and `tmux-intray list --group-by=message --group-count`.
 
@@ -390,8 +395,8 @@ critical = "\u001b[0;31m"
 
 Settings are saved automatically in these situations:
 
-1. **On TUI exit** (pressing `q`, `:q`, or `Ctrl+C`)
-2. **Manual save** (pressing `:w`)
+1. **On TUI exit** (pressing `q` or `Ctrl+C`)
+2. **When switching tabs inside the TUI** (for example via `r`, `a`, `Ctrl+r`, `Ctrl+a`, or `Ctrl+s`)
 
 The save operation uses atomic writes to prevent file corruption.
 

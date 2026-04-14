@@ -176,22 +176,22 @@ Comprehensive documentation is available:
 - [Status Guide](docs/status-guide.md) - Template variables, presets, real-world examples, and troubleshooting
 - [Configuration Guide](docs/configuration.md) - All environment variables and settings (including TUI settings persistence)
 - [Troubleshooting Guide](docs/troubleshooting.md) - Common issues and solutions
-- [Advanced Filtering Example](examples/advanced-filtering.sh) - Complex filter combinations
+- [Advanced Filtering Example](examples/advanced-filtering.md) - Complex filter combinations
 - [Man page](man/man1/tmux-intray.1) - Traditional manual page (view with `man -l man/man1/tmux-intray.1`)
 
-Documentation is automatically generated from the command-line help texts.
+Some docs mirror command help text, but the Markdown guides also include additional examples and operational notes.
 
 ### TUI Settings Persistence
 
 The TUI automatically saves your preferences on exit:
 - **Settings file**: `~/.config/tmux-intray/tui.toml`
-- **Auto-save**: Settings are saved when you quit (q, :q, Ctrl+C)
+- **Auto-save**: Settings are saved when you quit (`q`, `Ctrl+C`) and when switching tabs in the TUI
 - **Reset settings**: Run `tmux-intray settings reset`
 - **View settings**: Run `tmux-intray settings show`
 
 See [Configuration Guide](docs/configuration.md) for details on available settings.
 
-For a comprehensive list of filters and detailed examples, see the [CLI Reference](docs/cli/CLI_REFERENCE.md) and the [advanced filtering example](examples/advanced-filtering.sh).
+For a comprehensive list of filters and detailed examples, see the [CLI Reference](docs/cli/CLI_REFERENCE.md) and the [advanced filtering example](examples/advanced-filtering.md).
 
 ### Hooks system
 
@@ -274,7 +274,7 @@ tmux-intray is built with a modular architecture that separates concerns:
 │   CLI Core      │           Tmux Integration                │
 │   (Go-based)    │        (tmux-intray.tmux)                 │
 ├─────────────────┼───────────────────────────────────────────┤
-│ • Storage       │ • Key bindings (prefix+I, prefix+J)       │
+│ • Storage       │ • Key bindings (prefix+J)                 │
 │ • Commands      │ • Status bar updates                      │
 │ • Hooks system  │ • Pane context capture                    │
 │ • Configuration │ • Environment setup                       │

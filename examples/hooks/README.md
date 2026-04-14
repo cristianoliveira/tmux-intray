@@ -17,27 +17,26 @@ tmux-intray provides a hook system that allows you to execute custom scripts at 
 
 ## Configuration
 
-Hooks are configured via environment variables (set in your shell profile or config file):
+Hooks are configured via environment variables (set in your shell profile or current shell):
 
 ```bash
-# Enable hooks globally
-TMUX_INTRAY_HOOKS_ENABLED=1
-
-# Hook failure mode: ignore, warn, abort
-TMUX_INTRAY_HOOKS_FAILURE_MODE="warn"
+# Hook failure mode: warn (default), ignore, abort
+export TMUX_INTRAY_HOOKS_FAILURE_MODE="warn"
 
 # Run hooks asynchronously (0=sync, 1=async)
-TMUX_INTRAY_HOOKS_ASYNC=0
+export TMUX_INTRAY_HOOKS_ASYNC=0
+
+# Async timeout in seconds (default: 30)
+export TMUX_INTRAY_HOOKS_ASYNC_TIMEOUT=30
+
+# Maximum concurrent async hooks (default: 10)
+export TMUX_INTRAY_MAX_HOOKS=10
 
 # Hook directory (default: $TMUX_INTRAY_CONFIG_DIR/hooks)
-TMUX_INTRAY_HOOKS_DIR="$HOME/.config/tmux-intray/hooks"
-
-# Per-hook enable/disable
-TMUX_INTRAY_HOOKS_ENABLED_pre_add=1
-TMUX_INTRAY_HOOKS_ENABLED_post_add=1
+export TMUX_INTRAY_HOOKS_DIR="$HOME/.config/tmux-intray/hooks"
 ```
 
-**Note**: Hooks can also be configured via TOML in `~/.config/tmux-intray/config.toml`. See [Configuration Guide](../../docs/configuration.md) for details.
+**Note**: Hooks are discovered from the hook directory; there is no separate global enable toggle in normal runtime behavior. See [Configuration Guide](../../docs/configuration.md) and [Hooks Guide](../../docs/hooks.md) for details.
 
 ## Example Scripts
 
@@ -72,15 +71,10 @@ Plays a sound on Linux without displaying any UI notification. Uses `paplay` (Pu
    chmod +x ~/.config/tmux-intray/hooks/*/*.sh
    ```
 
-3. Enable hooks in your config:
+3. Configure hook behavior if needed:
    ```bash
-   # Via environment variable
-   export TMUX_INTRAY_HOOKS_ENABLED=1
-
-   # Or via config.toml
-   # Add to ~/.config/tmux-intray/config.toml:
-   # [hooks]
-   # enabled = true
+   export TMUX_INTRAY_HOOKS_FAILURE_MODE=warn
+   export TMUX_INTRAY_HOOKS_ASYNC=0
    ```
 
 4. Customize scripts as needed.

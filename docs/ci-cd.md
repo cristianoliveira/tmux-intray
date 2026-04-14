@@ -41,7 +41,7 @@ Triggered when a tag matching `v[0-9]*.[0-9]*.[0-9]*` is pushed.
 **Jobs:**
 
 1. **create-release** - Creates GitHub release and artifacts:
-   - Verifies version consistency between tag and binary
+   - Verifies the tag format and injects the release version at build time via Go ldflags
    - Generates documentation (man pages and CLI reference)
    - Builds Go binaries for multiple platforms (linux/amd64, linux/arm64, darwin/amd64, darwin/arm64)
    - Generates release notes from git history
@@ -50,7 +50,7 @@ Triggered when a tag matching `v[0-9]*.[0-9]*.[0-9]*` is pushed.
 
 ## How to Release
 
-1. **Version Bump**: Ensure `bin/tmux-intray` contains the correct version in its `VERSION` variable.
+1. **Version source**: The release version comes from the git tag and is injected into the binary at build time via Go ldflags.
 
 2. **Create Tag**:
    ```bash
@@ -107,9 +107,10 @@ pre-commit install
 
 ### Release Failures
 
-#### Version Mismatch
-Error: "Version mismatch between bin/tmux-intray and git tag"
-- Ensure the `VERSION` variable in `bin/tmux-intray` matches the git tag (without leading 'v')
+#### Version / tag issues
+Error: invalid tag format or incorrect release version
+- Ensure the git tag matches `vMAJOR.MINOR.PATCH` (for example `v1.2.3`)
+- The workflow strips the leading `v` and injects the resulting version into the binary during build
 
 ## Extending the Pipeline
 

@@ -316,7 +316,7 @@ which tmux-intray
 export PATH="$HOME/.local/bin:$PATH"
 
 # 3. Verify installation
-tmux-intray version  # or appropriate version command
+tmux-intray --version
 ```
 
 **Debug**:

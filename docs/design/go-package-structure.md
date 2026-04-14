@@ -33,12 +33,9 @@ github.com/cristianoliveira/tmux-intray/
 │   ├── jump.go                # Jump command
 │   ├── status.go              # Status command
 │   ├── follow.go              # Follow command
-│   ├── help.go                # Help command
-│   ├── version.go             # Version command
 │   ├── cleanup.go             # Cleanup command
 │   ├── root.go                # Root command and CLI entry point
-│   └── wrapper/               # Wrapper for Bash migration
-│       └── main.go
+│   └── main.go                # CLI executable entry point
 ├── internal/                  # Private application code
 │   ├── core/                  # Core tmux interaction & tray management
 │   │   ├── core.go

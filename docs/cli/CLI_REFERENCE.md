@@ -16,24 +16,24 @@ Usage:
   tmux-intray [command]
 
 Available Commands:
-  add          Add a new item to the tray
-  cleanup      Clean up old dismissed notifications
-  clear        Clear all items from the tray
-  dismiss      Dismiss a notification
-  follow       Monitor notifications in real-time
-  help         Help about any command
-  jump         Jump to the pane of a notification
-  list         List notifications with filters and formats
-  mark-read    Mark a notification as read
-  settings     Manage TUI settings
-  status       Show notification status summary
-  tui          Interactive terminal UI for notifications
-  version      Show version information
+  add         Add a new item to the tray
+  cleanup     Clean up old dismissed notifications
+  clear       Clear all items from the tray
+  completion  Generate the autocompletion script for the specified shell
+  dismiss     Dismiss a notification
+  follow      Monitor notifications in real-time
+  help        Help about any command
+  jump        Jump to the pane of a notification
+  list        List notifications with filters and formats
+  mark-read   Mark a notification as read
+  settings    Manage TUI settings
+  status      Show notification status summary
+  tui         Interactive terminal UI for notifications
 
 Flags:
-  -h, --help               help for tmux-intray
-  -v, --version            version for tmux-intray
-      --log-file string    log file path (default empty, logs to stderr)
+  -h, --help              help for tmux-intray
+      --log-file string   explicit log file path (overrides config)
+  -v, --version           version for tmux-intray
 
 Use "tmux-intray [command] --help" for more information about a command.
 ```
@@ -71,9 +71,11 @@ Launches the interactive notifications UI.
 
 - `r` - switch to Recents tab
 - `a` - switch to All tab
+- `Ctrl+s` - switch to Sessions tab
 - `R` - mark selected notification as read
 - `u` - mark selected notification as unread
 - `Enter` - jump to selected notification target (pane when available, window fallback)
+- `Up` / `Down` - navigate while in search contexts
 
 ### status
 
@@ -81,7 +83,7 @@ Launches the interactive notifications UI.
 tmux-intray status [flags]
 ```
 
-Show notification status summary with template-based formatting. Supports 13 template variables and 6 built-in presets, plus custom templates for flexible output.
+Show notification status summary with template-based formatting. Supports 13 core template variables plus 4 severity-count variables, 6 built-in presets, and custom templates for flexible output.
 
 #### Presets (Built-in Templates)
 
@@ -122,10 +124,10 @@ Show notification status summary with template-based formatting. Supports 13 tem
 **Severity Variable**:
 - `{{highest-severity}}` – Ordinal (1=critical, 2=error, 3=warning, 4=info)
 
-**Session/Window/Pane Variables** (reserved for future):
-- `{{session-list}}` – Sessions with active notifications
-- `{{window-list}}` – Windows with active notifications
-- `{{pane-list}}` – Panes with active notifications
+**Session/Window/Pane Variables**:
+- `{{session-list}}` – Sessions with active notifications (currently returns an empty string)
+- `{{window-list}}` – Windows with active notifications (currently returns an empty string)
+- `{{pane-list}}` – Panes with active notifications (currently returns an empty string except in special formats)
 
 #### Flags
 
@@ -179,6 +181,14 @@ set -g status-right "Inbox: #(tmux-intray status --format=count-only) %H:%M"
 
 - `0` - Success
 - `1` - Error (tmux not running, invalid template, or database error)
+
+### completion
+
+```bash
+tmux-intray completion [bash|zsh|fish|powershell]
+```
+
+Generates shell completion scripts using Cobra's built-in completion support.
 
 #### Full Documentation
 
