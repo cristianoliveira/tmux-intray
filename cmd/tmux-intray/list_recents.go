@@ -1,15 +1,14 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"sort"
-	"strings"
 	"time"
 
-	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
+	"github.com/cristianoliveira/tmux-intray/internal/format"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 )
 
@@ -69,7 +68,7 @@ func printRecents(opts RecentsOptions, w io.Writer) {
 
 	notifications := parseTabsNotifications(lines)
 	if len(notifications) == 0 {
-		_, _ = fmt.Fprintf(w, "%sNo recent unread notifications found%s\n", colors.Blue, colors.Reset)
+		_, _ = fmt.Fprintln(w, "No recent unread notifications found")
 		return
 	}
 
@@ -88,51 +87,42 @@ func printRecents(opts RecentsOptions, w io.Writer) {
 
 	switch opts.Format {
 	case "json":
-		printRecentsJSON(sessionBest, w)
+		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeJSON, w)
 	case "table":
-		printRecentsTable(sessionBest, w)
+		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeTable, w)
+	case "legacy":
+		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeLegacy, w)
+	case "compact":
+		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeCompact, w)
 	default:
-		printRecentsSimple(sessionBest, w)
+		// Keep default aligned with `tmux-intray list` (simple formatter)
+		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeSimple, w)
 	}
 }
 
-// recentsJSON represents a notification in JSON output for recents.
-type recentsJSON struct {
-	Num       int    `json:"num"`
-	Session   string `json:"session"`
-	Level     string `json:"level"`
-	Timestamp string `json:"timestamp"`
-	Age       string `json:"age"`
-	Message   string `json:"message"`
-	Window    string `json:"window,omitempty"`
-	Pane      string `json:"pane,omitempty"`
-	Unread    bool   `json:"unread"`
-}
+func formatRecentsUsingListFormatter(notifs []notification.Notification, ftype format.FormatterType, w io.Writer) {
+	// Use the same formatter implementation as `tmux-intray list`.
+	formatter := format.NewFormatter(ftype)
 
-// printRecentsJSON prints recents in JSON format.
-func printRecentsJSON(notifs []notification.Notification, w io.Writer) {
-	sessionNames := getSessionNamesForTabs()
-
-	sessions := make([]recentsJSON, 0, len(notifs))
-	for i, notif := range notifs {
-		sessions = append(sessions, recentsJSON{
-			Num:       i + 1,
-			Session:   resolveSessionName(notif.Session, sessionNames),
-			Level:     notif.Level,
-			Timestamp: notif.Timestamp,
-			Age:       formatAge(notif.Timestamp),
-			Message:   notif.Message,
-			Window:    notif.Window,
-			Pane:      notif.Pane,
-			Unread:    !notif.IsRead(),
+	// Convert cmd-level notifications to domain notifications.
+	domainNotifs := make([]*domain.Notification, 0, len(notifs))
+	for i := range notifs {
+		n := notifs[i]
+		domainNotifs = append(domainNotifs, &domain.Notification{
+			ID:            n.ID,
+			Timestamp:     n.Timestamp,
+			State:         domain.NotificationState(n.State),
+			Session:       n.Session,
+			Window:        n.Window,
+			Pane:          n.Pane,
+			Message:       n.Message,
+			PaneCreated:   n.PaneCreated,
+			Level:         domain.NotificationLevel(n.Level),
+			ReadTimestamp: n.ReadTimestamp,
 		})
 	}
 
-	encoder := json.NewEncoder(w)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(sessions); err != nil {
-		_, _ = fmt.Fprintf(w, "recents: failed to encode JSON: %v\n", err)
-	}
+	_ = formatter.FormatNotifications(domainNotifs, w)
 }
 
 // selectBestPerSession selects the best notification per session.
@@ -181,78 +171,8 @@ func severityWeight(level string) int {
 	}
 }
 
-// printRecentsSimple prints recents in simple format.
-func printRecentsSimple(notifs []notification.Notification, w io.Writer) {
-	sessionNames := getSessionNamesForTabs()
-
-	header := fmt.Sprintf("%sRecent Notifications (%d)%s\n", colors.Bold, len(notifs), colors.Reset)
-	_, _ = fmt.Fprint(w, header)
-	_, _ = fmt.Fprint(w, strings.Repeat("─", 60)+"\n")
-
-	for i, notif := range notifs {
-		num := i + 1
-		sessionDisplay := resolveSessionName(notif.Session, sessionNames)
-		if sessionDisplay == "" {
-			sessionDisplay = "(no session)"
-		}
-
-		levelColor := levelColorCode(notif.Level)
-		age := formatAge(notif.Timestamp)
-
-		_, _ = fmt.Fprintf(w, "%s%d.%s %s%s%s %s\n",
-			colors.Bold, num, colors.Reset,
-			colors.Yellow, sessionDisplay, colors.Reset,
-			age,
-		)
-		_, _ = fmt.Fprintf(w, "   %s[%s]%s %s\n",
-			levelColor, notif.Level, colors.Reset,
-			truncateMessage(notif.Message, 50),
-		)
-		if i < len(notifs)-1 {
-			_, _ = fmt.Fprint(w, "\n")
-		}
-	}
-}
-
-// printRecentsTable prints recents in table format.
-func printRecentsTable(notifs []notification.Notification, w io.Writer) {
-	sessionNames := getSessionNamesForTabs()
-
-	header := fmt.Sprintf("%sRecent Notifications (%d)%s\n", colors.Bold, len(notifs), colors.Reset)
-	_, _ = fmt.Fprint(w, header)
-	_, _ = fmt.Fprint(w, strings.Repeat("─", 80)+"\n")
-	_, _ = fmt.Fprintf(w, "%-4s %-20s %-10s %-8s %s\n",
-		colors.Bold+"Num"+colors.Reset,
-		colors.Bold+"Session"+colors.Reset,
-		colors.Bold+"Age"+colors.Reset,
-		colors.Bold+"Level"+colors.Reset,
-		colors.Bold+"Message"+colors.Reset,
-	)
-	_, _ = fmt.Fprint(w, strings.Repeat("─", 80)+"\n")
-
-	for i, notif := range notifs {
-		num := i + 1
-		sessionDisplay := resolveSessionName(notif.Session, sessionNames)
-		if sessionDisplay == "" {
-			sessionDisplay = "(no session)"
-		}
-		if len(sessionDisplay) > 18 {
-			sessionDisplay = sessionDisplay[:15] + "..."
-		}
-
-		levelColor := levelColorCode(notif.Level)
-		age := formatAge(notif.Timestamp)
-		msg := truncateMessage(notif.Message, 30)
-
-		_, _ = fmt.Fprintf(w, "%-4d %-20s %-10s %s%-8s%s %s\n",
-			num,
-			sessionDisplay,
-			age,
-			levelColor, notif.Level, colors.Reset,
-			msg,
-		)
-	}
-}
+// NOTE: recents output formatting is intentionally shared with `tmux-intray list`
+// via internal/format. Older custom renderers were removed to keep output consistent.
 
 // TabOptions holds options for the tab flag.
 type TabOptions struct {
