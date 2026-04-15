@@ -99,6 +99,7 @@ func printRecents(opts RecentsOptions, w io.Writer) {
 // recentsJSON represents a notification in JSON output for recents.
 type recentsJSON struct {
 	Num       int    `json:"num"`
+	ID        int    `json:"id"`
 	Session   string `json:"session"`
 	Level     string `json:"level"`
 	Timestamp string `json:"timestamp"`
@@ -117,6 +118,7 @@ func printRecentsJSON(notifs []notification.Notification, w io.Writer) {
 	for i, notif := range notifs {
 		sessions = append(sessions, recentsJSON{
 			Num:       i + 1,
+			ID:        notif.ID,
 			Session:   resolveSessionName(notif.Session, sessionNames),
 			Level:     notif.Level,
 			Timestamp: notif.Timestamp,
@@ -199,10 +201,11 @@ func printRecentsSimple(notifs []notification.Notification, w io.Writer) {
 		levelColor := levelColorCode(notif.Level)
 		age := formatAge(notif.Timestamp)
 
-		_, _ = fmt.Fprintf(w, "%s%d.%s %s%s%s %s\n",
+		_, _ = fmt.Fprintf(w, "%s%d.%s %s%s%s %s #%d\n",
 			colors.Bold, num, colors.Reset,
 			colors.Yellow, sessionDisplay, colors.Reset,
 			age,
+			notif.ID,
 		)
 		_, _ = fmt.Fprintf(w, "   %s[%s]%s %s\n",
 			levelColor, notif.Level, colors.Reset,
@@ -221,8 +224,9 @@ func printRecentsTable(notifs []notification.Notification, w io.Writer) {
 	header := fmt.Sprintf("%sRecent Notifications (%d)%s\n", colors.Bold, len(notifs), colors.Reset)
 	_, _ = fmt.Fprint(w, header)
 	_, _ = fmt.Fprint(w, strings.Repeat("─", 80)+"\n")
-	_, _ = fmt.Fprintf(w, "%-4s %-20s %-10s %-8s %s\n",
+	_, _ = fmt.Fprintf(w, "%-4s %-7s %-20s %-10s %-8s %s\n",
 		colors.Bold+"Num"+colors.Reset,
+		colors.Bold+"ID"+colors.Reset,
 		colors.Bold+"Session"+colors.Reset,
 		colors.Bold+"Age"+colors.Reset,
 		colors.Bold+"Level"+colors.Reset,
@@ -244,8 +248,9 @@ func printRecentsTable(notifs []notification.Notification, w io.Writer) {
 		age := formatAge(notif.Timestamp)
 		msg := truncateMessage(notif.Message, 30)
 
-		_, _ = fmt.Fprintf(w, "%-4d %-20s %-10s %s%-8s%s %s\n",
+		_, _ = fmt.Fprintf(w, "%-4d %-7d %-20s %-10s %s%-8s%s %s\n",
 			num,
+			notif.ID,
 			sessionDisplay,
 			age,
 			levelColor, notif.Level, colors.Reset,

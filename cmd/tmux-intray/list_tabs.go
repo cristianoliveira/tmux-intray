@@ -189,10 +189,11 @@ func printTabsSimple(groups []domain.SessionNotification, w io.Writer) {
 		level := string(sg.Notification.Level)
 		levelColor := levelColorCode(level)
 
-		_, _ = fmt.Fprintf(w, "%s%d.%s %s%s%s %s\n",
+		_, _ = fmt.Fprintf(w, "%s%d.%s %s%s%s %s #%d\n",
 			colors.Bold, num, colors.Reset,
 			colors.Yellow, sessionDisplay, colors.Reset,
 			formatAge(sg.Notification.Timestamp),
+			sg.Notification.ID,
 		)
 		_, _ = fmt.Fprintf(w, "   %s[%s]%s %s\n",
 			levelColor, level, colors.Reset,
@@ -211,8 +212,9 @@ func printTabsTable(groups []domain.SessionNotification, w io.Writer) {
 	header := fmt.Sprintf("%sSessions (%d)%s\n", colors.Bold, len(groups), colors.Reset)
 	_, _ = fmt.Fprint(w, header)
 	_, _ = fmt.Fprint(w, strings.Repeat("─", 80)+"\n")
-	_, _ = fmt.Fprintf(w, "%-4s %-20s %-8s %-10s %s\n",
+	_, _ = fmt.Fprintf(w, "%-4s %-7s %-20s %-8s %-10s %s\n",
 		colors.Bold+"Num"+colors.Reset,
+		colors.Bold+"ID"+colors.Reset,
 		colors.Bold+"Session"+colors.Reset,
 		colors.Bold+"Level"+colors.Reset,
 		colors.Bold+"Age"+colors.Reset,
@@ -233,8 +235,9 @@ func printTabsTable(groups []domain.SessionNotification, w io.Writer) {
 		age := formatAge(sg.Notification.Timestamp)
 		msg := truncateMessage(sg.Notification.Message, 30)
 
-		_, _ = fmt.Fprintf(w, "%-4d %-20s %s%-8s%s %-10s %s\n",
+		_, _ = fmt.Fprintf(w, "%-4d %-7d %-20s %s%-8s%s %-10s %s\n",
 			num,
+			sg.Notification.ID,
 			sessionDisplay,
 			levelColor, level, colors.Reset,
 			age,
@@ -246,6 +249,7 @@ func printTabsTable(groups []domain.SessionNotification, w io.Writer) {
 // tabSessionJSON represents a session in JSON output for tabs.
 type tabSessionJSON struct {
 	Num       int    `json:"num"`
+	ID        int    `json:"id"`
 	Session   string `json:"session"`
 	Level     string `json:"level"`
 	Timestamp string `json:"timestamp"`
@@ -265,6 +269,7 @@ func printTabsJSON(groups []domain.SessionNotification, w io.Writer) {
 	for i, sg := range groups {
 		sessions = append(sessions, tabSessionJSON{
 			Num:       i + 1,
+			ID:        sg.Notification.ID,
 			Session:   resolveSessionName(sg.Session, sessionNames),
 			Level:     string(sg.Notification.Level),
 			Timestamp: sg.Notification.Timestamp,

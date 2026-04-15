@@ -26,6 +26,7 @@ func TestPrintTabsSimple(t *testing.T) {
 			name: "single session",
 			groups: []domain.SessionNotification{
 				{Session: "dev", Notification: domain.Notification{
+					ID:        42,
 					Message:   "Test message",
 					Level:     domain.LevelInfo,
 					Timestamp: "2024-01-01T10:00:00Z",
@@ -34,6 +35,7 @@ func TestPrintTabsSimple(t *testing.T) {
 			wantContains: []string{
 				"Sessions (1)",
 				"dev",
+				"#42",
 				"Test message",
 			},
 		},
@@ -41,11 +43,13 @@ func TestPrintTabsSimple(t *testing.T) {
 			name: "multiple sessions sorted by recency",
 			groups: []domain.SessionNotification{
 				{Session: "prod", Notification: domain.Notification{
+					ID:        1,
 					Message:   "prod message",
 					Level:     domain.LevelError,
 					Timestamp: "2024-01-01T12:00:00Z",
 				}},
 				{Session: "dev", Notification: domain.Notification{
+					ID:        2,
 					Message:   "dev message",
 					Level:     domain.LevelWarning,
 					Timestamp: "2024-01-01T11:00:00Z",
@@ -55,6 +59,8 @@ func TestPrintTabsSimple(t *testing.T) {
 				"Sessions (2)",
 				"dev",
 				"prod",
+				"#1",
+				"#2",
 				"dev message",
 				"prod message",
 			},
@@ -93,6 +99,7 @@ func TestPrintTabsTable(t *testing.T) {
 			name: "single session in table format",
 			groups: []domain.SessionNotification{
 				{Session: "dev", Notification: domain.Notification{
+					ID:        7,
 					Message:   "Test message",
 					Level:     domain.LevelInfo,
 					Timestamp: "2024-01-01T10:00:00Z",
@@ -103,8 +110,10 @@ func TestPrintTabsTable(t *testing.T) {
 				"dev",
 				"Test message",
 				"Num",
+				"ID",
 				"Session",
 				"Level",
+				"7",
 			},
 		},
 	}
