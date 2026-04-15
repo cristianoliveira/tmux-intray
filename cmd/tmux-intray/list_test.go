@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -25,6 +26,19 @@ func mockLines() string {
 
 func restoreMock() {
 	listListFunc = nil
+}
+
+var simpleColumnsSeparator = regexp.MustCompile(`\s{2,}`)
+
+func splitSimpleColumns(t *testing.T, line string) []string {
+	t.Helper()
+
+	cols := simpleColumnsSeparator.Split(strings.TrimSpace(line), 7)
+	if len(cols) != 7 {
+		t.Fatalf("expected 7 columns, got %d from line %q", len(cols), line)
+	}
+
+	return cols
 }
 
 func TestPrintListEmpty(t *testing.T) {
@@ -81,23 +95,28 @@ func TestPrintListSimpleFormat(t *testing.T) {
 
 	PrintList(FilterOptions{Format: "simple"})
 	output := buf.String()
-	// Should contain ID, DATE, and message separator dash
-	if !strings.Contains(output, "1") || !strings.Contains(output, "2025-01-01") {
-		t.Error("Simple format missing ID or timestamp")
-	}
-	// Should contain separator dash
-	if !strings.Contains(output, "-") {
-		t.Error("Simple format missing separator dash")
-	}
-	// Should contain messages
-	if !strings.Contains(output, "message one") || !strings.Contains(output, "message two") {
-		t.Error("Simple format missing messages")
-	}
-	// Check line structure: should have one per notification
 	lines := strings.Split(strings.TrimSpace(output), "\n")
 	if len(lines) != 5 {
 		t.Errorf("Expected 5 lines, got %d", len(lines))
 	}
+
+	first := splitSimpleColumns(t, lines[0])
+	assert.Equal(t, "2", first[0])
+	assert.Equal(t, "2025-01-01T11:00:00Z", first[1])
+	assert.Equal(t, "sess1", first[2])
+	assert.Equal(t, "win1", first[3])
+	assert.Equal(t, "pane2", first[4])
+	assert.Equal(t, "warning", first[5])
+	assert.Equal(t, "message two", first[6])
+
+	third := splitSimpleColumns(t, lines[2])
+	assert.Equal(t, "1", third[0])
+	assert.Equal(t, "2025-01-01T10:00:00Z", third[1])
+	assert.Equal(t, "sess1", third[2])
+	assert.Equal(t, "win1", third[3])
+	assert.Equal(t, "pane1", third[4])
+	assert.Equal(t, "info", third[5])
+	assert.Equal(t, "message one", third[6])
 }
 
 func TestPrintListUnreadFirstOrdering(t *testing.T) {
@@ -115,11 +134,8 @@ func TestPrintListUnreadFirstOrdering(t *testing.T) {
 
 	var ids []int
 	for _, line := range strings.Split(output, "\n") {
-		fields := strings.Fields(line)
-		if len(fields) == 0 {
-			continue
-		}
-		id, err := strconv.Atoi(fields[0])
+		cols := splitSimpleColumns(t, line)
+		id, err := strconv.Atoi(cols[0])
 		if err != nil {
 			t.Fatalf("failed to parse ID from line %q: %v", line, err)
 		}
@@ -255,9 +271,9 @@ func TestPrintListGroupByLevelSimple(t *testing.T) {
 	if !strings.Contains(output, "=== error (1) ===") {
 		t.Error("Missing error group header")
 	}
-	// Should contain ID and timestamps in simple format
-	if !strings.Contains(output, "-") {
-		t.Error("Simple format missing separator dash")
+	// Should contain ID, timestamps, routing fields, level, and message in simple format
+	if !strings.Contains(output, "sess1") || !strings.Contains(output, "win1") || !strings.Contains(output, "pane1") || !strings.Contains(output, "info") {
+		t.Error("Simple grouped format missing session, window, pane, or level")
 	}
 }
 

@@ -3,11 +3,26 @@ package format
 import (
 	"bytes"
 	"encoding/json"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/stretchr/testify/assert"
 )
+
+var simpleColumnsSeparator = regexp.MustCompile(`\s{2,}`)
+
+func splitSimpleColumns(t *testing.T, line string) []string {
+	t.Helper()
+
+	cols := simpleColumnsSeparator.Split(strings.TrimSpace(line), 7)
+	if len(cols) != 7 {
+		t.Fatalf("expected 7 columns, got %d from line %q", len(cols), line)
+	}
+
+	return cols
+}
 
 func TestFormatterFactory(t *testing.T) {
 	tests := []struct {
@@ -39,11 +54,19 @@ func TestSimpleFormatter(t *testing.T) {
 		{
 			ID:        1,
 			Timestamp: "2025-01-01T10:00:00Z",
+			Session:   "sess1",
+			Window:    "win1",
+			Pane:      "pane1",
+			Level:     domain.LevelInfo,
 			Message:   "short message",
 		},
 		{
 			ID:        2,
 			Timestamp: "2025-01-01T11:00:00Z",
+			Session:   "sess2",
+			Window:    "win2",
+			Pane:      "pane2",
+			Level:     domain.LevelWarning,
 			Message:   "this is a very long message that should be truncated because it exceeds the maximum allowed length for display",
 		},
 	}
@@ -51,12 +74,27 @@ func TestSimpleFormatter(t *testing.T) {
 	err := formatter.FormatNotifications(notifications, &buf)
 	assert.NoError(t, err)
 
-	output := buf.String()
-	assert.Contains(t, output, "1")
-	assert.Contains(t, output, "2025-01-01T10:00:00Z")
-	assert.Contains(t, output, "short message")
-	assert.Contains(t, output, "this is a very long message that should be trun...")
-	assert.NotContains(t, output, "because it exceeds")
+	output := strings.TrimSpace(buf.String())
+	lines := strings.Split(output, "\n")
+	assert.Len(t, lines, 2)
+
+	first := splitSimpleColumns(t, lines[0])
+	assert.Equal(t, "1", first[0])
+	assert.Equal(t, "2025-01-01T10:00:00Z", first[1])
+	assert.Equal(t, "sess1", first[2])
+	assert.Equal(t, "win1", first[3])
+	assert.Equal(t, "pane1", first[4])
+	assert.Equal(t, "info", first[5])
+	assert.Equal(t, "short message", first[6])
+
+	second := splitSimpleColumns(t, lines[1])
+	assert.Equal(t, "2", second[0])
+	assert.Equal(t, "2025-01-01T11:00:00Z", second[1])
+	assert.Equal(t, "sess2", second[2])
+	assert.Equal(t, "win2", second[3])
+	assert.Equal(t, "pane2", second[4])
+	assert.Equal(t, "warning", second[5])
+	assert.Equal(t, "this is a very long message that should be trun...", second[6])
 }
 
 func TestLegacyFormatter(t *testing.T) {
