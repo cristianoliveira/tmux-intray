@@ -1,17 +1,14 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"strings"
-	"time"
 
-	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
+	"github.com/cristianoliveira/tmux-intray/internal/format"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
-	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 )
 
 // TabsOptions holds options for the tabs command.
@@ -62,7 +59,7 @@ func printTabs(opts TabsOptions, w io.Writer) {
 
 	notifications := parseTabsNotifications(lines)
 	if len(notifications) == 0 {
-		_, _ = fmt.Fprintf(w, "%sNo notifications found%s\n", colors.Blue, colors.Reset)
+		_, _ = fmt.Fprintln(w, "No notifications found")
 		return
 	}
 
@@ -70,18 +67,35 @@ func printTabs(opts TabsOptions, w io.Writer) {
 	sessionGroups := groupBySession(notifications)
 
 	if len(sessionGroups) == 0 {
-		_, _ = fmt.Fprintf(w, "%sNo sessions with notifications found%s\n", colors.Blue, colors.Reset)
+		_, _ = fmt.Fprintln(w, "No sessions with notifications found")
 		return
 	}
 
+	// Render using the same formatter implementation as `tmux-intray list`.
 	switch opts.Format {
-	case "table":
-		printTabsTable(sessionGroups, w)
 	case "json":
-		printTabsJSON(sessionGroups, w)
+		formatTabsUsingListFormatter(sessionGroups, format.FormatterTypeJSON, w)
+	case "table":
+		formatTabsUsingListFormatter(sessionGroups, format.FormatterTypeTable, w)
+	case "legacy":
+		formatTabsUsingListFormatter(sessionGroups, format.FormatterTypeLegacy, w)
+	case "compact":
+		formatTabsUsingListFormatter(sessionGroups, format.FormatterTypeCompact, w)
 	default:
-		printTabsSimple(sessionGroups, w)
+		formatTabsUsingListFormatter(sessionGroups, format.FormatterTypeSimple, w)
 	}
+}
+
+func formatTabsUsingListFormatter(groups []domain.SessionNotification, ftype format.FormatterType, w io.Writer) {
+	formatter := format.NewFormatter(ftype)
+
+	notifs := make([]*domain.Notification, 0, len(groups))
+	for i := range groups {
+		n := groups[i].Notification
+		notifs = append(notifs, &n)
+	}
+
+	_ = formatter.FormatNotifications(notifs, w)
 }
 
 // parseTabsNotifications parses notification lines.
@@ -149,186 +163,5 @@ func domainNotificationToPointer(n *notification.Notification) *domain.Notificat
 	}
 }
 
-// resolveSessionName resolves a session ID to its display name using tmux.
-// Returns the resolved name, or the original ID if resolution fails.
-func resolveSessionName(sessionID string, sessionNames map[string]string) string {
-	if sessionID == "" {
-		return ""
-	}
-	if name, ok := sessionNames[sessionID]; ok && name != "" {
-		return name
-	}
-	return sessionID
-}
-
-// getSessionNamesForTabs returns a map of session IDs to names from tmux.
-func getSessionNamesForTabs() map[string]string {
-	client := tmux.NewDefaultClient()
-	sessionNames, err := client.ListSessions()
-	if err != nil || sessionNames == nil {
-		return make(map[string]string)
-	}
-	return sessionNames
-}
-
-// printTabsSimple prints sessions in simple format.
-func printTabsSimple(groups []domain.SessionNotification, w io.Writer) {
-	sessionNames := getSessionNamesForTabs()
-
-	header := fmt.Sprintf("%sSessions (%d)%s\n", colors.Bold, len(groups), colors.Reset)
-	_, _ = fmt.Fprint(w, header)
-	_, _ = fmt.Fprint(w, strings.Repeat("─", 60)+"\n")
-
-	for i, sg := range groups {
-		num := i + 1
-		sessionDisplay := resolveSessionName(sg.Session, sessionNames)
-		if sg.Notification.Session != "" {
-			sessionDisplay = resolveSessionName(sg.Notification.Session, sessionNames)
-		}
-
-		level := string(sg.Notification.Level)
-		levelColor := levelColorCode(level)
-
-		_, _ = fmt.Fprintf(w, "%s%d.%s %s%s%s %s #%d\n",
-			colors.Bold, num, colors.Reset,
-			colors.Yellow, sessionDisplay, colors.Reset,
-			formatAge(sg.Notification.Timestamp),
-			sg.Notification.ID,
-		)
-		_, _ = fmt.Fprintf(w, "   %s[%s]%s %s\n",
-			levelColor, level, colors.Reset,
-			truncateMessage(sg.Notification.Message, 50),
-		)
-		if i < len(groups)-1 {
-			_, _ = fmt.Fprint(w, "\n")
-		}
-	}
-}
-
-// printTabsTable prints sessions in table format.
-func printTabsTable(groups []domain.SessionNotification, w io.Writer) {
-	sessionNames := getSessionNamesForTabs()
-
-	header := fmt.Sprintf("%sSessions (%d)%s\n", colors.Bold, len(groups), colors.Reset)
-	_, _ = fmt.Fprint(w, header)
-	_, _ = fmt.Fprint(w, strings.Repeat("─", 80)+"\n")
-	_, _ = fmt.Fprintf(w, "%-4s %-7s %-20s %-8s %-10s %s\n",
-		colors.Bold+"Num"+colors.Reset,
-		colors.Bold+"ID"+colors.Reset,
-		colors.Bold+"Session"+colors.Reset,
-		colors.Bold+"Level"+colors.Reset,
-		colors.Bold+"Age"+colors.Reset,
-		colors.Bold+"Message"+colors.Reset,
-	)
-	_, _ = fmt.Fprint(w, strings.Repeat("─", 80)+"\n")
-
-	for i, sg := range groups {
-		num := i + 1
-		sessionDisplay := resolveSessionName(sg.Session, sessionNames)
-		if len(sessionDisplay) > 18 {
-			sessionDisplay = sessionDisplay[:15] + "..."
-		}
-
-		level := string(sg.Notification.Level)
-		levelColor := levelColorCode(level)
-
-		age := formatAge(sg.Notification.Timestamp)
-		msg := truncateMessage(sg.Notification.Message, 30)
-
-		_, _ = fmt.Fprintf(w, "%-4d %-7d %-20s %s%-8s%s %-10s %s\n",
-			num,
-			sg.Notification.ID,
-			sessionDisplay,
-			levelColor, level, colors.Reset,
-			age,
-			msg,
-		)
-	}
-}
-
-// tabSessionJSON represents a session in JSON output for tabs.
-type tabSessionJSON struct {
-	Num       int    `json:"num"`
-	ID        int    `json:"id"`
-	Session   string `json:"session"`
-	Level     string `json:"level"`
-	Timestamp string `json:"timestamp"`
-	Age       string `json:"age"`
-	Message   string `json:"message"`
-	Window    string `json:"window,omitempty"`
-	Pane      string `json:"pane,omitempty"`
-	Unread    bool   `json:"unread"`
-	SessionID string `json:"session_id,omitempty"` // Raw session ID for debugging
-}
-
-// printTabsJSON prints sessions in JSON format.
-func printTabsJSON(groups []domain.SessionNotification, w io.Writer) {
-	sessionNames := getSessionNamesForTabs()
-
-	sessions := make([]tabSessionJSON, 0, len(groups))
-	for i, sg := range groups {
-		sessions = append(sessions, tabSessionJSON{
-			Num:       i + 1,
-			ID:        sg.Notification.ID,
-			Session:   resolveSessionName(sg.Session, sessionNames),
-			Level:     string(sg.Notification.Level),
-			Timestamp: sg.Notification.Timestamp,
-			Age:       formatAge(sg.Notification.Timestamp),
-			Message:   sg.Notification.Message,
-			Window:    sg.Notification.Window,
-			Pane:      sg.Notification.Pane,
-			Unread:    !sg.Notification.IsRead(),
-			SessionID: sg.Session, // Include raw session ID for debugging
-		})
-	}
-
-	encoder := json.NewEncoder(w)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(sessions); err != nil {
-		_, _ = fmt.Fprintf(w, "tabs: failed to encode JSON: %v\n", err)
-	}
-}
-
-// levelColorCode returns ANSI color code for notification level.
-func levelColorCode(level string) string {
-	switch level {
-	case "error":
-		return colors.Red
-	case "warning":
-		return colors.Yellow
-	case "critical":
-		return colors.Bold + colors.Red
-	default:
-		return colors.Reset
-	}
-}
-
-// formatAge formats a timestamp as relative age (e.g., "2h").
-func formatAge(timestamp string) string {
-	if timestamp == "" {
-		return ""
-	}
-	t, err := time.Parse(time.RFC3339, timestamp)
-	if err != nil {
-		return timestamp
-	}
-
-	duration := time.Since(t)
-
-	if duration < time.Minute {
-		return fmt.Sprintf("%ds", int(duration.Seconds()))
-	} else if duration < time.Hour {
-		return fmt.Sprintf("%dm", int(duration.Minutes()))
-	} else if duration < 24*time.Hour {
-		return fmt.Sprintf("%dh", int(duration.Hours()))
-	}
-	return fmt.Sprintf("%dd", int(duration.Hours()/24))
-}
-
-// truncateMessage truncates a message to maxLen characters.
-func truncateMessage(msg string, maxLen int) string {
-	if len(msg) <= maxLen {
-		return msg
-	}
-	return msg[:maxLen-3] + "..."
-}
+// NOTE: sessions output formatting is intentionally shared with `tmux-intray list`
+// via internal/format. Older custom renderers were removed to keep output consistent.

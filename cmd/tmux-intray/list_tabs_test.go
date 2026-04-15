@@ -6,130 +6,48 @@ import (
 	"testing"
 
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
+	"github.com/cristianoliveira/tmux-intray/internal/format"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 )
 
-func TestPrintTabsSimple(t *testing.T) {
-	tests := []struct {
-		name         string
-		groups       []domain.SessionNotification
-		wantContains []string
-	}{
-		{
-			name:   "empty groups shows only header",
-			groups: []domain.SessionNotification{},
-			wantContains: []string{
-				"Sessions (0)",
-			},
-		},
-		{
-			name: "single session",
-			groups: []domain.SessionNotification{
-				{Session: "dev", Notification: domain.Notification{
-					ID:        42,
-					Message:   "Test message",
-					Level:     domain.LevelInfo,
-					Timestamp: "2024-01-01T10:00:00Z",
-				}},
-			},
-			wantContains: []string{
-				"Sessions (1)",
-				"dev",
-				"#42",
-				"Test message",
-			},
-		},
-		{
-			name: "multiple sessions sorted by recency",
-			groups: []domain.SessionNotification{
-				{Session: "prod", Notification: domain.Notification{
-					ID:        1,
-					Message:   "prod message",
-					Level:     domain.LevelError,
-					Timestamp: "2024-01-01T12:00:00Z",
-				}},
-				{Session: "dev", Notification: domain.Notification{
-					ID:        2,
-					Message:   "dev message",
-					Level:     domain.LevelWarning,
-					Timestamp: "2024-01-01T11:00:00Z",
-				}},
-			},
-			wantContains: []string{
-				"Sessions (2)",
-				"dev",
-				"prod",
-				"#1",
-				"#2",
-				"dev message",
-				"prod message",
-			},
-		},
+func TestFormatTabsUsingListFormatterSimple(t *testing.T) {
+	groups := []domain.SessionNotification{
+		{Session: "dev", Notification: domain.Notification{ID: 42, Timestamp: "2024-01-01T10:00:00Z", Message: "Test message"}},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var buf bytes.Buffer
-			printTabsSimple(tt.groups, &buf)
-			output := buf.String()
+	var buf bytes.Buffer
+	formatTabsUsingListFormatter(groups, format.FormatterTypeSimple, &buf)
 
-			for _, want := range tt.wantContains {
-				if !strings.Contains(output, want) {
-					t.Errorf("expected output to contain %q, got:\n%s", want, output)
-				}
-			}
-		})
+	out := buf.String()
+	if !strings.HasPrefix(out, "42") {
+		t.Fatalf("expected output to start with notification id, got: %q", out)
+	}
+	if !strings.Contains(out, "- Test message") {
+		t.Fatalf("expected output to include message, got: %q", out)
 	}
 }
 
-func TestPrintTabsTable(t *testing.T) {
-	tests := []struct {
-		name         string
-		groups       []domain.SessionNotification
-		wantContains []string
-	}{
-		{
-			name:   "empty groups shows only header",
-			groups: []domain.SessionNotification{},
-			wantContains: []string{
-				"Sessions (0)",
-			},
-		},
-		{
-			name: "single session in table format",
-			groups: []domain.SessionNotification{
-				{Session: "dev", Notification: domain.Notification{
-					ID:        7,
-					Message:   "Test message",
-					Level:     domain.LevelInfo,
-					Timestamp: "2024-01-01T10:00:00Z",
-				}},
-			},
-			wantContains: []string{
-				"Sessions (1)",
-				"dev",
-				"Test message",
-				"Num",
-				"ID",
-				"Session",
-				"Level",
-				"7",
-			},
-		},
+func TestFormatTabsUsingListFormatterTable(t *testing.T) {
+	groups := []domain.SessionNotification{
+		{Session: "dev", Notification: domain.Notification{ID: 7, Timestamp: "2024-01-01T10:00:00Z", Message: "Test message"}},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var buf bytes.Buffer
-			printTabsTable(tt.groups, &buf)
-			output := buf.String()
+	var buf bytes.Buffer
+	formatTabsUsingListFormatter(groups, format.FormatterTypeTable, &buf)
 
-			for _, want := range tt.wantContains {
-				if !strings.Contains(output, want) {
-					t.Errorf("expected output to contain %q, got:\n%s", want, output)
-				}
-			}
-		})
+	out := buf.String()
+	for _, want := range []string{"ID", "DATE", "7", "Test message"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected output to contain %q, got:\n%s", want, out)
+		}
+	}
+}
+
+func TestFormatTabsUsingListFormatterEmpty(t *testing.T) {
+	var buf bytes.Buffer
+	formatTabsUsingListFormatter(nil, format.FormatterTypeSimple, &buf)
+	if buf.Len() != 0 {
+		t.Fatalf("expected no output for empty groups, got: %q", buf.String())
 	}
 }
 
