@@ -7,46 +7,35 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cristianoliveira/tmux-intray/internal/format"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 )
 
-func TestPrintRecentsSimpleIncludesID(t *testing.T) {
+func TestFormatRecentsUsingListFormatterSimpleMatchesListStyle(t *testing.T) {
 	notifs := []notification.Notification{
-		{ID: 42, Session: "$1", Level: "error", Timestamp: time.Now().Add(-5 * time.Minute).UTC().Format(time.RFC3339), Message: "boom"},
+		{ID: 42, Level: "error", Timestamp: time.Now().UTC().Format(time.RFC3339), Message: "boom"},
 	}
 
 	var buf bytes.Buffer
-	printRecentsSimple(notifs, &buf)
+	formatRecentsUsingListFormatter(notifs, format.FormatterTypeSimple, &buf)
 
 	out := buf.String()
-	if !strings.Contains(out, "#42") {
-		t.Fatalf("expected output to include notification id, got:\n%s", out)
+	// list simple format starts with the numeric ID
+	if !strings.HasPrefix(out, "42") {
+		t.Fatalf("expected output to start with notification id, got: %q", out)
+	}
+	if !strings.Contains(out, "- boom") {
+		t.Fatalf("expected output to include message, got: %q", out)
 	}
 }
 
-func TestPrintRecentsTableIncludesIDColumn(t *testing.T) {
+func TestFormatRecentsUsingListFormatterJSONIncludesID(t *testing.T) {
 	notifs := []notification.Notification{
-		{ID: 7, Session: "$1", Level: "info", Timestamp: time.Now().Add(-2 * time.Minute).UTC().Format(time.RFC3339), Message: "hello"},
+		{ID: 99, Level: "warning", Timestamp: time.Now().UTC().Format(time.RFC3339), Message: "warn"},
 	}
 
 	var buf bytes.Buffer
-	printRecentsTable(notifs, &buf)
-	out := buf.String()
-
-	for _, want := range []string{"ID", "7"} {
-		if !strings.Contains(out, want) {
-			t.Fatalf("expected output to contain %q, got:\n%s", want, out)
-		}
-	}
-}
-
-func TestPrintRecentsJSONIncludesIDField(t *testing.T) {
-	notifs := []notification.Notification{
-		{ID: 99, Session: "$1", Level: "warning", Timestamp: time.Now().Add(-1 * time.Minute).UTC().Format(time.RFC3339), Message: "warn"},
-	}
-
-	var buf bytes.Buffer
-	printRecentsJSON(notifs, &buf)
+	formatRecentsUsingListFormatter(notifs, format.FormatterTypeJSON, &buf)
 
 	var got []map[string]any
 	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
@@ -55,7 +44,7 @@ func TestPrintRecentsJSONIncludesIDField(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("expected 1 json item, got %d", len(got))
 	}
-	if got[0]["id"] != float64(99) { // encoding/json uses float64 for numbers in map[string]any
-		t.Fatalf("expected json to include id=99, got: %#v", got[0])
+	if got[0]["ID"] != float64(99) {
+		t.Fatalf("expected json to include ID=99, got: %#v", got[0])
 	}
 }
