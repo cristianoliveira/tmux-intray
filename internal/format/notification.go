@@ -25,12 +25,29 @@ func (f *SimpleFormatter) FormatNotifications(notifications []*domain.Notificati
 		if len(displayMsg) > 50 {
 			displayMsg = displayMsg[:47] + "..."
 		}
-		_, err := fmt.Fprintf(writer, "%-4d  %-25s  - %s\n", n.ID, n.Timestamp, displayMsg)
+		_, err := fmt.Fprintf(
+			writer,
+			"%-4d  %-25s  %-12s  %-12s  %-12s  %-8s  %s\n",
+			n.ID,
+			n.Timestamp,
+			displayField(n.Session),
+			displayField(n.Window),
+			displayField(n.Pane),
+			displayField(n.Level.String()),
+			displayMsg,
+		)
 		if err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func displayField(value string) string {
+	if value == "" {
+		return "-"
+	}
+	return value
 }
 
 // FormatGroups formats grouped notifications in simple format.
