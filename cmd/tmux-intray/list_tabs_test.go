@@ -22,8 +22,10 @@ func TestFormatTabsUsingListFormatterSimple(t *testing.T) {
 	if !strings.HasPrefix(out, "42") {
 		t.Fatalf("expected output to start with notification id, got: %q", out)
 	}
-	if !strings.Contains(out, "- Test message") {
-		t.Fatalf("expected output to include message, got: %q", out)
+
+	cols := splitSimpleColumns(t, strings.TrimSpace(out))
+	if got := cols[6]; got != "Test message" {
+		t.Fatalf("expected message column to be %q, got: %q (full=%q)", "Test message", got, out)
 	}
 }
 

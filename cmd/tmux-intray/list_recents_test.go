@@ -20,12 +20,15 @@ func TestFormatRecentsUsingListFormatterSimpleMatchesListStyle(t *testing.T) {
 	formatRecentsUsingListFormatter(notifs, format.FormatterTypeSimple, &buf)
 
 	out := buf.String()
-	// list simple format starts with the numeric ID
+	// simple format starts with the numeric ID
 	if !strings.HasPrefix(out, "42") {
 		t.Fatalf("expected output to start with notification id, got: %q", out)
 	}
-	if !strings.Contains(out, "- boom") {
-		t.Fatalf("expected output to include message, got: %q", out)
+
+	// Output is column-based (same as internal/format SimpleFormatter)
+	cols := splitSimpleColumns(t, strings.TrimSpace(out))
+	if got := cols[6]; got != "boom" {
+		t.Fatalf("expected message column to be %q, got: %q (full=%q)", "boom", got, out)
 	}
 }
 
