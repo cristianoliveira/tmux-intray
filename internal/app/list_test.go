@@ -12,6 +12,17 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type fakeSearchProviderFactory struct {
+	calls int
+	regex []bool
+}
+
+func (f *fakeSearchProviderFactory) Build(regex bool) search.Provider {
+	f.calls++
+	f.regex = append(f.regex, regex)
+	return search.NewSubstringProvider(search.WithFields([]string{"level"}))
+}
+
 type fakeListClient struct {
 	result string
 	err    error
@@ -60,7 +71,7 @@ func testLines() string {
 
 func TestListUseCaseExecuteEmpty(t *testing.T) {
 	client := &fakeListClient{result: ""}
-	useCase := NewListUseCase(client)
+	useCase := NewListUseCase(client, nil)
 
 	var buf bytes.Buffer
 	useCase.Execute(ListOptions{Format: "simple"}, &buf)
@@ -70,7 +81,7 @@ func TestListUseCaseExecuteEmpty(t *testing.T) {
 
 func TestListUseCaseExecuteClientError(t *testing.T) {
 	client := &fakeListClient{err: errors.New("storage error")}
-	useCase := NewListUseCase(client)
+	useCase := NewListUseCase(client, nil)
 
 	var buf bytes.Buffer
 	useCase.Execute(ListOptions{}, &buf)
@@ -80,7 +91,7 @@ func TestListUseCaseExecuteClientError(t *testing.T) {
 
 func TestListUseCaseExecuteUnreadFirstOrdering(t *testing.T) {
 	client := &fakeListClient{result: testLines()}
-	useCase := NewListUseCase(client)
+	useCase := NewListUseCase(client, nil)
 
 	var buf bytes.Buffer
 	useCase.Execute(ListOptions{Format: "simple"}, &buf)
@@ -105,7 +116,7 @@ func TestListUseCaseExecuteUnreadFirstOrdering(t *testing.T) {
 func TestListUseCaseExecuteWithCustomSearchProvider(t *testing.T) {
 	client := &fakeListClient{result: "1\t2025-01-01T10:00:00Z\tactive\tsess1\twin1\tpane1\terror message\t123\terror\n" +
 		"2\t2025-01-01T11:00:00Z\tactive\tsess1\twin1\tpane2\twarning message\t124\twarning\n"}
-	useCase := NewListUseCase(client)
+	useCase := NewListUseCase(client, nil)
 
 	var buf bytes.Buffer
 	provider := search.NewSubstringProvider(search.WithFields([]string{"level"}))
@@ -121,7 +132,7 @@ func TestListUseCaseExecuteWithCustomSearchProvider(t *testing.T) {
 
 func TestListUseCaseFetchesThroughClient(t *testing.T) {
 	client := &fakeListClient{result: testLines()}
-	useCase := NewListUseCase(client)
+	useCase := NewListUseCase(client, nil)
 
 	var buf bytes.Buffer
 	useCase.Execute(ListOptions{
@@ -147,6 +158,24 @@ func TestListUseCaseFetchesThroughClient(t *testing.T) {
 		assert.Equal(t, "2026-01-02T00:00:00Z", call.newerThan)
 		assert.Equal(t, "unread", call.readFilter)
 	}
+}
+
+func TestListUseCaseExecuteBuildsSearchProviderFromInjectedFactory(t *testing.T) {
+	client := &fakeListClient{result: "1\t2025-01-01T10:00:00Z\tactive\tsess1\twin1\tpane1\terror message\t123\terror\n" +
+		"2\t2025-01-01T11:00:00Z\tactive\tsess1\twin1\tpane2\twarning message\t124\twarning\n"}
+	factory := &fakeSearchProviderFactory{}
+	useCase := NewListUseCase(client, factory.Build)
+
+	var buf bytes.Buffer
+	useCase.Execute(ListOptions{
+		Search: "error",
+		Format: "legacy",
+	}, &buf)
+
+	assert.Equal(t, 1, factory.calls)
+	assert.Equal(t, []bool{false}, factory.regex)
+	assert.Contains(t, buf.String(), "error message")
+	assert.NotContains(t, buf.String(), "warning message")
 }
 
 func TestOrderUnreadFirstPreservesRelativeOrder(t *testing.T) {

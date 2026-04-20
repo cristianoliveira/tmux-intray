@@ -12,6 +12,8 @@ import (
 
 	appcore "github.com/cristianoliveira/tmux-intray/internal/app"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
+	"github.com/cristianoliveira/tmux-intray/internal/search"
+	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	"github.com/spf13/cobra"
 )
 
@@ -253,8 +255,40 @@ func printList(opts FilterOptions, w io.Writer) {
 		client = listFuncClient{}
 	}
 
-	useCase := appcore.NewListUseCase(client)
+	useCase := appcore.NewListUseCase(client, newListSearchProvider)
 	useCase.Execute(appcore.ListOptions(opts), w)
+}
+
+func newListSearchProvider(regex bool) search.Provider {
+	client := tmux.NewDefaultClient()
+	sessionNames, _ := client.ListSessions()
+	if sessionNames == nil {
+		sessionNames = make(map[string]string)
+	}
+	windowNames, _ := client.ListWindows()
+	if windowNames == nil {
+		windowNames = make(map[string]string)
+	}
+	paneNames, _ := client.ListPanes()
+	if paneNames == nil {
+		paneNames = make(map[string]string)
+	}
+
+	if regex {
+		return search.NewRegexProvider(
+			search.WithCaseInsensitive(false),
+			search.WithSessionNames(sessionNames),
+			search.WithWindowNames(windowNames),
+			search.WithPaneNames(paneNames),
+		)
+	}
+
+	return search.NewSubstringProvider(
+		search.WithCaseInsensitive(false),
+		search.WithSessionNames(sessionNames),
+		search.WithWindowNames(windowNames),
+		search.WithPaneNames(paneNames),
+	)
 }
 
 // orderUnreadFirst places unread notifications before read notifications.

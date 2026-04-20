@@ -48,7 +48,9 @@ The risk is that the CLI may bypass or duplicate shared business logic that idea
 ### 4. Clean dependency injection and composition
 - [ ] Identify hidden dependency creation inside use-case/service code
 - [ ] Move default dependency construction to the composition root (`cmd/tmux-intray/deps.go` or equivalent)
-- [ ] Inject config/time/tmux/search dependencies instead of resolving them inside shared logic
+- [~] Inject config/time/tmux/search dependencies instead of resolving them inside shared logic
+  - `internal/app/list.go` no longer creates a tmux client directly; search provider creation now happens in the CLI adapter (`cmd/tmux-intray/list.go`)
+  - follow-up: move that factory again into `cmd/tmux-intray/deps.go` so command wiring stays thin
 - [ ] Remove or reduce package-level globals/default clients where they cross into business flow
 
 ### 5. Simplify overlapping abstractions
