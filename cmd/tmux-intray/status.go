@@ -18,9 +18,12 @@ type statusClient interface {
 }
 
 // NewStatusCmd creates the status command with explicit dependencies.
-func NewStatusCmd(client statusClient) *cobra.Command {
+func NewStatusCmd(client statusClient, presetLookup appcore.StatusPresetLookup) *cobra.Command {
 	if client == nil {
 		panic("NewStatusCmd: client dependency cannot be nil")
+	}
+	if presetLookup == nil {
+		panic("NewStatusCmd: presetLookup dependency cannot be nil")
 	}
 
 	var formatFlag string
@@ -79,7 +82,7 @@ See docs/status-guide.md for detailed documentation and more examples.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			format := determineStatusFormat(cmd, formatFlag)
 			w := cmd.OutOrStdout()
-			return runStatusCommandWithFormat(client, format, w)
+			return runStatusCommandWithFormat(client, format, w, presetLookup)
 		},
 	}
 
@@ -93,8 +96,8 @@ func determineStatusFormat(cmd *cobra.Command, formatFlag string) string {
 }
 
 // runStatusCommandWithFormat executes the status command with format support.
-func runStatusCommandWithFormat(client statusClient, format string, w io.Writer) error {
-	useCase := appcore.NewStatusUseCase(client)
+func runStatusCommandWithFormat(client statusClient, format string, w io.Writer, presetLookup appcore.StatusPresetLookup) error {
+	useCase := appcore.NewStatusUseCase(client, presetLookup)
 	return useCase.Execute(format, w)
 }
 

@@ -759,7 +759,7 @@ func TestNewListCmdPanicsWhenClientIsNil(t *testing.T) {
 		}
 	}()
 
-	NewListCmd(nil)
+	NewListCmd(nil, defaultListSearchProvider)
 }
 
 func TestListCmdFlagValidation(t *testing.T) {
@@ -785,7 +785,7 @@ func TestListCmdFlagValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := &fakeListClient{}
-			cmd := NewListCmd(client)
+			cmd := NewListCmd(client, defaultListSearchProvider)
 			setFlag(t, cmd, tt.flagName, tt.flagValue)
 			err := cmd.RunE(cmd, []string{})
 			if err == nil {
@@ -889,7 +889,7 @@ func TestListCmdRunEFlagCombinations(t *testing.T) {
 			client := &fakeListClient{
 				listNotificationsResult: "",
 			}
-			cmd := NewListCmd(client)
+			cmd := NewListCmd(client, defaultListSearchProvider)
 			for flag, value := range tt.flags {
 				setFlag(t, cmd, flag, value)
 			}
@@ -918,7 +918,7 @@ func TestListCmdRunEClientError(t *testing.T) {
 	client := &fakeListClient{
 		listNotificationsError: errors.New("storage error"),
 	}
-	cmd := NewListCmd(client)
+	cmd := NewListCmd(client, defaultListSearchProvider)
 
 	var buf bytes.Buffer
 	listOutputWriter = &buf
@@ -988,7 +988,7 @@ func TestListCmdTabWithFilters(t *testing.T) {
 			client := &fakeListClient{
 				listNotificationsResult: "",
 			}
-			cmd := NewListCmd(client)
+			cmd := NewListCmd(client, defaultListSearchProvider)
 
 			// Set tab flag
 			setFlag(t, cmd, "tab", tt.tab)

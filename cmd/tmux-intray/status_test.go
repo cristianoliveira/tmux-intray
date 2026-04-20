@@ -78,7 +78,7 @@ func TestNewStatusCmdPanicsWhenClientIsNil(t *testing.T) {
 		}
 	}()
 
-	NewStatusCmd(nil)
+	NewStatusCmd(nil, defaultStatusPresetLookup)
 }
 
 func TestStatusRunEDefaultCompactPreset(t *testing.T) {
@@ -86,7 +86,7 @@ func TestStatusRunEDefaultCompactPreset(t *testing.T) {
 		ensureTmuxRunningResult: true,
 		listNotificationsResult: statusMockLines(),
 	}
-	cmd := NewStatusCmd(client)
+	cmd := NewStatusCmd(client, defaultStatusPresetLookup)
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
 
@@ -101,7 +101,7 @@ func TestStatusRunELegacySummaryAliasMapsToCompact(t *testing.T) {
 		ensureTmuxRunningResult: true,
 		listNotificationsResult: statusMockLines(),
 	}
-	cmd := NewStatusCmd(client)
+	cmd := NewStatusCmd(client, defaultStatusPresetLookup)
 	require.NoError(t, cmd.Flags().Set("format", "summary"))
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
@@ -167,7 +167,7 @@ func TestStatusRunEPresetFormats(t *testing.T) {
 				ensureTmuxRunningResult: true,
 				listNotificationsResult: statusMockLines(),
 			}
-			cmd := NewStatusCmd(client)
+			cmd := NewStatusCmd(client, defaultStatusPresetLookup)
 			require.NoError(t, cmd.Flags().Set("format", tt.format))
 			var stdout bytes.Buffer
 			cmd.SetOut(&stdout)
@@ -184,7 +184,7 @@ func TestStatusRunECustomTemplateVariables(t *testing.T) {
 		ensureTmuxRunningResult: true,
 		listNotificationsResult: statusMockLines(),
 	}
-	cmd := NewStatusCmd(client)
+	cmd := NewStatusCmd(client, defaultStatusPresetLookup)
 	require.NoError(t, cmd.Flags().Set("format", "{{critical-count}}"))
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
@@ -199,7 +199,7 @@ func TestStatusRunEMixedCustomTemplateSyntax(t *testing.T) {
 		ensureTmuxRunningResult: true,
 		listNotificationsResult: statusMockLines(),
 	}
-	cmd := NewStatusCmd(client)
+	cmd := NewStatusCmd(client, defaultStatusPresetLookup)
 	require.NoError(t, cmd.Flags().Set("format", "critical={{critical-count}} unread={{.UnreadCount}}"))
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
@@ -214,7 +214,7 @@ func TestStatusRunEResolvesAllTemplateVariables(t *testing.T) {
 		ensureTmuxRunningResult: true,
 		listNotificationsResult: statusMockLines(),
 	}
-	cmd := NewStatusCmd(client)
+	cmd := NewStatusCmd(client, defaultStatusPresetLookup)
 	require.NoError(t, cmd.Flags().Set("format", "{{unread-count}}|{{total-count}}|{{read-count}}|{{active-count}}|{{dismissed-count}}|{{latest-message}}|{{has-unread}}|{{has-active}}|{{has-dismissed}}|{{highest-severity}}|{{session-list}}|{{window-list}}|{{pane-list}}"))
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
@@ -228,7 +228,7 @@ func TestStatusRunEBooleanVariablesRenderFalseLiterals(t *testing.T) {
 	client := &fakeStatusClient{
 		ensureTmuxRunningResult: true,
 	}
-	cmd := NewStatusCmd(client)
+	cmd := NewStatusCmd(client, defaultStatusPresetLookup)
 	require.NoError(t, cmd.Flags().Set("format", "{{has-unread}}|{{has-active}}|{{has-dismissed}}"))
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
@@ -243,7 +243,7 @@ func TestStatusRunEPreservesTmuxColorCodes(t *testing.T) {
 		ensureTmuxRunningResult: true,
 		listNotificationsResult: statusMockLines(),
 	}
-	cmd := NewStatusCmd(client)
+	cmd := NewStatusCmd(client, defaultStatusPresetLookup)
 	require.NoError(t, cmd.Flags().Set("format", "#[fg=red]{{critical-count}}#[default]"))
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
@@ -255,7 +255,7 @@ func TestStatusRunEPreservesTmuxColorCodes(t *testing.T) {
 
 func TestStatusRunEInvalidVariableReturnsHelpfulError(t *testing.T) {
 	client := &fakeStatusClient{ensureTmuxRunningResult: true}
-	cmd := NewStatusCmd(client)
+	cmd := NewStatusCmd(client, defaultStatusPresetLookup)
 	require.NoError(t, cmd.Flags().Set("format", "{{unknown-var}}"))
 
 	err := cmd.RunE(cmd, []string{})
@@ -270,7 +270,7 @@ func TestStatusRunEInvalidVariableReturnsHelpfulError(t *testing.T) {
 
 func TestStatusRunEInvalidVariableNameReturnsError(t *testing.T) {
 	client := &fakeStatusClient{ensureTmuxRunningResult: true}
-	cmd := NewStatusCmd(client)
+	cmd := NewStatusCmd(client, defaultStatusPresetLookup)
 	require.NoError(t, cmd.Flags().Set("format", "{{critical_count}}"))
 
 	err := cmd.RunE(cmd, []string{})
@@ -279,7 +279,7 @@ func TestStatusRunEInvalidVariableNameReturnsError(t *testing.T) {
 
 func TestStatusRunEUnknownPresetReturnsHelpfulError(t *testing.T) {
 	client := &fakeStatusClient{ensureTmuxRunningResult: true}
-	cmd := NewStatusCmd(client)
+	cmd := NewStatusCmd(client, defaultStatusPresetLookup)
 	require.NoError(t, cmd.Flags().Set("format", "not-a-preset"))
 
 	err := cmd.RunE(cmd, []string{})
@@ -288,7 +288,7 @@ func TestStatusRunEUnknownPresetReturnsHelpfulError(t *testing.T) {
 
 func TestStatusRunETmuxNotRunning(t *testing.T) {
 	client := &fakeStatusClient{ensureTmuxRunningResult: false}
-	cmd := NewStatusCmd(client)
+	cmd := NewStatusCmd(client, defaultStatusPresetLookup)
 
 	err := cmd.RunE(cmd, []string{})
 	require.Error(t, err)
@@ -302,7 +302,7 @@ func TestStatusRunEEnvironmentFormatOverride(t *testing.T) {
 		ensureTmuxRunningResult: true,
 		listNotificationsResult: statusMockLines(),
 	}
-	cmd := NewStatusCmd(client)
+	cmd := NewStatusCmd(client, defaultStatusPresetLookup)
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
 
@@ -317,7 +317,7 @@ func TestStatusRunEFlagTakesPrecedenceOverEnvironment(t *testing.T) {
 		ensureTmuxRunningResult: true,
 		listNotificationsResult: statusMockLines(),
 	}
-	cmd := NewStatusCmd(client)
+	cmd := NewStatusCmd(client, defaultStatusPresetLookup)
 	require.NoError(t, cmd.Flags().Set("format", "{{unread-count}}"))
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
@@ -328,7 +328,7 @@ func TestStatusRunEFlagTakesPrecedenceOverEnvironment(t *testing.T) {
 }
 
 func TestStatusHelpIncludesTemplateExamples(t *testing.T) {
-	cmd := NewStatusCmd(&fakeStatusClient{ensureTmuxRunningResult: true})
+	cmd := NewStatusCmd(&fakeStatusClient{ensureTmuxRunningResult: true}, defaultStatusPresetLookup)
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
 

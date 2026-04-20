@@ -12,8 +12,6 @@ import (
 
 	appcore "github.com/cristianoliveira/tmux-intray/internal/app"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
-	"github.com/cristianoliveira/tmux-intray/internal/search"
-	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	"github.com/spf13/cobra"
 )
 
@@ -57,9 +55,12 @@ ORDERING:
 // NewListCmd creates the list command with explicit dependencies.
 //
 //nolint:funlen // Command wiring with flags and handlers is intentionally centralized.
-func NewListCmd(client listClient) *cobra.Command {
+func NewListCmd(client listClient, searchProviderFactory appcore.SearchProviderFactory) *cobra.Command {
 	if client == nil {
 		panic("NewListCmd: client dependency cannot be nil")
+	}
+	if searchProviderFactory == nil {
+		panic("NewListCmd: searchProviderFactory dependency cannot be nil")
 	}
 
 	// Create the main list command
@@ -137,7 +138,10 @@ func NewListCmd(client listClient) *cobra.Command {
 			Format:     listFormat,
 			ReadFilter: listFilter,
 		}
-		PrintList(opts)
+		if listOutputWriter == nil {
+			listOutputWriter = cmd.OutOrStdout()
+		}
+		printList(opts, listOutputWriter, searchProviderFactory)
 		return nil
 	}
 
@@ -246,49 +250,17 @@ func PrintList(opts FilterOptions) {
 	if listOutputWriter == nil {
 		listOutputWriter = os.Stdout
 	}
-	printList(opts, listOutputWriter)
+	printList(opts, listOutputWriter, defaultListSearchProvider)
 }
 
-func printList(opts FilterOptions, w io.Writer) {
+func printList(opts FilterOptions, w io.Writer, searchProviderFactory appcore.SearchProviderFactory) {
 	client := opts.Client
 	if client == nil {
 		client = listFuncClient{}
 	}
 
-	useCase := appcore.NewListUseCase(client, newListSearchProvider)
+	useCase := appcore.NewListUseCase(client, searchProviderFactory)
 	useCase.Execute(appcore.ListOptions(opts), w)
-}
-
-func newListSearchProvider(regex bool) search.Provider {
-	client := tmux.NewDefaultClient()
-	sessionNames, _ := client.ListSessions()
-	if sessionNames == nil {
-		sessionNames = make(map[string]string)
-	}
-	windowNames, _ := client.ListWindows()
-	if windowNames == nil {
-		windowNames = make(map[string]string)
-	}
-	paneNames, _ := client.ListPanes()
-	if paneNames == nil {
-		paneNames = make(map[string]string)
-	}
-
-	if regex {
-		return search.NewRegexProvider(
-			search.WithCaseInsensitive(false),
-			search.WithSessionNames(sessionNames),
-			search.WithWindowNames(windowNames),
-			search.WithPaneNames(paneNames),
-		)
-	}
-
-	return search.NewSubstringProvider(
-		search.WithCaseInsensitive(false),
-		search.WithSessionNames(sessionNames),
-		search.WithWindowNames(windowNames),
-		search.WithPaneNames(paneNames),
-	)
 }
 
 // orderUnreadFirst places unread notifications before read notifications.

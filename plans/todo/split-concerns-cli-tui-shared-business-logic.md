@@ -36,8 +36,13 @@ The risk is that the CLI may bypass or duplicate shared business logic that idea
 
 ### 3. Move shared behavior into `internal/app/*`
 - [ ] Extract business decisions from `cmd/tmux-intray/add.go` into `internal/app/add.go`
-- [ ] Extract business decisions from `cmd/tmux-intray/list.go` into `internal/app/list.go`
-- [ ] Extract business decisions from `cmd/tmux-intray/status.go` into `internal/app/status.go`
+- [~] Extract business decisions from `cmd/tmux-intray/list.go` into `internal/app/list.go`
+  - shared list behavior now lives in `internal/app/list.go`
+  - remaining cleanup: remove package-level CLI test hooks like `listOutputWriter` / `listListFunc`
+- [~] Extract business decisions from `cmd/tmux-intray/status.go` into `internal/app/status.go`
+  - shared status behavior already lives in `internal/app/status.go`
+  - preset resolution is now injectable from composition root
+  - remaining cleanup: identify if any adapter-specific formatting decisions still leak into app layer
 - [ ] Keep only CLI-specific concerns in `cmd/*`:
   - Cobra wiring
   - flags/args parsing
@@ -46,11 +51,15 @@ The risk is that the CLI may bypass or duplicate shared business logic that idea
 - [ ] Ensure TUI uses the same application-level behavior where appropriate
 
 ### 4. Clean dependency injection and composition
-- [ ] Identify hidden dependency creation inside use-case/service code
-- [ ] Move default dependency construction to the composition root (`cmd/tmux-intray/deps.go` or equivalent)
+- [~] Identify hidden dependency creation inside use-case/service code
+  - removed hidden tmux/search construction from `internal/app/list.go`
+  - removed hidden status preset registry creation from `cmd/tmux-intray/status.go` by injecting preset lookup into the use case path
+- [~] Move default dependency construction to the composition root (`cmd/tmux-intray/deps.go` or equivalent)
+  - list search provider factory now lives in `cmd/tmux-intray/deps.go`
+  - status preset lookup now lives in `cmd/tmux-intray/deps.go`
 - [~] Inject config/time/tmux/search dependencies instead of resolving them inside shared logic
-  - `internal/app/list.go` no longer creates a tmux client directly; search provider creation now happens in the CLI adapter (`cmd/tmux-intray/list.go`)
-  - follow-up: move that factory again into `cmd/tmux-intray/deps.go` so command wiring stays thin
+  - `internal/app/list.go` no longer creates a tmux client directly
+  - `internal/app/status.go` can receive preset resolution via injected dependency
 - [ ] Remove or reduce package-level globals/default clients where they cross into business flow
 
 ### 5. Simplify overlapping abstractions

@@ -5,8 +5,10 @@ import (
 	"strings"
 	"testing"
 
+	appcore "github.com/cristianoliveira/tmux-intray/internal/app"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
 	"github.com/cristianoliveira/tmux-intray/internal/ports"
+	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/app"
 	"github.com/spf13/cobra"
@@ -205,6 +207,12 @@ func TestBuildCLIDepsWithFactoriesSuccess(t *testing.T) {
 	stubStorage := &fakeStorage{}
 	stubCore := &fakeCore{}
 	stubTUI := &fakeTUIClient{}
+	stubSearchProviderFactory := func(regex bool) search.Provider {
+		return search.NewSubstringProvider()
+	}
+	stubStatusPresetLookup := func(name string) (string, bool) {
+		return "{{unread-count}}", true
+	}
 
 	factories := testFactories()
 	factories.newStorage = func() (ports.NotificationRepository, error) {
@@ -218,6 +226,12 @@ func TestBuildCLIDepsWithFactoriesSuccess(t *testing.T) {
 	}
 	factories.newTUI = func() (tuiClient, error) {
 		return stubTUI, nil
+	}
+	factories.newListSearchProvider = func() listSearchProviderFactory {
+		return stubSearchProviderFactory
+	}
+	factories.newStatusPresetLookup = func() appcore.StatusPresetLookup {
+		return stubStatusPresetLookup
 	}
 
 	deps, err := buildCLIDepsWithFactories(factories)
@@ -233,6 +247,12 @@ func TestBuildCLIDepsWithFactoriesSuccess(t *testing.T) {
 	if deps.tuiClient != stubTUI {
 		t.Fatal("expected tuiClient to match stub")
 	}
+	if deps.listSearchProviderFactory == nil {
+		t.Fatal("expected listSearchProviderFactory to be set")
+	}
+	if deps.statusPresetLookup == nil {
+		t.Fatal("expected statusPresetLookup to be set")
+	}
 }
 
 func TestDefaultCLIDepsFactoriesWireRuntimeConstructors(t *testing.T) {
@@ -246,6 +266,12 @@ func TestDefaultCLIDepsFactoriesWireRuntimeConstructors(t *testing.T) {
 	}
 	if factories.newTUI == nil {
 		t.Fatal("expected tui factory to be set")
+	}
+	if factories.newListSearchProvider == nil {
+		t.Fatal("expected list search provider factory to be set")
+	}
+	if factories.newStatusPresetLookup == nil {
+		t.Fatal("expected status preset lookup to be set")
 	}
 
 	coreClient, err := factories.newCore(&fakeStorage{})
@@ -263,6 +289,16 @@ func TestDefaultCLIDepsFactoriesWireRuntimeConstructors(t *testing.T) {
 	if tuiClient == nil {
 		t.Fatal("expected tui client to be created")
 	}
+
+	listSearchProviderFactory := factories.newListSearchProvider()
+	if listSearchProviderFactory == nil {
+		t.Fatal("expected list search provider factory to be created")
+	}
+
+	statusPresetLookup := factories.newStatusPresetLookup()
+	if statusPresetLookup == nil {
+		t.Fatal("expected status preset lookup to be created")
+	}
 }
 
 func TestRegisterCommandsAddsCommands(t *testing.T) {
@@ -277,9 +313,11 @@ func TestRegisterCommandsAddsCommands(t *testing.T) {
 
 	root := &cobra.Command{Use: "root"}
 	deps := cliDeps{
-		coreClient: &fakeCore{},
-		storage:    &fakeStorage{},
-		tuiClient:  &fakeTUIClient{},
+		coreClient:                &fakeCore{},
+		storage:                   &fakeStorage{},
+		tuiClient:                 &fakeTUIClient{},
+		listSearchProviderFactory: func(regex bool) search.Provider { return search.NewSubstringProvider() },
+		statusPresetLookup:        func(name string) (string, bool) { return "{{unread-count}}", true },
 	}
 
 	registerCommands(root, deps)
