@@ -30,6 +30,9 @@ func NewStatusUseCase(client StatusClient, presetLookup StatusPresetLookup) *Sta
 	if client == nil {
 		panic("NewStatusUseCase: client dependency cannot be nil")
 	}
+	if presetLookup == nil {
+		panic("NewStatusUseCase: presetLookup dependency cannot be nil")
+	}
 
 	return &StatusUseCase{client: client, presetLookup: presetLookup}
 }
@@ -63,14 +66,8 @@ func (u *StatusUseCase) Execute(formatValue string, w io.Writer) error {
 		return formatJSON(u.client, w)
 	}
 
-	if u.presetLookup != nil {
-		if template, ok := u.presetLookup(formatValue); ok {
-			return runStatusWithTemplate(u.client, template, w)
-		}
-	} else {
-		if preset, err := formatter.NewPresetRegistry().Get(formatValue); err == nil {
-			return runStatusWithTemplate(u.client, preset.Template, w)
-		}
+	if template, ok := u.presetLookup(formatValue); ok {
+		return runStatusWithTemplate(u.client, template, w)
 	}
 
 	return runStatusWithTemplate(u.client, formatValue, w)

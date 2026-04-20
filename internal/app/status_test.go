@@ -18,6 +18,13 @@ func (f *fakeStatusPresetLookup) Lookup(name string) (string, bool) {
 	if name == "compact" {
 		return "[{{unread-count}}] {{latest-message}}", true
 	}
+	if name == "detailed" {
+		return "{{unread-count}} unread, {{read-count}} read | Latest: {{latest-message}}", true
+	}
+	return "", false
+}
+
+func missingStatusPresetLookup(name string) (string, bool) {
 	return "", false
 }
 
@@ -80,7 +87,7 @@ func TestDetermineStatusFormat(t *testing.T) {
 
 func TestStatusUseCaseExecuteCompactPreset(t *testing.T) {
 	client := &fakeStatusClient{ensureTmuxRunningResult: true, listNotificationsResult: statusMockLines()}
-	useCase := NewStatusUseCase(client, nil)
+	useCase := NewStatusUseCase(client, (&fakeStatusPresetLookup{}).Lookup)
 	var buf bytes.Buffer
 
 	err := useCase.Execute("compact", &buf)
@@ -90,7 +97,7 @@ func TestStatusUseCaseExecuteCompactPreset(t *testing.T) {
 
 func TestStatusUseCaseExecuteDetailedPreset(t *testing.T) {
 	client := &fakeStatusClient{ensureTmuxRunningResult: true, listNotificationsResult: statusMockLines()}
-	useCase := NewStatusUseCase(client, nil)
+	useCase := NewStatusUseCase(client, (&fakeStatusPresetLookup{}).Lookup)
 	var buf bytes.Buffer
 
 	err := useCase.Execute("detailed", &buf)
@@ -111,7 +118,7 @@ func TestStatusUseCaseExecuteLegacyFormats(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.format, func(t *testing.T) {
 			client := &fakeStatusClient{ensureTmuxRunningResult: true, listNotificationsResult: statusMockLines()}
-			useCase := NewStatusUseCase(client, nil)
+			useCase := NewStatusUseCase(client, missingStatusPresetLookup)
 			var buf bytes.Buffer
 
 			err := useCase.Execute(tt.format, &buf)
@@ -123,7 +130,7 @@ func TestStatusUseCaseExecuteLegacyFormats(t *testing.T) {
 
 func TestStatusUseCaseExecuteCustomTemplate(t *testing.T) {
 	client := &fakeStatusClient{ensureTmuxRunningResult: true, listNotificationsResult: statusMockLines()}
-	useCase := NewStatusUseCase(client, nil)
+	useCase := NewStatusUseCase(client, missingStatusPresetLookup)
 	var buf bytes.Buffer
 
 	err := useCase.Execute("{{critical-count}}|{{unread-count}}|{{latest-message}}", &buf)
@@ -133,7 +140,7 @@ func TestStatusUseCaseExecuteCustomTemplate(t *testing.T) {
 
 func TestStatusUseCaseExecuteTmuxNotRunning(t *testing.T) {
 	client := &fakeStatusClient{ensureTmuxRunningResult: false}
-	useCase := NewStatusUseCase(client, nil)
+	useCase := NewStatusUseCase(client, missingStatusPresetLookup)
 	var buf bytes.Buffer
 
 	err := useCase.Execute("compact", &buf)

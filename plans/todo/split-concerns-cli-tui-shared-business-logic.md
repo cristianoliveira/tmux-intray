@@ -41,7 +41,8 @@ The risk is that the CLI may bypass or duplicate shared business logic that idea
   - remaining cleanup: remove package-level CLI test hooks like `listOutputWriter` / `listListFunc`
 - [~] Extract business decisions from `cmd/tmux-intray/status.go` into `internal/app/status.go`
   - shared status behavior already lives in `internal/app/status.go`
-  - preset resolution is now injectable from composition root
+  - preset resolution is injected from composition root
+  - removed fallback preset-registry construction from app layer
   - remaining cleanup: identify if any adapter-specific formatting decisions still leak into app layer
 - [ ] Keep only CLI-specific concerns in `cmd/*`:
   - Cobra wiring
@@ -59,7 +60,7 @@ The risk is that the CLI may bypass or duplicate shared business logic that idea
   - status preset lookup now lives in `cmd/tmux-intray/deps.go`
 - [~] Inject config/time/tmux/search dependencies instead of resolving them inside shared logic
   - `internal/app/list.go` no longer creates a tmux client directly
-  - `internal/app/status.go` can receive preset resolution via injected dependency
+  - `internal/app/status.go` now requires injected preset resolution and no longer builds preset registries itself
 - [ ] Remove or reduce package-level globals/default clients where they cross into business flow
 
 ### 5. Simplify overlapping abstractions
