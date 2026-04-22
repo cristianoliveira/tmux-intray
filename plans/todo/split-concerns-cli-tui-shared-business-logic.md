@@ -38,7 +38,8 @@ The risk is that the CLI may bypass or duplicate shared business logic that idea
 - [ ] Extract business decisions from `cmd/tmux-intray/add.go` into `internal/app/add.go`
 - [~] Extract business decisions from `cmd/tmux-intray/list.go` into `internal/app/list.go`
   - shared list behavior now lives in `internal/app/list.go`
-  - remaining cleanup: remove package-level CLI test hooks like `listOutputWriter` / `listListFunc`
+  - removed package-level CLI test hooks like `listOutputWriter` / `listListFunc`
+  - remaining cleanup: review whether `PrintList` should keep existing adapter helper role or move behind narrower adapter surface
 - [~] Extract business decisions from `cmd/tmux-intray/status.go` into `internal/app/status.go`
   - shared status behavior already lives in `internal/app/status.go`
   - preset resolution is injected from composition root
@@ -61,7 +62,9 @@ The risk is that the CLI may bypass or duplicate shared business logic that idea
 - [~] Inject config/time/tmux/search dependencies instead of resolving them inside shared logic
   - `internal/app/list.go` no longer creates a tmux client directly
   - `internal/app/status.go` now requires injected preset resolution and no longer builds preset registries itself
-- [ ] Remove or reduce package-level globals/default clients where they cross into business flow
+- [~] Remove or reduce package-level globals/default clients where they cross into business flow
+  - removed package-level list test hooks from `cmd/tmux-intray/list.go`
+  - follow-up: inspect other commands for similar package-level adapter state
 
 ### 5. Simplify overlapping abstractions
 - [ ] Compare `internal/domain`, `internal/ports`, and `internal/storage` interfaces for overlap
