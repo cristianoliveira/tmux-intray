@@ -1,0 +1,79 @@
+{
+  "generated_at": "2026-04-26",
+  "purpose": "Fast project orientation for future agents. Read this before broad repo exploration when you only need core features and subsystem shape.",
+  "project": {
+    "name": "tmux-intray",
+    "module": "github.com/cristianoliveira/tmux-intray",
+    "language": "Go",
+    "summary": "Go CLI + TUI notification inbox for tmux, centered on persistent contextual messages and fast navigation back to the pane that produced them."
+  },
+  "core_features": [
+    "Capture notifications/messages from panes, scripts, and tools via CLI",
+    "Persist notifications in SQLite across tmux/session restarts",
+    "List, filter, search, and format notifications for shell pipelines",
+    "Preserve source context: pane, window, and session metadata",
+    "Jump back to the originating tmux pane/window/session",
+    "Manage inbox state: mark-read, dismiss, clear, cleanup",
+    "Expose unread/total status for tmux status bar integration",
+    "Provide interactive TUI for browsing and acting on notifications",
+    "Support lifecycle hooks and integrations"
+  ],
+  "entrypoints": {
+    "binary": "cmd/tmux-intray/main.go",
+    "root_command": "cmd/root.go",
+    "main_commands": [
+      "add",
+      "list",
+      "jump",
+      "dismiss",
+      "clear",
+      "follow",
+      "status",
+      "settings",
+      "tui",
+      "cleanup",
+      "mark-read"
+    ]
+  },
+  "architecture": {
+    "cmd": "CLI command surface built with Cobra",
+    "internal/core": "Main business operations around notifications",
+    "internal/domain": "Notification model, filters, sorting",
+    "internal/storage/sqlite": "SQLite-backed persistence and queries",
+    "internal/tmux": "tmux client integration and context handling",
+    "internal/hooks": "Lifecycle extension points around notification events",
+    "internal/config": "Application configuration",
+    "internal/settings": "Persisted user/TUI settings",
+    "internal/tui/state": "Largest subsystem; Bubble Tea state and behavior",
+    "internal/tui/controller": "TUI interaction orchestration",
+    "internal/tui/render": "TUI rendering",
+    "internal/tui/service": "TUI-facing application services",
+    "internal/search": "Search and filtering helpers",
+    "internal/dedup": "Duplicate control",
+    "internal/formatter": "Output formatting"
+  },
+  "design_signals": [
+    "CLI-first",
+    "tmux-aware",
+    "persistent",
+    "composable output",
+    "custom TUI over same core/storage",
+    "clear separation of domain, storage, tmux, and tui"
+  ],
+  "repo_scale": {
+    "approx_files": 225,
+    "approx_functions": 2916,
+    "largest_subsystem": "internal/tui"
+  },
+  "recommended_next_reads": [
+    "README.md",
+    "docs/philosophy.md",
+    "cmd/root.go",
+    "cmd/tmux-intray/main.go"
+  ],
+  "recommended_next_ast_queries": [
+    "ast_map on internal/ excluding tests if you need runtime shape only",
+    "trace add -> store -> list -> jump flow",
+    "inspect package dependencies around internal/core, internal/storage/sqlite, internal/tmux, internal/tui"
+  ]
+}

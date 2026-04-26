@@ -28,6 +28,7 @@ Detailed development guidelines in [DEVELOPMENT.md](./DEVELOPMENT.md).
 - **Hooks System**: See [Hooks Documentation](./docs/hooks.md)
 - **Troubleshooting**: See [Troubleshooting Guide](./docs/troubleshooting.md)
 - **Code design**: See [design](./docs/design/)
+- **Fast project orientation**: Read `./.ast.map.json` first when you only need core features, entrypoints, and subsystem shape before deeper repo exploration
 
 <!-- BEGIN BEADS INTEGRATION -->
 ## Issue Tracking with bd (beads)
