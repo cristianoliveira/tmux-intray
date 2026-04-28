@@ -6,7 +6,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"time"
 
@@ -138,10 +137,7 @@ func NewListCmd(client listClient, searchProviderFactory appcore.SearchProviderF
 			Format:     listFormat,
 			ReadFilter: listFilter,
 		}
-		if listOutputWriter == nil {
-			listOutputWriter = cmd.OutOrStdout()
-		}
-		printList(opts, listOutputWriter, searchProviderFactory)
+		PrintList(opts, cmd.OutOrStdout(), searchProviderFactory)
 		return nil
 	}
 
@@ -227,39 +223,12 @@ func validateListOptions(groupBy, filter string) error {
 	return nil
 }
 
-// listOutputWriter is the writer used by PrintList. Can be changed for testing.
-var listOutputWriter io.Writer = os.Stdout
-
-// listListFunc is the function used to retrieve notifications. Can be changed for testing.
-var listListFunc func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error)
-
 // FilterOptions holds all filter parameters for listing notifications.
 type FilterOptions = appcore.ListOptions
 
-type listFuncClient struct{}
-
-func (listFuncClient) ListNotifications(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
-	if listListFunc == nil {
-		return "", fmt.Errorf("list: missing client")
-	}
-	return listListFunc(state, level, session, window, pane, olderThan, newerThan, readFilter)
-}
-
 // PrintList prints notifications according to the provided filter options.
-func PrintList(opts FilterOptions) {
-	if listOutputWriter == nil {
-		listOutputWriter = os.Stdout
-	}
-	printList(opts, listOutputWriter, defaultListSearchProvider)
-}
-
-func printList(opts FilterOptions, w io.Writer, searchProviderFactory appcore.SearchProviderFactory) {
-	client := opts.Client
-	if client == nil {
-		client = listFuncClient{}
-	}
-
-	useCase := appcore.NewListUseCase(client, searchProviderFactory)
+func PrintList(opts FilterOptions, w io.Writer, searchProviderFactory appcore.SearchProviderFactory) {
+	useCase := appcore.NewListUseCase(opts.Client, searchProviderFactory)
 	useCase.Execute(appcore.ListOptions(opts), w)
 }
 

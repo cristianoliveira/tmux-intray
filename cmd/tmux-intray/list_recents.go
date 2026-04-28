@@ -226,6 +226,6 @@ func PrintTab(opts TabOptions) {
 			Level:   opts.Level,
 			Window:  opts.Window,
 			Pane:    opts.Pane,
-		})
+		}, os.Stdout, defaultListSearchProvider)
 	}
 }

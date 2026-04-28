@@ -24,8 +24,15 @@ func mockLines() string {
 5	2025-01-01T14:00:00Z	active	sess3	win3	pane5	message five	127	info	2025-01-01T14:05:00Z`
 }
 
-func restoreMock() {
-	listListFunc = nil
+type fakeListCommandClient struct {
+	listFunc func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error)
+}
+
+func (f fakeListCommandClient) ListNotifications(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+	if f.listFunc == nil {
+		return "", errors.New("list: missing client")
+	}
+	return f.listFunc(state, level, session, window, pane, olderThan, newerThan, readFilter)
 }
 
 var simpleColumnsSeparator = regexp.MustCompile(`\s{2,}`)
@@ -42,16 +49,13 @@ func splitSimpleColumns(t *testing.T, line string) []string {
 }
 
 func TestPrintListEmpty(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+	client := fakeListCommandClient{listFunc: func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
 		return "", nil
-	}
-	defer restoreMock()
+	}}
 
 	var buf bytes.Buffer
-	listOutputWriter = &buf
-	defer func() { listOutputWriter = nil }()
 
-	PrintList(FilterOptions{})
+	PrintList(FilterOptions{Client: client}, &buf, defaultListSearchProvider)
 	output := buf.String()
 	if output != "\033[0;34mNo notifications found\033[0m\n" {
 		t.Errorf("Expected colored 'No notifications found', got %q", output)
@@ -59,16 +63,13 @@ func TestPrintListEmpty(t *testing.T) {
 }
 
 func TestPrintListLegacyFormat(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+	client := fakeListCommandClient{listFunc: func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
 		return mockLines(), nil
-	}
-	defer restoreMock()
+	}}
 
 	var buf bytes.Buffer
-	listOutputWriter = &buf
-	defer func() { listOutputWriter = nil }()
 
-	PrintList(FilterOptions{Format: "legacy"})
+	PrintList(FilterOptions{Client: client, Format: "legacy"}, &buf, defaultListSearchProvider)
 	output := buf.String()
 	// Should contain only messages, one per line
 	if !strings.Contains(output, "message one") {
@@ -84,16 +85,13 @@ func TestPrintListLegacyFormat(t *testing.T) {
 }
 
 func TestPrintListSimpleFormat(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+	client := fakeListCommandClient{listFunc: func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
 		return mockLines(), nil
-	}
-	defer restoreMock()
+	}}
 
 	var buf bytes.Buffer
-	listOutputWriter = &buf
-	defer func() { listOutputWriter = nil }()
 
-	PrintList(FilterOptions{Format: "simple"})
+	PrintList(FilterOptions{Client: client, Format: "simple"}, &buf, defaultListSearchProvider)
 	output := buf.String()
 	lines := strings.Split(strings.TrimSpace(output), "\n")
 	if len(lines) != 5 {
@@ -120,16 +118,13 @@ func TestPrintListSimpleFormat(t *testing.T) {
 }
 
 func TestPrintListUnreadFirstOrdering(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+	client := fakeListCommandClient{listFunc: func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
 		return mockLines(), nil
-	}
-	defer restoreMock()
+	}}
 
 	var buf bytes.Buffer
-	listOutputWriter = &buf
-	defer func() { listOutputWriter = nil }()
 
-	PrintList(FilterOptions{Format: "simple"})
+	PrintList(FilterOptions{Client: client, Format: "simple"}, &buf, defaultListSearchProvider)
 	output := strings.TrimSpace(buf.String())
 
 	var ids []int
@@ -146,16 +141,13 @@ func TestPrintListUnreadFirstOrdering(t *testing.T) {
 }
 
 func TestPrintListTableFormat(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+	client := fakeListCommandClient{listFunc: func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
 		return mockLines(), nil
-	}
-	defer restoreMock()
+	}}
 
 	var buf bytes.Buffer
-	listOutputWriter = &buf
-	defer func() { listOutputWriter = nil }()
 
-	PrintList(FilterOptions{Format: "table"})
+	PrintList(FilterOptions{Client: client, Format: "table"}, &buf, defaultListSearchProvider)
 	output := buf.String()
 	// Should contain header with ID and DATE
 	if !strings.Contains(output, "ID") || !strings.Contains(output, "DATE") {
@@ -177,16 +169,13 @@ func TestPrintListTableFormat(t *testing.T) {
 }
 
 func TestPrintListCompactFormat(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+	client := fakeListCommandClient{listFunc: func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
 		return mockLines(), nil
-	}
-	defer restoreMock()
+	}}
 
 	var buf bytes.Buffer
-	listOutputWriter = &buf
-	defer func() { listOutputWriter = nil }()
 
-	PrintList(FilterOptions{Format: "compact"})
+	PrintList(FilterOptions{Client: client, Format: "compact"}, &buf, defaultListSearchProvider)
 	output := buf.String()
 	// Should contain messages only, no extra whitespace
 	lines := strings.Split(strings.TrimSpace(output), "\n")
@@ -201,17 +190,14 @@ func TestPrintListCompactFormat(t *testing.T) {
 }
 
 func TestPrintListSearchFilter(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+	client := fakeListCommandClient{listFunc: func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
 		return mockLines(), nil
-	}
-	defer restoreMock()
+	}}
 
 	var buf bytes.Buffer
-	listOutputWriter = &buf
-	defer func() { listOutputWriter = nil }()
 
 	// Substring search
-	PrintList(FilterOptions{Search: "three", Format: "legacy"})
+	PrintList(FilterOptions{Client: client, Search: "three", Format: "legacy"}, &buf, defaultListSearchProvider)
 	output := buf.String()
 	if !strings.Contains(output, "message three") {
 		t.Error("Search filter didn't find 'message three'")
@@ -222,17 +208,14 @@ func TestPrintListSearchFilter(t *testing.T) {
 }
 
 func TestPrintListRegexSearch(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+	client := fakeListCommandClient{listFunc: func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
 		return mockLines(), nil
-	}
-	defer restoreMock()
+	}}
 
 	var buf bytes.Buffer
-	listOutputWriter = &buf
-	defer func() { listOutputWriter = nil }()
 
 	// Regex search for messages ending with 'e'
-	PrintList(FilterOptions{Search: "e$", Regex: true, Format: "legacy"})
+	PrintList(FilterOptions{Client: client, Search: "e$", Regex: true, Format: "legacy"}, &buf, defaultListSearchProvider)
 	output := buf.String()
 	// message one, three, five end with 'e'
 	if !strings.Contains(output, "message one") {
@@ -250,16 +233,13 @@ func TestPrintListRegexSearch(t *testing.T) {
 }
 
 func TestPrintListGroupByLevelSimple(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+	client := fakeListCommandClient{listFunc: func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
 		return mockLines(), nil
-	}
-	defer restoreMock()
+	}}
 
 	var buf bytes.Buffer
-	listOutputWriter = &buf
-	defer func() { listOutputWriter = nil }()
 
-	PrintList(FilterOptions{GroupBy: "level", Format: "simple"})
+	PrintList(FilterOptions{Client: client, GroupBy: "level", Format: "simple"}, &buf, defaultListSearchProvider)
 	output := buf.String()
 	// Should contain group headers
 	if !strings.Contains(output, "=== info (3) ===") {
@@ -278,16 +258,13 @@ func TestPrintListGroupByLevelSimple(t *testing.T) {
 }
 
 func TestPrintListGroupByLevel(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+	client := fakeListCommandClient{listFunc: func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
 		return mockLines(), nil
-	}
-	defer restoreMock()
+	}}
 
 	var buf bytes.Buffer
-	listOutputWriter = &buf
-	defer func() { listOutputWriter = nil }()
 
-	PrintList(FilterOptions{GroupBy: "level", Format: "legacy"})
+	PrintList(FilterOptions{Client: client, GroupBy: "level", Format: "legacy"}, &buf, defaultListSearchProvider)
 	output := buf.String()
 	// Should contain group headers
 	if !strings.Contains(output, "=== info (3) ===") {
@@ -304,18 +281,15 @@ func TestPrintListGroupByLevel(t *testing.T) {
 func TestPrintListGroupByMessage(t *testing.T) {
 	t.Setenv("TMUX_INTRAY_DEDUP__CRITERIA", "message")
 	t.Setenv("TMUX_INTRAY_DEDUP__WINDOW", "")
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+	client := fakeListCommandClient{listFunc: func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
 		return "1\t2025-01-01T10:00:00Z\tactive\tsess1\twin1\tpane1\trepeated message\t123\tinfo\t\n" +
 			"2\t2025-01-01T11:00:00Z\tactive\tsess1\twin1\tpane2\trepeated message\t124\twarning\t\n" +
 			"3\t2025-01-01T12:00:00Z\tactive\tsess2\twin2\tpane3\tunique message\t125\terror\t\n", nil
-	}
-	defer restoreMock()
+	}}
 
 	var buf bytes.Buffer
-	listOutputWriter = &buf
-	defer func() { listOutputWriter = nil }()
 
-	PrintList(FilterOptions{GroupBy: "message", Format: "legacy"})
+	PrintList(FilterOptions{Client: client, GroupBy: "message", Format: "legacy"}, &buf, defaultListSearchProvider)
 	output := buf.String()
 	if !strings.Contains(output, "=== repeated message (2) ===") {
 		t.Error("Missing repeated message group header")
@@ -326,16 +300,13 @@ func TestPrintListGroupByMessage(t *testing.T) {
 }
 
 func TestPrintListGroupCount(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+	client := fakeListCommandClient{listFunc: func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
 		return mockLines(), nil
-	}
-	defer restoreMock()
+	}}
 
 	var buf bytes.Buffer
-	listOutputWriter = &buf
-	defer func() { listOutputWriter = nil }()
 
-	PrintList(FilterOptions{GroupBy: "level", GroupCount: true})
+	PrintList(FilterOptions{Client: client, GroupBy: "level", GroupCount: true}, &buf, defaultListSearchProvider)
 	output := buf.String()
 	// Should contain group counts only
 	if !strings.Contains(output, "Group: info (3)") {
@@ -354,15 +325,12 @@ func TestPrintListGroupCount(t *testing.T) {
 }
 
 func TestPrintListWithCustomSearchProvider(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+	client := fakeListCommandClient{listFunc: func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
 		return "1\t2025-01-01T10:00:00Z\tactive\tsess1\twin1\tpane1\terror message\t123\terror\n" +
 			"2\t2025-01-01T11:00:00Z\tactive\tsess1\twin1\tpane2\twarning message\t124\twarning\n", nil
-	}
-	defer restoreMock()
+	}}
 
 	var buf bytes.Buffer
-	listOutputWriter = &buf
-	defer func() { listOutputWriter = nil }()
 
 	// Test with custom search provider that only matches "error"
 	mockProvider := search.NewSubstringProvider(search.WithFields([]string{"level"}))
@@ -372,7 +340,8 @@ func TestPrintListWithCustomSearchProvider(t *testing.T) {
 		SearchProvider: mockProvider,
 		Format:         "legacy",
 	}
-	PrintList(opts)
+	opts.Client = client
+	PrintList(opts, &buf, defaultListSearchProvider)
 	output := buf.String()
 
 	// Should only match the first notification (has error in level)
@@ -387,7 +356,8 @@ func TestPrintListWithCustomSearchProvider(t *testing.T) {
 
 	// Test with provider that matches warning
 	opts.Search = "warning"
-	PrintList(opts)
+	opts.Client = client
+	PrintList(opts, &buf, defaultListSearchProvider)
 	output = buf.String()
 	if strings.Contains(output, "error message") {
 		t.Error("Should not include error message")
@@ -400,14 +370,11 @@ func TestPrintListWithCustomSearchProvider(t *testing.T) {
 func TestPrintListBackwardCompatibility(t *testing.T) {
 	// Verify that existing behavior is preserved when no custom provider is set
 
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+	client := fakeListCommandClient{listFunc: func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
 		return "1\t2025-01-01T10:00:00Z\tactive\tsess1\twin1\tpane1\tHello World\t123\tinfo\n", nil
-	}
-	defer restoreMock()
+	}}
 
 	var buf bytes.Buffer
-	listOutputWriter = &buf
-	defer func() { listOutputWriter = nil }()
 
 	// Test substring search (default, no regex flag)
 	opts := FilterOptions{
@@ -415,7 +382,8 @@ func TestPrintListBackwardCompatibility(t *testing.T) {
 		Regex:  false,
 		Format: "legacy",
 	}
-	PrintList(opts)
+	opts.Client = client
+	PrintList(opts, &buf, defaultListSearchProvider)
 	if !strings.Contains(buf.String(), "Hello World") {
 		t.Error("Substring search should find Hello World")
 	}
@@ -424,7 +392,8 @@ func TestPrintListBackwardCompatibility(t *testing.T) {
 
 	// Test regex search (with regex flag)
 	opts.Regex = true
-	PrintList(opts)
+	opts.Client = client
+	PrintList(opts, &buf, defaultListSearchProvider)
 	if !strings.Contains(buf.String(), "Hello World") {
 		t.Error("Regex search should find Hello World")
 	}
@@ -433,14 +402,15 @@ func TestPrintListBackwardCompatibility(t *testing.T) {
 
 	// Test no search (should show all)
 	opts.Search = ""
-	PrintList(opts)
+	opts.Client = client
+	PrintList(opts, &buf, defaultListSearchProvider)
 	if !strings.Contains(buf.String(), "Hello World") {
 		t.Error("Empty search should show all notifications")
 	}
 }
 
 func TestPrintListFilterRead(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+	client := fakeListCommandClient{listFunc: func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
 		// Only return read notifications (those with non-empty read_timestamp)
 		// Using mockLines which has read timestamps for IDs 1, 3, 5
 		lines := ""
@@ -450,15 +420,12 @@ func TestPrintListFilterRead(t *testing.T) {
 				"5\t2025-01-01T14:00:00Z\tactive\tsess3\twin3\tpane5\tmessage five\t127\tinfo\t2025-01-01T14:05:00Z"
 		}
 		return lines, nil
-	}
-	defer restoreMock()
+	}}
 
 	var buf bytes.Buffer
-	listOutputWriter = &buf
-	defer func() { listOutputWriter = nil }()
 
 	// Test --filter read
-	PrintList(FilterOptions{ReadFilter: "read", Format: "simple"})
+	PrintList(FilterOptions{Client: client, ReadFilter: "read", Format: "simple"}, &buf, defaultListSearchProvider)
 	output := buf.String()
 
 	// Should contain read notifications
@@ -482,7 +449,7 @@ func TestPrintListFilterRead(t *testing.T) {
 }
 
 func TestPrintListFilterUnread(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+	client := fakeListCommandClient{listFunc: func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
 		// Only return unread notifications (those with empty read_timestamp)
 		// Using mockLines which has no read timestamps for IDs 2, 4
 		lines := ""
@@ -491,15 +458,12 @@ func TestPrintListFilterUnread(t *testing.T) {
 				"4\t2025-01-01T13:00:00Z\tactive\tsess2\twin2\tpane4\tmessage four\t126\tinfo\t"
 		}
 		return lines, nil
-	}
-	defer restoreMock()
+	}}
 
 	var buf bytes.Buffer
-	listOutputWriter = &buf
-	defer func() { listOutputWriter = nil }()
 
 	// Test --filter unread
-	PrintList(FilterOptions{ReadFilter: "unread", Format: "simple"})
+	PrintList(FilterOptions{Client: client, ReadFilter: "unread", Format: "simple"}, &buf, defaultListSearchProvider)
 	output := buf.String()
 
 	// Should contain unread notifications
@@ -708,16 +672,13 @@ func TestPrintFunctionsWithSingleNotification(t *testing.T) {
 }
 
 func TestPrintListJSONFormat(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+	client := fakeListCommandClient{listFunc: func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
 		return mockLines(), nil
-	}
-	defer restoreMock()
+	}}
 
 	var buf bytes.Buffer
-	listOutputWriter = &buf
-	defer func() { listOutputWriter = nil }()
 
-	PrintList(FilterOptions{Format: "json"})
+	PrintList(FilterOptions{Client: client, Format: "json"}, &buf, defaultListSearchProvider)
 	output := buf.String()
 	// JSON format is now implemented, check for JSON structure
 	if !strings.Contains(output, `"ID"`) || !strings.Contains(output, `"Message"`) {
@@ -726,16 +687,13 @@ func TestPrintListJSONFormat(t *testing.T) {
 }
 
 func TestPrintListUnknownFormat(t *testing.T) {
-	listListFunc = func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
+	client := fakeListCommandClient{listFunc: func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
 		return mockLines(), nil
-	}
-	defer restoreMock()
+	}}
 
 	var buf bytes.Buffer
-	listOutputWriter = &buf
-	defer func() { listOutputWriter = nil }()
 
-	PrintList(FilterOptions{Format: "unknown"})
+	PrintList(FilterOptions{Client: client, Format: "unknown"}, &buf, defaultListSearchProvider)
 	output := buf.String()
 	// Unknown format should fall back to simple format (default)
 	if !strings.Contains(output, "1") || !strings.Contains(output, "message") {
@@ -921,8 +879,7 @@ func TestListCmdRunEClientError(t *testing.T) {
 	cmd := NewListCmd(client, defaultListSearchProvider)
 
 	var buf bytes.Buffer
-	listOutputWriter = &buf
-	defer func() { listOutputWriter = nil }()
+	cmd.SetOut(&buf)
 
 	err := cmd.RunE(cmd, []string{})
 	// RunE returns nil because PrintList prints error to writer

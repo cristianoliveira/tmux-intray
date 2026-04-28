@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-26",
+  "generated_at": "2026-04-28",
   "purpose": "Fast project orientation for future agents. Read this before broad repo exploration when you only need core features and subsystem shape.",
   "project": {
     "name": "tmux-intray",
@@ -37,6 +37,7 @@
   },
   "architecture": {
     "cmd": "CLI command surface built with Cobra",
+    "internal/app": "Application/use-case layer for command behavior; one use case per CLI command with injected client interfaces",
     "internal/core": "Main business operations around notifications",
     "internal/domain": "Notification model, filters, sorting",
     "internal/storage/sqlite": "SQLite-backed persistence and queries",
@@ -58,7 +59,8 @@
     "persistent",
     "composable output",
     "custom TUI over same core/storage",
-    "clear separation of domain, storage, tmux, and tui"
+    "application layer isolates command orchestration from Cobra/infrastructure",
+    "clear separation of domain, app, storage, tmux, and tui"
   ],
   "repo_scale": {
     "approx_files": 225,
@@ -69,11 +71,16 @@
     "README.md",
     "docs/philosophy.md",
     "cmd/root.go",
-    "cmd/tmux-intray/main.go"
+    "cmd/tmux-intray/main.go",
+    "internal/app/add.go",
+    "internal/app/list.go",
+    "internal/app/status.go",
+    "internal/app/jump.go"
   ],
   "recommended_next_ast_queries": [
     "ast_map on internal/ excluding tests if you need runtime shape only",
+    "trace cmd -> internal/app -> internal/core -> internal/storage/sqlite flow",
     "trace add -> store -> list -> jump flow",
-    "inspect package dependencies around internal/core, internal/storage/sqlite, internal/tmux, internal/tui"
+    "inspect package dependencies around internal/app, internal/core, internal/storage/sqlite, internal/tmux, internal/tui"
   ]
 }
