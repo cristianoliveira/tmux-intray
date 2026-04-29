@@ -158,7 +158,7 @@ tmux source-file ~/.tmux.conf
 ### Integrations With Code Agents
 
 - [OpenCode](opencode/plugins/opencode-tmux-intray) - See the readme
-- [Pi](pi/agent/extensions/tmux-intray) - See the Readme
+- [Pi](pi/agent/extensions/tmux-intray) - install with `pi install git:github.com/cristianoliveira/tmux-intray`
 
 ### CLI Commands
 
