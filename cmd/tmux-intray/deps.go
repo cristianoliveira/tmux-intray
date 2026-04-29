@@ -43,11 +43,14 @@ type cliCore interface {
 
 type listSearchProviderFactory = appcore.SearchProviderFactory
 
+type tmuxDisplayNamesLoader func() appcore.DisplayNames
+
 type cliDeps struct {
 	coreClient                cliCore
 	storage                   ports.NotificationRepository
 	tuiClient                 tuiClient
 	listSearchProviderFactory listSearchProviderFactory
+	tmuxDisplayNamesLoader    tmuxDisplayNamesLoader
 	statusPresetLookup        appcore.StatusPresetLookup
 }
 
@@ -62,6 +65,7 @@ type cliDepsFactories struct {
 	newCore               coreFactory
 	newTUI                tuiFactory
 	newListSearchProvider func() listSearchProviderFactory
+	newTmuxDisplayNames   func() tmuxDisplayNamesLoader
 	newStatusPresetLookup func() appcore.StatusPresetLookup
 }
 
@@ -78,6 +82,9 @@ func defaultCLIDepsFactories() cliDepsFactories {
 		},
 		newListSearchProvider: func() listSearchProviderFactory {
 			return defaultListSearchProvider
+		},
+		newTmuxDisplayNames: func() tmuxDisplayNamesLoader {
+			return loadTmuxDisplayNames
 		},
 		newStatusPresetLookup: func() appcore.StatusPresetLookup {
 			return defaultStatusPresetLookup
@@ -110,6 +117,7 @@ func buildCLIDepsWithFactories(factories cliDepsFactories) (cliDeps, error) {
 		storage:                   stor,
 		tuiClient:                 tuiClient,
 		listSearchProviderFactory: factories.newListSearchProvider(),
+		tmuxDisplayNamesLoader:    factories.newTmuxDisplayNames(),
 		statusPresetLookup:        factories.newStatusPresetLookup(),
 	}, nil
 }
@@ -119,7 +127,7 @@ var registerCommandsOnce sync.Once
 func registerCommands(root *cobra.Command, deps cliDeps) {
 	registerCommandsOnce.Do(func() {
 		root.AddCommand(NewAddCmd(deps.coreClient))
-		root.AddCommand(NewListCmd(deps.coreClient, deps.listSearchProviderFactory))
+		root.AddCommand(NewListCmd(deps.coreClient, deps.listSearchProviderFactory, deps.tmuxDisplayNamesLoader))
 		root.AddCommand(NewStatusCmd(deps.coreClient, deps.statusPresetLookup))
 		root.AddCommand(NewFollowCmd(deps.coreClient))
 		root.AddCommand(NewClearCmd(deps.coreClient))
@@ -138,35 +146,46 @@ func registerCommands(root *cobra.Command, deps cliDeps) {
 	})
 }
 
-func defaultListSearchProvider(regex bool) search.Provider {
+func loadTmuxDisplayNames() appcore.DisplayNames {
 	client := tmux.NewDefaultClient()
 	sessionNames, _ := client.ListSessions()
+	windowNames, _ := client.ListWindows()
+	paneNames, _ := client.ListPanes()
+
 	if sessionNames == nil {
 		sessionNames = make(map[string]string)
 	}
-	windowNames, _ := client.ListWindows()
 	if windowNames == nil {
 		windowNames = make(map[string]string)
 	}
-	paneNames, _ := client.ListPanes()
 	if paneNames == nil {
 		paneNames = make(map[string]string)
 	}
 
+	return appcore.DisplayNames{
+		Sessions: sessionNames,
+		Windows:  windowNames,
+		Panes:    paneNames,
+	}
+}
+
+func defaultListSearchProvider(regex bool) search.Provider {
+	names := loadTmuxDisplayNames()
+
 	if regex {
 		return search.NewRegexProvider(
 			search.WithCaseInsensitive(false),
-			search.WithSessionNames(sessionNames),
-			search.WithWindowNames(windowNames),
-			search.WithPaneNames(paneNames),
+			search.WithSessionNames(names.Sessions),
+			search.WithWindowNames(names.Windows),
+			search.WithPaneNames(names.Panes),
 		)
 	}
 
 	return search.NewSubstringProvider(
 		search.WithCaseInsensitive(false),
-		search.WithSessionNames(sessionNames),
-		search.WithWindowNames(windowNames),
-		search.WithPaneNames(paneNames),
+		search.WithSessionNames(names.Sessions),
+		search.WithWindowNames(names.Windows),
+		search.WithPaneNames(names.Panes),
 	)
 }
 

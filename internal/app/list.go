@@ -36,6 +36,8 @@ type ListOptions struct {
 	Format         string
 	SearchProvider search.Provider
 	ReadFilter     string
+	DisplayNames   DisplayNames
+	RawIDs         bool
 }
 
 // SearchProviderFactory builds a search provider for list behavior.
@@ -77,6 +79,13 @@ func (u *ListUseCase) Execute(opts ListOptions, w io.Writer) {
 
 	notifications = OrderUnreadFirst(notifications)
 	printNotifications(notifications, opts, w)
+}
+
+func shouldResolveDisplayNames(opts ListOptions) bool {
+	if opts.RawIDs || opts.Format == "json" {
+		return false
+	}
+	return opts.Format == "simple" || opts.GroupBy != ""
 }
 
 func (u *ListUseCase) fetchNotifications(opts ListOptions) (string, error) {
@@ -131,12 +140,19 @@ func printNotifications(notifications []*domain.Notification, opts ListOptions, 
 		} else {
 			groupResult = domain.GroupNotifications(notificationValues, domain.GroupByMode(opts.GroupBy))
 		}
+		if shouldResolveDisplayNames(opts) {
+			groupResult = opts.DisplayNames.EnrichGroupResult(groupResult)
+		}
 
 		formatter := format.GetFormatter(opts.Format, opts.GroupCount)
 		if err := formatter.FormatGroups(groupResult, w); err != nil {
 			_, _ = fmt.Fprintf(w, "list: formatting error: %v\n", err)
 		}
 		return
+	}
+
+	if shouldResolveDisplayNames(opts) {
+		notifications = opts.DisplayNames.EnrichNotifications(notifications)
 	}
 
 	formatter := format.GetFormatter(opts.Format, false)

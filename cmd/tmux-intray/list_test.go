@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	appcore "github.com/cristianoliveira/tmux-intray/internal/app"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/format"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
@@ -574,6 +575,113 @@ func TestPrintListUnknownFormat(t *testing.T) {
 	}
 }
 
+func TestPrintListSimpleFormatUsesResolvedNamesByDefault(t *testing.T) {
+	output := runPrintList(t,
+		"1\t2025-01-01T10:00:00Z\tactive\t$1\t@2\t%3\tmessage one\t123\tinfo\t\n",
+		nil,
+		FilterOptions{
+			Format: "simple",
+			DisplayNames: appcore.DisplayNames{
+				Sessions: map[string]string{"$1": "work"},
+				Windows:  map[string]string{"@2": "editor"},
+				Panes:    map[string]string{"%3": "shell"},
+			},
+		},
+	)
+
+	cols := splitSimpleColumns(t, strings.TrimSpace(output))
+	assert.Equal(t, "work", cols[2])
+	assert.Equal(t, "editor", cols[3])
+	assert.Equal(t, "shell", cols[4])
+}
+
+func TestPrintListSimpleFormatFallsBackToRawIDsWhenNamesUnavailable(t *testing.T) {
+	output := runPrintList(t,
+		"1\t2025-01-01T10:00:00Z\tactive\t$1\t@2\t%3\tmessage one\t123\tinfo\t\n",
+		nil,
+		FilterOptions{
+			Format: "simple",
+			DisplayNames: appcore.DisplayNames{
+				Sessions: map[string]string{"$1": "work"},
+			},
+		},
+	)
+
+	cols := splitSimpleColumns(t, strings.TrimSpace(output))
+	assert.Equal(t, "work", cols[2])
+	assert.Equal(t, "@2", cols[3])
+	assert.Equal(t, "%3", cols[4])
+}
+
+func TestPrintListGroupCountUsesResolvedGroupNamesByDefault(t *testing.T) {
+	output := runPrintList(t,
+		"1\t2025-01-01T10:00:00Z\tactive\t$1\t@2\t%3\tone\t123\tinfo\t\n2\t2025-01-01T10:01:00Z\tactive\t$1\t@4\t%5\ttwo\t124\tinfo\t\n",
+		nil,
+		FilterOptions{
+			Format:       "simple",
+			GroupBy:      "session",
+			GroupCount:   true,
+			DisplayNames: appcore.DisplayNames{Sessions: map[string]string{"$1": "work"}},
+		},
+	)
+
+	assert.Contains(t, output, "Group: work (2)")
+	assert.NotContains(t, output, "Group: $1 (2)")
+}
+
+func TestPrintListGroupCountKeepsDistinctRawSessionGroupsWhenDisplayNamesCollide(t *testing.T) {
+	output := runPrintList(t,
+		"1\t2025-01-01T10:00:00Z\tactive\t$1\t@2\t%3\tone\t123\tinfo\t\n2\t2025-01-01T10:01:00Z\tactive\t$2\t@4\t%5\ttwo\t124\tinfo\t\n",
+		nil,
+		FilterOptions{
+			Format:     "simple",
+			GroupBy:    "session",
+			GroupCount: true,
+			DisplayNames: appcore.DisplayNames{
+				Sessions: map[string]string{"$1": "work", "$2": "work"},
+			},
+		},
+	)
+
+	assert.Equal(t, 2, strings.Count(output, "Group: work (1)"))
+}
+
+func TestPrintListGroupCountKeepsDistinctRawWindowGroupsWhenDisplayNamesCollide(t *testing.T) {
+	output := runPrintList(t,
+		"1\t2025-01-01T10:00:00Z\tactive\t$1\t@2\t%3\tone\t123\tinfo\t\n2\t2025-01-01T10:01:00Z\tactive\t$9\t@4\t%5\ttwo\t124\tinfo\t\n",
+		nil,
+		FilterOptions{
+			Format:     "simple",
+			GroupBy:    "window",
+			GroupCount: true,
+			DisplayNames: appcore.DisplayNames{
+				Windows: map[string]string{"@2": "editor", "@4": "editor"},
+			},
+		},
+	)
+
+	assert.Equal(t, 2, strings.Count(output, "Group: editor (1)"))
+}
+
+func TestPrintListJSONFormatRemainsRawIDs(t *testing.T) {
+	output := runPrintList(t,
+		"1\t2025-01-01T10:00:00Z\tactive\t$1\t@2\t%3\tmessage one\t123\tinfo\t\n",
+		nil,
+		FilterOptions{
+			Format: "json",
+			DisplayNames: appcore.DisplayNames{
+				Sessions: map[string]string{"$1": "work"},
+				Windows:  map[string]string{"@2": "editor"},
+				Panes:    map[string]string{"%3": "shell"},
+			},
+		},
+	)
+	assert.Contains(t, output, `"Session": "$1"`)
+	assert.Contains(t, output, `"Window": "@2"`)
+	assert.Contains(t, output, `"Pane": "%3"`)
+	assert.NotContains(t, output, `"Session": "work"`)
+}
+
 func TestNewListCmdPanicsWhenClientIsNil(t *testing.T) {
 	defer func() {
 		r := recover()
@@ -590,7 +698,7 @@ func TestNewListCmdPanicsWhenClientIsNil(t *testing.T) {
 		}
 	}()
 
-	NewListCmd(nil, defaultListSearchProvider)
+	NewListCmd(nil, defaultListSearchProvider, loadTmuxDisplayNames)
 }
 
 func TestListCmdFlagValidation(t *testing.T) {
@@ -616,7 +724,7 @@ func TestListCmdFlagValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := &fakeListClient{}
-			cmd := NewListCmd(client, defaultListSearchProvider)
+			cmd := NewListCmd(client, defaultListSearchProvider, func() appcore.DisplayNames { return appcore.DisplayNames{} })
 			setFlag(t, cmd, tt.flagName, tt.flagValue)
 			err := cmd.RunE(cmd, []string{})
 			if err == nil {
@@ -626,6 +734,86 @@ func TestListCmdFlagValidation(t *testing.T) {
 				t.Fatalf("expected error containing %q, got %q", tt.wantErrMsg, err.Error())
 			}
 		})
+	}
+}
+
+func TestListCmdReusesLoadedDisplayNamesForSearchAndRendering(t *testing.T) {
+	client := &fakeListClient{listNotificationsResult: "1\t2025-01-01T10:00:00Z\tactive\t$1\t@2\t%3\tmessage one\t123\tinfo\t\n"}
+	loaderCalls := 0
+	factoryCalls := 0
+	cmd := NewListCmd(
+		client,
+		func(regex bool) search.Provider {
+			factoryCalls++
+			return search.NewSubstringProvider()
+		},
+		func() appcore.DisplayNames {
+			loaderCalls++
+			return appcore.DisplayNames{
+				Sessions: map[string]string{"$1": "work"},
+				Windows:  map[string]string{"@2": "editor"},
+				Panes:    map[string]string{"%3": "shell"},
+			}
+		},
+	)
+
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	setFlag(t, cmd, "search", "work")
+	setFlag(t, cmd, "format", "simple")
+
+	err := cmd.RunE(cmd, []string{})
+	assert.NoError(t, err)
+	assert.Equal(t, 1, loaderCalls)
+	assert.Equal(t, 0, factoryCalls)
+	assert.Contains(t, buf.String(), "work")
+	assert.Contains(t, buf.String(), "editor")
+	assert.Contains(t, buf.String(), "shell")
+}
+
+func TestListCmdResolvesSessionFilterFromSessionName(t *testing.T) {
+	client := &fakeListClient{listNotificationsResult: ""}
+	loaderCalls := 0
+	cmd := NewListCmd(
+		client,
+		defaultListSearchProvider,
+		func() appcore.DisplayNames {
+			loaderCalls++
+			return appcore.DisplayNames{
+				Sessions: map[string]string{"$1": "work"},
+			}
+		},
+	)
+
+	setFlag(t, cmd, "session", "work")
+	err := cmd.RunE(cmd, []string{})
+	assert.NoError(t, err)
+	assert.Equal(t, 1, loaderCalls)
+	if assert.Len(t, client.listNotificationsCalls, 1) {
+		assert.Equal(t, "$1", client.listNotificationsCalls[0].sessionFilter)
+	}
+}
+
+func TestListCmdResolvesWindowAndPaneFiltersFromNames(t *testing.T) {
+	client := &fakeListClient{listNotificationsResult: ""}
+	cmd := NewListCmd(
+		client,
+		defaultListSearchProvider,
+		func() appcore.DisplayNames {
+			return appcore.DisplayNames{
+				Windows: map[string]string{"@2": "editor"},
+				Panes:   map[string]string{"%3": "shell"},
+			}
+		},
+	)
+
+	setFlag(t, cmd, "window", "editor")
+	setFlag(t, cmd, "pane", "shell")
+	err := cmd.RunE(cmd, []string{})
+	assert.NoError(t, err)
+	if assert.Len(t, client.listNotificationsCalls, 1) {
+		assert.Equal(t, "@2", client.listNotificationsCalls[0].windowFilter)
+		assert.Equal(t, "%3", client.listNotificationsCalls[0].paneFilter)
 	}
 }
 
@@ -720,7 +908,7 @@ func TestListCmdRunEFlagCombinations(t *testing.T) {
 			client := &fakeListClient{
 				listNotificationsResult: "",
 			}
-			cmd := NewListCmd(client, defaultListSearchProvider)
+			cmd := NewListCmd(client, defaultListSearchProvider, func() appcore.DisplayNames { return appcore.DisplayNames{} })
 			for flag, value := range tt.flags {
 				setFlag(t, cmd, flag, value)
 			}
@@ -749,7 +937,7 @@ func TestListCmdRunEClientError(t *testing.T) {
 	client := &fakeListClient{
 		listNotificationsError: errors.New("storage error"),
 	}
-	cmd := NewListCmd(client, defaultListSearchProvider)
+	cmd := NewListCmd(client, defaultListSearchProvider, func() appcore.DisplayNames { return appcore.DisplayNames{} })
 
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
@@ -818,7 +1006,7 @@ func TestListCmdTabWithFilters(t *testing.T) {
 			client := &fakeListClient{
 				listNotificationsResult: "",
 			}
-			cmd := NewListCmd(client, defaultListSearchProvider)
+			cmd := NewListCmd(client, defaultListSearchProvider, func() appcore.DisplayNames { return appcore.DisplayNames{} })
 
 			// Set tab flag
 			setFlag(t, cmd, "tab", tt.tab)

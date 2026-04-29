@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	appcore "github.com/cristianoliveira/tmux-intray/internal/app"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/format"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
@@ -16,7 +17,7 @@ func TestFormatTabsUsingListFormatterSimple(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	formatTabsUsingListFormatter(groups, format.FormatterTypeSimple, &buf)
+	formatTabsUsingListFormatter(groups, format.FormatterTypeSimple, appcore.DisplayNames{}, true, &buf)
 
 	out := buf.String()
 	if !strings.HasPrefix(out, "42") {
@@ -35,7 +36,7 @@ func TestFormatTabsUsingListFormatterTable(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	formatTabsUsingListFormatter(groups, format.FormatterTypeTable, &buf)
+	formatTabsUsingListFormatter(groups, format.FormatterTypeTable, appcore.DisplayNames{}, false, &buf)
 
 	out := buf.String()
 	for _, want := range []string{"ID", "DATE", "7", "Test message"} {
@@ -47,9 +48,55 @@ func TestFormatTabsUsingListFormatterTable(t *testing.T) {
 
 func TestFormatTabsUsingListFormatterEmpty(t *testing.T) {
 	var buf bytes.Buffer
-	formatTabsUsingListFormatter(nil, format.FormatterTypeSimple, &buf)
+	formatTabsUsingListFormatter(nil, format.FormatterTypeSimple, appcore.DisplayNames{}, false, &buf)
 	if buf.Len() != 0 {
 		t.Fatalf("expected no output for empty groups, got: %q", buf.String())
+	}
+}
+
+func TestFormatTabsUsingListFormatterSimpleUsesResolvedNamesByDefault(t *testing.T) {
+	groups := []domain.SessionNotification{{Session: "$1", Notification: domain.Notification{ID: 42, Timestamp: "2024-01-01T10:00:00Z", Session: "$1", Window: "@2", Pane: "%3", Message: "Test message"}}}
+
+	var buf bytes.Buffer
+	formatTabsUsingListFormatter(groups, format.FormatterTypeSimple, appcore.DisplayNames{
+		Sessions: map[string]string{"$1": "work"},
+		Windows:  map[string]string{"@2": "editor"},
+		Panes:    map[string]string{"%3": "shell"},
+	}, false, &buf)
+
+	cols := splitSimpleColumns(t, strings.TrimSpace(buf.String()))
+	if cols[2] != "work" || cols[3] != "editor" || cols[4] != "shell" {
+		t.Fatalf("expected resolved names, got %v", cols)
+	}
+}
+
+func TestFormatTabsUsingListFormatterSimpleOmitsRowsWhenNamesCannotBeResolved(t *testing.T) {
+	groups := []domain.SessionNotification{{Session: "$1", Notification: domain.Notification{ID: 42, Timestamp: "2024-01-01T10:00:00Z", Session: "$1", Window: "@2", Pane: "%3", Message: "Test message"}}}
+
+	var buf bytes.Buffer
+	formatTabsUsingListFormatter(groups, format.FormatterTypeSimple, appcore.DisplayNames{
+		Sessions: map[string]string{"$1": "work"},
+		// window and pane names missing
+	}, false, &buf)
+
+	if strings.TrimSpace(buf.String()) != "" {
+		t.Fatalf("expected unresolved row to be omitted, got %q", buf.String())
+	}
+}
+
+func TestFormatTabsUsingListFormatterSimpleKeepsRawIDsWithExplicitFlag(t *testing.T) {
+	groups := []domain.SessionNotification{{Session: "$1", Notification: domain.Notification{ID: 42, Timestamp: "2024-01-01T10:00:00Z", Session: "$1", Window: "@2", Pane: "%3", Message: "Test message"}}}
+
+	var buf bytes.Buffer
+	formatTabsUsingListFormatter(groups, format.FormatterTypeSimple, appcore.DisplayNames{
+		Sessions: map[string]string{"$1": "work"},
+		Windows:  map[string]string{"@2": "editor"},
+		Panes:    map[string]string{"%3": "shell"},
+	}, true, &buf)
+
+	cols := splitSimpleColumns(t, strings.TrimSpace(buf.String()))
+	if cols[2] != "$1" || cols[3] != "@2" || cols[4] != "%3" {
+		t.Fatalf("expected raw ids, got %v", cols)
 	}
 }
 

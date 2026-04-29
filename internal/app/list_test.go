@@ -178,6 +178,46 @@ func TestListUseCaseExecuteBuildsSearchProviderFromInjectedFactory(t *testing.T)
 	assert.NotContains(t, buf.String(), "warning message")
 }
 
+func TestListUseCaseGroupedOutputKeepsRawSessionIdentityWhenDisplayNamesCollide(t *testing.T) {
+	client := &fakeListClient{result: "1\t2025-01-01T10:00:00Z\tactive\t$1\t@1\t%1\tmessage one\t123\tinfo\t\n" +
+		"2\t2025-01-01T11:00:00Z\tactive\t$2\t@2\t%2\tmessage two\t124\twarning\t\n"}
+	useCase := NewListUseCase(client, nil)
+
+	var buf bytes.Buffer
+	useCase.Execute(ListOptions{
+		Format:     "simple",
+		GroupBy:    "session",
+		GroupCount: true,
+		DisplayNames: DisplayNames{
+			Sessions: map[string]string{"$1": "work", "$2": "work"},
+		},
+	}, &buf)
+
+	output := buf.String()
+	assert.Contains(t, output, "Group: work (1)")
+	assert.Equal(t, 2, strings.Count(output, "Group: work (1)"))
+}
+
+func TestListUseCaseGroupedOutputKeepsRawWindowIdentityWhenDisplayNamesCollide(t *testing.T) {
+	client := &fakeListClient{result: "1\t2025-01-01T10:00:00Z\tactive\t$1\t@1\t%1\tmessage one\t123\tinfo\t\n" +
+		"2\t2025-01-01T11:00:00Z\tactive\t$2\t@2\t%2\tmessage two\t124\twarning\t\n"}
+	useCase := NewListUseCase(client, nil)
+
+	var buf bytes.Buffer
+	useCase.Execute(ListOptions{
+		Format:     "simple",
+		GroupBy:    "window",
+		GroupCount: true,
+		DisplayNames: DisplayNames{
+			Windows: map[string]string{"@1": "editor", "@2": "editor"},
+		},
+	}, &buf)
+
+	output := buf.String()
+	assert.Contains(t, output, "Group: editor (1)")
+	assert.Equal(t, 2, strings.Count(output, "Group: editor (1)"))
+}
+
 func TestOrderUnreadFirstPreservesRelativeOrder(t *testing.T) {
 	notifs := []*domain.Notification{
 		{ID: 1, ReadTimestamp: "2025-01-01T10:00:00Z", State: domain.StateActive, Level: domain.LevelInfo, Message: "test1", Timestamp: "2025-01-01T10:00:00Z"},

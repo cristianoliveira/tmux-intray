@@ -155,6 +155,9 @@ func testFactories() cliDepsFactories {
 		newTUI: func() (tuiClient, error) {
 			return &fakeTUIClient{}, nil
 		},
+		newTmuxDisplayNames: func() tmuxDisplayNamesLoader {
+			return func() appcore.DisplayNames { return appcore.DisplayNames{} }
+		},
 	}
 }
 
@@ -317,6 +320,7 @@ func TestRegisterCommandsAddsCommands(t *testing.T) {
 		storage:                   &fakeStorage{},
 		tuiClient:                 &fakeTUIClient{},
 		listSearchProviderFactory: func(regex bool) search.Provider { return search.NewSubstringProvider() },
+		tmuxDisplayNamesLoader:    func() appcore.DisplayNames { return appcore.DisplayNames{} },
 		statusPresetLookup:        func(name string) (string, bool) { return "{{unread-count}}", true },
 	}
 

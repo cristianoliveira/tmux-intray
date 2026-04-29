@@ -11,7 +11,8 @@ Before running these examples, ensure you have an active tmux session and some n
 ```bash
 # Notifications from a specific session with error level
 tmux-intray list --session=$SESSION --level=error
-# SESSION can be session ID (e.g., '$1') or session name
+# SESSION can be a tmux session ID (for example '$1') or a session name (for example 'work')
+# Default list output resolves IDs back to human-readable names when tmux metadata is available
 ```
 
 ---
@@ -136,6 +137,7 @@ tmux-intray follow --level=error
 - Filters can be combined: `--session`, `--window`, `--pane`, `--level`, `--older-than`, `--newer-than`, `--search`, `--regex`
 - Grouping works with any filter combination
 - The `--format` option controls output style: `legacy`, `table`, `compact`, `json`
+- Use `--ids` when you want raw tmux session/window/pane IDs in CLI output
 
 ---
 

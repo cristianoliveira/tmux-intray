@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	appcore "github.com/cristianoliveira/tmux-intray/internal/app"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/format"
 )
@@ -15,7 +16,7 @@ func TestFormatTabsUsingListFormatterJSONIncludesIDField(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	formatTabsUsingListFormatter(groups, format.FormatterTypeJSON, &buf)
+	formatTabsUsingListFormatter(groups, format.FormatterTypeJSON, appcore.DisplayNames{}, false, &buf)
 
 	var got []map[string]any
 	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
