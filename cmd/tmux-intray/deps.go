@@ -5,13 +5,17 @@ import (
 	"sync"
 
 	"github.com/cristianoliveira/tmux-intray/cmd"
+	appcore "github.com/cristianoliveira/tmux-intray/internal/app"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
+	"github.com/cristianoliveira/tmux-intray/internal/formatter"
 	"github.com/cristianoliveira/tmux-intray/internal/logging"
 	"github.com/cristianoliveira/tmux-intray/internal/ports"
+	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
+	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/app"
 	"github.com/spf13/cobra"
 )
@@ -37,10 +41,17 @@ type cliCore interface {
 	ResetSettings() (*settings.Settings, error)
 }
 
+type listSearchProviderFactory = appcore.SearchProviderFactory
+
+type tmuxDisplayNamesLoader func() appcore.DisplayNames
+
 type cliDeps struct {
-	coreClient cliCore
-	storage    ports.NotificationRepository
-	tuiClient  tuiClient
+	coreClient                cliCore
+	storage                   ports.NotificationRepository
+	tuiClient                 tuiClient
+	listSearchProviderFactory listSearchProviderFactory
+	tmuxDisplayNamesLoader    tmuxDisplayNamesLoader
+	statusPresetLookup        appcore.StatusPresetLookup
 }
 
 type storageFactory func() (ports.NotificationRepository, error)
@@ -50,9 +61,12 @@ type coreFactory func(storage ports.NotificationRepository) (cliCore, error)
 type tuiFactory func() (tuiClient, error)
 
 type cliDepsFactories struct {
-	newStorage storageFactory
-	newCore    coreFactory
-	newTUI     tuiFactory
+	newStorage            storageFactory
+	newCore               coreFactory
+	newTUI                tuiFactory
+	newListSearchProvider func() listSearchProviderFactory
+	newTmuxDisplayNames   func() tmuxDisplayNamesLoader
+	newStatusPresetLookup func() appcore.StatusPresetLookup
 }
 
 func defaultCLIDepsFactories() cliDepsFactories {
@@ -65,6 +79,15 @@ func defaultCLIDepsFactories() cliDepsFactories {
 		},
 		newTUI: func() (tuiClient, error) {
 			return app.NewDefaultClient(nil, nil, nil), nil
+		},
+		newListSearchProvider: func() listSearchProviderFactory {
+			return defaultListSearchProvider
+		},
+		newTmuxDisplayNames: func() tmuxDisplayNamesLoader {
+			return loadTmuxDisplayNames
+		},
+		newStatusPresetLookup: func() appcore.StatusPresetLookup {
+			return defaultStatusPresetLookup
 		},
 	}
 }
@@ -90,9 +113,12 @@ func buildCLIDepsWithFactories(factories cliDepsFactories) (cliDeps, error) {
 	}
 
 	return cliDeps{
-		coreClient: coreClient,
-		storage:    stor,
-		tuiClient:  tuiClient,
+		coreClient:                coreClient,
+		storage:                   stor,
+		tuiClient:                 tuiClient,
+		listSearchProviderFactory: factories.newListSearchProvider(),
+		tmuxDisplayNamesLoader:    factories.newTmuxDisplayNames(),
+		statusPresetLookup:        factories.newStatusPresetLookup(),
 	}, nil
 }
 
@@ -101,8 +127,8 @@ var registerCommandsOnce sync.Once
 func registerCommands(root *cobra.Command, deps cliDeps) {
 	registerCommandsOnce.Do(func() {
 		root.AddCommand(NewAddCmd(deps.coreClient))
-		root.AddCommand(NewListCmd(deps.coreClient))
-		root.AddCommand(NewStatusCmd(deps.coreClient))
+		root.AddCommand(NewListCmd(deps.coreClient, deps.listSearchProviderFactory, deps.tmuxDisplayNamesLoader))
+		root.AddCommand(NewStatusCmd(deps.coreClient, deps.statusPresetLookup))
 		root.AddCommand(NewFollowCmd(deps.coreClient))
 		root.AddCommand(NewClearCmd(deps.coreClient))
 		root.AddCommand(NewDismissCmd(deps.coreClient))
@@ -118,6 +144,57 @@ func registerCommands(root *cobra.Command, deps cliDeps) {
 			return deps.coreClient.DismissAll()
 		}
 	})
+}
+
+func loadTmuxDisplayNames() appcore.DisplayNames {
+	client := tmux.NewDefaultClient()
+	sessionNames, _ := client.ListSessions()
+	windowNames, _ := client.ListWindows()
+	paneNames, _ := client.ListPanes()
+
+	if sessionNames == nil {
+		sessionNames = make(map[string]string)
+	}
+	if windowNames == nil {
+		windowNames = make(map[string]string)
+	}
+	if paneNames == nil {
+		paneNames = make(map[string]string)
+	}
+
+	return appcore.DisplayNames{
+		Sessions: sessionNames,
+		Windows:  windowNames,
+		Panes:    paneNames,
+	}
+}
+
+func defaultListSearchProvider(regex bool) search.Provider {
+	names := loadTmuxDisplayNames()
+
+	if regex {
+		return search.NewRegexProvider(
+			search.WithCaseInsensitive(false),
+			search.WithSessionNames(names.Sessions),
+			search.WithWindowNames(names.Windows),
+			search.WithPaneNames(names.Panes),
+		)
+	}
+
+	return search.NewSubstringProvider(
+		search.WithCaseInsensitive(false),
+		search.WithSessionNames(names.Sessions),
+		search.WithWindowNames(names.Windows),
+		search.WithPaneNames(names.Panes),
+	)
+}
+
+func defaultStatusPresetLookup(name string) (string, bool) {
+	preset, err := formatter.NewPresetRegistry().Get(name)
+	if err != nil {
+		return "", false
+	}
+	return preset.Template, true
 }
 
 func initCLI() error {

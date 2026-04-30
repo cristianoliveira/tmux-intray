@@ -12,6 +12,7 @@ import (
 
 	appcore "github.com/cristianoliveira/tmux-intray/internal/app"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
+	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/spf13/cobra"
 )
 
@@ -29,10 +30,11 @@ OPTIONS:
     --active             Show active notifications (default)
     --dismissed          Show dismissed notifications
     --all                Show all notifications
-    --pane <id>          Filter notifications by pane ID (e.g., %0)
+    --pane <id|title>    Filter notifications by pane ID or pane title
     --level <level>      Filter notifications by level: info, warning, error, critical
-    --session <id>       Filter notifications by session ID
-    --window <id>        Filter notifications by window ID
+    --session <id|name>  Filter notifications by session ID or session name
+    --window <id|name>   Filter notifications by window ID or window name
+    --ids                Show raw tmux session/window/pane IDs instead of resolved names
     --older-than <days>  Show notifications older than N days
     --newer-than <days>  Show notifications newer than N days
     --search <pattern>   Search messages (substring match)
@@ -55,9 +57,15 @@ ORDERING:
 // NewListCmd creates the list command with explicit dependencies.
 //
 //nolint:funlen // Command wiring with flags and handlers is intentionally centralized.
-func NewListCmd(client listClient) *cobra.Command {
+func NewListCmd(client listClient, searchProviderFactory appcore.SearchProviderFactory, displayNamesLoader tmuxDisplayNamesLoader) *cobra.Command {
 	if client == nil {
 		panic("NewListCmd: client dependency cannot be nil")
+	}
+	if searchProviderFactory == nil {
+		panic("NewListCmd: searchProviderFactory dependency cannot be nil")
+	}
+	if displayNamesLoader == nil {
+		panic("NewListCmd: displayNamesLoader dependency cannot be nil")
 	}
 
 	// Create the main list command
@@ -81,12 +89,22 @@ func NewListCmd(client listClient) *cobra.Command {
 	var listFilter string
 	var listTab string
 	var listJSON bool
+	var listRawIDs bool
 
 	listCmd.RunE = func(cmd *cobra.Command, args []string) error {
 		// Handle --json flag
 		if listJSON {
 			listFormat = "json"
 		}
+
+		displayNames := appcore.DisplayNames{}
+		if shouldLoadListDisplayNames(listJSON, listRawIDs, listSearch, listSession, listWindow, listPane) {
+			displayNames = displayNamesLoader()
+		}
+
+		listSession = resolveTmuxFilterValue(listSession, displayNames.Sessions)
+		listWindow = resolveTmuxFilterValue(listWindow, displayNames.Windows)
+		listPane = resolveTmuxFilterValue(listPane, displayNames.Panes)
 
 		// Handle --tab flag
 		if listTab != "" {
@@ -98,16 +116,18 @@ func NewListCmd(client listClient) *cobra.Command {
 			olderCutoff, newerCutoff := computeCutoffTimestamps(listOlderThan, listNewerThan)
 
 			tabOpts := TabOptions{
-				Client:     client,
-				Tab:        listTab,
-				Format:     listFormat,
-				Session:    listSession,
-				Level:      listLevel,
-				Window:     listWindow,
-				Pane:       listPane,
-				OlderThan:  olderCutoff,
-				NewerThan:  newerCutoff,
-				ReadFilter: listFilter,
+				Client:       client,
+				Tab:          listTab,
+				Format:       listFormat,
+				Session:      listSession,
+				Level:        listLevel,
+				Window:       listWindow,
+				Pane:         listPane,
+				OlderThan:    olderCutoff,
+				NewerThan:    newerCutoff,
+				ReadFilter:   listFilter,
+				DisplayNames: displayNames,
+				RawIDs:       listRawIDs,
 			}
 			PrintTab(tabOpts)
 			return nil
@@ -120,22 +140,25 @@ func NewListCmd(client listClient) *cobra.Command {
 		}
 
 		opts := FilterOptions{
-			Client:     client,
-			State:      state,
-			Level:      listLevel,
-			Session:    listSession,
-			Window:     listWindow,
-			Pane:       listPane,
-			OlderThan:  olderCutoff,
-			NewerThan:  newerCutoff,
-			Search:     listSearch,
-			Regex:      listRegex,
-			GroupBy:    listGroupBy,
-			GroupCount: listGroupCount,
-			Format:     listFormat,
-			ReadFilter: listFilter,
+			Client:         client,
+			State:          state,
+			Level:          listLevel,
+			Session:        listSession,
+			Window:         listWindow,
+			Pane:           listPane,
+			OlderThan:      olderCutoff,
+			NewerThan:      newerCutoff,
+			Search:         listSearch,
+			Regex:          listRegex,
+			GroupBy:        listGroupBy,
+			GroupCount:     listGroupCount,
+			Format:         listFormat,
+			ReadFilter:     listFilter,
+			SearchProvider: buildListSearchProvider(listSearch, listRegex, displayNames),
+			DisplayNames:   displayNames,
+			RawIDs:         listRawIDs,
 		}
-		PrintList(opts)
+		PrintListTo(opts, cmd.OutOrStdout(), searchProviderFactory)
 		return nil
 	}
 
@@ -146,6 +169,7 @@ func NewListCmd(client listClient) *cobra.Command {
 
 	// Add --json flag
 	listCmd.Flags().BoolVar(&listJSON, "json", false, "Output in JSON format")
+	listCmd.Flags().BoolVar(&listRawIDs, "ids", false, "Show raw tmux session/window/pane IDs instead of resolved names")
 
 	return listCmd
 }
@@ -160,15 +184,51 @@ func isValidTab(tab string, validTabs []string) bool {
 	return false
 }
 
+func shouldLoadListDisplayNames(listJSON, listRawIDs bool, listSearch, listSession, listWindow, listPane string) bool {
+	if listSearch != "" || listSession != "" || listWindow != "" || listPane != "" {
+		return true
+	}
+	return !listJSON && !listRawIDs
+}
+
+func resolveTmuxFilterValue(raw string, names map[string]string) string {
+	if raw == "" || names == nil {
+		return raw
+	}
+	for id, name := range names {
+		if name == raw {
+			return id
+		}
+	}
+	return raw
+}
+
+func buildListSearchProvider(query string, regex bool, names appcore.DisplayNames) search.Provider {
+	if query == "" {
+		return nil
+	}
+
+	opts := []search.Option{
+		search.WithCaseInsensitive(false),
+		search.WithSessionNames(names.Sessions),
+		search.WithWindowNames(names.Windows),
+		search.WithPaneNames(names.Panes),
+	}
+	if regex {
+		return search.NewRegexProvider(opts...)
+	}
+	return search.NewSubstringProvider(opts...)
+}
+
 // registerListFlags registers all flags for the list command.
 func registerListFlags(cmd *cobra.Command, listPane, listLevel, listSession, listWindow *string, listOlderThan, listNewerThan *int, listSearch *string, listRegex *bool, listGroupBy *string, listGroupCount *bool, listFormat, listFilter *string) {
 	cmd.Flags().Bool("active", false, "Show active notifications (default)")
 	cmd.Flags().Bool("dismissed", false, "Show dismissed notifications")
 	cmd.Flags().Bool("all", false, "Show all notifications")
-	cmd.Flags().StringVar(listPane, "pane", "", "Filter notifications by pane ID (e.g., %0)")
+	cmd.Flags().StringVar(listPane, "pane", "", "Filter notifications by pane ID or pane title")
 	cmd.Flags().StringVar(listLevel, "level", "", "Filter notifications by level: info, warning, error, critical")
-	cmd.Flags().StringVar(listSession, "session", "", "Filter notifications by session ID")
-	cmd.Flags().StringVar(listWindow, "window", "", "Filter notifications by window ID")
+	cmd.Flags().StringVar(listSession, "session", "", "Filter notifications by session ID or session name")
+	cmd.Flags().StringVar(listWindow, "window", "", "Filter notifications by window ID or window name")
 	cmd.Flags().IntVar(listOlderThan, "older-than", 0, "Show notifications older than N days")
 	cmd.Flags().IntVar(listNewerThan, "newer-than", 0, "Show notifications newer than N days")
 	cmd.Flags().StringVar(listSearch, "search", "", "Search messages (substring match)")
@@ -221,39 +281,22 @@ func validateListOptions(groupBy, filter string) error {
 	return nil
 }
 
-// listOutputWriter is the writer used by PrintList. Can be changed for testing.
-var listOutputWriter io.Writer = os.Stdout
-
-// listListFunc is the function used to retrieve notifications. Can be changed for testing.
-var listListFunc func(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error)
-
 // FilterOptions holds all filter parameters for listing notifications.
 type FilterOptions = appcore.ListOptions
 
-type listFuncClient struct{}
-
-func (listFuncClient) ListNotifications(state, level, session, window, pane, olderThan, newerThan, readFilter string) (string, error) {
-	if listListFunc == nil {
-		return "", fmt.Errorf("list: missing client")
-	}
-	return listListFunc(state, level, session, window, pane, olderThan, newerThan, readFilter)
-}
-
 // PrintList prints notifications according to the provided filter options.
 func PrintList(opts FilterOptions) {
-	if listOutputWriter == nil {
-		listOutputWriter = os.Stdout
-	}
-	printList(opts, listOutputWriter)
+	PrintListTo(opts, os.Stdout, defaultListSearchProvider)
 }
 
-func printList(opts FilterOptions, w io.Writer) {
-	client := opts.Client
-	if client == nil {
-		client = listFuncClient{}
+// PrintListTo prints notifications to the provided writer using the injected search provider factory.
+func PrintListTo(opts FilterOptions, w io.Writer, searchProviderFactory appcore.SearchProviderFactory) {
+	if opts.Client == nil {
+		_, _ = fmt.Fprintln(w, "list: missing client")
+		return
 	}
 
-	useCase := appcore.NewListUseCase(client)
+	useCase := appcore.NewListUseCase(opts.Client, searchProviderFactory)
 	useCase.Execute(appcore.ListOptions(opts), w)
 }
 

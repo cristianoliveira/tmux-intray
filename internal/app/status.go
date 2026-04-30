@@ -16,18 +16,25 @@ type StatusClient interface {
 	ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error)
 }
 
+// StatusPresetLookup resolves preset names to template strings.
+type StatusPresetLookup func(name string) (template string, ok bool)
+
 // StatusUseCase coordinates status behavior.
 type StatusUseCase struct {
-	client StatusClient
+	client       StatusClient
+	presetLookup StatusPresetLookup
 }
 
 // NewStatusUseCase creates a status use-case.
-func NewStatusUseCase(client StatusClient) *StatusUseCase {
+func NewStatusUseCase(client StatusClient, presetLookup StatusPresetLookup) *StatusUseCase {
 	if client == nil {
 		panic("NewStatusUseCase: client dependency cannot be nil")
 	}
+	if presetLookup == nil {
+		panic("NewStatusUseCase: presetLookup dependency cannot be nil")
+	}
 
-	return &StatusUseCase{client: client}
+	return &StatusUseCase{client: client, presetLookup: presetLookup}
 }
 
 // DetermineStatusFormat resolves effective format preserving CLI precedence.
@@ -59,9 +66,8 @@ func (u *StatusUseCase) Execute(formatValue string, w io.Writer) error {
 		return formatJSON(u.client, w)
 	}
 
-	registry := formatter.NewPresetRegistry()
-	if preset, err := registry.Get(formatValue); err == nil {
-		return runStatusWithTemplate(u.client, preset.Template, w)
+	if template, ok := u.presetLookup(formatValue); ok {
+		return runStatusWithTemplate(u.client, template, w)
 	}
 
 	return runStatusWithTemplate(u.client, formatValue, w)

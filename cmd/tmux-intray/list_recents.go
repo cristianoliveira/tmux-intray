@@ -7,6 +7,7 @@ import (
 	"sort"
 	"time"
 
+	appcore "github.com/cristianoliveira/tmux-intray/internal/app"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/format"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
@@ -14,16 +15,18 @@ import (
 
 // RecentsOptions holds options for the recents command.
 type RecentsOptions struct {
-	Client     listClient
-	Hours      int
-	Format     string // "simple" or "table"
-	Session    string
-	Level      string
-	Window     string
-	Pane       string
-	OlderThan  string
-	NewerThan  string
-	ReadFilter string
+	Client       listClient
+	Hours        int
+	Format       string // "simple" or "table"
+	Session      string
+	Level        string
+	Window       string
+	Pane         string
+	OlderThan    string
+	NewerThan    string
+	ReadFilter   string
+	DisplayNames appcore.DisplayNames
+	RawIDs       bool
 }
 
 // recentsOutputWriter is the writer used by PrintRecents. Can be changed for testing.
@@ -87,20 +90,20 @@ func printRecents(opts RecentsOptions, w io.Writer) {
 
 	switch opts.Format {
 	case "json":
-		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeJSON, w)
+		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeJSON, opts.DisplayNames, opts.RawIDs, w)
 	case "table":
-		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeTable, w)
+		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeTable, opts.DisplayNames, opts.RawIDs, w)
 	case "legacy":
-		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeLegacy, w)
+		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeLegacy, opts.DisplayNames, opts.RawIDs, w)
 	case "compact":
-		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeCompact, w)
+		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeCompact, opts.DisplayNames, opts.RawIDs, w)
 	default:
 		// Keep default aligned with `tmux-intray list` (simple formatter)
-		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeSimple, w)
+		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeSimple, opts.DisplayNames, opts.RawIDs, w)
 	}
 }
 
-func formatRecentsUsingListFormatter(notifs []notification.Notification, ftype format.FormatterType, w io.Writer) {
+func formatRecentsUsingListFormatter(notifs []notification.Notification, ftype format.FormatterType, displayNames appcore.DisplayNames, rawIDs bool, w io.Writer) {
 	// Use the same formatter implementation as `tmux-intray list`.
 	formatter := format.NewFormatter(ftype)
 
@@ -120,6 +123,11 @@ func formatRecentsUsingListFormatter(notifs []notification.Notification, ftype f
 			Level:         domain.NotificationLevel(n.Level),
 			ReadTimestamp: n.ReadTimestamp,
 		})
+	}
+
+	domainNotifs = keepOnlyResolvableTmuxRows(domainNotifs, ftype, displayNames, rawIDs)
+	if !rawIDs && ftype == format.FormatterTypeSimple {
+		domainNotifs = displayNames.EnrichNotifications(domainNotifs)
 	}
 
 	_ = formatter.FormatNotifications(domainNotifs, w)
@@ -176,16 +184,18 @@ func severityWeight(level string) int {
 
 // TabOptions holds options for the tab flag.
 type TabOptions struct {
-	Client     listClient
-	Tab        string // "recents" or "sessions" or "all"
-	Format     string
-	Session    string
-	Level      string
-	Window     string
-	Pane       string
-	OlderThan  string
-	NewerThan  string
-	ReadFilter string
+	Client       listClient
+	Tab          string // "recents" or "sessions" or "all"
+	Format       string
+	Session      string
+	Level        string
+	Window       string
+	Pane         string
+	OlderThan    string
+	NewerThan    string
+	ReadFilter   string
+	DisplayNames appcore.DisplayNames
+	RawIDs       bool
 }
 
 // PrintTab prints the specified tab view.
@@ -193,39 +203,45 @@ func PrintTab(opts TabOptions) {
 	switch opts.Tab {
 	case "recents":
 		PrintRecents(RecentsOptions{
-			Client:     opts.Client,
-			Hours:      1,
-			Format:     opts.Format,
-			Session:    opts.Session,
-			Level:      opts.Level,
-			Window:     opts.Window,
-			Pane:       opts.Pane,
-			OlderThan:  opts.OlderThan,
-			NewerThan:  opts.NewerThan,
-			ReadFilter: opts.ReadFilter,
+			Client:       opts.Client,
+			Hours:        1,
+			Format:       opts.Format,
+			Session:      opts.Session,
+			Level:        opts.Level,
+			Window:       opts.Window,
+			Pane:         opts.Pane,
+			OlderThan:    opts.OlderThan,
+			NewerThan:    opts.NewerThan,
+			ReadFilter:   opts.ReadFilter,
+			DisplayNames: opts.DisplayNames,
+			RawIDs:       opts.RawIDs,
 		})
 	case "sessions":
 		PrintTabs(TabsOptions{
-			Client:     opts.Client,
-			All:        false,
-			Format:     opts.Format,
-			Session:    opts.Session,
-			Level:      opts.Level,
-			Window:     opts.Window,
-			Pane:       opts.Pane,
-			OlderThan:  opts.OlderThan,
-			NewerThan:  opts.NewerThan,
-			ReadFilter: opts.ReadFilter,
+			Client:       opts.Client,
+			All:          false,
+			Format:       opts.Format,
+			Session:      opts.Session,
+			Level:        opts.Level,
+			Window:       opts.Window,
+			Pane:         opts.Pane,
+			OlderThan:    opts.OlderThan,
+			NewerThan:    opts.NewerThan,
+			ReadFilter:   opts.ReadFilter,
+			DisplayNames: opts.DisplayNames,
+			RawIDs:       opts.RawIDs,
 		})
 	case "all":
 		PrintList(FilterOptions{
-			Client:  opts.Client,
-			State:   "all",
-			Format:  opts.Format,
-			Session: opts.Session,
-			Level:   opts.Level,
-			Window:  opts.Window,
-			Pane:    opts.Pane,
+			Client:       opts.Client,
+			State:        "all",
+			Format:       opts.Format,
+			Session:      opts.Session,
+			Level:        opts.Level,
+			Window:       opts.Window,
+			Pane:         opts.Pane,
+			DisplayNames: opts.DisplayNames,
+			RawIDs:       opts.RawIDs,
 		})
 	}
 }

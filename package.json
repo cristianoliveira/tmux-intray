@@ -2,7 +2,7 @@
   "name": "tmux-intray",
   "version": "0.1.0",
   "description": "A quiet inbox for things that happen while you're not looking",
-  "keywords": ["tmux", "cli", "productivity", "notifications"],
+  "keywords": ["tmux", "cli", "productivity", "notifications", "pi-package"],
   "homepage": "https://github.com/cristianoliveira/tmux-intray",
   "bugs": {
     "url": "https://github.com/cristianoliveira/tmux-intray/issues"
@@ -19,8 +19,12 @@
   "files": [
     "bin/tmux-intray.js",
     "dist",
+    "pi/agent/extensions/tmux-intray",
     "tmux-intray.tmux"
   ],
+  "pi": {
+    "extensions": ["pi/agent/extensions/tmux-intray"]
+  },
   "scripts": {
     "build": "./scripts/build-npm-binaries.sh",
     "prepublishOnly": "npm run build",

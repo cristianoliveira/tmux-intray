@@ -12,7 +12,6 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/format"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
-	"github.com/cristianoliveira/tmux-intray/internal/tmux"
 )
 
 // ListClient defines dependencies required to list notifications.
@@ -37,19 +36,25 @@ type ListOptions struct {
 	Format         string
 	SearchProvider search.Provider
 	ReadFilter     string
+	DisplayNames   DisplayNames
+	RawIDs         bool
 }
+
+// SearchProviderFactory builds a search provider for list behavior.
+type SearchProviderFactory func(regex bool) search.Provider
 
 // ListUseCase coordinates list notifications behavior.
 type ListUseCase struct {
-	client ListClient
+	client                ListClient
+	searchProviderFactory SearchProviderFactory
 }
 
 // NewListUseCase creates a new list use-case.
-func NewListUseCase(client ListClient) *ListUseCase {
+func NewListUseCase(client ListClient, searchProviderFactory SearchProviderFactory) *ListUseCase {
 	if client == nil {
 		panic("NewListUseCase: client dependency cannot be nil")
 	}
-	return &ListUseCase{client: client}
+	return &ListUseCase{client: client, searchProviderFactory: searchProviderFactory}
 }
 
 // Execute prints notifications according to the provided options.
@@ -76,6 +81,13 @@ func (u *ListUseCase) Execute(opts ListOptions, w io.Writer) {
 	printNotifications(notifications, opts, w)
 }
 
+func shouldResolveDisplayNames(opts ListOptions) bool {
+	if opts.RawIDs || opts.Format == "json" {
+		return false
+	}
+	return opts.Format == "simple" || opts.GroupBy != ""
+}
+
 func (u *ListUseCase) fetchNotifications(opts ListOptions) (string, error) {
 	if opts.Client != nil {
 		return opts.Client.ListNotifications(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, opts.OlderThan, opts.NewerThan, opts.ReadFilter)
@@ -87,39 +99,10 @@ func (u *ListUseCase) getSearchProvider(opts ListOptions) search.Provider {
 	if opts.SearchProvider != nil {
 		return opts.SearchProvider
 	}
-	if opts.Search == "" {
+	if opts.Search == "" || u.searchProviderFactory == nil {
 		return nil
 	}
-
-	client := tmux.NewDefaultClient()
-	sessionNames, _ := client.ListSessions()
-	if sessionNames == nil {
-		sessionNames = make(map[string]string)
-	}
-	windowNames, _ := client.ListWindows()
-	if windowNames == nil {
-		windowNames = make(map[string]string)
-	}
-	paneNames, _ := client.ListPanes()
-	if paneNames == nil {
-		paneNames = make(map[string]string)
-	}
-
-	if opts.Regex {
-		return search.NewRegexProvider(
-			search.WithCaseInsensitive(false),
-			search.WithSessionNames(sessionNames),
-			search.WithWindowNames(windowNames),
-			search.WithPaneNames(paneNames),
-		)
-	}
-
-	return search.NewSubstringProvider(
-		search.WithCaseInsensitive(false),
-		search.WithSessionNames(sessionNames),
-		search.WithWindowNames(windowNames),
-		search.WithPaneNames(paneNames),
-	)
+	return u.searchProviderFactory(opts.Regex)
 }
 
 func parseAndFilterNotifications(lines string, searchProvider search.Provider, searchQuery string) []*domain.Notification {
@@ -157,12 +140,19 @@ func printNotifications(notifications []*domain.Notification, opts ListOptions, 
 		} else {
 			groupResult = domain.GroupNotifications(notificationValues, domain.GroupByMode(opts.GroupBy))
 		}
+		if shouldResolveDisplayNames(opts) {
+			groupResult = opts.DisplayNames.EnrichGroupResult(groupResult)
+		}
 
 		formatter := format.GetFormatter(opts.Format, opts.GroupCount)
 		if err := formatter.FormatGroups(groupResult, w); err != nil {
 			_, _ = fmt.Fprintf(w, "list: formatting error: %v\n", err)
 		}
 		return
+	}
+
+	if shouldResolveDisplayNames(opts) {
+		notifications = opts.DisplayNames.EnrichNotifications(notifications)
 	}
 
 	formatter := format.GetFormatter(opts.Format, false)

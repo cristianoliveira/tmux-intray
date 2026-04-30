@@ -46,7 +46,11 @@ Use "tmux-intray [command] --help" for more information about a command.
 tmux-intray list [flags]
 ```
 
-Lists notifications with filter, grouping, and formatting flags. Common grouping flags:
+Lists notifications with filter, grouping, and formatting flags.
+
+Default human-oriented CLI output resolves tmux session/window/pane IDs to names when available. Use `--ids` to force raw tmux IDs. JSON output stays raw.
+
+Common grouping flags:
 
 - `--group-by <field>` – field can be `session`, `window`, `pane`, `level`, or `message`. The new `message` option collapses identical notification text so you can review duplicates once.
 - `--group-count` – when paired with `--group-by`, only emit group headers and counts.
