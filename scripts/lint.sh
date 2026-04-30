@@ -29,7 +29,7 @@ check_file_length() {
         -not -path "*/.git/*" \
         -not -path "*/.tmp/*" \
         -not -path "*/.gwt/*" \
-        -not -path "*/.bv/*" \
+        \
         -not -path "*/.local/*" \
         -not -path "*/tmp/*" \
         -not -path "*/vendor/*" \

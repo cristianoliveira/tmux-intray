@@ -89,7 +89,7 @@ The risk is that the CLI may bypass or duplicate shared business logic that idea
 ### 8. Documentation and follow-up
 - [ ] Update architecture docs to explicitly describe CLI/TUI as two adapters over shared use cases
 - [ ] Add a small diagram showing adapter → app → domain → infra relationships
-- [ ] Capture any leftover follow-up work as explicit tasks in `plans/todo/` or `bd`
+- [ ] Capture any leftover follow-up work as explicit tasks in `plans/todo/`
 
 ## Suggested execution order
 1. Characterize `list`

@@ -12,14 +12,12 @@ find_shell_scripts() {
             -not -path "*/.git/*" \
             -not -path "*/.tmp/*" \
             -not -path "*/_tmp/*" \
-            -not -path "*/.bv/*" \
             -not -path "*/.local/*" \
             -not -path "*/tmp/*" \
             -not -path "*/tmp*/*" \
             -not -path "*/.gwt/*" \
             -not -path "*/.gwt-main" \
-            -not -path "*/.direnv/*" \
-            -not -path "*/.beads/*"
+            -not -path "*/.direnv/*"
     ) | sort
 }
 
@@ -34,7 +32,7 @@ get_extra_files() {
         # Add all lib files from scripts/lib directory
         while IFS= read -r -d '' lib_file; do
             extra_files+=("$lib_file")
-        done < <(find "$root_dir/scripts/lib" -name "*.sh" -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/_tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -not -path "*/.gwt" -not -path "*/.direnv/*" -not -path "*/.beads/*" -print0)
+        done < <(find "$root_dir/scripts/lib" -name "*.sh" -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/_tmp/*" -not -path "*/.local/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -not -path "*/.gwt" -not -path "*/.direnv/*" -print0)
     fi
 
     # Return extra files by printing them null-delimited (safe for spaces)

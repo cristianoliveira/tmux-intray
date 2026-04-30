@@ -146,7 +146,6 @@ jobs:
             --exclude='.git' \
             --exclude='dist' \
             --exclude='.tmp' \
-            --exclude='.bv' \
             --exclude='.local' \
             --exclude='tmp' \
             --exclude='*.swp' \

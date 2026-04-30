@@ -23,9 +23,6 @@ internal/storage/notifications.db
 # Ignore temp directories created during development
 /tmp/
 
-# bv (beads viewer) local config and caches
-.bv/
-
 # Build artifacts
 tmux-intray-go
 *.tgz
