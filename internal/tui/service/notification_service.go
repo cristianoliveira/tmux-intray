@@ -354,11 +354,32 @@ func (s *DefaultNotificationService) FilterResolvableTmuxTargets(notifications [
 		return notifications
 	}
 
-	return appcore.KeepOnlyResolvableNotifications(notifications, appcore.DisplayNames{
+	domainNotifs := notificationsToDomainValues(notifications)
+	filtered := appcore.KeepOnlyResolvableNotifications(domainNotifs, appcore.DisplayNames{
 		Sessions: s.nameResolver.GetSessionNames(),
 		Windows:  s.nameResolver.GetWindowNames(),
 		Panes:    s.nameResolver.GetPaneNames(),
 	}, s.showStale)
+	return s.convertFromDomain(filtered)
+}
+
+func notificationsToDomainValues(notifs []notification.Notification) []domain.Notification {
+	values := make([]domain.Notification, 0, len(notifs))
+	for _, n := range notifs {
+		values = append(values, domain.Notification{
+			ID:            n.ID,
+			Timestamp:     n.Timestamp,
+			State:         domain.NotificationState(n.State),
+			Session:       n.Session,
+			Window:        n.Window,
+			Pane:          n.Pane,
+			Message:       n.Message,
+			PaneCreated:   n.PaneCreated,
+			Level:         domain.NotificationLevel(n.Level),
+			ReadTimestamp: n.ReadTimestamp,
+		})
+	}
+	return values
 }
 
 // ApplyFiltersAndSearch applies tab scope, then filters/search/sorting and stores filtered results.
