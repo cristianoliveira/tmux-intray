@@ -15,6 +15,7 @@ import (
 type Model interface {
 	tea.Model
 	SetLoadedSettings(loadedSettings *settings.Settings)
+	SetShowStale(show bool)
 	FromState(settingsState settings.TUIState) error
 }
 

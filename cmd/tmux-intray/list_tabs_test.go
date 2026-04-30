@@ -17,7 +17,7 @@ func TestFormatTabsUsingListFormatterSimple(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	formatTabsUsingListFormatter(groups, format.FormatterTypeSimple, appcore.DisplayNames{}, true, &buf)
+	formatTabsUsingListFormatter(groups, format.FormatterTypeSimple, appcore.DisplayNames{}, true, false, &buf)
 
 	out := buf.String()
 	if !strings.HasPrefix(out, "42") {
@@ -36,7 +36,7 @@ func TestFormatTabsUsingListFormatterTable(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	formatTabsUsingListFormatter(groups, format.FormatterTypeTable, appcore.DisplayNames{}, false, &buf)
+	formatTabsUsingListFormatter(groups, format.FormatterTypeTable, appcore.DisplayNames{}, false, false, &buf)
 
 	out := buf.String()
 	for _, want := range []string{"ID", "DATE", "7", "Test message"} {
@@ -48,7 +48,7 @@ func TestFormatTabsUsingListFormatterTable(t *testing.T) {
 
 func TestFormatTabsUsingListFormatterEmpty(t *testing.T) {
 	var buf bytes.Buffer
-	formatTabsUsingListFormatter(nil, format.FormatterTypeSimple, appcore.DisplayNames{}, false, &buf)
+	formatTabsUsingListFormatter(nil, format.FormatterTypeSimple, appcore.DisplayNames{}, false, false, &buf)
 	if buf.Len() != 0 {
 		t.Fatalf("expected no output for empty groups, got: %q", buf.String())
 	}
@@ -62,7 +62,7 @@ func TestFormatTabsUsingListFormatterSimpleUsesResolvedNamesByDefault(t *testing
 		Sessions: map[string]string{"$1": "work"},
 		Windows:  map[string]string{"@2": "editor"},
 		Panes:    map[string]string{"%3": "shell"},
-	}, false, &buf)
+	}, false, false, &buf)
 
 	cols := splitSimpleColumns(t, strings.TrimSpace(buf.String()))
 	if cols[2] != "work" || cols[3] != "editor" || cols[4] != "shell" {
@@ -76,8 +76,9 @@ func TestFormatTabsUsingListFormatterSimpleOmitsRowsWhenNamesCannotBeResolved(t 
 	var buf bytes.Buffer
 	formatTabsUsingListFormatter(groups, format.FormatterTypeSimple, appcore.DisplayNames{
 		Sessions: map[string]string{"$1": "work"},
-		// window and pane names missing
-	}, false, &buf)
+		Windows:  map[string]string{},
+		Panes:    map[string]string{},
+	}, false, false, &buf)
 
 	if strings.TrimSpace(buf.String()) != "" {
 		t.Fatalf("expected unresolved row to be omitted, got %q", buf.String())
@@ -92,7 +93,7 @@ func TestFormatTabsUsingListFormatterSimpleKeepsRawIDsWithExplicitFlag(t *testin
 		Sessions: map[string]string{"$1": "work"},
 		Windows:  map[string]string{"@2": "editor"},
 		Panes:    map[string]string{"%3": "shell"},
-	}, true, &buf)
+	}, true, false, &buf)
 
 	cols := splitSimpleColumns(t, strings.TrimSpace(buf.String()))
 	if cols[2] != "$1" || cols[3] != "@2" || cols[4] != "%3" {

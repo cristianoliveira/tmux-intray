@@ -26,6 +26,7 @@ type TabsOptions struct {
 	ReadFilter   string
 	DisplayNames appcore.DisplayNames
 	RawIDs       bool
+	ShowStale    bool
 }
 
 // tabsOutputWriter is the writer used by PrintTabs. Can be changed for testing.
@@ -77,19 +78,19 @@ func printTabs(opts TabsOptions, w io.Writer) {
 	// Render using the same formatter implementation as `tmux-intray list`.
 	switch opts.Format {
 	case "json":
-		formatTabsUsingListFormatter(sessionGroups, format.FormatterTypeJSON, opts.DisplayNames, opts.RawIDs, w)
+		formatTabsUsingListFormatter(sessionGroups, format.FormatterTypeJSON, opts.DisplayNames, opts.RawIDs, opts.ShowStale, w)
 	case "table":
-		formatTabsUsingListFormatter(sessionGroups, format.FormatterTypeTable, opts.DisplayNames, opts.RawIDs, w)
+		formatTabsUsingListFormatter(sessionGroups, format.FormatterTypeTable, opts.DisplayNames, opts.RawIDs, opts.ShowStale, w)
 	case "legacy":
-		formatTabsUsingListFormatter(sessionGroups, format.FormatterTypeLegacy, opts.DisplayNames, opts.RawIDs, w)
+		formatTabsUsingListFormatter(sessionGroups, format.FormatterTypeLegacy, opts.DisplayNames, opts.RawIDs, opts.ShowStale, w)
 	case "compact":
-		formatTabsUsingListFormatter(sessionGroups, format.FormatterTypeCompact, opts.DisplayNames, opts.RawIDs, w)
+		formatTabsUsingListFormatter(sessionGroups, format.FormatterTypeCompact, opts.DisplayNames, opts.RawIDs, opts.ShowStale, w)
 	default:
-		formatTabsUsingListFormatter(sessionGroups, format.FormatterTypeSimple, opts.DisplayNames, opts.RawIDs, w)
+		formatTabsUsingListFormatter(sessionGroups, format.FormatterTypeSimple, opts.DisplayNames, opts.RawIDs, opts.ShowStale, w)
 	}
 }
 
-func formatTabsUsingListFormatter(groups []domain.SessionNotification, ftype format.FormatterType, displayNames appcore.DisplayNames, rawIDs bool, w io.Writer) {
+func formatTabsUsingListFormatter(groups []domain.SessionNotification, ftype format.FormatterType, displayNames appcore.DisplayNames, rawIDs, showStale bool, w io.Writer) {
 	formatter := format.NewFormatter(ftype)
 
 	notifs := make([]*domain.Notification, 0, len(groups))
@@ -97,7 +98,7 @@ func formatTabsUsingListFormatter(groups []domain.SessionNotification, ftype for
 		n := groups[i].Notification
 		notifs = append(notifs, &n)
 	}
-	notifs = keepOnlyResolvableTmuxRows(notifs, ftype, displayNames, rawIDs)
+	notifs = appcore.KeepOnlyResolvableTmuxRows(notifs, ftype, displayNames, rawIDs, showStale)
 	if !rawIDs && ftype == format.FormatterTypeSimple {
 		notifs = displayNames.EnrichNotifications(notifs)
 	}

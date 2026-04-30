@@ -85,6 +85,7 @@ func newTestModel(t *testing.T, notifications []notification.Notification) *Mode
 		search.WithPaneNames(runtimeCoordinator.GetPaneNames()),
 	)
 	notificationService := service.NewNotificationService(searchProvider, runtimeCoordinator)
+	notificationService.SetShowStale(true)
 	notificationService.SetNotifications(notifications)
 
 	// Create model without loading from storage
@@ -196,6 +197,7 @@ func createTestModelFromNotifications(t *testing.T, notifications []notification
 		search.WithPaneNames(runtimeCoordinator.GetPaneNames()),
 	)
 	notificationService := service.NewNotificationService(searchProvider, runtimeCoordinator)
+	notificationService.SetShowStale(true)
 	notificationService.SetNotifications(notifications)
 
 	// Create model without loading from storage
@@ -231,12 +233,11 @@ func stubSessionFetchers(t *testing.T) *tmux.MockClient {
 	t.Helper()
 
 	mockClient := new(tmux.MockClient)
-	// Mock ListSessions to return empty map
-	mockClient.On("ListSessions").Return(map[string]string{}, nil)
-	// Mock ListWindows to return empty map
-	mockClient.On("ListWindows").Return(map[string]string{}, nil)
-	// Mock ListPanes to return empty map
-	mockClient.On("ListPanes").Return(map[string]string{}, nil)
+	// Return nil name maps so generic model tests do not exercise stale-target filtering.
+	var noNames map[string]string
+	mockClient.On("ListSessions").Return(noNames, nil)
+	mockClient.On("ListWindows").Return(noNames, nil)
+	mockClient.On("ListPanes").Return(noNames, nil)
 	mockClient.On("GetSessionName", mock.Anything).Return("", stderrors.New("session not found"))
 
 	return mockClient
@@ -340,15 +341,15 @@ func (t *testRuntimeCoordinator) ResolvePaneName(paneID string) string {
 }
 
 func (t *testRuntimeCoordinator) GetSessionNames() map[string]string {
-	return map[string]string{}
+	return nil
 }
 
 func (t *testRuntimeCoordinator) GetWindowNames() map[string]string {
-	return map[string]string{}
+	return nil
 }
 
 func (t *testRuntimeCoordinator) GetPaneNames() map[string]string {
-	return map[string]string{}
+	return nil
 }
 
 func (t *testRuntimeCoordinator) SetSessionNames(names map[string]string) {}
@@ -391,6 +392,7 @@ func BenchmarkComputeVisibleNodesCache(b *testing.B) {
 	}
 
 	notificationService := service.NewNotificationService(nil, nil)
+	notificationService.SetShowStale(true)
 	notificationService.SetNotifications(notifications)
 	model := &Model{
 		uiState:             NewUIState(),
@@ -1523,6 +1525,7 @@ func TestApplySearchFilterWithMockProvider(t *testing.T) {
 	runtimeCoordinator := service.NewRuntimeCoordinator(mockClient)
 	treeService := service.NewTreeService(uiState.GetGroupBy())
 	notificationService := service.NewNotificationService(mockProvider, runtimeCoordinator)
+	notificationService.SetShowStale(true)
 
 	model := Model{
 		uiState:             uiState,
@@ -2239,10 +2242,19 @@ func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 	groupNode := model.getVisibleNodesForTest()[0]
 	require.NotNil(t, groupNode)
 
+	expectedGroupDisplay := groupNode.Display
+	switch groupNode.Kind {
+	case uimodel.NodeKindSession:
+		expectedGroupDisplay = model.getSessionName(groupNode.Title)
+	case uimodel.NodeKindWindow:
+		expectedGroupDisplay = model.getWindowName(groupNode.Title)
+	case uimodel.NodeKindPane:
+		expectedGroupDisplay = model.getPaneName(groupNode.Title)
+	}
 	expectedGroupRow := render.RenderGroupRow(render.GroupRow{
 		Node: &render.GroupNode{
 			Title:       groupNode.Title,
-			Display:     groupNode.Display,
+			Display:     expectedGroupDisplay,
 			Expanded:    groupNode.Expanded,
 			Count:       groupNode.Count,
 			UnreadCount: groupNode.UnreadCount,
@@ -2265,8 +2277,10 @@ func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 	}
 	require.NotNil(t, leafNode)
 
+	expectedLeafNotification := *leafNode.Notification
+	expectedLeafNotification.Pane = model.getPaneName(expectedLeafNotification.Pane)
 	expectedLeafRow := render.Row(render.RowState{
-		Notification: *leafNode.Notification,
+		Notification: expectedLeafNotification,
 		SessionName:  model.getSessionName(leafNode.Notification.Session),
 		Width:        model.uiState.GetWidth(),
 		Selected:     leafIndex == model.uiState.GetCursor(),
@@ -2317,8 +2331,10 @@ func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
 	model.updateViewportContent()
 
 	content := model.uiState.GetViewport().View()
+	expectedLeafNotification := *leafNode.Notification
+	expectedLeafNotification.Pane = model.getPaneName(expectedLeafNotification.Pane)
 	expectedLeafRow := render.Row(render.RowState{
-		Notification: *leafNode.Notification,
+		Notification: expectedLeafNotification,
 		SessionName:  model.getSessionName(leafNode.Notification.Session),
 		Width:        model.uiState.GetWidth(),
 		Selected:     true,
@@ -2326,10 +2342,19 @@ func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
 	})
 	assert.Contains(t, content, expectedLeafRow)
 
+	expectedGroupDisplay := groupNode.Display
+	switch groupNode.Kind {
+	case uimodel.NodeKindSession:
+		expectedGroupDisplay = model.getSessionName(groupNode.Title)
+	case uimodel.NodeKindWindow:
+		expectedGroupDisplay = model.getWindowName(groupNode.Title)
+	case uimodel.NodeKindPane:
+		expectedGroupDisplay = model.getPaneName(groupNode.Title)
+	}
 	expectedGroupRow := render.RenderGroupRow(render.GroupRow{
 		Node: &render.GroupNode{
 			Title:       groupNode.Title,
-			Display:     groupNode.Display,
+			Display:     expectedGroupDisplay,
 			Expanded:    groupNode.Expanded,
 			Count:       groupNode.Count,
 			UnreadCount: groupNode.UnreadCount,

@@ -38,6 +38,7 @@ type ListOptions struct {
 	ReadFilter     string
 	DisplayNames   DisplayNames
 	RawIDs         bool
+	ShowStale      bool
 }
 
 // SearchProviderFactory builds a search provider for list behavior.
@@ -72,6 +73,12 @@ func (u *ListUseCase) Execute(opts ListOptions, w io.Writer) {
 
 	searchProvider := u.getSearchProvider(opts)
 	notifications := parseAndFilterNotifications(lines, searchProvider, opts.Search)
+	if len(notifications) == 0 {
+		_, _ = fmt.Fprintf(w, "%s%s%s\n", colors.Blue, "No notifications found", colors.Reset)
+		return
+	}
+
+	notifications = filterStaleNotifications(notifications, opts)
 	if len(notifications) == 0 {
 		_, _ = fmt.Fprintf(w, "%s%s%s\n", colors.Blue, "No notifications found", colors.Reset)
 		return
@@ -121,6 +128,10 @@ func parseAndFilterNotifications(lines string, searchProvider search.Provider, s
 		notifications = append(notifications, notification.ToDomainUnsafe(notif))
 	}
 	return notifications
+}
+
+func filterStaleNotifications(notifs []*domain.Notification, opts ListOptions) []*domain.Notification {
+	return KeepOnlyResolvableTmuxRows(notifs, format.FormatterType(opts.Format), opts.DisplayNames, opts.RawIDs, opts.ShowStale)
 }
 
 func notificationsToValues(notifs []*domain.Notification) []domain.Notification {
