@@ -126,7 +126,7 @@ func formatRecentsUsingListFormatter(notifs []notification.Notification, ftype f
 		})
 	}
 
-	domainNotifs = keepOnlyResolvableTmuxRows(domainNotifs, ftype, displayNames, rawIDs, showStale)
+	domainNotifs = appcore.KeepOnlyResolvableTmuxRows(domainNotifs, ftype, displayNames, rawIDs, showStale)
 	if !rawIDs && ftype == format.FormatterTypeSimple {
 		domainNotifs = displayNames.EnrichNotifications(domainNotifs)
 	}

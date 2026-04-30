@@ -98,7 +98,7 @@ func formatTabsUsingListFormatter(groups []domain.SessionNotification, ftype for
 		n := groups[i].Notification
 		notifs = append(notifs, &n)
 	}
-	notifs = keepOnlyResolvableTmuxRows(notifs, ftype, displayNames, rawIDs, showStale)
+	notifs = appcore.KeepOnlyResolvableTmuxRows(notifs, ftype, displayNames, rawIDs, showStale)
 	if !rawIDs && ftype == format.FormatterTypeSimple {
 		notifs = displayNames.EnrichNotifications(notifs)
 	}

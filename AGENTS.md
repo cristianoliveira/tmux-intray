@@ -20,6 +20,11 @@ This project follows minimalist, Unix‑style principles focused on quiet notifi
 
 Detailed development guidelines in [DEVELOPMENT.md](./DEVELOPMENT.md).
 
+### Code Placement Rules
+
+- `cmd/tmux-intray/` must stay pure entrypoints: command wiring, flags, validation, dependency injection, and calls into internal packages only.
+- Do not add business logic or helper modules under `cmd/tmux-intray/`; move reusable behavior to `internal/` and test it there.
+
 ### Essential Documentation
 
 - **Package Structure**: See [Go Package Structure](./docs/design/go-package-structure.md)

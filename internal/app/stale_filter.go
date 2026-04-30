@@ -1,12 +1,12 @@
-package main
+package app
 
 import (
-	appcore "github.com/cristianoliveira/tmux-intray/internal/app"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/format"
 )
 
-func keepOnlyResolvableTmuxRows(notifs []*domain.Notification, ftype format.FormatterType, displayNames appcore.DisplayNames, rawIDs, showStale bool) []*domain.Notification {
+// KeepOnlyResolvableTmuxRows removes stale tmux rows from standard human-readable output.
+func KeepOnlyResolvableTmuxRows(notifs []*domain.Notification, ftype format.FormatterType, displayNames DisplayNames, rawIDs, showStale bool) []*domain.Notification {
 	if showStale || rawIDs || ftype != format.FormatterTypeSimple {
 		return notifs
 	}
