@@ -131,20 +131,7 @@ func parseAndFilterNotifications(lines string, searchProvider search.Provider, s
 }
 
 func filterStaleNotifications(notifs []*domain.Notification, opts ListOptions) []*domain.Notification {
-	if opts.ShowStale || opts.RawIDs || opts.Format == "json" {
-		return notifs
-	}
-
-	filtered := make([]*domain.Notification, 0, len(notifs))
-	for _, notif := range notifs {
-		if notif == nil {
-			continue
-		}
-		if opts.DisplayNames.IsResolvedNotification(*notif) {
-			filtered = append(filtered, notif)
-		}
-	}
-	return filtered
+	return KeepOnlyResolvableTmuxRows(notifs, format.FormatterType(opts.Format), opts.DisplayNames, opts.RawIDs, opts.ShowStale)
 }
 
 func notificationsToValues(notifs []*domain.Notification) []domain.Notification {
