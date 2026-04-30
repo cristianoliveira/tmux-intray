@@ -62,13 +62,13 @@ func MissingDisplayName(kind, raw string) string {
 
 // IsResolvedNotification reports whether all tmux routing IDs have live display names.
 func (d DisplayNames) IsResolvedNotification(notif domain.Notification) bool {
-	if d.Sessions != nil && d.Sessions[notif.Session] == "" {
+	if notif.Session != "" && d.Sessions != nil && d.Sessions[notif.Session] == "" {
 		return false
 	}
-	if d.Windows != nil && d.Windows[notif.Window] == "" {
+	if notif.Window != "" && d.Windows != nil && d.Windows[notif.Window] == "" {
 		return false
 	}
-	if d.Panes != nil && d.Panes[notif.Pane] == "" {
+	if notif.Pane != "" && d.Panes != nil && d.Panes[notif.Pane] == "" {
 		return false
 	}
 	return true

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	appcore "github.com/cristianoliveira/tmux-intray/internal/app"
 	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
@@ -353,23 +354,11 @@ func (s *DefaultNotificationService) FilterResolvableTmuxTargets(notifications [
 		return notifications
 	}
 
-	sessions := s.nameResolver.GetSessionNames()
-	windows := s.nameResolver.GetWindowNames()
-	panes := s.nameResolver.GetPaneNames()
-	filtered := make([]notification.Notification, 0, len(notifications))
-	for _, n := range notifications {
-		if len(sessions) > 0 && sessions[n.Session] == "" {
-			continue
-		}
-		if len(windows) > 0 && windows[n.Window] == "" {
-			continue
-		}
-		if len(panes) > 0 && panes[n.Pane] == "" {
-			continue
-		}
-		filtered = append(filtered, n)
-	}
-	return filtered
+	return appcore.KeepOnlyResolvableNotifications(notifications, appcore.DisplayNames{
+		Sessions: s.nameResolver.GetSessionNames(),
+		Windows:  s.nameResolver.GetWindowNames(),
+		Panes:    s.nameResolver.GetPaneNames(),
+	}, s.showStale)
 }
 
 // ApplyFiltersAndSearch applies tab scope, then filters/search/sorting and stores filtered results.
@@ -379,9 +368,7 @@ func (s *DefaultNotificationService) ApplyFiltersAndSearch(tab settings.Tab, que
 	}
 
 	result := s.selectDataset(tab, sortBy, sortOrder)
-	if !s.showStale {
-		result = s.FilterResolvableTmuxTargets(result)
-	}
+	result = s.FilterResolvableTmuxTargets(result)
 
 	// Check if this is a filtered view (drilling down into a specific session/window/pane)
 	isFilteredView := sessionID != "" || windowID != "" || paneID != ""
