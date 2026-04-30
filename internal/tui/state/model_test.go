@@ -2239,10 +2239,19 @@ func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 	groupNode := model.getVisibleNodesForTest()[0]
 	require.NotNil(t, groupNode)
 
+	expectedGroupDisplay := groupNode.Display
+	switch groupNode.Kind {
+	case uimodel.NodeKindSession:
+		expectedGroupDisplay = model.getSessionName(groupNode.Title)
+	case uimodel.NodeKindWindow:
+		expectedGroupDisplay = model.getWindowName(groupNode.Title)
+	case uimodel.NodeKindPane:
+		expectedGroupDisplay = model.getPaneName(groupNode.Title)
+	}
 	expectedGroupRow := render.RenderGroupRow(render.GroupRow{
 		Node: &render.GroupNode{
 			Title:       groupNode.Title,
-			Display:     groupNode.Display,
+			Display:     expectedGroupDisplay,
 			Expanded:    groupNode.Expanded,
 			Count:       groupNode.Count,
 			UnreadCount: groupNode.UnreadCount,
@@ -2265,8 +2274,10 @@ func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 	}
 	require.NotNil(t, leafNode)
 
+	expectedLeafNotification := *leafNode.Notification
+	expectedLeafNotification.Pane = model.getPaneName(expectedLeafNotification.Pane)
 	expectedLeafRow := render.Row(render.RowState{
-		Notification: *leafNode.Notification,
+		Notification: expectedLeafNotification,
 		SessionName:  model.getSessionName(leafNode.Notification.Session),
 		Width:        model.uiState.GetWidth(),
 		Selected:     leafIndex == model.uiState.GetCursor(),
@@ -2317,8 +2328,10 @@ func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
 	model.updateViewportContent()
 
 	content := model.uiState.GetViewport().View()
+	expectedLeafNotification := *leafNode.Notification
+	expectedLeafNotification.Pane = model.getPaneName(expectedLeafNotification.Pane)
 	expectedLeafRow := render.Row(render.RowState{
-		Notification: *leafNode.Notification,
+		Notification: expectedLeafNotification,
 		SessionName:  model.getSessionName(leafNode.Notification.Session),
 		Width:        model.uiState.GetWidth(),
 		Selected:     true,
@@ -2326,10 +2339,19 @@ func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
 	})
 	assert.Contains(t, content, expectedLeafRow)
 
+	expectedGroupDisplay := groupNode.Display
+	switch groupNode.Kind {
+	case uimodel.NodeKindSession:
+		expectedGroupDisplay = model.getSessionName(groupNode.Title)
+	case uimodel.NodeKindWindow:
+		expectedGroupDisplay = model.getWindowName(groupNode.Title)
+	case uimodel.NodeKindPane:
+		expectedGroupDisplay = model.getPaneName(groupNode.Title)
+	}
 	expectedGroupRow := render.RenderGroupRow(render.GroupRow{
 		Node: &render.GroupNode{
 			Title:       groupNode.Title,
-			Display:     groupNode.Display,
+			Display:     expectedGroupDisplay,
 			Expanded:    groupNode.Expanded,
 			Count:       groupNode.Count,
 			UnreadCount: groupNode.UnreadCount,

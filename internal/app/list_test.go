@@ -178,6 +178,48 @@ func TestListUseCaseExecuteBuildsSearchProviderFromInjectedFactory(t *testing.T)
 	assert.NotContains(t, buf.String(), "warning message")
 }
 
+func TestListUseCaseHidesStaleTmuxRowsByDefault(t *testing.T) {
+	client := &fakeListClient{result: "1\t2025-01-01T10:00:00Z\tactive\t$1\t@1\t%1\tlive target\t123\tinfo\t\n" +
+		"2\t2025-01-01T10:01:00Z\tactive\t$180\t@329\t%703\tstale target\t124\tinfo\t\n"}
+	useCase := NewListUseCase(client, nil)
+
+	var buf bytes.Buffer
+	useCase.Execute(ListOptions{Format: "simple", DisplayNames: DisplayNames{
+		Sessions: map[string]string{"$1": "work"},
+		Windows:  map[string]string{"@1": "editor"},
+		Panes:    map[string]string{"%1": "shell"},
+	}}, &buf)
+
+	output := buf.String()
+	assert.Contains(t, output, "live target")
+	assert.NotContains(t, output, "stale target")
+	assert.NotContains(t, output, "stale-session:$180")
+}
+
+func TestListUseCaseShowsStaleTmuxRowsWhenRequested(t *testing.T) {
+	client := &fakeListClient{result: "1\t2025-01-01T10:00:00Z\tactive\t$180\t@329\t%703\tstale target\t123\tinfo\t\n"}
+	useCase := NewListUseCase(client, nil)
+
+	var buf bytes.Buffer
+	useCase.Execute(ListOptions{Format: "simple", DisplayNames: DisplayNames{}, ShowStale: true}, &buf)
+
+	output := buf.String()
+	assert.Contains(t, output, "stale-session:$180")
+	assert.Contains(t, output, "stale-window:@329")
+	assert.Contains(t, output, "stale-pane:%703")
+	assert.NotContains(t, output, "\t$180\t@329\t%703\t")
+}
+
+func TestListUseCaseGroupedOutputUsesReadableFallbackForStaleTmuxIDs(t *testing.T) {
+	client := &fakeListClient{result: "1\t2025-01-01T10:00:00Z\tactive\t$180\t@329\t%703\tstale target\t123\tinfo\t\n"}
+	useCase := NewListUseCase(client, nil)
+
+	var buf bytes.Buffer
+	useCase.Execute(ListOptions{Format: "simple", GroupBy: "session", GroupCount: true, DisplayNames: DisplayNames{}, ShowStale: true}, &buf)
+
+	assert.Contains(t, buf.String(), "Group: stale-session:$180 (1)")
+}
+
 func TestListUseCaseGroupedOutputKeepsRawSessionIdentityWhenDisplayNamesCollide(t *testing.T) {
 	client := &fakeListClient{result: "1\t2025-01-01T10:00:00Z\tactive\t$1\t@1\t%1\tmessage one\t123\tinfo\t\n" +
 		"2\t2025-01-01T11:00:00Z\tactive\t$2\t@2\t%2\tmessage two\t124\twarning\t\n"}
@@ -191,6 +233,7 @@ func TestListUseCaseGroupedOutputKeepsRawSessionIdentityWhenDisplayNamesCollide(
 		DisplayNames: DisplayNames{
 			Sessions: map[string]string{"$1": "work", "$2": "work"},
 		},
+		ShowStale: true,
 	}, &buf)
 
 	output := buf.String()
@@ -211,6 +254,7 @@ func TestListUseCaseGroupedOutputKeepsRawWindowIdentityWhenDisplayNamesCollide(t
 		DisplayNames: DisplayNames{
 			Windows: map[string]string{"@1": "editor", "@2": "editor"},
 		},
+		ShowStale: true,
 	}, &buf)
 
 	output := buf.String()

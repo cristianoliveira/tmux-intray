@@ -35,6 +35,7 @@ OPTIONS:
     --session <id|name>  Filter notifications by session ID or session name
     --window <id|name>   Filter notifications by window ID or window name
     --ids                Show raw tmux session/window/pane IDs instead of resolved names
+    --show-stale         Include notifications whose tmux session/window/pane no longer exists
     --older-than <days>  Show notifications older than N days
     --newer-than <days>  Show notifications newer than N days
     --search <pattern>   Search messages (substring match)
@@ -90,6 +91,7 @@ func NewListCmd(client listClient, searchProviderFactory appcore.SearchProviderF
 	var listTab string
 	var listJSON bool
 	var listRawIDs bool
+	var listShowStale bool
 
 	listCmd.RunE = func(cmd *cobra.Command, args []string) error {
 		// Handle --json flag
@@ -128,6 +130,7 @@ func NewListCmd(client listClient, searchProviderFactory appcore.SearchProviderF
 				ReadFilter:   listFilter,
 				DisplayNames: displayNames,
 				RawIDs:       listRawIDs,
+				ShowStale:    listShowStale,
 			}
 			PrintTab(tabOpts)
 			return nil
@@ -157,6 +160,7 @@ func NewListCmd(client listClient, searchProviderFactory appcore.SearchProviderF
 			SearchProvider: buildListSearchProvider(listSearch, listRegex, displayNames),
 			DisplayNames:   displayNames,
 			RawIDs:         listRawIDs,
+			ShowStale:      listShowStale,
 		}
 		PrintListTo(opts, cmd.OutOrStdout(), searchProviderFactory)
 		return nil
@@ -170,6 +174,7 @@ func NewListCmd(client listClient, searchProviderFactory appcore.SearchProviderF
 	// Add --json flag
 	listCmd.Flags().BoolVar(&listJSON, "json", false, "Output in JSON format")
 	listCmd.Flags().BoolVar(&listRawIDs, "ids", false, "Show raw tmux session/window/pane IDs instead of resolved names")
+	listCmd.Flags().BoolVar(&listShowStale, "show-stale", false, "Include notifications whose tmux session/window/pane no longer exists")
 
 	return listCmd
 }

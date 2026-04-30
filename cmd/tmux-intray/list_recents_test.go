@@ -18,7 +18,7 @@ func TestFormatRecentsUsingListFormatterSimpleMatchesListStyle(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	formatRecentsUsingListFormatter(notifs, format.FormatterTypeSimple, appcore.DisplayNames{}, true, &buf)
+	formatRecentsUsingListFormatter(notifs, format.FormatterTypeSimple, appcore.DisplayNames{}, true, false, &buf)
 
 	out := buf.String()
 	// simple format starts with the numeric ID
@@ -41,7 +41,7 @@ func TestFormatRecentsUsingListFormatterSimpleUsesResolvedNamesByDefault(t *test
 		Sessions: map[string]string{"$1": "work"},
 		Windows:  map[string]string{"@2": "editor"},
 		Panes:    map[string]string{"%3": "shell"},
-	}, false, &buf)
+	}, false, false, &buf)
 
 	cols := splitSimpleColumns(t, strings.TrimSpace(buf.String()))
 	if cols[2] != "work" || cols[3] != "editor" || cols[4] != "shell" {
@@ -55,8 +55,9 @@ func TestFormatRecentsUsingListFormatterSimpleOmitsRowsWhenNamesCannotBeResolved
 	var buf bytes.Buffer
 	formatRecentsUsingListFormatter(notifs, format.FormatterTypeSimple, appcore.DisplayNames{
 		Sessions: map[string]string{"$1": "work"},
-		// window and pane names missing
-	}, false, &buf)
+		Windows:  map[string]string{},
+		Panes:    map[string]string{},
+	}, false, false, &buf)
 
 	if strings.TrimSpace(buf.String()) != "" {
 		t.Fatalf("expected unresolved row to be omitted, got: %q", buf.String())
@@ -69,7 +70,7 @@ func TestFormatRecentsUsingListFormatterSimpleKeepsRowsWithRawIDsFlag(t *testing
 	var buf bytes.Buffer
 	formatRecentsUsingListFormatter(notifs, format.FormatterTypeSimple, appcore.DisplayNames{
 		Sessions: map[string]string{"$1": "work"},
-	}, true, &buf)
+	}, true, false, &buf)
 
 	cols := splitSimpleColumns(t, strings.TrimSpace(buf.String()))
 	if cols[2] != "$1" || cols[3] != "@2" || cols[4] != "%3" {
@@ -83,7 +84,7 @@ func TestFormatRecentsUsingListFormatterJSONIncludesID(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	formatRecentsUsingListFormatter(notifs, format.FormatterTypeJSON, appcore.DisplayNames{}, false, &buf)
+	formatRecentsUsingListFormatter(notifs, format.FormatterTypeJSON, appcore.DisplayNames{}, false, false, &buf)
 
 	var got []map[string]any
 	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {

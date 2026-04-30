@@ -595,7 +595,7 @@ func TestPrintListSimpleFormatUsesResolvedNamesByDefault(t *testing.T) {
 	assert.Equal(t, "shell", cols[4])
 }
 
-func TestPrintListSimpleFormatFallsBackToRawIDsWhenNamesUnavailable(t *testing.T) {
+func TestPrintListSimpleFormatUsesReadableFallbackWhenNamesUnavailable(t *testing.T) {
 	output := runPrintList(t,
 		"1\t2025-01-01T10:00:00Z\tactive\t$1\t@2\t%3\tmessage one\t123\tinfo\t\n",
 		nil,
@@ -609,8 +609,8 @@ func TestPrintListSimpleFormatFallsBackToRawIDsWhenNamesUnavailable(t *testing.T
 
 	cols := splitSimpleColumns(t, strings.TrimSpace(output))
 	assert.Equal(t, "work", cols[2])
-	assert.Equal(t, "@2", cols[3])
-	assert.Equal(t, "%3", cols[4])
+	assert.Equal(t, "stale-window:@2", cols[3])
+	assert.Equal(t, "stale-pane:%3", cols[4])
 }
 
 func TestPrintListGroupCountUsesResolvedGroupNamesByDefault(t *testing.T) {

@@ -113,6 +113,7 @@ func (m *mockModel) View() string {
 }
 
 func (m *mockModel) SetLoadedSettings(loadedSettings *settings.Settings) {}
+func (m *mockModel) SetShowStale(show bool)                              {}
 
 func (m *mockModel) FromState(settingsState settings.TUIState) error {
 	return nil

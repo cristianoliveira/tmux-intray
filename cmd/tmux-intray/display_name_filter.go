@@ -6,8 +6,8 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/format"
 )
 
-func keepOnlyResolvableTmuxRows(notifs []*domain.Notification, ftype format.FormatterType, displayNames appcore.DisplayNames, rawIDs bool) []*domain.Notification {
-	if rawIDs || ftype != format.FormatterTypeSimple {
+func keepOnlyResolvableTmuxRows(notifs []*domain.Notification, ftype format.FormatterType, displayNames appcore.DisplayNames, rawIDs, showStale bool) []*domain.Notification {
+	if showStale || rawIDs || ftype != format.FormatterTypeSimple {
 		return notifs
 	}
 
@@ -16,27 +16,9 @@ func keepOnlyResolvableTmuxRows(notifs []*domain.Notification, ftype format.Form
 		if notif == nil {
 			continue
 		}
-		if hasResolvedTmuxNames(*notif, displayNames) {
+		if displayNames.IsResolvedNotification(*notif) {
 			filtered = append(filtered, notif)
 		}
 	}
 	return filtered
-}
-
-func hasResolvedTmuxNames(notif domain.Notification, displayNames appcore.DisplayNames) bool {
-	if notif.Session == "" || notif.Window == "" || notif.Pane == "" {
-		return false
-	}
-
-	if displayNames.Sessions[notif.Session] == "" {
-		return false
-	}
-	if displayNames.Windows[notif.Window] == "" {
-		return false
-	}
-	if displayNames.Panes[notif.Pane] == "" {
-		return false
-	}
-
-	return true
 }

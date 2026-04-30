@@ -13,6 +13,9 @@ type NotificationService interface {
 	// SetNotifications updates the underlying notification dataset.
 	SetNotifications(notifications []notification.Notification)
 
+	// SetShowStale controls whether notifications for stale tmux targets remain visible.
+	SetShowStale(show bool)
+
 	// GetNotifications returns all notifications currently tracked by the service.
 	GetNotifications() []notification.Notification
 

@@ -440,6 +440,8 @@ type dummyNotificationService struct {
 	filtered      []notification.Notification
 }
 
+func (d *dummyNotificationService) SetShowStale(show bool) {}
+
 func (d *dummyNotificationService) FilterNotifications(notifications []notification.Notification, query string) []notification.Notification {
 	if query == "" {
 		return notifications

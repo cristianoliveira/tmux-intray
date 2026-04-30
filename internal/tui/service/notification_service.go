@@ -20,6 +20,7 @@ type DefaultNotificationService struct {
 	settings       *settings.Settings
 	notifications  []notification.Notification
 	filtered       []notification.Notification
+	showStale      bool
 }
 
 const (
@@ -51,6 +52,11 @@ func NewNotificationService(provider search.Provider, resolver model.NameResolve
 		notifications:  []notification.Notification{},
 		filtered:       []notification.Notification{},
 	}
+}
+
+// SetShowStale controls whether notifications for stale tmux targets remain visible.
+func (s *DefaultNotificationService) SetShowStale(show bool) {
+	s.showStale = show
 }
 
 // SetSettings updates the settings used by the service.
@@ -341,6 +347,31 @@ func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortB
 	return activeOnly
 }
 
+// FilterResolvableTmuxTargets hides notifications whose tmux session/window/pane no longer exists.
+func (s *DefaultNotificationService) FilterResolvableTmuxTargets(notifications []notification.Notification) []notification.Notification {
+	if s.nameResolver == nil {
+		return notifications
+	}
+
+	sessions := s.nameResolver.GetSessionNames()
+	windows := s.nameResolver.GetWindowNames()
+	panes := s.nameResolver.GetPaneNames()
+	filtered := make([]notification.Notification, 0, len(notifications))
+	for _, n := range notifications {
+		if len(sessions) > 0 && sessions[n.Session] == "" {
+			continue
+		}
+		if len(windows) > 0 && windows[n.Window] == "" {
+			continue
+		}
+		if len(panes) > 0 && panes[n.Pane] == "" {
+			continue
+		}
+		filtered = append(filtered, n)
+	}
+	return filtered
+}
+
 // ApplyFiltersAndSearch applies tab scope, then filters/search/sorting and stores filtered results.
 func (s *DefaultNotificationService) ApplyFiltersAndSearch(tab settings.Tab, query, state, level, sessionID, windowID, paneID, readFilter, sortBy, sortOrder string) {
 	if settings.NormalizeTab(string(tab)) == settings.TabRecents {
@@ -348,6 +379,9 @@ func (s *DefaultNotificationService) ApplyFiltersAndSearch(tab settings.Tab, que
 	}
 
 	result := s.selectDataset(tab, sortBy, sortOrder)
+	if !s.showStale {
+		result = s.FilterResolvableTmuxTargets(result)
+	}
 
 	// Check if this is a filtered view (drilling down into a specific session/window/pane)
 	isFilteredView := sessionID != "" || windowID != "" || paneID != ""

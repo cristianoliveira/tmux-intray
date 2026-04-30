@@ -26,7 +26,9 @@ func NewTUICmd(client tuiClient) *cobra.Command {
 		panic("NewTUICmd: client dependency cannot be nil")
 	}
 
-	return &cobra.Command{
+	var showStale bool
+
+	cmd := &cobra.Command{
 		Use:   "tui",
 		Short: "Interactive terminal UI for notifications",
 		Long: `Interactive terminal UI for notifications.
@@ -46,6 +48,9 @@ KEY BINDINGS:
     u           Mark selected notification as unread
     Enter       Jump to pane/window target
     q           Quit TUI
+
+OPTIONS:
+    --show-stale Include notifications whose tmux session/window/pane no longer exists
 
 NOTES:
     - Settings are saved automatically on quit.
@@ -69,6 +74,7 @@ NOTES:
 
 			// Store loaded settings reference
 			model.SetLoadedSettings(loadedSettings)
+			model.SetShowStale(showStale)
 
 			// Apply loaded settings to model
 			st := settings.FromSettings(loadedSettings)
@@ -95,4 +101,7 @@ NOTES:
 			return client.RunProgram(model)
 		},
 	}
+
+	cmd.Flags().BoolVar(&showStale, "show-stale", false, "Include notifications whose tmux session/window/pane no longer exists")
+	return cmd
 }

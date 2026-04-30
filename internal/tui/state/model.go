@@ -47,6 +47,7 @@ type Model struct {
 	settingsSvc    *settingsService
 	// UI render options
 	groupHeaderOptions settings.GroupHeaderOptions
+	showStale          bool
 
 	// Services - implementing BubbleTea nested model pattern
 	treeService         model.TreeService

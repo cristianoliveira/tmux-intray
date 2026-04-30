@@ -27,6 +27,7 @@ type RecentsOptions struct {
 	ReadFilter   string
 	DisplayNames appcore.DisplayNames
 	RawIDs       bool
+	ShowStale    bool
 }
 
 // recentsOutputWriter is the writer used by PrintRecents. Can be changed for testing.
@@ -90,20 +91,20 @@ func printRecents(opts RecentsOptions, w io.Writer) {
 
 	switch opts.Format {
 	case "json":
-		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeJSON, opts.DisplayNames, opts.RawIDs, w)
+		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeJSON, opts.DisplayNames, opts.RawIDs, opts.ShowStale, w)
 	case "table":
-		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeTable, opts.DisplayNames, opts.RawIDs, w)
+		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeTable, opts.DisplayNames, opts.RawIDs, opts.ShowStale, w)
 	case "legacy":
-		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeLegacy, opts.DisplayNames, opts.RawIDs, w)
+		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeLegacy, opts.DisplayNames, opts.RawIDs, opts.ShowStale, w)
 	case "compact":
-		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeCompact, opts.DisplayNames, opts.RawIDs, w)
+		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeCompact, opts.DisplayNames, opts.RawIDs, opts.ShowStale, w)
 	default:
 		// Keep default aligned with `tmux-intray list` (simple formatter)
-		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeSimple, opts.DisplayNames, opts.RawIDs, w)
+		formatRecentsUsingListFormatter(sessionBest, format.FormatterTypeSimple, opts.DisplayNames, opts.RawIDs, opts.ShowStale, w)
 	}
 }
 
-func formatRecentsUsingListFormatter(notifs []notification.Notification, ftype format.FormatterType, displayNames appcore.DisplayNames, rawIDs bool, w io.Writer) {
+func formatRecentsUsingListFormatter(notifs []notification.Notification, ftype format.FormatterType, displayNames appcore.DisplayNames, rawIDs, showStale bool, w io.Writer) {
 	// Use the same formatter implementation as `tmux-intray list`.
 	formatter := format.NewFormatter(ftype)
 
@@ -125,7 +126,7 @@ func formatRecentsUsingListFormatter(notifs []notification.Notification, ftype f
 		})
 	}
 
-	domainNotifs = keepOnlyResolvableTmuxRows(domainNotifs, ftype, displayNames, rawIDs)
+	domainNotifs = keepOnlyResolvableTmuxRows(domainNotifs, ftype, displayNames, rawIDs, showStale)
 	if !rawIDs && ftype == format.FormatterTypeSimple {
 		domainNotifs = displayNames.EnrichNotifications(domainNotifs)
 	}
@@ -196,6 +197,7 @@ type TabOptions struct {
 	ReadFilter   string
 	DisplayNames appcore.DisplayNames
 	RawIDs       bool
+	ShowStale    bool
 }
 
 // PrintTab prints the specified tab view.
@@ -215,6 +217,7 @@ func PrintTab(opts TabOptions) {
 			ReadFilter:   opts.ReadFilter,
 			DisplayNames: opts.DisplayNames,
 			RawIDs:       opts.RawIDs,
+			ShowStale:    opts.ShowStale,
 		})
 	case "sessions":
 		PrintTabs(TabsOptions{
@@ -230,6 +233,7 @@ func PrintTab(opts TabOptions) {
 			ReadFilter:   opts.ReadFilter,
 			DisplayNames: opts.DisplayNames,
 			RawIDs:       opts.RawIDs,
+			ShowStale:    opts.ShowStale,
 		})
 	case "all":
 		PrintList(FilterOptions{
@@ -242,6 +246,7 @@ func PrintTab(opts TabOptions) {
 			Pane:         opts.Pane,
 			DisplayNames: opts.DisplayNames,
 			RawIDs:       opts.RawIDs,
+			ShowStale:    opts.ShowStale,
 		})
 	}
 }

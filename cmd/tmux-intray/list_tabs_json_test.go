@@ -16,7 +16,7 @@ func TestFormatTabsUsingListFormatterJSONIncludesIDField(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	formatTabsUsingListFormatter(groups, format.FormatterTypeJSON, appcore.DisplayNames{}, false, &buf)
+	formatTabsUsingListFormatter(groups, format.FormatterTypeJSON, appcore.DisplayNames{}, false, false, &buf)
 
 	var got []map[string]any
 	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {

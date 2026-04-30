@@ -1,6 +1,8 @@
 package app
 
 import (
+	"strings"
+
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
 )
 
@@ -11,7 +13,7 @@ type DisplayNames struct {
 	Panes    map[string]string
 }
 
-// Resolve returns a display value for the given kind, falling back to the raw tmux ID.
+// Resolve returns a display value for the given kind, falling back to a readable missing label.
 func (d DisplayNames) Resolve(kind, raw string) string {
 	if raw == "" {
 		return raw
@@ -29,13 +31,47 @@ func (d DisplayNames) Resolve(kind, raw string) string {
 		return raw
 	}
 
-	if names == nil {
-		return raw
-	}
 	if resolved := names[raw]; resolved != "" {
 		return resolved
 	}
+	return MissingDisplayName(kind, raw)
+}
+
+// MissingDisplayName returns a human-readable fallback for stale tmux IDs.
+func MissingDisplayName(kind, raw string) string {
+	if raw == "" {
+		return raw
+	}
+
+	switch kind {
+	case "session":
+		if strings.HasPrefix(raw, "$") {
+			return "stale-session:" + raw
+		}
+	case "window":
+		if strings.HasPrefix(raw, "@") {
+			return "stale-window:" + raw
+		}
+	case "pane":
+		if strings.HasPrefix(raw, "%") {
+			return "stale-pane:" + raw
+		}
+	}
 	return raw
+}
+
+// IsResolvedNotification reports whether all tmux routing IDs have live display names.
+func (d DisplayNames) IsResolvedNotification(notif domain.Notification) bool {
+	if d.Sessions != nil && d.Sessions[notif.Session] == "" {
+		return false
+	}
+	if d.Windows != nil && d.Windows[notif.Window] == "" {
+		return false
+	}
+	if d.Panes != nil && d.Panes[notif.Pane] == "" {
+		return false
+	}
+	return true
 }
 
 // EnrichNotification returns a copy with human-readable tmux labels.

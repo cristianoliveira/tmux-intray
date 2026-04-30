@@ -4,6 +4,7 @@ package service
 import (
 	"fmt"
 
+	appcore "github.com/cristianoliveira/tmux-intray/internal/app"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
 	"github.com/cristianoliveira/tmux-intray/internal/errors"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
@@ -142,26 +143,17 @@ func (c *DefaultRuntimeCoordinator) ListPanes() (map[string]string, error) {
 
 // GetSessionName returns the name of a session by its ID.
 func (c *DefaultRuntimeCoordinator) GetSessionName(sessionID string) (string, error) {
-	if name, ok := c.sessionNames[sessionID]; ok {
-		return name, nil
-	}
-	return sessionID, nil
+	return c.ResolveSessionName(sessionID), nil
 }
 
 // GetWindowName returns the name of a window by its ID.
 func (c *DefaultRuntimeCoordinator) GetWindowName(windowID string) (string, error) {
-	if name, ok := c.windowNames[windowID]; ok {
-		return name, nil
-	}
-	return windowID, nil
+	return c.ResolveWindowName(windowID), nil
 }
 
 // GetPaneName returns the name of a pane by its ID.
 func (c *DefaultRuntimeCoordinator) GetPaneName(paneID string) (string, error) {
-	if name, ok := c.paneNames[paneID]; ok {
-		return name, nil
-	}
-	return paneID, nil
+	return c.ResolvePaneName(paneID), nil
 }
 
 // RefreshNames refreshes cached session, window, and pane names.
@@ -237,24 +229,15 @@ func (c *DefaultRuntimeCoordinator) SetPaneNames(names map[string]string) {
 
 // ResolveSessionName converts a session ID to a name.
 func (c *DefaultRuntimeCoordinator) ResolveSessionName(sessionID string) string {
-	if name, ok := c.sessionNames[sessionID]; ok {
-		return name
-	}
-	return sessionID
+	return appcore.DisplayNames{Sessions: c.sessionNames}.Resolve("session", sessionID)
 }
 
 // ResolveWindowName converts a window ID to a name.
 func (c *DefaultRuntimeCoordinator) ResolveWindowName(windowID string) string {
-	if name, ok := c.windowNames[windowID]; ok {
-		return name
-	}
-	return windowID
+	return appcore.DisplayNames{Windows: c.windowNames}.Resolve("window", windowID)
 }
 
 // ResolvePaneName converts a pane ID to a name.
 func (c *DefaultRuntimeCoordinator) ResolvePaneName(paneID string) string {
-	if name, ok := c.paneNames[paneID]; ok {
-		return name
-	}
-	return paneID
+	return appcore.DisplayNames{Panes: c.paneNames}.Resolve("pane", paneID)
 }
