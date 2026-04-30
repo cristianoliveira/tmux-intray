@@ -22,7 +22,7 @@ repos:
         entry: shfmt -d
         language: system
         files: \.(sh|bats|tmux)$
-        exclude: ^(\.git|\.tmp|\.bv|\.local|tmp|\.gwt|\.direnv|\.beads)/
+        exclude: ^(\.git|\.tmp|\.local|tmp|\.gwt|\.direnv)/
         pass_filenames: true
       - id: bats
         name: Bats

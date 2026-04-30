@@ -15,7 +15,7 @@ setup() {
             --exclude='.git' \
             --exclude='dist' \
             --exclude='.tmp' \
-            --exclude='.bv' \
+            \
             --exclude='.local' \
             --exclude='tmp' \
             --exclude='*.swp' \
@@ -25,7 +25,7 @@ setup() {
         # Fallback: copy everything and remove excluded directories
         cp -R . "$stage_dir/"
         rm -rf "$stage_dir/.git" "$stage_dir/dist" "$stage_dir/.tmp" \
-            "$stage_dir/.bv" "$stage_dir/.local" "$stage_dir/tmp" 2>/dev/null || true
+            "$stage_dir/.local" "$stage_dir/tmp" 2>/dev/null || true
         find "$stage_dir" -name '*.swp' -delete 2>/dev/null || true
     fi
     # Ensure bin directory exists with the binary (required by installer)

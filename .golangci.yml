@@ -60,7 +60,6 @@ linters:
     paths:
       - .tmp
       - .gwt
-      - .bv
       - .local
       - tmp
       - vendor

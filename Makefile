@@ -22,8 +22,8 @@ bench-tui:
 
 fmt:
 	@echo "Formatting shell scripts..."
-	find . -type f -name "*.bats" -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/_tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/.gwt/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -print0 | xargs -0 shfmt -ln bats -i 4 -w
-	find . -type f \( -name "*.sh" -o -name "*.tmux" \) -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/_tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/.gwt/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -print0 | xargs -0 shfmt -ln bash -i 4 -w
+	find . -type f -name "*.bats" -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/_tmp/*" -not -path "*/.local/*" -not -path "*/.gwt/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -print0 | xargs -0 shfmt -ln bats -i 4 -w
+	find . -type f \( -name "*.sh" -o -name "*.tmux" \) -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/_tmp/*" -not -path "*/.local/*" -not -path "*/.gwt/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -print0 | xargs -0 shfmt -ln bash -i 4 -w
 
 check-fmt:
 	@echo "Checking shell script formatting..."
@@ -31,13 +31,13 @@ check-fmt:
 		echo "shfmt is not installed. Install it to run formatting checks."; \
 		exit 1; \
 	fi
-	@if find . -type f -name "*.bats" -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/_tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/.gwt/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -print0 | xargs -0 shfmt -ln bats -i 4 -d; then \
+	@if find . -type f -name "*.bats" -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/_tmp/*" -not -path "*/.local/*" -not -path "*/.gwt/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -print0 | xargs -0 shfmt -ln bats -i 4 -d; then \
 		true; \
 	else \
 		echo "Some shell scripts need formatting. Run 'make fmt' to fix."; \
 		exit 1; \
 	fi
-	@if find . -type f \( -name "*.sh" -o -name "*.tmux" \) -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/_tmp/*" -not -path "*/.bv/*" -not -path "*/.local/*" -not -path "*/.gwt/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -print0 | xargs -0 shfmt -ln bash -i 4 -d; then \
+	@if find . -type f \( -name "*.sh" -o -name "*.tmux" \) -not -path "*/.git/*" -not -path "*/.tmp/*" -not -path "*/_tmp/*" -not -path "*/.local/*" -not -path "*/.gwt/*" -not -path "*/tmp/*" -not -path "*/tmp*/*" -print0 | xargs -0 shfmt -ln bash -i 4 -d; then \
 		true; \
 	else \
 		echo "Some shell scripts need formatting. Run 'make fmt' to fix."; \

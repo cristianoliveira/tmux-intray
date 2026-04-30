@@ -223,12 +223,10 @@ main() {
             -not -path "*/.git/*" \
             -not -path "*/.tmp/*" \
             -not -path "*/_tmp/*" \
-            -not -path "*/.bv/*" \
             -not -path "*/.local/*" \
             -not -path "*/tmp/*" \
             -not -path "*/vendor/*" \
             -not -path "*/.direnv/*" \
-            -not -path "*/.beads/*" \
             -not -path "*/tests/fixtures/*" \
             2>/dev/null || true)
     fi
