@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/cristianoliveira/tmux-intray/internal/dedup"
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
@@ -36,7 +36,7 @@ func (s *DefaultTreeService) getOrCreateGroupNode(parent *model.TreeNode, cache 
 	return node
 }
 
-func (s *DefaultTreeService) incrementGroupStats(node *model.TreeNode, notif notification.Notification) {
+func (s *DefaultTreeService) incrementGroupStats(node *model.TreeNode, notif domain.Notification) {
 	if node == nil {
 		return
 	}
@@ -123,7 +123,7 @@ func (s *DefaultTreeService) expandAllGroups(node *model.TreeNode) {
 }
 
 // notificationNodeMatches checks if a notification node matches the given notification.
-func (s *DefaultTreeService) notificationNodeMatches(node *model.TreeNode, notif notification.Notification) bool {
+func (s *DefaultTreeService) notificationNodeMatches(node *model.TreeNode, notif domain.Notification) bool {
 	if node == nil || node.Kind != model.NodeKindNotification || node.Notification == nil {
 		return false
 	}
@@ -137,23 +137,23 @@ func (s *DefaultTreeService) notificationNodeMatches(node *model.TreeNode, notif
 		node.Notification.Pane == notif.Pane
 }
 
-func buildNotificationDedupRecords(notifs []notification.Notification) []dedup.Record {
+func buildNotificationDedupRecords(notifs []domain.Notification) []dedup.Record {
 	records := make([]dedup.Record, len(notifs))
 	for i, n := range notifs {
 		records[i] = dedup.Record{
 			Message:   n.Message,
-			Level:     n.Level,
+			Level:     n.Level.String(),
 			Session:   n.Session,
 			Window:    n.Window,
 			Pane:      n.Pane,
-			State:     n.State,
+			State:     n.State.String(),
 			Timestamp: n.Timestamp,
 		}
 	}
 	return records
 }
 
-func (s *DefaultTreeService) attachMessageNode(parent *model.TreeNode, notif notification.Notification, idx int, messageKeys []string, paneKey string, messageNodes map[string]*model.TreeNode) *model.TreeNode {
+func (s *DefaultTreeService) attachMessageNode(parent *model.TreeNode, notif domain.Notification, idx int, messageKeys []string, paneKey string, messageNodes map[string]*model.TreeNode) *model.TreeNode {
 	if parent == nil {
 		return nil
 	}

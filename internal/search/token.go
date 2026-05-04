@@ -3,7 +3,7 @@ package search
 import (
 	"strings"
 
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 )
 
 // TokenProvider provides token-based search.
@@ -29,7 +29,7 @@ func NewTokenProvider(opts ...Option) Provider {
 
 // Match returns true if all text tokens match at least one field
 // and the notification matches the read/unread filter if specified.
-func (p *TokenProvider) Match(notif notification.Notification, query string) bool {
+func (p *TokenProvider) Match(notif domain.Notification, query string) bool {
 	if query == "" {
 		return true
 	}
@@ -84,7 +84,7 @@ func (p *TokenProvider) parseTokenQuery(query string) tokenQuery {
 	return parsed
 }
 
-func (q tokenQuery) matchesReadFilter(notif notification.Notification) bool {
+func (q tokenQuery) matchesReadFilter(notif domain.Notification) bool {
 	if q.readFilter && !notif.IsRead() {
 		return false
 	}
@@ -94,7 +94,7 @@ func (q tokenQuery) matchesReadFilter(notif notification.Notification) bool {
 	return true
 }
 
-func (p *TokenProvider) matchTextTokens(notif notification.Notification, tokens []string) bool {
+func (p *TokenProvider) matchTextTokens(notif domain.Notification, tokens []string) bool {
 	for _, token := range tokens {
 		if !p.matchToken(notif, token) {
 			return false
@@ -103,7 +103,7 @@ func (p *TokenProvider) matchTextTokens(notif notification.Notification, tokens 
 	return true
 }
 
-func (p *TokenProvider) matchToken(notif notification.Notification, token string) bool {
+func (p *TokenProvider) matchToken(notif domain.Notification, token string) bool {
 	for _, field := range p.opts.Fields {
 		for _, fieldValue := range p.getFieldValues(notif, field) {
 			if fieldValue == "" {
@@ -120,7 +120,7 @@ func (p *TokenProvider) matchToken(notif notification.Notification, token string
 	return false
 }
 
-func (p *TokenProvider) getFieldValues(notif notification.Notification, field string) []string {
+func (p *TokenProvider) getFieldValues(notif domain.Notification, field string) []string {
 	switch field {
 	case "message":
 		return []string{notif.Message}
@@ -131,9 +131,9 @@ func (p *TokenProvider) getFieldValues(notif notification.Notification, field st
 	case "pane":
 		return p.getFieldValuesWithNames(notif.Pane, p.opts.PaneNames)
 	case "level":
-		return []string{notif.Level}
+		return []string{notif.Level.String()}
 	case "state":
-		return []string{notif.State}
+		return []string{notif.State.String()}
 	default:
 		return []string{}
 	}

@@ -8,7 +8,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 )
 
@@ -42,7 +42,7 @@ type FooterState struct {
 
 // RowState defines the inputs needed to render a notification row.
 type RowState struct {
-	Notification notification.Notification
+	Notification domain.Notification
 	SessionName  string
 	Width        int
 	Selected     bool
@@ -94,8 +94,8 @@ func Header(width int) string {
 
 // Row renders a single notification row.
 func Row(state RowState) string {
-	levelIcon := levelIcon(state.Notification.Level)
-	statusIcon := statusIcon(state.Notification.State)
+	levelIcon := levelIcon(state.Notification.Level.String())
+	statusIcon := statusIcon(state.Notification.State.String())
 	readIndicator := ReadStatusIndicator(state.Notification.IsRead(), state.Selected)
 
 	message := state.Notification.Message

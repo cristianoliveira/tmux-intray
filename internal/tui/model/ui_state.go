@@ -3,7 +3,7 @@
 package model
 
 import (
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 )
 
@@ -77,7 +77,7 @@ type UIState interface {
 
 	// GetSelectedNotification returns the notification at the current cursor position.
 	// Returns the notification and true if found, or empty notification and false if not.
-	GetSelectedNotification(notifications []notification.Notification, visibleNodes []*TreeNode) (notification.Notification, bool)
+	GetSelectedNotification(notifications []domain.Notification, visibleNodes []*TreeNode) (domain.Notification, bool)
 
 	// GetSelectedNode returns the tree node at the current cursor position (in grouped view).
 	// Returns nil if not in grouped view or cursor is out of bounds.

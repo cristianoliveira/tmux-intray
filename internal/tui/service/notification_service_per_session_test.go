@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
 )
 
 func TestGetMostRecentPerSession(t *testing.T) {
@@ -15,18 +14,18 @@ func TestGetMostRecentPerSession(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		input        []notification.Notification
+		input        []domain.Notification
 		wantLen      int
 		wantSessions []string // Expected session order
 	}{
 		{
 			name:    "empty input returns empty",
-			input:   []notification.Notification{},
+			input:   []domain.Notification{},
 			wantLen: 0,
 		},
 		{
 			name: "single session",
-			input: []notification.Notification{
+			input: []domain.Notification{
 				{ID: 1, Session: "dev", Timestamp: now, Message: "msg"},
 			},
 			wantLen:      1,
@@ -34,7 +33,7 @@ func TestGetMostRecentPerSession(t *testing.T) {
 		},
 		{
 			name: "multiple sessions keeps most recent per session",
-			input: []notification.Notification{
+			input: []domain.Notification{
 				{ID: 1, Session: "dev", Timestamp: now, Message: "dev newest"},
 				{ID: 2, Session: "dev", Timestamp: earlier, Message: "dev older"},
 				{ID: 3, Session: "prod", Timestamp: muchEarlier, Message: "prod old"},
@@ -44,7 +43,7 @@ func TestGetMostRecentPerSession(t *testing.T) {
 		},
 		{
 			name: "skips notifications without session",
-			input: []notification.Notification{
+			input: []domain.Notification{
 				{ID: 1, Session: "dev", Timestamp: now, Message: "dev msg"},
 				{ID: 2, Session: "", Timestamp: now, Message: "no session"},
 			},
@@ -81,7 +80,7 @@ func TestGetMostRecentPerSession_UsesSharedDomainFunction(t *testing.T) {
 	now := time.Now().Format(time.RFC3339)
 	earlier := time.Now().Add(-1 * time.Hour).Format(time.RFC3339)
 
-	input := []notification.Notification{
+	input := []domain.Notification{
 		{ID: 1, Session: "dev", Timestamp: now, Message: "dev msg"},
 		{ID: 2, Session: "prod", Timestamp: earlier, Message: "prod msg"},
 	}
@@ -121,8 +120,8 @@ func TestGetMostRecentPerSession_UsesSharedDomainFunction(t *testing.T) {
 	}
 }
 
-// convertToDomain is a test helper to convert notification.Notification to domain.Notification.
-func convertToDomain(notifs []notification.Notification) []domain.Notification {
+// convertToDomain is a test helper to convert domain.Notification to domain.Notification.
+func convertToDomain(notifs []domain.Notification) []domain.Notification {
 	result := make([]domain.Notification, len(notifs))
 	for i, n := range notifs {
 		level := domain.NotificationLevel(n.Level)

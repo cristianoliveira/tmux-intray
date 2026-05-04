@@ -10,7 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/cristianoliveira/tmux-intray/internal/errors"
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
@@ -60,7 +60,7 @@ func disabledRenderGroupOptions() settings.GroupHeaderOptions {
 }
 
 // newTestModel creates a test model with all services initialized, without loading from storage.
-func newTestModel(t *testing.T, notifications []notification.Notification) *Model {
+func newTestModel(t *testing.T, notifications []domain.Notification) *Model {
 	t.Helper()
 
 	notifications = normalizeTestNotifications(notifications)
@@ -107,8 +107,8 @@ func newTestModel(t *testing.T, notifications []notification.Notification) *Mode
 	return &m
 }
 
-func normalizeTestNotifications(notifications []notification.Notification) []notification.Notification {
-	normalized := make([]notification.Notification, len(notifications))
+func normalizeTestNotifications(notifications []domain.Notification) []domain.Notification {
+	normalized := make([]domain.Notification, len(notifications))
 	copy(normalized, notifications)
 
 	// Use current time as base so timestamps are recent and pass the 1-hour filter for Recents tab
@@ -119,10 +119,10 @@ func normalizeTestNotifications(notifications []notification.Notification) []not
 			normalized[i].Timestamp = base.Add(-time.Duration(i) * time.Minute).Format(time.RFC3339)
 		}
 		if normalized[i].State == "" {
-			normalized[i].State = "active"
+			normalized[i].State = domain.StateActive
 		}
 		if normalized[i].Level == "" {
-			normalized[i].Level = "info"
+			normalized[i].Level = domain.LevelInfo
 		}
 	}
 
@@ -132,8 +132,8 @@ func normalizeTestNotifications(notifications []notification.Notification) []not
 // normalizeTestNotificationsWithCurrentTime updates test notifications to use current timestamps
 // This is useful for tests that check Recents tab which filters by 1-hour window
 // Timestamps are generated in order from newest (first item) to oldest (last item)
-func normalizeTestNotificationsWithCurrentTime(notifications []notification.Notification) []notification.Notification {
-	normalized := make([]notification.Notification, len(notifications))
+func normalizeTestNotificationsWithCurrentTime(notifications []domain.Notification) []domain.Notification {
+	normalized := make([]domain.Notification, len(notifications))
 	copy(normalized, notifications)
 
 	base := time.Now().UTC()
@@ -144,10 +144,10 @@ func normalizeTestNotificationsWithCurrentTime(notifications []notification.Noti
 		// Item 2: now - 2 minutes, etc.
 		normalized[i].Timestamp = base.Add(-time.Duration(i) * time.Minute).Format(time.RFC3339)
 		if normalized[i].State == "" {
-			normalized[i].State = "active"
+			normalized[i].State = domain.StateActive
 		}
 		if normalized[i].Level == "" {
-			normalized[i].Level = "info"
+			normalized[i].Level = domain.LevelInfo
 		}
 	}
 
@@ -156,15 +156,15 @@ func normalizeTestNotificationsWithCurrentTime(notifications []notification.Noti
 
 // newTestModelWithCurrentTimestamps creates a test model with current timestamps for Recents tests.
 // It skips the normalizeTestNotifications step since the notifications are already normalized.
-func newTestModelWithCurrentTimestamps(t *testing.T, notifications []notification.Notification) *Model {
+func newTestModelWithCurrentTimestamps(t *testing.T, notifications []domain.Notification) *Model {
 	t.Helper()
 	// Ensure State and Level are set if missing before current time normalization
 	for i := range notifications {
 		if notifications[i].State == "" {
-			notifications[i].State = "active"
+			notifications[i].State = domain.StateActive
 		}
 		if notifications[i].Level == "" {
-			notifications[i].Level = "info"
+			notifications[i].Level = domain.LevelInfo
 		}
 	}
 	// Use current timestamps for Recents tests
@@ -174,7 +174,7 @@ func newTestModelWithCurrentTimestamps(t *testing.T, notifications []notificatio
 }
 
 // createTestModelFromNotifications creates a test model from already-normalized notifications.
-func createTestModelFromNotifications(t *testing.T, notifications []notification.Notification) *Model {
+func createTestModelFromNotifications(t *testing.T, notifications []domain.Notification) *Model {
 	t.Helper()
 
 	// Create mock client with stubbed session fetchers
@@ -220,7 +220,7 @@ func createTestModelFromNotifications(t *testing.T, notifications []notification
 }
 
 // newTestModelWithOptions creates a test model with custom options, useful for tests that need to override services.
-func newTestModelWithOptions(t *testing.T, notifications []notification.Notification, opts func(*Model)) *Model {
+func newTestModelWithOptions(t *testing.T, notifications []domain.Notification, opts func(*Model)) *Model {
 	t.Helper()
 	model := newTestModel(t, notifications)
 	if opts != nil {
@@ -380,9 +380,9 @@ func TestNewModelInitialState(t *testing.T) {
 }
 
 func BenchmarkComputeVisibleNodesCache(b *testing.B) {
-	notifications := make([]notification.Notification, 0, 1000)
+	notifications := make([]domain.Notification, 0, 1000)
 	for i := 0; i < 1000; i++ {
-		notifications = append(notifications, notification.Notification{
+		notifications = append(notifications, domain.Notification{
 			ID:      i + 1,
 			Session: "$1",
 			Window:  "@1",
@@ -414,7 +414,7 @@ func BenchmarkComputeVisibleNodesCache(b *testing.B) {
 }
 
 func TestModelGroupedModeBuildsVisibleNodes(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 		{ID: 2, Session: "$2", Window: "@1", Pane: "%2", Message: "Two"},
 	})
@@ -465,7 +465,7 @@ func TestModelGroupedModeRespectsGroupByDepth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			model := newTestModel(t, []notification.Notification{
+			model := newTestModel(t, []domain.Notification{
 				{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 				{ID: 2, Session: "$2", Window: "@2", Pane: "%2", Message: "Two"},
 			})
@@ -487,7 +487,7 @@ func TestModelGroupedModeRespectsGroupByDepth(t *testing.T) {
 }
 
 func TestModelSwitchesViewModes(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 	})
 	model.uiState.SetWidth(80)
@@ -510,7 +510,7 @@ func TestModelSwitchesViewModes(t *testing.T) {
 }
 
 func TestToggleNodeExpansionGroupedView(t *testing.T) {
-	m := newTestModel(t, []notification.Notification{
+	m := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 	})
 	m.uiState.SetWidth(80)
@@ -550,7 +550,7 @@ func TestToggleNodeExpansionGroupedView(t *testing.T) {
 }
 
 func TestToggleFoldWorksAtPaneDepth(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 	})
 	model.uiState.SetWidth(80)
@@ -585,7 +585,7 @@ func TestToggleFoldWorksAtPaneDepth(t *testing.T) {
 }
 
 func TestModelUpdateHandlesCollapseExpandKeys(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 	})
 	model.uiState.SetWidth(80)
@@ -627,7 +627,7 @@ func TestModelUpdateHandlesCollapseExpandKeys(t *testing.T) {
 }
 
 func TestModelUpdateHandlesCollapseExpandKeysNonGroupedView(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Message: "First"},
 	})
 	model.uiState.SetWidth(80)
@@ -650,7 +650,7 @@ func TestModelUpdateHandlesCollapseExpandKeysNonGroupedView(t *testing.T) {
 }
 
 func TestCollapseNodeMovesCursorToParent(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 	})
 	// helper functions
@@ -720,7 +720,7 @@ func TestCollapseNodeMovesCursorToParent(t *testing.T) {
 }
 
 func TestToggleNodeExpansionIgnoresLeafNodes(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 	})
 	model.uiState.SetWidth(80)
@@ -753,7 +753,7 @@ func TestToggleNodeExpansionIgnoresLeafNodes(t *testing.T) {
 }
 
 func TestToggleFoldIgnoresLeafNodes(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 	})
 	model.uiState.SetWidth(80)
@@ -785,7 +785,7 @@ func TestToggleFoldIgnoresLeafNodes(t *testing.T) {
 }
 
 func TestToggleFoldExpandsDefaultWhenAllCollapsed(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 	})
 	model.uiState.SetWidth(80)
@@ -831,7 +831,7 @@ func TestToggleFoldExpandsDefaultWhenAllCollapsed(t *testing.T) {
 }
 
 func TestModelSelectedNotificationGroupedView(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "b", Window: "@1", Pane: "%1", Message: "B"},
 		{ID: 2, Session: "a", Window: "@1", Pane: "%1", Message: "A"},
 	})
@@ -886,7 +886,7 @@ func TestCanProcessBinding(t *testing.T) {
 func TestModelUpdateHandlesNavigation(t *testing.T) {
 	stubSessionFetchers(t)
 
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Message: "First"},
 		{ID: 2, Message: "Second"},
 		{ID: 3, Message: "Third"},
@@ -927,7 +927,7 @@ func TestModelUpdateHandlesNavigation(t *testing.T) {
 }
 
 func TestModelUpdateHandlesKeyUpKeyDown(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Message: "First"},
 		{ID: 2, Message: "Second"},
 	})
@@ -958,9 +958,9 @@ func TestModelUpdateTabSwitchRefreshesFilterWithSearchQuery(t *testing.T) {
 	tmpDir := t.TempDir()
 	setupConfig(t, tmpDir)
 
-	notifications := []notification.Notification{
-		{ID: 1, Message: "active alpha", State: "active", Level: "info"},
-		{ID: 2, Message: "dismissed alpha", State: "dismissed", Level: "warning"},
+	notifications := []domain.Notification{
+		{ID: 1, Message: "active alpha", State: domain.StateActive, Level: domain.LevelInfo},
+		{ID: 2, Message: "dismissed alpha", State: domain.StateDismissed, Level: domain.LevelWarning},
 	}
 
 	model := newTestModelWithCurrentTimestamps(t, notifications)
@@ -995,10 +995,10 @@ func TestModelTabDefaultAndSwitchKeysRemainActiveOnly(t *testing.T) {
 	tmpDir := t.TempDir()
 	setupConfig(t, tmpDir)
 
-	model := newTestModelWithCurrentTimestamps(t, []notification.Notification{
-		{ID: 1, Message: "active newest", State: "active", Level: "info", Session: "$1", Window: "@1", Pane: "%1"},
-		{ID: 2, Message: "dismissed newest", State: "dismissed", Level: "warning", Session: "$2", Window: "@1", Pane: "%1"},
-		{ID: 3, Message: "active older", State: "active", Level: "error", Session: "$3", Window: "@1", Pane: "%1"},
+	model := newTestModelWithCurrentTimestamps(t, []domain.Notification{
+		{ID: 1, Message: "active newest", State: domain.StateActive, Level: domain.LevelInfo, Session: "$1", Window: "@1", Pane: "%1"},
+		{ID: 2, Message: "dismissed newest", State: domain.StateDismissed, Level: domain.LevelWarning, Session: "$2", Window: "@1", Pane: "%1"},
+		{ID: 3, Message: "active older", State: domain.StateActive, Level: domain.LevelError, Session: "$3", Window: "@1", Pane: "%1"},
 	})
 
 	model.uiState.SetWidth(80)
@@ -1024,7 +1024,7 @@ func TestModelTabDefaultAndSwitchKeysRemainActiveOnly(t *testing.T) {
 	assert.Equal(t, []int{1, 3}, []int{model.filtered[0].ID, model.filtered[1].ID})
 }
 func TestModelUpdateHandlesJumpToBottomWithG(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Message: "First"},
 		{ID: 2, Message: "Second"},
 		{ID: 3, Message: "Third"},
@@ -1046,7 +1046,7 @@ func TestModelUpdateHandlesJumpToBottomWithG(t *testing.T) {
 }
 
 func TestModelUpdateHandlesJumpToTopWithGG(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Message: "First"},
 		{ID: 2, Message: "Second"},
 		{ID: 3, Message: "Third"},
@@ -1070,7 +1070,7 @@ func TestModelUpdateHandlesJumpToTopWithGG(t *testing.T) {
 }
 
 func TestModelUpdateNavigationJKRemainsAfterPendingG(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Message: "First"},
 		{ID: 2, Message: "Second"},
 		{ID: 3, Message: "Third"},
@@ -1094,7 +1094,7 @@ func TestModelUpdateNavigationJKRemainsAfterPendingG(t *testing.T) {
 }
 
 func TestModelUpdateSearchModeDoesNotUseVimNavigationMappings(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Message: "First"},
 		{ID: 2, Message: "Second"},
 		{ID: 3, Message: "Third"},
@@ -1124,7 +1124,7 @@ func TestModelUpdateHandlesSearch(t *testing.T) {
 	tmpDir := t.TempDir()
 	setupConfig(t, tmpDir)
 
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Message: "Error: file not found"},
 		{ID: 2, Message: "Warning: low memory"},
 		{ID: 3, Message: "Error: connection failed"},
@@ -1168,7 +1168,7 @@ func TestModelUpdateHandlesSearch(t *testing.T) {
 func TestModelUpdateSlashInGroupedViewKeepsGroupedModeAndFilters(t *testing.T) {
 	setupConfig(t, t.TempDir())
 
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "foo message"},
 		{ID: 2, Session: "$1", Window: "@2", Pane: "%1", Message: "bar message"},
 	})
@@ -1197,7 +1197,7 @@ func TestModelUpdateSlashInGroupedViewKeepsGroupedModeAndFilters(t *testing.T) {
 func TestModelUpdateSearchViewModeEnterJumpsWhileSearchActive(t *testing.T) {
 	setupStorage(t)
 
-	model := newTestModelWithOptions(t, []notification.Notification{
+	model := newTestModelWithOptions(t, []domain.Notification{
 		{ID: 1, Message: "First", Session: "$1", Window: "@1", Pane: "%1"},
 	}, func(m *Model) {
 		m.runtimeCoordinator = &testRuntimeCoordinator{
@@ -1316,7 +1316,7 @@ func TestModelViewModeCycleThreeModeBehavior(t *testing.T) {
 }
 
 func TestModelUpdateIgnoresViewModeCycleInSearchMode(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{})
+	model := newTestModel(t, []domain.Notification{})
 	model.uiState.SetSearchMode(true)
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
@@ -1330,7 +1330,7 @@ func TestModelUpdateIgnoresViewModeCycleInSearchMode(t *testing.T) {
 }
 
 func TestModelUpdateHandlesKeyBindingsInSearchMode(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Message: "First"},
 	})
 	model.uiState.SetWidth(80)
@@ -1400,7 +1400,7 @@ func TestModelUpdateHandlesKeyBindingsInSearchMode(t *testing.T) {
 }
 
 func TestModelUpdateHandlesUnknownKeyBinding(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Message: "First"},
 	})
 	model.uiState.SetWidth(80)
@@ -1439,7 +1439,7 @@ func TestModelUpdateHandlesReadUnreadKeys(t *testing.T) {
 	require.NoError(t, err)
 	parts := strings.Split(lines, "\n")
 	require.Len(t, parts, 1)
-	loaded, err := notification.ParseNotification(parts[0])
+	loaded, err := domain.ParseNotificationLine(parts[0])
 	require.NoError(t, err)
 	assert.True(t, loaded.IsRead())
 	// Recents tab only shows unread notifications, so the list should now be empty.
@@ -1458,7 +1458,7 @@ func TestModelUpdateHandlesReadUnreadKeys(t *testing.T) {
 	require.NoError(t, err)
 	parts = strings.Split(lines, "\n")
 	require.Len(t, parts, 1)
-	loaded, err = notification.ParseNotification(parts[0])
+	loaded, err = domain.ParseNotificationLine(parts[0])
 	require.NoError(t, err)
 	assert.False(t, loaded.IsRead())
 	require.Len(t, model.filtered, 1)
@@ -1470,7 +1470,7 @@ func TestModelUpdateHandlesReadUnreadKeys(t *testing.T) {
 }
 
 func TestApplySearchFilterReadStatus(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Message: "Alpha", ReadTimestamp: "2024-01-01T12:00:00Z"},
 		{ID: 2, Message: "Beta"},
 	})
@@ -1509,7 +1509,7 @@ func TestApplySearchFilterWithMockProvider(t *testing.T) {
 	mockProvider := new(search.MockProvider)
 	mockClient := stubSessionFetchers(t)
 
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		{ID: 1, Message: "First notification"},
 		{ID: 2, Message: "Second notification"},
 		{ID: 3, Message: "Third notification"},
@@ -1538,7 +1538,7 @@ func TestApplySearchFilterWithMockProvider(t *testing.T) {
 		windowNames:         runtimeCoordinator.GetWindowNames(),
 		paneNames:           runtimeCoordinator.GetPaneNames(),
 		notifications:       notifications,
-		filtered:            []notification.Notification{},
+		filtered:            []domain.Notification{},
 	}
 
 	model.uiState.SetSearchQuery("test")
@@ -1549,9 +1549,11 @@ func TestApplySearchFilterWithMockProvider(t *testing.T) {
 	model.applySearchFilter()
 	model.resetCursor()
 
+	// With default sort (desc by timestamp then ID), ID 3 comes before ID 1
+	// since IDs are used as tiebreaker for identical timestamps
 	require.Len(t, model.filtered, 2)
-	assert.Equal(t, notifications[0].ID, model.filtered[0].ID)
-	assert.Equal(t, notifications[2].ID, model.filtered[1].ID)
+	assert.Equal(t, notifications[2].ID, model.filtered[0].ID)
+	assert.Equal(t, notifications[0].ID, model.filtered[1].ID)
 
 	mockProvider.AssertExpectations(t)
 }
@@ -1559,10 +1561,10 @@ func TestApplySearchFilterWithMockProvider(t *testing.T) {
 // TestApplySearchFilterUsesDefaultTokenProvider tests that applySearchFilter
 // falls back to TokenProvider when no custom provider is set.
 func TestApplySearchFilterUsesDefaultTokenProvider(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
-		{ID: 1, Message: "Error: file not found", Level: "error"},
-		{ID: 2, Message: "Warning: low memory", Level: "warning"},
-		{ID: 3, Message: "Error: connection failed", Level: "error"},
+	model := newTestModel(t, []domain.Notification{
+		{ID: 1, Message: "Error: file not found", Level: domain.LevelError},
+		{ID: 2, Message: "Warning: low memory", Level: domain.LevelWarning},
+		{ID: 3, Message: "Error: connection failed", Level: domain.LevelError},
 	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
@@ -1652,7 +1654,7 @@ func TestModelUpdateHandlesSearchEnter(t *testing.T) {
 func TestModelUpdateGroupedSearchEnterJumps(t *testing.T) {
 	setupStorage(t)
 
-	model := newTestModelWithOptions(t, []notification.Notification{
+	model := newTestModelWithOptions(t, []domain.Notification{
 		{ID: 1, Message: "jump me", Session: "$1", Window: "@1", Pane: "%1"},
 	}, func(m *Model) {
 		m.runtimeCoordinator = &testRuntimeCoordinator{
@@ -1678,7 +1680,7 @@ func TestModelUpdateGroupedSearchEnterJumps(t *testing.T) {
 
 // TestCtrlJKNavigationInSearchMode tests that Ctrl+j and Ctrl+k work for navigation in search mode.
 func TestCtrlJKNavigationInSearchMode(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Message: "First"},
 		{ID: 2, Message: "Second"},
 		{ID: 3, Message: "Third"},
@@ -1720,7 +1722,7 @@ func TestCtrlJKNavigationInSearchMode(t *testing.T) {
 }
 
 func TestCtrlJKNavigationInSearchViewModeWithoutSearchInput(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Message: "First"},
 		{ID: 2, Message: "Second"},
 		{ID: 3, Message: "Third"},
@@ -1817,7 +1819,7 @@ func TestCtrlBindingsAllowDismissWhenSearchStartedWithSlash(t *testing.T) {
 
 // TestCtrlHLInSearchMode tests that Ctrl+h and Ctrl+l are handled gracefully in search mode.
 func TestCtrlHLInSearchMode(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Message: "First"},
 	})
 	model.uiState.SetWidth(80)
@@ -1840,7 +1842,7 @@ func TestCtrlHLInSearchMode(t *testing.T) {
 
 // TestCtrlJKNavigationInNormalMode tests that Ctrl+j and Ctrl+k do NOT work in normal mode.
 func TestCtrlJKNavigationInNormalMode(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Message: "First"},
 		{ID: 2, Message: "Second"},
 	})
@@ -1864,7 +1866,7 @@ func TestCtrlJKNavigationInNormalMode(t *testing.T) {
 
 // TestCtrlJKNavigationInSearchModeWithFilter tests navigation with filtered results.
 func TestCtrlJKNavigationInSearchModeWithFilter(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Message: "Error: first", Session: "$1", Window: "@1", Pane: "%1"},
 		{ID: 2, Message: "Warning: second", Session: "$2", Window: "@1", Pane: "%1"},
 		{ID: 3, Message: "Error: third", Session: "$3", Window: "@1", Pane: "%1"},
@@ -1908,7 +1910,7 @@ func TestCtrlJKNavigationInSearchModeWithFilter(t *testing.T) {
 // TestApplySearchFilterGroupedView tests that search filtering works correctly
 // in grouped view mode, including tree rebuilding and empty group pruning.
 func TestApplySearchFilterGroupedView(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Error: connection failed"},
 		{ID: 2, Session: "$1", Window: "@1", Pane: "%2", Message: "Warning: low memory"},
 		{ID: 3, Session: "$2", Window: "@1", Pane: "%1", Message: "Error: file not found"},
@@ -1950,7 +1952,7 @@ func TestApplySearchFilterGroupedView(t *testing.T) {
 // TestBuildFilteredTreePrunesEmptyGroups tests that empty groups are removed
 // from the tree after filtering.
 func TestBuildFilteredTreePrunesEmptyGroups(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Unique message here"},
 		{ID: 2, Session: "$2", Window: "@1", Pane: "%1", Message: "Different message"},
 	})
@@ -1988,7 +1990,7 @@ func TestBuildFilteredTreePrunesEmptyGroups(t *testing.T) {
 // TestBuildFilteredTreePreservesExpansionState tests that expansion state
 // is preserved across searches when possible.
 func TestBuildFilteredTreePreservesExpansionState(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Test message 1"},
 		{ID: 2, Session: "$1", Window: "@2", Pane: "%1", Message: "Test message 2"},
 		{ID: 3, Session: "$2", Window: "@1", Pane: "%1", Message: "Test message 3"},
@@ -2025,7 +2027,7 @@ func TestBuildFilteredTreePreservesExpansionState(t *testing.T) {
 // TestBuildFilteredTreeHandlesNoMatches tests the edge case where search
 // returns no matches.
 func TestBuildFilteredTreeHandlesNoMatches(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Test message", Timestamp: "2024-01-01T10:00:00Z"},
 	})
 	model.uiState.SetWidth(80)
@@ -2048,7 +2050,7 @@ func TestBuildFilteredTreeHandlesNoMatches(t *testing.T) {
 // TestBuildFilteredTreeWithEmptyQuery tests that empty query
 // shows all notifications.
 func TestBuildFilteredTreeWithEmptyQuery(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "First"},
 		{ID: 2, Session: "$2", Window: "@2", Pane: "%1", Message: "Second"},
 	})
@@ -2071,7 +2073,7 @@ func TestBuildFilteredTreeWithEmptyQuery(t *testing.T) {
 // TestBuildFilteredTreeGroupCounts tests that group counts reflect
 // only matching notifications.
 func TestBuildFilteredTreeGroupCounts(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "Error: connection failed"},
 		{ID: 2, Session: "$2", Window: "@1", Pane: "%1", Message: "Warning: low memory"},
 		{ID: 3, Session: "$3", Window: "@1", Pane: "%2", Message: "Error: timeout"},
@@ -2131,8 +2133,8 @@ func TestModelUpdateHandlesWindowSize(t *testing.T) {
 func TestModelViewRendersContent(t *testing.T) {
 	stubSessionFetchers(t)
 
-	model := newTestModel(t, []notification.Notification{
-		{ID: 1, Message: "Test notification", Timestamp: "2024-01-01T12:00:00Z", Level: "info", State: "active"},
+	model := newTestModel(t, []domain.Notification{
+		{ID: 1, Message: "Test notification", Timestamp: "2024-01-01T12:00:00Z", Level: domain.LevelInfo, State: domain.StateActive},
 	})
 	model.uiState.SetCursor(0)
 	model.uiState.SetWidth(400)
@@ -2156,7 +2158,7 @@ func TestModelViewRendersContent(t *testing.T) {
 }
 
 func TestModelViewWithNoNotifications(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{})
+	model := newTestModel(t, []domain.Notification{})
 	model.uiState.SetWidth(80)
 	model.uiState.SetHeight(24)
 	model.updateViewportContent()
@@ -2168,7 +2170,7 @@ func TestModelViewWithNoNotifications(t *testing.T) {
 }
 
 func TestModelViewRendersSuccessMessageWithoutErrorPrefix(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{})
+	model := newTestModel(t, []domain.Notification{})
 	model.uiState.SetWidth(80)
 	model.uiState.SetHeight(24)
 	model.updateViewportContent()
@@ -2184,7 +2186,7 @@ func TestModelViewRendersSuccessMessageWithoutErrorPrefix(t *testing.T) {
 }
 
 func TestModelViewRendersCurrentViewModeInFooter(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{})
+	model := newTestModel(t, []domain.Notification{})
 	model.uiState.SetWidth(80)
 	model.uiState.SetHeight(24)
 	model.uiState.SetViewMode(settings.ViewModeGrouped)
@@ -2196,7 +2198,7 @@ func TestModelViewRendersCurrentViewModeInFooter(t *testing.T) {
 }
 
 func TestModelViewRendersSearchViewModeInFooter(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{})
+	model := newTestModel(t, []domain.Notification{})
 	model.uiState.SetWidth(80)
 	model.uiState.SetHeight(24)
 	model.uiState.SetViewMode(settings.ViewModeSearch)
@@ -2211,7 +2213,7 @@ func TestModelViewRendersSearchViewModeInFooter(t *testing.T) {
 func TestUpdateViewportContentGroupedViewWithEmptyTree(t *testing.T) {
 	model := &Model{
 		uiState:       NewUIState(),
-		notifications: []notification.Notification{},
+		notifications: []domain.Notification{},
 	}
 	model.uiState.SetViewMode(viewModeGrouped)
 
@@ -2222,8 +2224,8 @@ func TestUpdateViewportContentGroupedViewWithEmptyTree(t *testing.T) {
 }
 
 func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
-		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One", Level: "info", State: "active"},
+	model := newTestModel(t, []domain.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One", Level: domain.LevelInfo, State: domain.StateActive},
 	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
@@ -2296,9 +2298,9 @@ func TestUpdateViewportContentGroupedViewRendersMixedNodes(t *testing.T) {
 }
 
 func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
-		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "First", Level: "info", State: "active"},
-		{ID: 2, Session: "$1", Window: "@1", Pane: "%1", Message: "Second", Level: "info", State: "active"},
+	model := newTestModel(t, []domain.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "First", Level: domain.LevelInfo, State: domain.StateActive},
+		{ID: 2, Session: "$1", Window: "@1", Pane: "%1", Message: "Second", Level: domain.LevelInfo, State: domain.StateActive},
 	})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
@@ -2368,8 +2370,8 @@ func TestUpdateViewportContentGroupedViewHighlightsLeafRow(t *testing.T) {
 }
 
 func TestUpdateViewportContentUsesPaneNameForDetailedRows(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
-		{ID: 1, Session: "$1", Window: "@1", Pane: "%60", Message: "One", Level: "info", State: "active"},
+	model := newTestModel(t, []domain.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%60", Message: "One", Level: domain.LevelInfo, State: domain.StateActive},
 	})
 	model.runtimeCoordinator.SetPaneNames(map[string]string{"%60": "editor"})
 	model.uiState.SetWidth(120)
@@ -2397,8 +2399,8 @@ func TestUpdateViewportContentUsesPaneNameForDetailedRows(t *testing.T) {
 }
 
 func TestUpdateViewportContentUsesPaneNameForGroupedLeafRows(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
-		{ID: 1, Session: "$1", Window: "@1", Pane: "%60", Message: "One", Level: "info", State: "active"},
+	model := newTestModel(t, []domain.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%60", Message: "One", Level: domain.LevelInfo, State: domain.StateActive},
 	})
 	model.runtimeCoordinator.SetPaneNames(map[string]string{"%60": "editor"})
 	model.uiState.SetWidth(120)
@@ -2479,7 +2481,7 @@ func TestMarkSelectedRead(t *testing.T) {
 
 	parts := strings.Split(lines, "\n")
 	require.Len(t, parts, 1)
-	loaded, err := notification.ParseNotification(parts[0])
+	loaded, err := domain.ParseNotificationLine(parts[0])
 	require.NoError(t, err)
 	assert.True(t, loaded.IsRead())
 	assert.Empty(t, model.filtered)
@@ -2514,7 +2516,7 @@ func TestMarkSelectedUnread(t *testing.T) {
 
 	parts := strings.Split(lines, "\n")
 	require.Len(t, parts, 1)
-	loaded, err := notification.ParseNotification(parts[0])
+	loaded, err := domain.ParseNotificationLine(parts[0])
 	require.NoError(t, err)
 	assert.False(t, loaded.IsRead())
 	assert.False(t, model.filtered[0].IsRead())
@@ -2564,7 +2566,7 @@ func TestHandleDismissGroupedViewUsesVisibleNodes(t *testing.T) {
 		if line == "" {
 			continue
 		}
-		notif, err := notification.ParseNotification(line)
+		notif, err := domain.ParseNotificationLine(line)
 		require.NoError(t, err)
 		remainingSessions = append(remainingSessions, notif.Session)
 	}
@@ -2576,8 +2578,8 @@ func TestHandleDismissGroupedViewUsesVisibleNodes(t *testing.T) {
 func TestHandleDismissWithEmptyList(t *testing.T) {
 	model := &Model{
 		uiState:       NewUIState(),
-		notifications: []notification.Notification{},
-		filtered:      []notification.Notification{},
+		notifications: []domain.Notification{},
+		filtered:      []domain.Notification{},
 	}
 	model.uiState.SetCursor(0)
 
@@ -2592,10 +2594,10 @@ func TestHandleJumpWithMissingContext(t *testing.T) {
 		errorHandler: errors.NewTUIHandler(func(msg errors.Message) {
 			// No-op for test
 		}),
-		notifications: []notification.Notification{
+		notifications: []domain.Notification{
 			{ID: 1, Message: "Test"},
 		},
-		filtered: []notification.Notification{
+		filtered: []domain.Notification{
 			{ID: 1, Message: "Test"},
 		},
 	}
@@ -2636,7 +2638,7 @@ func TestHandleJumpMarksNotificationReadOnSuccess(t *testing.T) {
 
 	line, err := storage.GetNotificationByID(id)
 	require.NoError(t, err)
-	loaded, err := notification.ParseNotification(line)
+	loaded, err := domain.ParseNotificationLine(line)
 	require.NoError(t, err)
 	assert.True(t, loaded.IsRead())
 }
@@ -2698,13 +2700,13 @@ func TestHandleJumpDoesNotMarkReadWhenJumpFails(t *testing.T) {
 
 	line, err := storage.GetNotificationByID(id)
 	require.NoError(t, err)
-	loaded, err := notification.ParseNotification(line)
+	loaded, err := domain.ParseNotificationLine(line)
 	require.NoError(t, err)
 	assert.False(t, loaded.IsRead())
 }
 
 func TestHandleJumpGroupedViewUsesVisibleNodes(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "b", Window: "@1", Pane: "%1", Message: "B"},
 		{ID: 2, Session: "a", Window: "", Pane: "%1", Message: "A"},
 	})
@@ -2722,7 +2724,7 @@ func TestHandleJumpGroupedViewUsesVisibleNodes(t *testing.T) {
 }
 
 func TestHandleJumpUsesWindowJumpWhenPaneMissing(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "$1", Window: "@2", Pane: "", Message: "window jump"},
 	})
 
@@ -2746,7 +2748,7 @@ func TestHandleJumpUsesWindowJumpWhenPaneMissing(t *testing.T) {
 }
 
 func TestHandleJumpGroupedWindowNodeUsesWindowJump(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "$1", Window: "@2", Pane: "%3", Message: "window grouped"},
 	})
 
@@ -2785,7 +2787,7 @@ func TestHandleJumpGroupedWindowNodeUsesWindowJump(t *testing.T) {
 }
 
 func TestHandleJumpWithEmptyList(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{})
+	model := newTestModel(t, []domain.Notification{})
 	model.uiState.SetCursor(0)
 
 	cmd := model.handleJump()
@@ -2796,8 +2798,8 @@ func TestHandleJumpWithEmptyList(t *testing.T) {
 func TestModelUpdateHandlesDismissKey(t *testing.T) {
 	model := &Model{
 		uiState:       NewUIState(),
-		notifications: []notification.Notification{},
-		filtered:      []notification.Notification{},
+		notifications: []domain.Notification{},
+		filtered:      []domain.Notification{},
 	}
 	model.uiState.SetCursor(0)
 
@@ -2808,7 +2810,7 @@ func TestModelUpdateHandlesDismissKey(t *testing.T) {
 }
 
 func TestModelUpdateHandlesZaToggleFold(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 	})
 	model.uiState.SetWidth(80)
@@ -2848,7 +2850,7 @@ func TestModelUpdateHandlesZaToggleFold(t *testing.T) {
 }
 
 func TestToggleFoldTogglesGroupNode(t *testing.T) {
-	m := newTestModel(t, []notification.Notification{
+	m := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "One"},
 	})
 	m.uiState.SetWidth(80)
@@ -2888,8 +2890,8 @@ func TestToggleFoldTogglesGroupNode(t *testing.T) {
 func TestModelUpdateHandlesEnterKey(t *testing.T) {
 	model := &Model{
 		uiState:       NewUIState(),
-		notifications: []notification.Notification{},
-		filtered:      []notification.Notification{},
+		notifications: []domain.Notification{},
+		filtered:      []domain.Notification{},
 	}
 	model.uiState.SetCursor(0)
 
@@ -3231,8 +3233,8 @@ func TestModelWithNegativeDimensions(t *testing.T) {
 func TestModelCursorBoundsWithEmptyList(t *testing.T) {
 	model := &Model{
 		uiState:       NewUIState(),
-		notifications: []notification.Notification{},
-		filtered:      []notification.Notification{},
+		notifications: []domain.Notification{},
+		filtered:      []domain.Notification{},
 	}
 	model.uiState.SetCursor(5)
 
@@ -3244,10 +3246,10 @@ func TestModelCursorBoundsWithEmptyList(t *testing.T) {
 func TestModelCursorBoundsWithSingleItem(t *testing.T) {
 	model := &Model{
 		uiState: NewUIState(),
-		notifications: []notification.Notification{
+		notifications: []domain.Notification{
 			{ID: 1, Message: "Test"},
 		},
-		filtered: []notification.Notification{
+		filtered: []domain.Notification{
 			{ID: 1, Message: "Test"},
 		},
 	}
@@ -3271,12 +3273,12 @@ func TestModelCursorBoundsWithSingleItem(t *testing.T) {
 func TestModelCursorBoundsWithMultipleItems(t *testing.T) {
 	model := &Model{
 		uiState: NewUIState(),
-		notifications: []notification.Notification{
+		notifications: []domain.Notification{
 			{ID: 1, Message: "First"},
 			{ID: 2, Message: "Second"},
 			{ID: 3, Message: "Third"},
 		},
-		filtered: []notification.Notification{
+		filtered: []domain.Notification{
 			{ID: 1, Message: "First"},
 			{ID: 2, Message: "Second"},
 			{ID: 3, Message: "Third"},
@@ -3305,7 +3307,7 @@ func TestModelCursorBoundsWithMultipleItems(t *testing.T) {
 }
 
 func TestModelViewportEdgeConditions(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Message: "First"},
 		{ID: 2, Message: "Second"},
 		{ID: 3, Message: "Third"},
@@ -3325,14 +3327,14 @@ func TestModelViewportEdgeConditions(t *testing.T) {
 	assert.Equal(t, 2, model.uiState.GetCursor())
 
 	// Test with zero items
-	model.filtered = []notification.Notification{}
+	model.filtered = []domain.Notification{}
 	model.uiState.EnsureCursorVisible(0)
 	// Should not panic
 }
 
 // TestCtrlJKNavigationInSearchModeEmptyResults tests Ctrl+j/k navigation when search results are empty.
 func TestCtrlJKNavigationInSearchModeEmptyResults(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Message: "First"},
 		{ID: 2, Message: "Second"},
 	})
@@ -3361,7 +3363,7 @@ func TestCtrlJKNavigationInSearchModeEmptyResults(t *testing.T) {
 
 // TestCtrlJKNavigationInSearchModeSingleItem tests Ctrl+j/k navigation with single search result.
 func TestCtrlJKNavigationInSearchModeSingleItem(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Message: "Unique"},
 	})
 	model.uiState.SetWidth(80)
@@ -3388,7 +3390,7 @@ func TestCtrlJKNavigationInSearchModeSingleItem(t *testing.T) {
 
 // TestCtrlHLNoOp tests that Ctrl+h and Ctrl+l are no-op in all modes.
 func TestCtrlHLNoOp(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Message: "First"},
 		{ID: 2, Message: "Second"},
 	})
@@ -3426,7 +3428,7 @@ func TestCtrlHLNoOp(t *testing.T) {
 
 // TestCtrlJKNavigationBoundary tests boundary conditions for Ctrl+j/k.
 func TestCtrlJKNavigationBoundary(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{ID: 1, Message: "First", Session: "$1", Window: "@1", Pane: "%1"},
 		{ID: 2, Message: "Second", Session: "$2", Window: "@1", Pane: "%1"},
 		{ID: 3, Message: "Third", Session: "$3", Window: "@1", Pane: "%1"},
@@ -3457,7 +3459,7 @@ func TestCtrlJKNavigationBoundary(t *testing.T) {
 }
 
 func TestToggleShowHelp(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{})
+	model := newTestModel(t, []domain.Notification{})
 	// Default ShowHelp should be true
 	assert.True(t, model.uiState.ShowHelp())
 
@@ -3476,7 +3478,7 @@ func TestToggleShowHelp(t *testing.T) {
 // ========== CONFIRMATION MODE TESTS ==========
 
 func TestConfirmationMode(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{})
+	model := newTestModel(t, []domain.Notification{})
 
 	// Initially not in confirmation mode
 	assert.False(t, model.uiState.IsConfirmationMode())
@@ -3496,7 +3498,7 @@ func TestConfirmationMode(t *testing.T) {
 }
 
 func TestConfirmationCancel_Esc(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{})
+	model := newTestModel(t, []domain.Notification{})
 
 	// Set up confirmation mode
 	action := PendingAction{
@@ -3518,7 +3520,7 @@ func TestConfirmationCancel_Esc(t *testing.T) {
 }
 
 func TestConfirmationCancel_N(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{})
+	model := newTestModel(t, []domain.Notification{})
 
 	// Set up confirmation mode
 	action := PendingAction{
@@ -3538,7 +3540,7 @@ func TestConfirmationCancel_N(t *testing.T) {
 }
 
 func TestConfirmationCancel_CapitalN(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{})
+	model := newTestModel(t, []domain.Notification{})
 
 	// Set up confirmation mode
 	action := PendingAction{
@@ -3561,7 +3563,7 @@ func TestExecuteConfirmedAction_DismissGroup(t *testing.T) {
 	setupStorage(t)
 
 	// Create notification for model
-	notif := notification.Notification{
+	notif := domain.Notification{
 		ID:      1,
 		Session: "$1",
 		Window:  "@1",
@@ -3569,7 +3571,7 @@ func TestExecuteConfirmedAction_DismissGroup(t *testing.T) {
 		Message: "test notification",
 	}
 
-	model := newTestModel(t, []notification.Notification{notif})
+	model := newTestModel(t, []domain.Notification{notif})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(viewModeGrouped)
@@ -3607,7 +3609,7 @@ func TestExecuteConfirmedAction_DismissGroup(t *testing.T) {
 }
 
 func TestExecuteConfirmedAction_UnknownAction(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{})
+	model := newTestModel(t, []domain.Notification{})
 
 	// Set up unknown action type
 	action := PendingAction{
@@ -3629,7 +3631,7 @@ func TestExecuteConfirmedAction_UnknownAction(t *testing.T) {
 
 func TestHandleConfirmation_Enter(t *testing.T) {
 	setupStorage(t)
-	notif := notification.Notification{
+	notif := domain.Notification{
 		ID:      1,
 		Session: "$1",
 		Window:  "@1",
@@ -3637,7 +3639,7 @@ func TestHandleConfirmation_Enter(t *testing.T) {
 		Message: "test",
 	}
 
-	model := newTestModel(t, []notification.Notification{notif})
+	model := newTestModel(t, []domain.Notification{notif})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(viewModeGrouped)
@@ -3668,7 +3670,7 @@ func TestHandleConfirmation_Enter(t *testing.T) {
 
 func TestHandleConfirmation_Y(t *testing.T) {
 	setupStorage(t)
-	notif := notification.Notification{
+	notif := domain.Notification{
 		ID:      1,
 		Session: "$1",
 		Window:  "@1",
@@ -3676,7 +3678,7 @@ func TestHandleConfirmation_Y(t *testing.T) {
 		Message: "test",
 	}
 
-	model := newTestModel(t, []notification.Notification{notif})
+	model := newTestModel(t, []domain.Notification{notif})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(viewModeGrouped)
@@ -3711,14 +3713,14 @@ func TestHandleDismissGroup_Success(t *testing.T) {
 	setupStorage(t)
 
 	// Add multiple notifications
-	notif1 := notification.Notification{
+	notif1 := domain.Notification{
 		ID:      1,
 		Session: "$1",
 		Window:  "@1",
 		Pane:    "%1",
 		Message: "test1",
 	}
-	notif2 := notification.Notification{
+	notif2 := domain.Notification{
 		ID:      2,
 		Session: "$1",
 		Window:  "@1",
@@ -3726,7 +3728,7 @@ func TestHandleDismissGroup_Success(t *testing.T) {
 		Message: "test2",
 	}
 
-	model := newTestModel(t, []notification.Notification{notif1, notif2})
+	model := newTestModel(t, []domain.Notification{notif1, notif2})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(viewModeGrouped)
@@ -3761,7 +3763,7 @@ func TestHandleDismissGroup_Success(t *testing.T) {
 }
 
 func TestHandleDismissGroup_EmptyGroup(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{})
+	model := newTestModel(t, []domain.Notification{})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 	model.uiState.SetViewMode(viewModeGrouped)
@@ -3781,7 +3783,7 @@ func TestHandleDismissGroup_EmptyGroup(t *testing.T) {
 
 func TestHandleDismissGroup_ListMode(t *testing.T) {
 	setupStorage(t)
-	notif := notification.Notification{
+	notif := domain.Notification{
 		ID:      1,
 		Session: "$1",
 		Window:  "@1",
@@ -3789,7 +3791,7 @@ func TestHandleDismissGroup_ListMode(t *testing.T) {
 		Message: "test",
 	}
 
-	model := newTestModel(t, []notification.Notification{notif})
+	model := newTestModel(t, []domain.Notification{notif})
 	model.uiState.SetWidth(80)
 	model.uiState.GetViewport().Width = 80
 	// In detailed mode (not grouped)
@@ -3811,7 +3813,7 @@ func TestHandleDismissByFilter_Success(t *testing.T) {
 	setupStorage(t)
 
 	// Add test notification
-	notif := notification.Notification{
+	notif := domain.Notification{
 		ID:      1,
 		Session: "$1",
 		Window:  "@1",
@@ -3819,7 +3821,7 @@ func TestHandleDismissByFilter_Success(t *testing.T) {
 		Message: "test",
 	}
 
-	model := newTestModel(t, []notification.Notification{notif})
+	model := newTestModel(t, []domain.Notification{notif})
 
 	// Execute dismiss by filter (test just the logic path)
 	cmd := model.handleDismissByFilter("$1", "@1", "%1")
@@ -3837,7 +3839,7 @@ func TestHandleDismissByFilter_NoMatches(t *testing.T) {
 	setupStorage(t)
 
 	// Add test notification
-	notif := notification.Notification{
+	notif := domain.Notification{
 		ID:      1,
 		Session: "$1",
 		Window:  "@1",
@@ -3845,7 +3847,7 @@ func TestHandleDismissByFilter_NoMatches(t *testing.T) {
 		Message: "test",
 	}
 
-	model := newTestModel(t, []notification.Notification{notif})
+	model := newTestModel(t, []domain.Notification{notif})
 
 	// Try to dismiss with non-matching filter
 	// This should execute successfully but not match any notifications
@@ -3862,7 +3864,7 @@ func TestHandleDismissByFilter_NoMatches(t *testing.T) {
 // ========== SETTINGS API TESTS ==========
 
 func TestGetSetGroupBy(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{})
+	model := newTestModel(t, []domain.Notification{})
 
 	// Get default value
 	defaultGroupBy := model.GetGroupBy()
@@ -3883,7 +3885,7 @@ func TestGetSetGroupBy(t *testing.T) {
 }
 
 func TestGetSetExpandLevel(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{})
+	model := newTestModel(t, []domain.Notification{})
 
 	// Get default value
 	defaultLevel := model.GetExpandLevel()
@@ -3908,7 +3910,7 @@ func TestGetSetExpandLevel(t *testing.T) {
 }
 
 func TestGetSetReadFilter(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{})
+	model := newTestModel(t, []domain.Notification{})
 
 	// Get default value
 	defaultFilter := model.GetReadFilter()
@@ -3942,7 +3944,7 @@ func TestGetSetReadFilter(t *testing.T) {
 func TestSaveSettings_Success(t *testing.T) {
 	setupStorage(t)
 
-	model := newTestModel(t, []notification.Notification{})
+	model := newTestModel(t, []domain.Notification{})
 
 	// Change settings
 	err := model.SetGroupBy(settings.GroupByWindow)
@@ -3965,7 +3967,7 @@ func TestSaveSettings_Success(t *testing.T) {
 func TestCtrlASwitchesToAllTabInDetailedView(t *testing.T) {
 	setupConfig(t, t.TempDir())
 
-	model := newTestModelWithCurrentTimestamps(t, []notification.Notification{
+	model := newTestModelWithCurrentTimestamps(t, []domain.Notification{
 		{ID: 1, Message: "First", Session: "$1", Window: "@1", Pane: "%1"},
 		{ID: 2, Message: "Second", Session: "$2", Window: "@1", Pane: "%1"},
 	})
@@ -3988,7 +3990,7 @@ func TestCtrlASwitchesToAllTabInDetailedView(t *testing.T) {
 func TestCtrlRSwitchesToRecentsTabInDetailedView(t *testing.T) {
 	setupConfig(t, t.TempDir())
 
-	model := newTestModelWithCurrentTimestamps(t, []notification.Notification{
+	model := newTestModelWithCurrentTimestamps(t, []domain.Notification{
 		{ID: 1, Message: "First", Session: "$1", Window: "@1", Pane: "%1"},
 		{ID: 2, Message: "Second", Session: "$2", Window: "@1", Pane: "%1"},
 	})
@@ -4011,7 +4013,7 @@ func TestCtrlRSwitchesToRecentsTabInDetailedView(t *testing.T) {
 func TestCtrlASwitchesToAllTabInGroupedView(t *testing.T) {
 	setupConfig(t, t.TempDir())
 
-	model := newTestModelWithCurrentTimestamps(t, []notification.Notification{
+	model := newTestModelWithCurrentTimestamps(t, []domain.Notification{
 		{ID: 1, Message: "First", Session: "$1", Window: "@1", Pane: "%1"},
 		{ID: 2, Message: "Second", Session: "$2", Window: "@1", Pane: "%1"},
 	})
@@ -4034,7 +4036,7 @@ func TestCtrlASwitchesToAllTabInGroupedView(t *testing.T) {
 func TestCtrlRSwitchesToRecentsTabInGroupedView(t *testing.T) {
 	setupConfig(t, t.TempDir())
 
-	model := newTestModelWithCurrentTimestamps(t, []notification.Notification{
+	model := newTestModelWithCurrentTimestamps(t, []domain.Notification{
 		{ID: 1, Message: "First", Session: "$1", Window: "@1", Pane: "%1"},
 		{ID: 2, Message: "Second", Session: "$2", Window: "@1", Pane: "%1"},
 	})
@@ -4057,7 +4059,7 @@ func TestCtrlRSwitchesToRecentsTabInGroupedView(t *testing.T) {
 func TestCtrlASwitchesToAllTabInSearchView(t *testing.T) {
 	setupConfig(t, t.TempDir())
 
-	model := newTestModelWithCurrentTimestamps(t, []notification.Notification{
+	model := newTestModelWithCurrentTimestamps(t, []domain.Notification{
 		{ID: 1, Message: "First", Session: "$1", Window: "@1", Pane: "%1"},
 		{ID: 2, Message: "Second", Session: "$2", Window: "@1", Pane: "%1"},
 	})
@@ -4080,7 +4082,7 @@ func TestCtrlASwitchesToAllTabInSearchView(t *testing.T) {
 func TestCtrlRSwitchesToRecentsTabInSearchView(t *testing.T) {
 	setupConfig(t, t.TempDir())
 
-	model := newTestModelWithCurrentTimestamps(t, []notification.Notification{
+	model := newTestModelWithCurrentTimestamps(t, []domain.Notification{
 		{ID: 1, Message: "First", Session: "$1", Window: "@1", Pane: "%1"},
 		{ID: 2, Message: "Second", Session: "$2", Window: "@1", Pane: "%1"},
 	})
@@ -4104,9 +4106,9 @@ func TestCtrlATabSwitchWithSearchQuery(t *testing.T) {
 	tmpDir := t.TempDir()
 	setupConfig(t, tmpDir)
 
-	notifications := []notification.Notification{
-		{ID: 1, Message: "active alpha", State: "active", Level: "info"},
-		{ID: 2, Message: "dismissed alpha", State: "dismissed", Level: "warning"},
+	notifications := []domain.Notification{
+		{ID: 1, Message: "active alpha", State: domain.StateActive, Level: domain.LevelInfo},
+		{ID: 2, Message: "dismissed alpha", State: domain.StateDismissed, Level: domain.LevelWarning},
 	}
 
 	model := newTestModelWithCurrentTimestamps(t, notifications)
@@ -4141,9 +4143,9 @@ func TestCtrlRTabSwitchWithSearchQuery(t *testing.T) {
 	tmpDir := t.TempDir()
 	setupConfig(t, tmpDir)
 
-	notifications := []notification.Notification{
-		{ID: 1, Message: "active beta", State: "active", Level: "info"},
-		{ID: 2, Message: "active beta 2", State: "active", Level: "warning"},
+	notifications := []domain.Notification{
+		{ID: 1, Message: "active beta", State: domain.StateActive, Level: domain.LevelInfo},
+		{ID: 2, Message: "active beta 2", State: domain.StateActive, Level: domain.LevelWarning},
 	}
 
 	model := newTestModelWithCurrentTimestamps(t, notifications)
@@ -4175,7 +4177,7 @@ func TestCtrlRTabSwitchWithSearchQuery(t *testing.T) {
 func TestCtrlASwitchesMultipleTimes(t *testing.T) {
 	setupConfig(t, t.TempDir())
 
-	model := newTestModelWithCurrentTimestamps(t, []notification.Notification{
+	model := newTestModelWithCurrentTimestamps(t, []domain.Notification{
 		{ID: 1, Message: "First", Session: "$1", Window: "@1", Pane: "%1"},
 	})
 	model.uiState.SetWidth(80)
@@ -4200,7 +4202,7 @@ func TestCtrlASwitchesMultipleTimes(t *testing.T) {
 func TestCtrlRSwitchesMultipleTimes(t *testing.T) {
 	setupConfig(t, t.TempDir())
 
-	model := newTestModelWithCurrentTimestamps(t, []notification.Notification{
+	model := newTestModelWithCurrentTimestamps(t, []domain.Notification{
 		{ID: 1, Message: "First", Session: "$1", Window: "@1", Pane: "%1"},
 	})
 	model.uiState.SetWidth(80)
@@ -4225,7 +4227,7 @@ func TestCtrlRSwitchesMultipleTimes(t *testing.T) {
 func TestCtrlAAndCtrlRToggleBetweenTabs(t *testing.T) {
 	setupConfig(t, t.TempDir())
 
-	model := newTestModelWithCurrentTimestamps(t, []notification.Notification{
+	model := newTestModelWithCurrentTimestamps(t, []domain.Notification{
 		{ID: 1, Message: "First", Session: "$1", Window: "@1", Pane: "%1"},
 	})
 	model.uiState.SetWidth(80)
@@ -4259,7 +4261,7 @@ func TestCtrlAAndCtrlRToggleBetweenTabs(t *testing.T) {
 
 // TestArrowKeyNavigationInSearchMode tests that Up/Down arrow keys work for navigation in search mode.
 func TestArrowKeyNavigationInSearchMode(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{Session: "session1", Window: "window1", Pane: "pane1", Message: "test message 1", Timestamp: "2024-01-01T00:00:00Z"},
 		{Session: "session1", Window: "window1", Pane: "pane2", Message: "test message 2", Timestamp: "2024-01-01T00:00:00Z"},
 		{Session: "session1", Window: "window1", Pane: "pane3", Message: "test message 3", Timestamp: "2024-01-01T00:00:00Z"},
@@ -4310,7 +4312,7 @@ func TestArrowKeyNavigationInSearchMode(t *testing.T) {
 
 // TestArrowKeyNavigationInNormalMode tests that Up/Down arrows do NOT work in normal mode.
 func TestArrowKeyNavigationInNormalMode(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{
+	model := newTestModel(t, []domain.Notification{
 		{Session: "session1", Window: "window1", Pane: "pane1", Message: "test message 1", Timestamp: "2024-01-01T00:00:00Z"},
 		{Session: "session1", Window: "window1", Pane: "pane2", Message: "test message 2", Timestamp: "2024-01-01T00:00:00Z"},
 	})

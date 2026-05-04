@@ -3,7 +3,7 @@ package state
 import (
 	"fmt"
 
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/controller"
@@ -146,14 +146,14 @@ func (m *Model) applySearchFilter() {
 	m.updateViewportContent()
 }
 
-func (m *Model) allNotifications() []notification.Notification {
+func (m *Model) allNotifications() []domain.Notification {
 	if m.notificationService == nil {
 		return nil
 	}
 	return m.ensureNotificationService().GetNotifications()
 }
 
-func (m *Model) filteredNotifications() []notification.Notification {
+func (m *Model) filteredNotifications() []domain.Notification {
 	return m.ensureNotificationService().GetFilteredNotifications()
 }
 
@@ -190,7 +190,7 @@ func (m *Model) loadNotifications(preserveCursor bool) error {
 		return fmt.Errorf("failed to load notifications: %w", err)
 	}
 	if len(notifications) == 0 {
-		m.ensureNotificationService().SetNotifications([]notification.Notification{})
+		m.ensureNotificationService().SetNotifications([]domain.Notification{})
 		m.syncNotificationMirrors()
 		m.treeService.ClearTree()
 		if preserveCursor {
@@ -229,7 +229,7 @@ func (m *Model) loadAllNotifications() error {
 		return fmt.Errorf("failed to load all notifications: %w", err)
 	}
 	if len(notifications) == 0 {
-		m.ensureNotificationService().SetNotifications([]notification.Notification{})
+		m.ensureNotificationService().SetNotifications([]domain.Notification{})
 		m.syncNotificationMirrors()
 		m.treeService.ClearTree()
 		m.resetCursor()

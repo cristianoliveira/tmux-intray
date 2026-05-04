@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 	"github.com/stretchr/testify/assert"
@@ -83,7 +83,7 @@ func TestApplyExpansionStateInvalidatesVisibleNodesCache(t *testing.T) {
 func TestBuildTreePaneMessageGroupsWithoutLeaves(t *testing.T) {
 	service := NewTreeService(model.GroupByPane).(*DefaultTreeService)
 
-	notifs := []notification.Notification{
+	notifs := []domain.Notification{
 		{
 			ID:        1,
 			Timestamp: "2025-01-01T10:00:00Z",
@@ -133,7 +133,7 @@ func TestPruneEmptyGroupsInvalidatesVisibleNodesCache(t *testing.T) {
 		Kind:    model.NodeKindNotification,
 		Title:   "notification",
 		Display: "notification",
-		Notification: &notification.Notification{
+		Notification: &domain.Notification{
 			ID:      99,
 			Message: "kept",
 		},
@@ -204,8 +204,8 @@ func TestGetVisibleNodesCacheConsistencyAndRefreshAfterInvalidation(t *testing.T
 	assert.True(t, service.cacheValid)
 }
 
-func sampleNotifications() []notification.Notification {
-	return []notification.Notification{
+func sampleNotifications() []domain.Notification {
+	return []domain.Notification{
 		{
 			ID:        1,
 			Timestamp: "2025-01-01T10:00:00Z",

@@ -5,7 +5,7 @@ package model
 import (
 	"fmt"
 
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 )
 
 // TreeService defines the interface for tree building and management operations.
@@ -14,11 +14,11 @@ type TreeService interface {
 	// BuildTree creates a tree structure from a list of notifications.
 	// The groupBy parameter determines the grouping depth (session, window, pane, message, or pane_message).
 	// The resulting tree is stored internally by the service.
-	BuildTree(notifications []notification.Notification, groupBy string) error
+	BuildTree(notifications []domain.Notification, groupBy string) error
 
 	// RebuildTreeForFilter rebuilds the tree for filtered notifications, pruning empty
 	// groups and applying expansion state (or expanding all nodes when no state exists).
-	RebuildTreeForFilter(notifications []notification.Notification, groupBy string, expansionState map[string]bool) error
+	RebuildTreeForFilter(notifications []domain.Notification, groupBy string, expansionState map[string]bool) error
 
 	// ClearTree clears all internally stored tree state and cache.
 	ClearTree()
@@ -28,7 +28,7 @@ type TreeService interface {
 
 	// FindNotificationPath locates a notification in the tree and returns the path.
 	// Returns a slice of nodes from root to the notification, or an error if not found.
-	FindNotificationPath(root *TreeNode, notif notification.Notification) ([]*TreeNode, error)
+	FindNotificationPath(root *TreeNode, notif domain.Notification) ([]*TreeNode, error)
 
 	// FindNodeByID finds a tree node by its unique identifier.
 	// Returns the node or nil if not found.
@@ -87,7 +87,7 @@ type TreeNode struct {
 	Children []*TreeNode
 
 	// Notification is the notification data for leaf nodes.
-	Notification *notification.Notification
+	Notification *domain.Notification
 
 	// Count is the total number of notifications under this group node.
 	Count int
@@ -96,10 +96,10 @@ type TreeNode struct {
 	UnreadCount int
 
 	// LatestEvent is the most recent notification under this group node.
-	LatestEvent *notification.Notification
+	LatestEvent *domain.Notification
 
 	// EarliestEvent is the oldest notification under this group node.
-	EarliestEvent *notification.Notification
+	EarliestEvent *domain.Notification
 
 	// LevelCounts tracks counts per notification level.
 	LevelCounts map[string]int

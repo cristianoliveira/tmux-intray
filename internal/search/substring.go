@@ -3,7 +3,7 @@ package search
 import (
 	"strings"
 
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 )
 
 // SubstringProvider provides substring-based search.
@@ -20,7 +20,7 @@ func NewSubstringProvider(opts ...Option) Provider {
 }
 
 // Match returns true if any configured field contains the query substring.
-func (p *SubstringProvider) Match(notif notification.Notification, query string) bool {
+func (p *SubstringProvider) Match(notif domain.Notification, query string) bool {
 	if query == "" {
 		return true
 	}
@@ -44,9 +44,9 @@ func (p *SubstringProvider) Match(notif notification.Notification, query string)
 		case "pane":
 			fieldValues = p.getFieldValuesWithNames(notif.Pane, p.opts.PaneNames)
 		case "level":
-			fieldValues = []string{notif.Level}
+			fieldValues = []string{notif.Level.String()}
 		case "state":
-			fieldValues = []string{notif.State}
+			fieldValues = []string{notif.State.String()}
 		}
 
 		// Check all field values (ID and name)

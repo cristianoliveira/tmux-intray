@@ -10,7 +10,6 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/dedupconfig"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/format"
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 )
 
@@ -118,14 +117,14 @@ func parseAndFilterNotifications(lines string, searchProvider search.Provider, s
 		if line == "" {
 			continue
 		}
-		notif, err := notification.ParseNotification(line)
+		notif, err := domain.ParseNotificationLine(line)
 		if err != nil {
 			continue
 		}
 		if searchProvider != nil && !searchProvider.Match(notif, searchQuery) {
 			continue
 		}
-		notifications = append(notifications, notification.ToDomainUnsafe(notif))
+		notifications = append(notifications, &notif)
 	}
 	return notifications
 }

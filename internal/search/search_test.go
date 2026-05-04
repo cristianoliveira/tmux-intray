@@ -3,34 +3,34 @@ package search
 import (
 	"testing"
 
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/stretchr/testify/assert"
 )
 
 // Test notification used across tests
-var testNotification = notification.Notification{
+var testNotification = domain.Notification{
 	ID:            1,
 	Timestamp:     "2024-01-01T12:00:00Z",
-	State:         "active",
+	State:         domain.StateActive,
 	Session:       "$1",
 	Window:        "@0",
 	Pane:          "%0",
 	Message:       "error: failed to connect to database",
 	PaneCreated:   "2024-01-01T11:00:00Z",
-	Level:         "error",
+	Level:         domain.LevelError,
 	ReadTimestamp: "",
 }
 
-var testNotificationRead = notification.Notification{
+var testNotificationRead = domain.Notification{
 	ID:            2,
 	Timestamp:     "2024-01-01T12:00:00Z",
-	State:         "active",
+	State:         domain.StateActive,
 	Session:       "$2",
 	Window:        "@1",
 	Pane:          "%1",
 	Message:       "warning: connection slow",
 	PaneCreated:   "2024-01-01T11:00:00Z",
-	Level:         "warning",
+	Level:         domain.LevelWarning,
 	ReadTimestamp: "2024-01-01T13:00:00Z",
 }
 
@@ -220,7 +220,7 @@ func TestTokenProvider(t *testing.T) {
 	tests := []struct {
 		name     string
 		provider Provider
-		notif    notification.Notification
+		notif    domain.Notification
 		query    string
 		expected bool
 	}{
@@ -352,7 +352,7 @@ func TestProviderEdgeCases(t *testing.T) {
 	for _, provider := range providers {
 		t.Run(provider.name, func(t *testing.T) {
 			// Test with notification with empty fields
-			emptyNotif := notification.Notification{
+			emptyNotif := domain.Notification{
 				ID:        1,
 				Timestamp: "2024-01-01T12:00:00Z",
 				State:     "",
@@ -416,7 +416,7 @@ func BenchmarkTokenProvider(b *testing.B) {
 // TestNameBasedSearch tests name-based search for sessions, windows, and panes.
 func TestNameBasedSearch(t *testing.T) {
 	// Create test notifications
-	notif1 := notification.Notification{
+	notif1 := domain.Notification{
 		ID:        1,
 		Session:   "$1",
 		Window:    "@0",
@@ -427,7 +427,7 @@ func TestNameBasedSearch(t *testing.T) {
 		Timestamp: "2024-01-01T12:00:00Z",
 	}
 
-	notif2 := notification.Notification{
+	notif2 := domain.Notification{
 		ID:        2,
 		Session:   "$2",
 		Window:    "@1",
@@ -455,7 +455,7 @@ func TestNameBasedSearch(t *testing.T) {
 	tests := []struct {
 		name        string
 		provider    Provider
-		notif       notification.Notification
+		notif       domain.Notification
 		query       string
 		expected    bool
 		description string
@@ -658,7 +658,7 @@ func TestNameBasedSearch(t *testing.T) {
 		{
 			name:        "substring: empty session ID",
 			provider:    NewSubstringProvider(WithSessionNames(sessionNames)),
-			notif:       notification.Notification{ID: 1, Session: "", Message: "test"},
+			notif:       domain.Notification{ID: 1, Session: "", Message: "test"},
 			query:       "my-work",
 			expected:    false,
 			description: "should not match empty session ID",
@@ -677,7 +677,7 @@ func TestNameBasedSearch(t *testing.T) {
 
 // TestNameBasedSearchCrossField tests searching across multiple fields with names.
 func TestNameBasedSearchCrossField(t *testing.T) {
-	notif := notification.Notification{
+	notif := domain.Notification{
 		ID:        1,
 		Session:   "$1",
 		Window:    "@0",
