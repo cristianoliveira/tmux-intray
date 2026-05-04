@@ -5,18 +5,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 )
 
 // severityRank returns a numeric rank for severity comparison (higher = more severe).
 // Used for per-session selection: error > warning > info.
-func severityRank(level string) int {
+func severityRank(level domain.NotificationLevel) int {
 	switch level {
-	case "error":
+	case domain.LevelError:
 		return 3
-	case "warning":
+	case domain.LevelWarning:
 		return 2
-	case "info":
+	case domain.LevelInfo:
 		return 1
 	default:
 		return 0
@@ -27,7 +27,7 @@ func severityRank(level string) int {
 // for a session than current. Selection priority:
 // 1. Higher severity (error > warning > info)
 // 2. More recent timestamp (if severity ties)
-func isBetterRepresentative(candidate, current notification.Notification) bool {
+func isBetterRepresentative(candidate, current domain.Notification) bool {
 	candidateRank := severityRank(candidate.Level)
 	currentRank := severityRank(current.Level)
 
@@ -46,7 +46,7 @@ func isBetterRepresentative(candidate, current notification.Notification) bool {
 }
 
 // simpleMatch performs a simple string matching check.
-func (s *DefaultNotificationService) simpleMatch(notif notification.Notification, query string) bool {
+func (s *DefaultNotificationService) simpleMatch(notif domain.Notification, query string) bool {
 	lowerQuery := strings.ToLower(query)
 	lowerMessage := strings.ToLower(notif.Message)
 
@@ -58,7 +58,7 @@ func (s *DefaultNotificationService) simpleMatch(notif notification.Notification
 }
 
 // matchResolvedNames checks if the query matches any resolved name.
-func (s *DefaultNotificationService) matchResolvedNames(notif notification.Notification, lowerQuery string) bool {
+func (s *DefaultNotificationService) matchResolvedNames(notif domain.Notification, lowerQuery string) bool {
 	if s.nameResolver == nil {
 		return false
 	}

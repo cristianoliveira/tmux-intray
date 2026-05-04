@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,11 +19,11 @@ func nowMinutes(minutes int) string {
 func TestSortNotificationsUnreadFirst(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
 
-	notifications := []notification.Notification{
-		{ID: 1, Timestamp: "2024-01-01T10:00:00Z", State: "active", Level: "info", Message: "one", ReadTimestamp: "2024-01-01T11:00:00Z"},
-		{ID: 2, Timestamp: "2024-01-02T10:00:00Z", State: "active", Level: "warning", Message: "two", ReadTimestamp: ""},
-		{ID: 3, Timestamp: "2024-01-03T10:00:00Z", State: "dismissed", Level: "error", Message: "three", ReadTimestamp: ""},
-		{ID: 4, Timestamp: "2024-01-04T10:00:00Z", State: "dismissed", Level: "critical", Message: "four", ReadTimestamp: "2024-01-04T11:00:00Z"},
+	notifications := []domain.Notification{
+		{ID: 1, Timestamp: "2024-01-01T10:00:00Z", State: domain.StateActive, Level: domain.LevelInfo, Message: "one", ReadTimestamp: "2024-01-01T11:00:00Z"},
+		{ID: 2, Timestamp: "2024-01-02T10:00:00Z", State: domain.StateActive, Level: domain.LevelWarning, Message: "two", ReadTimestamp: ""},
+		{ID: 3, Timestamp: "2024-01-03T10:00:00Z", State: domain.StateDismissed, Level: domain.LevelError, Message: "three", ReadTimestamp: ""},
+		{ID: 4, Timestamp: "2024-01-04T10:00:00Z", State: domain.StateDismissed, Level: domain.LevelCritical, Message: "four", ReadTimestamp: "2024-01-04T11:00:00Z"},
 	}
 
 	sorted := svc.SortNotifications(notifications, "timestamp", "desc")
@@ -34,11 +34,11 @@ func TestSortNotificationsUnreadFirst(t *testing.T) {
 func TestSortNotificationsUnreadFirstKeepsSortOrderWithinBuckets(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
 
-	notifications := []notification.Notification{
-		{ID: 10, Timestamp: "2024-01-01T10:00:00Z", State: "active", Level: "info", Message: "ten", ReadTimestamp: ""},
-		{ID: 11, Timestamp: "2024-01-01T10:00:00Z", State: "active", Level: "warning", Message: "eleven", ReadTimestamp: ""},
-		{ID: 12, Timestamp: "2024-01-01T10:00:00Z", State: "dismissed", Level: "error", Message: "twelve", ReadTimestamp: "2024-01-01T11:00:00Z"},
-		{ID: 13, Timestamp: "2024-01-01T10:00:00Z", State: "dismissed", Level: "critical", Message: "thirteen", ReadTimestamp: "2024-01-01T12:00:00Z"},
+	notifications := []domain.Notification{
+		{ID: 10, Timestamp: "2024-01-01T10:00:00Z", State: domain.StateActive, Level: domain.LevelInfo, Message: "ten", ReadTimestamp: ""},
+		{ID: 11, Timestamp: "2024-01-01T10:00:00Z", State: domain.StateActive, Level: domain.LevelWarning, Message: "eleven", ReadTimestamp: ""},
+		{ID: 12, Timestamp: "2024-01-01T10:00:00Z", State: domain.StateDismissed, Level: domain.LevelError, Message: "twelve", ReadTimestamp: "2024-01-01T11:00:00Z"},
+		{ID: 13, Timestamp: "2024-01-01T10:00:00Z", State: domain.StateDismissed, Level: domain.LevelCritical, Message: "thirteen", ReadTimestamp: "2024-01-01T12:00:00Z"},
 	}
 
 	sorted := svc.SortNotifications(notifications, "id", "asc")
@@ -48,9 +48,9 @@ func TestSortNotificationsUnreadFirstKeepsSortOrderWithinBuckets(t *testing.T) {
 
 func TestFilterByReadStatus(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
-	notifications := []notification.Notification{
-		{ID: 1, Message: "one", Timestamp: "2024-01-01T09:00:00Z", State: "active", Level: "info", ReadTimestamp: ""},
-		{ID: 2, Message: "two", Timestamp: "2024-01-01T10:00:00Z", State: "active", Level: "info", ReadTimestamp: "2024-01-01T10:05:00Z"},
+	notifications := []domain.Notification{
+		{ID: 1, Message: "one", Timestamp: "2024-01-01T09:00:00Z", State: domain.StateActive, Level: domain.LevelInfo, ReadTimestamp: ""},
+		{ID: 2, Message: "two", Timestamp: "2024-01-01T10:00:00Z", State: domain.StateActive, Level: domain.LevelInfo, ReadTimestamp: "2024-01-01T10:05:00Z"},
 	}
 
 	unread := svc.FilterByReadStatus(notifications, "unread")
@@ -64,9 +64,9 @@ func TestFilterByReadStatus(t *testing.T) {
 
 func TestApplyFiltersAndSearchRespectsReadFilter(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
-	notifications := []notification.Notification{
-		{ID: 1, Message: "alpha", Timestamp: nowMinutes(30), State: "active", Level: "info", ReadTimestamp: ""},
-		{ID: 2, Message: "beta", Timestamp: nowMinutes(25), State: "active", Level: "info", ReadTimestamp: nowMinutes(20)},
+	notifications := []domain.Notification{
+		{ID: 1, Message: "alpha", Timestamp: nowMinutes(30), State: domain.StateActive, Level: domain.LevelInfo, ReadTimestamp: ""},
+		{ID: 2, Message: "beta", Timestamp: nowMinutes(25), State: domain.StateActive, Level: domain.LevelInfo, ReadTimestamp: nowMinutes(20)},
 	}
 
 	svc.SetNotifications(notifications)
@@ -78,9 +78,9 @@ func TestApplyFiltersAndSearchRespectsReadFilter(t *testing.T) {
 
 func TestApplyFiltersAndSearchRecentsForcesUnreadView(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
-	notifications := []notification.Notification{
-		{ID: 1, Message: "unread", Timestamp: nowMinutes(30), State: "active", Level: "info", Session: "$1", Window: "@1", Pane: "%1", ReadTimestamp: ""},
-		{ID: 2, Message: "read", Timestamp: nowMinutes(25), State: "active", Level: "info", Session: "$1", Window: "@1", Pane: "%1", ReadTimestamp: nowMinutes(20)},
+	notifications := []domain.Notification{
+		{ID: 1, Message: "unread", Timestamp: nowMinutes(30), State: domain.StateActive, Level: domain.LevelInfo, Session: "$1", Window: "@1", Pane: "%1", ReadTimestamp: ""},
+		{ID: 2, Message: "read", Timestamp: nowMinutes(25), State: domain.StateActive, Level: domain.LevelInfo, Session: "$1", Window: "@1", Pane: "%1", ReadTimestamp: nowMinutes(20)},
 	}
 
 	svc.SetNotifications(notifications)
@@ -99,11 +99,11 @@ func TestApplyFiltersAndSearchRecentsForcesUnreadView(t *testing.T) {
 // TestSearchFunction tests the Search method with token matching.
 func TestSearchFunction(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
-	notifications := []notification.Notification{
-		{ID: 1, Message: "Error: file not found", Level: "error", Timestamp: "2024-01-01T10:00:00Z", State: "active"},
-		{ID: 2, Message: "Warning: low memory", Level: "warning", Timestamp: "2024-01-01T10:00:00Z", State: "active"},
-		{ID: 3, Message: "Error: connection failed", Level: "error", Timestamp: "2024-01-01T10:00:00Z", State: "active"},
-		{ID: 4, Message: "Info: task completed", Level: "info", Timestamp: "2024-01-01T10:00:00Z", State: "active"},
+	notifications := []domain.Notification{
+		{ID: 1, Message: "Error: file not found", Level: domain.LevelError, Timestamp: "2024-01-01T10:00:00Z", State: domain.StateActive},
+		{ID: 2, Message: "Warning: low memory", Level: domain.LevelWarning, Timestamp: "2024-01-01T10:00:00Z", State: domain.StateActive},
+		{ID: 3, Message: "Error: connection failed", Level: domain.LevelError, Timestamp: "2024-01-01T10:00:00Z", State: domain.StateActive},
+		{ID: 4, Message: "Info: task completed", Level: domain.LevelInfo, Timestamp: "2024-01-01T10:00:00Z", State: domain.StateActive},
 	}
 	svc.SetNotifications(notifications)
 	t.Logf("notifications: %+v", notifications)
@@ -136,11 +136,11 @@ func TestSearchFunction(t *testing.T) {
 // TestApplyFiltersAndSearchLevelFilter tests filtering by level.
 func TestApplyFiltersAndSearchLevelFilter(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
-	notifications := []notification.Notification{
-		{ID: 1, Message: "Error one", Level: "error", Timestamp: nowMinutes(30), State: "active", Session: "$1", Window: "@1", Pane: "%1"},
-		{ID: 2, Message: "Warning one", Level: "warning", Timestamp: nowMinutes(28), State: "active", Session: "$2", Window: "@1", Pane: "%2"},
-		{ID: 3, Message: "Error two", Level: "error", Timestamp: nowMinutes(26), State: "active", Session: "$3", Window: "@1", Pane: "%3"},
-		{ID: 4, Message: "Info one", Level: "info", Timestamp: nowMinutes(24), State: "active", Session: "$4", Window: "@1", Pane: "%4"},
+	notifications := []domain.Notification{
+		{ID: 1, Message: "Error one", Level: domain.LevelError, Timestamp: nowMinutes(30), State: domain.StateActive, Session: "$1", Window: "@1", Pane: "%1"},
+		{ID: 2, Message: "Warning one", Level: domain.LevelWarning, Timestamp: nowMinutes(28), State: domain.StateActive, Session: "$2", Window: "@1", Pane: "%2"},
+		{ID: 3, Message: "Error two", Level: domain.LevelError, Timestamp: nowMinutes(26), State: domain.StateActive, Session: "$3", Window: "@1", Pane: "%3"},
+		{ID: 4, Message: "Info one", Level: domain.LevelInfo, Timestamp: nowMinutes(24), State: domain.StateActive, Session: "$4", Window: "@1", Pane: "%4"},
 	}
 	svc.SetNotifications(notifications)
 
@@ -167,11 +167,11 @@ func TestApplyFiltersAndSearchLevelFilter(t *testing.T) {
 // TestApplyFiltersAndSearchSessionWindowPaneFilter tests filtering by session, window, pane.
 func TestApplyFiltersAndSearchSessionWindowPaneFilter(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
-	notifications := []notification.Notification{
-		{ID: 1, Message: "Msg 1", Session: "$1", Window: "@1", Pane: "%1", Timestamp: nowMinutes(30), State: "active", Level: "info"},
-		{ID: 2, Message: "Msg 2", Session: "$1", Window: "@1", Pane: "%2", Timestamp: nowMinutes(28), State: "active", Level: "info"},
-		{ID: 3, Message: "Msg 3", Session: "$2", Window: "@1", Pane: "%1", Timestamp: nowMinutes(26), State: "active", Level: "info"},
-		{ID: 4, Message: "Msg 4", Session: "$2", Window: "@2", Pane: "%1", Timestamp: nowMinutes(24), State: "active", Level: "info"},
+	notifications := []domain.Notification{
+		{ID: 1, Message: "Msg 1", Session: "$1", Window: "@1", Pane: "%1", Timestamp: nowMinutes(30), State: domain.StateActive, Level: domain.LevelInfo},
+		{ID: 2, Message: "Msg 2", Session: "$1", Window: "@1", Pane: "%2", Timestamp: nowMinutes(28), State: domain.StateActive, Level: domain.LevelInfo},
+		{ID: 3, Message: "Msg 3", Session: "$2", Window: "@1", Pane: "%1", Timestamp: nowMinutes(26), State: domain.StateActive, Level: domain.LevelInfo},
+		{ID: 4, Message: "Msg 4", Session: "$2", Window: "@2", Pane: "%1", Timestamp: nowMinutes(24), State: domain.StateActive, Level: domain.LevelInfo},
 	}
 	svc.SetNotifications(notifications)
 
@@ -207,10 +207,10 @@ func TestApplyFiltersAndSearchSessionWindowPaneFilter(t *testing.T) {
 
 func TestApplyFiltersAndSearchActiveOnlyAcrossTabs(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
-	notifications := []notification.Notification{
-		{ID: 1, Message: "active 1", Timestamp: nowMinutes(30), State: "active", Level: "info", Session: "$1", Window: "@1", Pane: "%1"},
-		{ID: 2, Message: "dismissed", Timestamp: nowMinutes(28), State: "dismissed", Level: "info", Session: "$2", Window: "@2", Pane: "%2"},
-		{ID: 3, Message: "active 2", Timestamp: nowMinutes(26), State: "active", Level: "warning", Session: "$3", Window: "@3", Pane: "%3"},
+	notifications := []domain.Notification{
+		{ID: 1, Message: "active 1", Timestamp: nowMinutes(30), State: domain.StateActive, Level: domain.LevelInfo, Session: "$1", Window: "@1", Pane: "%1"},
+		{ID: 2, Message: "dismissed", Timestamp: nowMinutes(28), State: domain.StateDismissed, Level: domain.LevelInfo, Session: "$2", Window: "@2", Pane: "%2"},
+		{ID: 3, Message: "active 2", Timestamp: nowMinutes(26), State: domain.StateActive, Level: domain.LevelWarning, Session: "$3", Window: "@3", Pane: "%3"},
 	}
 	svc.SetNotifications(notifications)
 
@@ -233,13 +233,13 @@ func TestApplyFiltersAndSearchActiveOnlyAcrossTabs(t *testing.T) {
 
 func TestApplyFiltersAndSearchRecentsUsesLimitedDataset(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
-	notifications := make([]notification.Notification, 0, 25)
+	notifications := make([]domain.Notification, 0, 25)
 	for i := 1; i <= 25; i++ {
 		session := fmt.Sprintf("$%d", i) // Each notification gets its own session
 		window := "@1"
 		pane := "%1"
 
-		notifications = append(notifications, notification.Notification{
+		notifications = append(notifications, domain.Notification{
 			ID:        i,
 			Message:   "msg",
 			Timestamp: nowMinutes(25 - i),
@@ -270,17 +270,17 @@ func TestApplyFiltersAndSearchRecentsUsesLimitedDataset(t *testing.T) {
 
 func TestApplyFiltersAndSearchScopesFilteringToSelectedTabDataset(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
-	notifications := make([]notification.Notification, 0, 25)
+	notifications := make([]domain.Notification, 0, 25)
 	for i := 1; i <= 25; i++ {
-		level := "info"
+		level := domain.LevelInfo
 		if i == 2 {
-			level = "error"
+			level = domain.LevelError
 		}
-		notifications = append(notifications, notification.Notification{
+		notifications = append(notifications, domain.Notification{
 			ID:        i,
 			Message:   "msg",
 			Timestamp: "2024-01-01T10:00:00Z",
-			State:     "active",
+			State:     domain.StateActive,
 			Level:     level,
 		})
 	}
@@ -297,9 +297,9 @@ func TestApplyFiltersAndSearchScopesFilteringToSelectedTabDataset(t *testing.T) 
 
 func TestApplyFiltersAndSearchTabScopeSearchesWithinTabDataset(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
-	notifications := []notification.Notification{
-		{ID: 1, Message: "active alpha", Timestamp: "2024-01-03T10:00:00Z", State: "active", Level: "info"},
-		{ID: 2, Message: "dismissed alpha", Timestamp: "2024-01-04T10:00:00Z", State: "dismissed", Level: "warning"},
+	notifications := []domain.Notification{
+		{ID: 1, Message: "active alpha", Timestamp: "2024-01-03T10:00:00Z", State: domain.StateActive, Level: domain.LevelInfo},
+		{ID: 2, Message: "dismissed alpha", Timestamp: "2024-01-04T10:00:00Z", State: domain.StateDismissed, Level: domain.LevelWarning},
 	}
 	svc.SetNotifications(notifications)
 
@@ -313,7 +313,7 @@ func TestRecentsTabApplies1HourTimeWindow(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
 	now := time.Now().UTC()
 
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		{
 			ID:        1,
 			Message:   "recent notification",
@@ -383,7 +383,7 @@ func TestRecentsTabCanBeEmpty(t *testing.T) {
 	now := time.Now().UTC()
 
 	// Only old notifications
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		{
 			ID:        1,
 			Message:   "very old notification",
@@ -410,7 +410,7 @@ func TestRecentsPerSessionSmartSelection(t *testing.T) {
 	now := time.Now().UTC()
 
 	// Multiple notifications from same session with different severities
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		{
 			ID:        1,
 			Message:   "info notification",
@@ -450,7 +450,7 @@ func TestRecentsPerSessionSmartSelection(t *testing.T) {
 	// Should select only the error notification (highest severity) for this session
 	require.Len(t, filtered, 1)
 	assert.Equal(t, 3, filtered[0].ID)
-	assert.Equal(t, "error", filtered[0].Level)
+	assert.Equal(t, domain.LevelError, filtered[0].Level)
 }
 
 // TestRecentsPerSessionSelectionWithMultipleSessions tests max 1 per session across multiple sessions.
@@ -458,7 +458,7 @@ func TestRecentsPerSessionSelectionWithMultipleSessions(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
 	now := time.Now().UTC()
 
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		// Session 1: multiple notifications
 		{
 			ID:        1,
@@ -522,18 +522,18 @@ func TestRecentsPerSessionSelectionWithMultipleSessions(t *testing.T) {
 	require.Len(t, filtered, 3)
 
 	// Verify each session represented and correct severity selected
-	sessionMap := make(map[string]notification.Notification)
+	sessionMap := make(map[string]domain.Notification)
 	for _, n := range filtered {
 		sessionMap[n.Session] = n
 	}
 
-	assert.Equal(t, "warning", sessionMap["$1"].Level)
+	assert.Equal(t, domain.LevelWarning, sessionMap["$1"].Level)
 	assert.Equal(t, 2, sessionMap["$1"].ID)
 
-	assert.Equal(t, "error", sessionMap["$2"].Level)
+	assert.Equal(t, domain.LevelError, sessionMap["$2"].Level)
 	assert.Equal(t, 3, sessionMap["$2"].ID)
 
-	assert.Equal(t, "warning", sessionMap["$3"].Level)
+	assert.Equal(t, domain.LevelWarning, sessionMap["$3"].Level)
 	assert.Equal(t, 5, sessionMap["$3"].ID)
 }
 
@@ -542,7 +542,7 @@ func TestRecentsOrderedByMostRecentActivity(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
 	now := time.Now().UTC()
 
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		// Session 1: recent info
 		{
 			ID:        1,
@@ -594,7 +594,7 @@ func TestRecentsSeveritySelectionPrefersError(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
 	now := time.Now().UTC()
 
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		{
 			ID:        1,
 			Message:   "older error",
@@ -624,7 +624,7 @@ func TestRecentsSeveritySelectionPrefersError(t *testing.T) {
 	// Should prefer error even though warning is newer
 	require.Len(t, filtered, 1)
 	assert.Equal(t, 1, filtered[0].ID)
-	assert.Equal(t, "error", filtered[0].Level)
+	assert.Equal(t, domain.LevelError, filtered[0].Level)
 }
 
 // TestRecentsSeverityTieUsesRecency tests recent notification chosen when severity ties.
@@ -632,7 +632,7 @@ func TestRecentsSeverityTieUsesRecency(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
 	now := time.Now().UTC()
 
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		{
 			ID:        1,
 			Message:   "older warning",
@@ -670,10 +670,10 @@ func TestRecentsRespects20ItemLimit(t *testing.T) {
 	now := time.Now().UTC()
 
 	// Create 30 notifications across 30 different sessions
-	notifications := make([]notification.Notification, 0, 30)
+	notifications := make([]domain.Notification, 0, 30)
 	for i := 1; i <= 30; i++ {
 		sessionID := fmt.Sprintf("$%d", i)
-		notifications = append(notifications, notification.Notification{
+		notifications = append(notifications, domain.Notification{
 			ID:        i,
 			Message:   fmt.Sprintf("msg%d", i),
 			Timestamp: now.Add(-time.Duration(30-i) * time.Minute).Format(time.RFC3339),
@@ -702,7 +702,7 @@ func TestRecentsIntegrationWithTimeWindow(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
 	now := time.Now().UTC()
 
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		// Session 1: within window
 		{
 			ID:        1,
@@ -757,15 +757,15 @@ func TestRecentsIntegrationWithTimeWindow(t *testing.T) {
 	// Session 3: info (only notification)
 	require.Len(t, filtered, 2)
 
-	sessionMap := make(map[string]notification.Notification)
+	sessionMap := make(map[string]domain.Notification)
 	for _, n := range filtered {
 		sessionMap[n.Session] = n
 	}
 
-	assert.Equal(t, "error", sessionMap["$1"].Level)
+	assert.Equal(t, domain.LevelError, sessionMap["$1"].Level)
 	assert.Equal(t, 1, sessionMap["$1"].ID)
 	assert.NotContains(t, sessionMap, "$2") // Outside time window
-	assert.Equal(t, "info", sessionMap["$3"].Level)
+	assert.Equal(t, domain.LevelInfo, sessionMap["$3"].Level)
 	assert.Equal(t, 4, sessionMap["$3"].ID)
 }
 
@@ -775,10 +775,10 @@ func TestFilteredListRespects10ItemLimit(t *testing.T) {
 	now := time.Now().UTC()
 
 	// Create 15 notifications from the same session within time window
-	notifications := make([]notification.Notification, 0, 15)
+	notifications := make([]domain.Notification, 0, 15)
 	sessionID := "$test-session"
 	for i := 1; i <= 15; i++ {
-		notifications = append(notifications, notification.Notification{
+		notifications = append(notifications, domain.Notification{
 			ID:        i,
 			Message:   fmt.Sprintf("msg%d", i),
 			Timestamp: now.Add(-time.Duration(15-i) * time.Minute).Format(time.RFC3339),
@@ -809,10 +809,10 @@ func TestFilteredListByWindowRespects10ItemLimit(t *testing.T) {
 	now := time.Now().UTC()
 
 	// Create 12 notifications from the same window within time window
-	notifications := make([]notification.Notification, 0, 12)
+	notifications := make([]domain.Notification, 0, 12)
 	windowID := "@test-window"
 	for i := 1; i <= 12; i++ {
-		notifications = append(notifications, notification.Notification{
+		notifications = append(notifications, domain.Notification{
 			ID:        i,
 			Message:   fmt.Sprintf("msg%d", i),
 			Timestamp: now.Add(-time.Duration(12-i) * time.Minute).Format(time.RFC3339),
@@ -843,10 +843,10 @@ func TestFilteredListByPaneRespects10ItemLimit(t *testing.T) {
 	now := time.Now().UTC()
 
 	// Create 20 notifications from the same pane within time window
-	notifications := make([]notification.Notification, 0, 20)
+	notifications := make([]domain.Notification, 0, 20)
 	paneID := "%test-pane"
 	for i := 1; i <= 20; i++ {
-		notifications = append(notifications, notification.Notification{
+		notifications = append(notifications, domain.Notification{
 			ID:        i,
 			Message:   fmt.Sprintf("msg%d", i),
 			Timestamp: now.Add(-time.Duration(20-i) * time.Minute).Format(time.RFC3339),
@@ -876,7 +876,7 @@ func TestFilteredListRespectsTimeWindow(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
 	now := time.Now().UTC()
 
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		// Within window (30 min ago)
 		{
 			ID:        1,
@@ -926,7 +926,7 @@ func TestFilteredListRespectsTimeWindow(t *testing.T) {
 func TestFilteredListHandlesEmptyResults(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
 
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		{
 			ID:        1,
 			Message:   "test",
@@ -953,10 +953,10 @@ func TestFilteredListOrderedByTimestamp(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
 	now := time.Now().UTC()
 
-	notifications := []notification.Notification{
-		{ID: 1, Message: "msg1", Timestamp: now.Add(-10 * time.Minute).Format(time.RFC3339), State: "active", Level: "info", Session: "$1", Window: "@1", Pane: "%1"},
-		{ID: 2, Message: "msg2", Timestamp: now.Add(-5 * time.Minute).Format(time.RFC3339), State: "active", Level: "info", Session: "$1", Window: "@1", Pane: "%1"},
-		{ID: 3, Message: "msg3", Timestamp: now.Add(-20 * time.Minute).Format(time.RFC3339), State: "active", Level: "info", Session: "$1", Window: "@1", Pane: "%1"},
+	notifications := []domain.Notification{
+		{ID: 1, Message: "msg1", Timestamp: now.Add(-10 * time.Minute).Format(time.RFC3339), State: domain.StateActive, Level: domain.LevelInfo, Session: "$1", Window: "@1", Pane: "%1"},
+		{ID: 2, Message: "msg2", Timestamp: now.Add(-5 * time.Minute).Format(time.RFC3339), State: domain.StateActive, Level: domain.LevelInfo, Session: "$1", Window: "@1", Pane: "%1"},
+		{ID: 3, Message: "msg3", Timestamp: now.Add(-20 * time.Minute).Format(time.RFC3339), State: domain.StateActive, Level: domain.LevelInfo, Session: "$1", Window: "@1", Pane: "%1"},
 	}
 
 	svc.SetNotifications(notifications)
@@ -975,7 +975,7 @@ func TestRecentsTabUsesConfigurableTimeWindow(t *testing.T) {
 	now := time.Now().UTC()
 
 	// Create notifications at various time points
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		{
 			ID:        1,
 			Message:   "5 minutes old",
@@ -1037,7 +1037,7 @@ func TestRecentsTabUsesConfiguredTimeWindowFrom30Minutes(t *testing.T) {
 	svc := NewNotificationService(nil, nil)
 	now := time.Now().UTC()
 
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		{
 			ID:        1,
 			Message:   "15 minutes old",

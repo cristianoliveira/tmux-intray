@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
@@ -20,7 +20,7 @@ type notificationStore interface {
 }
 
 type notificationParser interface {
-	Parse(line string) (notification.Notification, error)
+	Parse(line string) (domain.Notification, error)
 }
 
 type storageNotificationStore struct{}
@@ -51,8 +51,8 @@ func (s storageNotificationStore) MarkNotificationUnread(id string) error {
 
 type defaultNotificationParser struct{}
 
-func (p defaultNotificationParser) Parse(line string) (notification.Notification, error) {
-	return notification.ParseNotification(line)
+func (p defaultNotificationParser) Parse(line string) (domain.Notification, error) {
+	return domain.ParseNotificationLine(line)
 }
 
 // DefaultInteractionController is the production controller implementation.
@@ -89,16 +89,16 @@ func (c *DefaultInteractionController) SetRuntimeCoordinator(runtimeCoordinator 
 }
 
 // LoadActiveNotifications loads all active notifications from persistent storage.
-func (c *DefaultInteractionController) LoadActiveNotifications() ([]notification.Notification, error) {
+func (c *DefaultInteractionController) LoadActiveNotifications() ([]domain.Notification, error) {
 	lines, err := c.store.ListActiveNotifications()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load notifications: %w", err)
 	}
 	if lines == "" {
-		return []notification.Notification{}, nil
+		return []domain.Notification{}, nil
 	}
 
-	items := make([]notification.Notification, 0)
+	items := make([]domain.Notification, 0)
 	for _, line := range strings.Split(lines, "\n") {
 		if line == "" {
 			continue
@@ -114,16 +114,16 @@ func (c *DefaultInteractionController) LoadActiveNotifications() ([]notification
 }
 
 // LoadAllNotifications loads all notifications (active and dismissed) from persistent storage.
-func (c *DefaultInteractionController) LoadAllNotifications() ([]notification.Notification, error) {
+func (c *DefaultInteractionController) LoadAllNotifications() ([]domain.Notification, error) {
 	lines, err := c.store.ListAllNotifications()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load notifications: %w", err)
 	}
 	if lines == "" {
-		return []notification.Notification{}, nil
+		return []domain.Notification{}, nil
 	}
 
-	items := make([]notification.Notification, 0)
+	items := make([]domain.Notification, 0)
 	for _, line := range strings.Split(lines, "\n") {
 		if line == "" {
 			continue

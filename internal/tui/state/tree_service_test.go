@@ -3,7 +3,7 @@ package state
 import (
 	"testing"
 
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -11,7 +11,7 @@ import (
 
 func TestTreeServiceBuildFilteredTreeRespectsExpansionState(t *testing.T) {
 	svc := newTreeService()
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "one"},
 		{ID: 2, Session: "$1", Window: "@1", Pane: "%2", Message: "two"},
 	}
@@ -29,7 +29,7 @@ func TestTreeServiceBuildFilteredTreeRespectsExpansionState(t *testing.T) {
 
 func TestTreeServiceGetNodeIdentifier(t *testing.T) {
 	svc := newTreeService()
-	notifications := []notification.Notification{{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "one"}}
+	notifications := []domain.Notification{{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "one"}}
 	root := svc.buildFilteredTree(notifications, settings.GroupByPane, map[string]bool{})
 	visible := svc.computeVisibleNodes(root)
 
@@ -47,7 +47,7 @@ func TestTreeServiceGetNodeIdentifier(t *testing.T) {
 
 func TestTreeServiceMessageNodeExpansionKeys(t *testing.T) {
 	svc := newTreeService()
-	notifs := []notification.Notification{
+	notifs := []domain.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "duplicate"},
 		{ID: 2, Session: "$1", Window: "@1", Pane: "%2", Message: "duplicate"},
 	}

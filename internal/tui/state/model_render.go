@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
 	"github.com/cristianoliveira/tmux-intray/internal/errors"
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/render"
@@ -252,7 +252,7 @@ func (m *Model) renderGroupNodeRow(content *strings.Builder, node *model.TreeNod
 }
 
 // renderNotificationRow renders a single notification row.
-func (m *Model) renderNotificationRow(content *strings.Builder, notif notification.Notification, rowIndex, cursor, width int, now time.Time) {
+func (m *Model) renderNotificationRow(content *strings.Builder, notif domain.Notification, rowIndex, cursor, width int, now time.Time) {
 	notif.Pane = m.getPaneName(notif.Pane)
 	content.WriteString(render.Row(render.RowState{
 		Notification: notif,
@@ -321,7 +321,7 @@ func appendIfNonEmpty(parts []string, value string) []string {
 	return append(parts, value)
 }
 
-func timestampFromEvent(event *notification.Notification) string {
+func timestampFromEvent(event *domain.Notification) string {
 	if event == nil {
 		return ""
 	}

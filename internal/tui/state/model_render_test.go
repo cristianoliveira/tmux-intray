@@ -3,7 +3,7 @@ package state
 import (
 	"testing"
 
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	tuimodel "github.com/cristianoliveira/tmux-intray/internal/tui/model"
 	"github.com/stretchr/testify/assert"
@@ -40,7 +40,7 @@ func TestGroupSourcesForNodeBuildsCompositeLabels(t *testing.T) {
 }
 
 func TestViewRendersTabControlsAndActiveIndicator(t *testing.T) {
-	model := newTestModel(t, []notification.Notification{{ID: 1, Message: "First", State: "active"}})
+	model := newTestModel(t, []domain.Notification{{ID: 1, Message: "First", State: domain.StateActive}})
 	model.uiState.SetWidth(80)
 	model.uiState.SetHeight(24)
 	model.uiState.UpdateViewportSize()

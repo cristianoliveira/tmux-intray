@@ -4,7 +4,7 @@ package service
 import (
 	"github.com/cristianoliveira/tmux-intray/internal/dedup"
 	"github.com/cristianoliveira/tmux-intray/internal/dedupconfig"
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
@@ -41,7 +41,7 @@ func NewTreeService(groupBy model.GroupBy) model.TreeService {
 }
 
 // BuildTree creates a tree structure from a list of notifications.
-func (s *DefaultTreeService) BuildTree(notifications []notification.Notification, groupBy string) error {
+func (s *DefaultTreeService) BuildTree(notifications []domain.Notification, groupBy string) error {
 	resolvedGroupBy := s.resolveGroupBy(groupBy)
 	options := s.newTreeBuildOptions(resolvedGroupBy)
 
@@ -98,7 +98,7 @@ func newTreeBuildCaches() treeBuildCaches {
 	}
 }
 
-func buildMessageKeys(notifications []notification.Notification, groupByMessage bool) []string {
+func buildMessageKeys(notifications []domain.Notification, groupByMessage bool) []string {
 	if !groupByMessage {
 		return nil
 	}
@@ -107,7 +107,7 @@ func buildMessageKeys(notifications []notification.Notification, groupByMessage 
 	return dedup.BuildKeys(records, dedupconfig.Load())
 }
 
-func (s *DefaultTreeService) addNotificationToTree(root *model.TreeNode, notif notification.Notification, idx int, options treeBuildOptions, caches treeBuildCaches, messageKeys []string) {
+func (s *DefaultTreeService) addNotificationToTree(root *model.TreeNode, notif domain.Notification, idx int, options treeBuildOptions, caches treeBuildCaches, messageKeys []string) {
 	parent := root
 	paneKey := ""
 
@@ -151,7 +151,7 @@ func (s *DefaultTreeService) addNotificationToTree(root *model.TreeNode, notif n
 }
 
 // RebuildTreeForFilter rebuilds tree and applies filtering-oriented behavior.
-func (s *DefaultTreeService) RebuildTreeForFilter(notifications []notification.Notification, groupBy string, expansionState map[string]bool) error {
+func (s *DefaultTreeService) RebuildTreeForFilter(notifications []domain.Notification, groupBy string, expansionState map[string]bool) error {
 	if len(notifications) == 0 {
 		s.ClearTree()
 		return nil
