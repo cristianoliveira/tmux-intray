@@ -7,8 +7,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
-	"github.com/cristianoliveira/tmux-intray/internal/errors"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
+	"github.com/cristianoliveira/tmux-intray/internal/errors"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/render"

@@ -2,8 +2,8 @@ package state
 
 import (
 	"github.com/charmbracelet/bubbles/viewport"
-	"github.com/cristianoliveira/tmux-intray/internal/logging"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
+	"github.com/cristianoliveira/tmux-intray/internal/logging"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )

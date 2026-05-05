@@ -5,12 +5,19 @@ import (
 	"testing"
 
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
+	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
 
 type fakeNotificationStore struct {
 	listOutput         string
 	listErr            error
+	typedActive        []notification.Notification
+	typedAll           []notification.Notification
+	typedErr           error
+	typedEnabled       bool
+	typedActiveCalls   int
+	typedAllCalls      int
 	dismissID          string
 	dismissFilter      [3]string
 	markReadID         string
@@ -27,6 +34,22 @@ func (f *fakeNotificationStore) ListActiveNotifications() (string, error) {
 
 func (f *fakeNotificationStore) ListAllNotifications() (string, error) {
 	return f.listOutput, f.listErr
+}
+
+func (f *fakeNotificationStore) ListActiveNotificationValues() ([]notification.Notification, error) {
+	if !f.typedEnabled {
+		return nil, errTypedNotificationListingUnsupported
+	}
+	f.typedActiveCalls++
+	return f.typedActive, f.typedErr
+}
+
+func (f *fakeNotificationStore) ListAllNotificationValues() ([]notification.Notification, error) {
+	if !f.typedEnabled {
+		return nil, errTypedNotificationListingUnsupported
+	}
+	f.typedAllCalls++
+	return f.typedAll, f.typedErr
 }
 
 func (f *fakeNotificationStore) DismissNotification(id string) error {
@@ -142,6 +165,50 @@ func TestLoadActiveNotifications_UsesInjectedAdapters(t *testing.T) {
 		t.Fatalf("expected 2 notifications, got %d", len(notifications))
 	}
 	if notifications[0].ID != 1 || notifications[1].ID != 2 {
+		t.Fatalf("unexpected notifications returned: %#v", notifications)
+	}
+}
+
+func TestLoadActiveNotifications_PrefersTypedNotificationsOverTextParsing(t *testing.T) {
+	store := &fakeNotificationStore{
+		listOutput:   "line that should not be parsed",
+		typedEnabled: true,
+		typedActive:  []notification.Notification{{ID: 10, Message: "typed"}},
+	}
+	parser := &fakeNotificationParser{parsed: map[string]domain.Notification{}}
+
+	controller := NewInteractionControllerWithAdapters(fakeRuntimeCoordinator{}, store, parser)
+
+	notifications, err := controller.LoadActiveNotifications()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if store.typedActiveCalls != 1 {
+		t.Fatalf("expected typed active list once, got %d", store.typedActiveCalls)
+	}
+	if len(notifications) != 1 || notifications[0].ID != 10 {
+		t.Fatalf("unexpected notifications returned: %#v", notifications)
+	}
+}
+
+func TestLoadAllNotifications_PrefersTypedNotificationsOverTextParsing(t *testing.T) {
+	store := &fakeNotificationStore{
+		listOutput:   "line that should not be parsed",
+		typedEnabled: true,
+		typedAll:     []notification.Notification{{ID: 11, Message: "typed all"}},
+	}
+	parser := &fakeNotificationParser{parsed: map[string]domain.Notification{}}
+
+	controller := NewInteractionControllerWithAdapters(fakeRuntimeCoordinator{}, store, parser)
+
+	notifications, err := controller.LoadAllNotifications()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if store.typedAllCalls != 1 {
+		t.Fatalf("expected typed all list once, got %d", store.typedAllCalls)
+	}
+	if len(notifications) != 1 || notifications[0].ID != 11 {
 		t.Fatalf("unexpected notifications returned: %#v", notifications)
 	}
 }

@@ -329,7 +329,7 @@ func benchmarkNotifications(size int) []domain.Notification {
 			Window:    fmt.Sprintf("@%02d", i%10),
 			Pane:      fmt.Sprintf("%%%02d", i%5),
 			Level:     benchmarkLevel(i),
-			State: domain.StateActive,
+			State:     domain.StateActive,
 		}
 	}
 

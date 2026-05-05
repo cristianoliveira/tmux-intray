@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -13,9 +14,16 @@ import (
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 )
 
+var errTypedListUnsupported = errors.New("typed notification listing unsupported")
+
 // ListClient defines dependencies required to list notifications.
 type ListClient interface {
 	ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error)
+}
+
+// DomainListClient lists notifications as domain values so internal flow stays typed.
+type DomainListClient interface {
+	ListDomainNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) ([]*domain.Notification, error)
 }
 
 // ListOptions holds all filter parameters for listing notifications.
@@ -59,19 +67,13 @@ func NewListUseCase(client ListClient, searchProviderFactory SearchProviderFacto
 
 // Execute prints notifications according to the provided options.
 func (u *ListUseCase) Execute(opts ListOptions, w io.Writer) {
-	lines, err := u.fetchNotifications(opts)
+	searchProvider := u.getSearchProvider(opts)
+	notifications, err := u.fetchNotifications(opts, searchProvider)
 	if err != nil {
 		_, _ = fmt.Fprintf(w, "list: failed to list notifications: %v\n", err)
 		return
 	}
 
-	if lines == "" {
-		_, _ = fmt.Fprintf(w, "%s%s%s\n", colors.Blue, "No notifications found", colors.Reset)
-		return
-	}
-
-	searchProvider := u.getSearchProvider(opts)
-	notifications := parseAndFilterNotifications(lines, searchProvider, opts.Search)
 	if len(notifications) == 0 {
 		_, _ = fmt.Fprintf(w, "%s%s%s\n", colors.Blue, "No notifications found", colors.Reset)
 		return
@@ -94,11 +96,27 @@ func shouldResolveDisplayNames(opts ListOptions) bool {
 	return opts.Format == "simple" || opts.GroupBy != ""
 }
 
-func (u *ListUseCase) fetchNotifications(opts ListOptions) (string, error) {
+func (u *ListUseCase) fetchNotifications(opts ListOptions, searchProvider search.Provider) ([]*domain.Notification, error) {
+	client := u.client
 	if opts.Client != nil {
-		return opts.Client.ListNotifications(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, opts.OlderThan, opts.NewerThan, opts.ReadFilter)
+		client = opts.Client
 	}
-	return u.client.ListNotifications(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, opts.OlderThan, opts.NewerThan, opts.ReadFilter)
+
+	if typedClient, ok := client.(DomainListClient); ok {
+		notifications, err := typedClient.ListDomainNotifications(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, opts.OlderThan, opts.NewerThan, opts.ReadFilter)
+		if err == nil {
+			return filterNotificationsBySearch(notifications, searchProvider, opts.Search), nil
+		}
+		if !errors.Is(err, errTypedListUnsupported) {
+			return nil, err
+		}
+	}
+
+	lines, err := client.ListNotifications(opts.State, opts.Level, opts.Session, opts.Window, opts.Pane, opts.OlderThan, opts.NewerThan, opts.ReadFilter)
+	if err != nil || lines == "" {
+		return nil, err
+	}
+	return parseAndFilterNotifications(lines, searchProvider, opts.Search), nil
 }
 
 func (u *ListUseCase) getSearchProvider(opts ListOptions) search.Provider {
@@ -121,12 +139,23 @@ func parseAndFilterNotifications(lines string, searchProvider search.Provider, s
 		if err != nil {
 			continue
 		}
-		if searchProvider != nil && !searchProvider.Match(notif, searchQuery) {
-			continue
-		}
 		notifications = append(notifications, &notif)
 	}
-	return notifications
+	return filterNotificationsBySearch(notifications, searchProvider, searchQuery)
+}
+
+func filterNotificationsBySearch(notifications []*domain.Notification, searchProvider search.Provider, searchQuery string) []*domain.Notification {
+	if searchProvider == nil {
+		return notifications
+	}
+
+	filtered := make([]*domain.Notification, 0, len(notifications))
+	for _, notif := range notifications {
+		if searchProvider.Match(*notif, searchQuery) {
+			filtered = append(filtered, notif)
+		}
+	}
+	return filtered
 }
 
 func filterStaleNotifications(notifs []*domain.Notification, opts ListOptions) []*domain.Notification {
