@@ -9,8 +9,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/cristianoliveira/tmux-intray/internal/errors"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
+	"github.com/cristianoliveira/tmux-intray/internal/errors"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
