@@ -3,7 +3,7 @@ package state
 import (
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/cristianoliveira/tmux-intray/internal/logging"
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
@@ -368,22 +368,22 @@ func (u *UIState) UpdateExpansionState(nodeIdentifier string, expanded bool) {
 }
 
 // GetSelectedNotification returns the notification at the current cursor position.
-func (u *UIState) GetSelectedNotification(notifications []notification.Notification, visibleNodes []*model.TreeNode) (notification.Notification, bool) {
+func (u *UIState) GetSelectedNotification(notifications []domain.Notification, visibleNodes []*model.TreeNode) (domain.Notification, bool) {
 	if u.IsGroupedView() {
 		// In grouped view, get the notification from the visible nodes
 		if u.cursor < 0 || u.cursor >= len(visibleNodes) {
-			return notification.Notification{}, false
+			return domain.Notification{}, false
 		}
 		node := visibleNodes[u.cursor]
 		if node == nil || node.Notification == nil {
-			return notification.Notification{}, false
+			return domain.Notification{}, false
 		}
 		return *node.Notification, true
 	}
 
 	// In flat view, get from the notifications list directly
 	if u.cursor < 0 || u.cursor >= len(notifications) {
-		return notification.Notification{}, false
+		return domain.Notification{}, false
 	}
 	return notifications[u.cursor], true
 }

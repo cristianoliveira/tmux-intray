@@ -3,14 +3,14 @@ package state
 import (
 	"testing"
 
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestBuildTreeGroupsAndSorts(t *testing.T) {
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		{
 			ID:        1,
 			Session:   "$1",
@@ -85,7 +85,7 @@ func TestBuildTreeGroupsAndSorts(t *testing.T) {
 }
 
 func TestFindNotificationPath(t *testing.T) {
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		{
 			ID:        10,
 			Session:   "$1",
@@ -111,7 +111,7 @@ func TestFindNotificationPath(t *testing.T) {
 // TestBuildTreeWithEmptyNotifications tests that BuildTree handles
 // empty notification list correctly.
 func TestBuildTreeWithEmptyNotifications(t *testing.T) {
-	notifications := []notification.Notification{}
+	notifications := []domain.Notification{}
 
 	root := BuildTree(notifications, settings.GroupByPane)
 
@@ -124,7 +124,7 @@ func TestBuildTreeWithEmptyNotifications(t *testing.T) {
 // TestBuildTreeCountsMultipleNotificationsPerPane tests that group counts
 // are correctly calculated when multiple notifications exist in the same pane.
 func TestBuildTreeCountsMultipleNotificationsPerPane(t *testing.T) {
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		{
 			ID:        1,
 			Session:   "$1",
@@ -185,7 +185,7 @@ func TestBuildTreeCountsMultipleNotificationsPerPane(t *testing.T) {
 // TestBuildTreeSortsAlphabetically tests that siblings are sorted
 // alphabetically by title (case-insensitive).
 func TestBuildTreeSortsAlphabetically(t *testing.T) {
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		{
 			ID:        1,
 			Session:   "$3",
@@ -224,7 +224,7 @@ func TestBuildTreeSortsAlphabetically(t *testing.T) {
 }
 
 func TestBuildTreeRespectsGroupBy(t *testing.T) {
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		{
 			ID:        1,
 			Session:   "$1",
@@ -329,7 +329,7 @@ func TestBuildTreeRespectsGroupBy(t *testing.T) {
 }
 
 func TestBuildTreeInvalidGroupByFallsBackToPane(t *testing.T) {
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		{
 			ID:        1,
 			Session:   "$1",
@@ -351,7 +351,7 @@ func TestBuildTreeInvalidGroupByFallsBackToPane(t *testing.T) {
 }
 
 func TestBuildTreePaneMessageGroupsWithoutLeaves(t *testing.T) {
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		{
 			ID:        1,
 			Session:   "$1",
@@ -387,7 +387,7 @@ func TestBuildTreePaneMessageGroupsWithoutLeaves(t *testing.T) {
 }
 
 func TestFindNotificationPathWithGroupByNone(t *testing.T) {
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		{
 			ID:        1,
 			Session:   "$1",
@@ -410,7 +410,7 @@ func TestFindNotificationPathWithGroupByNone(t *testing.T) {
 // TestBuildTreeUnreadCounts tests that unread counts are correctly calculated
 // at each grouping level.
 func TestBuildTreeUnreadCounts(t *testing.T) {
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		{
 			ID:            1,
 			Session:       "$1",

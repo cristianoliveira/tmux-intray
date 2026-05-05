@@ -3,7 +3,7 @@ package search
 import (
 	"testing"
 
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -124,7 +124,7 @@ func TestTokenProviderSpecialTokens(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		notif    notification.Notification
+		notif    domain.Notification
 		query    string
 		expected bool
 	}{
@@ -180,8 +180,8 @@ func TestAllFieldsOption(t *testing.T) {
 		"session": testNotification.Session,
 		"window":  testNotification.Window,
 		"pane":    testNotification.Pane,
-		"level":   testNotification.Level,
-		"state":   testNotification.State,
+		"level":   testNotification.Level.String(),
+		"state":   testNotification.State.String(),
 	}
 
 	for _, provider := range providers {

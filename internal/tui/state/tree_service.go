@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	uimodel "github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
 
@@ -14,7 +14,7 @@ func newTreeService() *treeService {
 	return &treeService{}
 }
 
-func (s *treeService) buildFilteredTree(notifications []notification.Notification, groupBy string, expansionState map[string]bool) *Node {
+func (s *treeService) buildFilteredTree(notifications []domain.Notification, groupBy string, expansionState map[string]bool) *Node {
 	if len(notifications) == 0 {
 		return nil
 	}

@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 )
 
@@ -29,9 +29,9 @@ func TestApplyFiltersAndSearchHidesStaleTmuxTargetsByDefault(t *testing.T) {
 		windows:  map[string]string{"@1": "editor"},
 		panes:    map[string]string{"%1": "shell"},
 	})
-	svc.SetNotifications([]notification.Notification{
-		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "live", State: "active"},
-		{ID: 2, Session: "$2", Window: "@2", Pane: "%2", Message: "stale", State: "active"},
+	svc.SetNotifications([]domain.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "live", State: domain.StateActive},
+		{ID: 2, Session: "$2", Window: "@2", Pane: "%2", Message: "stale", State: domain.StateActive},
 	})
 
 	svc.ApplyFiltersAndSearch(settings.TabAll, "", "", "", "", "", "", "", "timestamp", "desc")
@@ -49,9 +49,9 @@ func TestApplyFiltersAndSearchShowsStaleTmuxTargetsWhenEnabled(t *testing.T) {
 		panes:    map[string]string{"%1": "shell"},
 	})
 	svc.SetShowStale(true)
-	svc.SetNotifications([]notification.Notification{
-		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "live", State: "active"},
-		{ID: 2, Session: "$2", Window: "@2", Pane: "%2", Message: "stale", State: "active"},
+	svc.SetNotifications([]domain.Notification{
+		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "live", State: domain.StateActive},
+		{ID: 2, Session: "$2", Window: "@2", Pane: "%2", Message: "stale", State: domain.StateActive},
 	})
 
 	svc.ApplyFiltersAndSearch(settings.TabAll, "", "", "", "", "", "", "", "timestamp", "desc")

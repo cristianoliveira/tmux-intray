@@ -6,7 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
 	"github.com/cristianoliveira/tmux-intray/internal/errors"
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tmux"
@@ -34,8 +34,8 @@ type Model struct {
 	hasStatusMessage  bool               // Whether a status message is set
 
 	// Legacy mirrors retained for backward-compatible tests.
-	notifications []notification.Notification
-	filtered      []notification.Notification
+	notifications []domain.Notification
+	filtered      []domain.Notification
 
 	// Settings fields (non-UI state)
 	sortBy         string

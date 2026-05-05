@@ -1,19 +1,19 @@
 package service
 
 import (
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
 
-func (s *DefaultTreeService) updateUnreadCount(node *model.TreeNode, notif notification.Notification) {
+func (s *DefaultTreeService) updateUnreadCount(node *model.TreeNode, notif domain.Notification) {
 	if notif.IsRead() {
 		return
 	}
 	node.UnreadCount++
 }
 
-func (s *DefaultTreeService) updateTimeRange(node *model.TreeNode, notif notification.Notification) {
+func (s *DefaultTreeService) updateTimeRange(node *model.TreeNode, notif domain.Notification) {
 	if notif.Timestamp == "" {
 		return
 	}
@@ -25,18 +25,18 @@ func (s *DefaultTreeService) updateTimeRange(node *model.TreeNode, notif notific
 	}
 }
 
-func (s *DefaultTreeService) updateLevelCounts(node *model.TreeNode, notif notification.Notification) {
+func (s *DefaultTreeService) updateLevelCounts(node *model.TreeNode, notif domain.Notification) {
 	if node.LevelCounts == nil {
 		node.LevelCounts = make(map[string]int)
 	}
-	level := notif.Level
+	level := notif.Level.String()
 	if level == "" {
 		level = settings.LevelFilterInfo
 	}
 	node.LevelCounts[level]++
 }
 
-func (s *DefaultTreeService) updateSourceSet(node *model.TreeNode, notif notification.Notification) {
+func (s *DefaultTreeService) updateSourceSet(node *model.TreeNode, notif domain.Notification) {
 	if notif.Session == "" && notif.Window == "" && notif.Pane == "" {
 		return
 	}

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/service"
@@ -123,7 +123,7 @@ func BenchmarkApplySearchFilterGrouped(b *testing.B) {
 	}
 }
 
-func benchmarkModel(notifications []notification.Notification) *Model {
+func benchmarkModel(notifications []domain.Notification) *Model {
 	notificationService := service.NewNotificationService(nil, nil)
 	notificationService.SetNotifications(notifications)
 
@@ -155,7 +155,7 @@ func benchmarkModel(notifications []notification.Notification) *Model {
 }
 
 // benchmarkBuildTree builds a tree for benchmarking using TreeService.
-func benchmarkBuildTree(notifications []notification.Notification, groupBy string) *model.TreeNode {
+func benchmarkBuildTree(notifications []domain.Notification, groupBy string) *model.TreeNode {
 	// For benchmarking, use a simple service without full initialization
 	treeService := &dummyTreeService{}
 	_ = treeService.BuildTree(notifications, groupBy)
@@ -192,7 +192,7 @@ type dummyTreeService struct {
 	cacheValid        bool
 }
 
-func (s *dummyTreeService) BuildTree(notifications []notification.Notification, groupBy string) error {
+func (s *dummyTreeService) BuildTree(notifications []domain.Notification, groupBy string) error {
 	// Minimal implementation - convert from state.BuildTree result
 	stateTree := BuildTree(notifications, groupBy)
 	if stateTree == nil {
@@ -205,7 +205,7 @@ func (s *dummyTreeService) BuildTree(notifications []notification.Notification, 
 	return nil
 }
 
-func (s *dummyTreeService) RebuildTreeForFilter(notifications []notification.Notification, groupBy string, expansionState map[string]bool) error {
+func (s *dummyTreeService) RebuildTreeForFilter(notifications []domain.Notification, groupBy string, expansionState map[string]bool) error {
 	if err := s.BuildTree(notifications, groupBy); err != nil {
 		return err
 	}
@@ -259,7 +259,7 @@ func (s *dummyTreeService) convertNode(stateNode *Node) *model.TreeNode {
 }
 
 // Other required TreeService methods (not used in benchmarking)
-func (s *dummyTreeService) FindNotificationPath(root *model.TreeNode, notif notification.Notification) ([]*model.TreeNode, error) {
+func (s *dummyTreeService) FindNotificationPath(root *model.TreeNode, notif domain.Notification) ([]*model.TreeNode, error) {
 	return nil, nil
 }
 func (s *dummyTreeService) FindNodeByID(root *model.TreeNode, identifier string) *model.TreeNode {
@@ -318,10 +318,10 @@ func (s *dummyTreeService) GetTreeLevel(node *model.TreeNode) int {
 	return 0
 }
 
-func benchmarkNotifications(size int) []notification.Notification {
-	notifications := make([]notification.Notification, size)
+func benchmarkNotifications(size int) []domain.Notification {
+	notifications := make([]domain.Notification, size)
 	for i := 0; i < size; i++ {
-		notifications[i] = notification.Notification{
+		notifications[i] = domain.Notification{
 			ID:        i + 1,
 			Message:   fmt.Sprintf("%s session-%02d event-%d", benchmarkLevel(i), i%20, i),
 			Timestamp: fmt.Sprintf("2024-01-%02dT%02d:%02d:%02dZ", (i%28)+1, i%24, i%60, i%60),
@@ -329,21 +329,21 @@ func benchmarkNotifications(size int) []notification.Notification {
 			Window:    fmt.Sprintf("@%02d", i%10),
 			Pane:      fmt.Sprintf("%%%02d", i%5),
 			Level:     benchmarkLevel(i),
-			State:     "active",
+			State: domain.StateActive,
 		}
 	}
 
 	return notifications
 }
 
-func benchmarkLevel(index int) string {
+func benchmarkLevel(index int) domain.NotificationLevel {
 	switch index % 3 {
 	case 0:
-		return "error"
+		return domain.LevelError
 	case 1:
-		return "warning"
+		return domain.LevelWarning
 	default:
-		return "info"
+		return domain.LevelInfo
 	}
 }
 
@@ -436,17 +436,17 @@ func (d *dummyRuntimeCoordinator) SetTmuxVisibility(visible bool) error {
 }
 
 type dummyNotificationService struct {
-	notifications []notification.Notification
-	filtered      []notification.Notification
+	notifications []domain.Notification
+	filtered      []domain.Notification
 }
 
 func (d *dummyNotificationService) SetShowStale(show bool) {}
 
-func (d *dummyNotificationService) FilterNotifications(notifications []notification.Notification, query string) []notification.Notification {
+func (d *dummyNotificationService) FilterNotifications(notifications []domain.Notification, query string) []domain.Notification {
 	if query == "" {
 		return notifications
 	}
-	var result []notification.Notification
+	var result []domain.Notification
 	for _, n := range notifications {
 		if contains(n.Message, query) {
 			result = append(result, n)
@@ -455,28 +455,30 @@ func (d *dummyNotificationService) FilterNotifications(notifications []notificat
 	return result
 }
 
-func (d *dummyNotificationService) FilterByState(notifications []notification.Notification, state string) []notification.Notification {
-	var result []notification.Notification
+func (d *dummyNotificationService) FilterByState(notifications []domain.Notification, state string) []domain.Notification {
+	parsedState := domain.NotificationState(state)
+	var result []domain.Notification
 	for _, n := range notifications {
-		if n.State == state {
+		if n.State == parsedState {
 			result = append(result, n)
 		}
 	}
 	return result
 }
 
-func (d *dummyNotificationService) FilterByLevel(notifications []notification.Notification, level string) []notification.Notification {
-	var result []notification.Notification
+func (d *dummyNotificationService) FilterByLevel(notifications []domain.Notification, level string) []domain.Notification {
+	parsedLevel := domain.NotificationLevel(level)
+	var result []domain.Notification
 	for _, n := range notifications {
-		if n.Level == level {
+		if n.Level == parsedLevel {
 			result = append(result, n)
 		}
 	}
 	return result
 }
 
-func (d *dummyNotificationService) FilterBySession(notifications []notification.Notification, sessionID string) []notification.Notification {
-	var result []notification.Notification
+func (d *dummyNotificationService) FilterBySession(notifications []domain.Notification, sessionID string) []domain.Notification {
+	var result []domain.Notification
 	for _, n := range notifications {
 		if n.Session == sessionID {
 			result = append(result, n)
@@ -485,8 +487,8 @@ func (d *dummyNotificationService) FilterBySession(notifications []notification.
 	return result
 }
 
-func (d *dummyNotificationService) FilterByWindow(notifications []notification.Notification, windowID string) []notification.Notification {
-	var result []notification.Notification
+func (d *dummyNotificationService) FilterByWindow(notifications []domain.Notification, windowID string) []domain.Notification {
+	var result []domain.Notification
 	for _, n := range notifications {
 		if n.Window == windowID {
 			result = append(result, n)
@@ -495,8 +497,8 @@ func (d *dummyNotificationService) FilterByWindow(notifications []notification.N
 	return result
 }
 
-func (d *dummyNotificationService) FilterByPane(notifications []notification.Notification, paneID string) []notification.Notification {
-	var result []notification.Notification
+func (d *dummyNotificationService) FilterByPane(notifications []domain.Notification, paneID string) []domain.Notification {
+	var result []domain.Notification
 	for _, n := range notifications {
 		if n.Pane == paneID {
 			result = append(result, n)
@@ -505,11 +507,11 @@ func (d *dummyNotificationService) FilterByPane(notifications []notification.Not
 	return result
 }
 
-func (d *dummyNotificationService) SortNotifications(notifications []notification.Notification, sortBy, sortOrder string) []notification.Notification {
+func (d *dummyNotificationService) SortNotifications(notifications []domain.Notification, sortBy, sortOrder string) []domain.Notification {
 	return notifications
 }
 
-func (d *dummyNotificationService) GetUnreadCount(notifications []notification.Notification) int {
+func (d *dummyNotificationService) GetUnreadCount(notifications []domain.Notification) int {
 	count := 0
 	for _, n := range notifications {
 		if !n.IsRead() {
@@ -519,7 +521,7 @@ func (d *dummyNotificationService) GetUnreadCount(notifications []notification.N
 	return count
 }
 
-func (d *dummyNotificationService) GetReadCount(notifications []notification.Notification) int {
+func (d *dummyNotificationService) GetReadCount(notifications []domain.Notification) int {
 	count := 0
 	for _, n := range notifications {
 		if n.IsRead() {
@@ -529,36 +531,36 @@ func (d *dummyNotificationService) GetReadCount(notifications []notification.Not
 	return count
 }
 
-func (d *dummyNotificationService) GetCountsByLevel(notifications []notification.Notification) map[string]int {
+func (d *dummyNotificationService) GetCountsByLevel(notifications []domain.Notification) map[string]int {
 	counts := map[string]int{}
 	for _, n := range notifications {
-		counts[n.Level]++
+		counts[n.Level.String()]++
 	}
 	return counts
 }
 
-func (d *dummyNotificationService) Search(notifications []notification.Notification, query string, caseSensitive bool) []notification.Notification {
+func (d *dummyNotificationService) Search(notifications []domain.Notification, query string, caseSensitive bool) []domain.Notification {
 	return d.FilterNotifications(notifications, query)
 }
 
-func (d *dummyNotificationService) SetNotifications(notifications []notification.Notification) {
+func (d *dummyNotificationService) SetNotifications(notifications []domain.Notification) {
 	d.notifications = notifications
 	d.filtered = notifications
 }
 
-func (d *dummyNotificationService) GetNotifications() []notification.Notification {
+func (d *dummyNotificationService) GetNotifications() []domain.Notification {
 	return d.notifications
 }
 
-func (d *dummyNotificationService) GetFilteredNotifications() []notification.Notification {
+func (d *dummyNotificationService) GetFilteredNotifications() []domain.Notification {
 	return d.filtered
 }
 
-func (d *dummyNotificationService) FilterByReadStatus(notifications []notification.Notification, readFilter string) []notification.Notification {
+func (d *dummyNotificationService) FilterByReadStatus(notifications []domain.Notification, readFilter string) []domain.Notification {
 	if readFilter == "" {
 		return notifications
 	}
-	var filtered []notification.Notification
+	var filtered []domain.Notification
 	for _, n := range notifications {
 		isRead := n.IsRead()
 		if readFilter == settings.ReadFilterUnread && !isRead {

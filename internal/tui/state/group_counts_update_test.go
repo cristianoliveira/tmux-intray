@@ -3,7 +3,7 @@ package state
 import (
 	"testing"
 
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/stretchr/testify/require"
 )
@@ -12,7 +12,7 @@ import (
 // in the grouped tree update correctly when notifications are marked
 // as read or unread.
 func TestGroupCountsUpdateOnReadUnreadChange(t *testing.T) {
-	notifications := []notification.Notification{
+	notifications := []domain.Notification{
 		{
 			ID:            1,
 			Session:       "$1",
@@ -50,7 +50,7 @@ func TestGroupCountsUpdateOnReadUnreadChange(t *testing.T) {
 	require.Equal(t, 1, root.Children[1].UnreadCount) // Session $2 has 1 unread
 
 	// Mark one notification as read
-	notifications[1] = notifications[1].MarkRead()
+	notifications[1] = *notifications[1].MarkRead()
 
 	// Rebuild tree with updated notification
 	root = BuildTree(notifications, settings.GroupByPane)
@@ -61,7 +61,7 @@ func TestGroupCountsUpdateOnReadUnreadChange(t *testing.T) {
 	require.Equal(t, 1, root.Children[1].UnreadCount) // Session $2 still has 1 unread
 
 	// Mark another notification as read
-	notifications[0] = notifications[0].MarkRead()
+	notifications[0] = *notifications[0].MarkRead()
 
 	// Rebuild tree with updated notification
 	root = BuildTree(notifications, settings.GroupByPane)
@@ -72,7 +72,7 @@ func TestGroupCountsUpdateOnReadUnreadChange(t *testing.T) {
 	require.Equal(t, 1, root.Children[1].UnreadCount) // Session $2 still has 1 unread
 
 	// Mark the last unread notification as read
-	notifications[2] = notifications[2].MarkRead()
+	notifications[2] = *notifications[2].MarkRead()
 
 	// Rebuild tree with updated notification
 	root = BuildTree(notifications, settings.GroupByPane)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/storage"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
@@ -28,7 +29,7 @@ type typedNotificationStore interface {
 }
 
 type notificationParser interface {
-	Parse(line string) (notification.Notification, error)
+	Parse(line string) (domain.Notification, error)
 }
 
 type storageNotificationStore struct{}
@@ -54,7 +55,13 @@ func (s storageNotificationStore) listNotificationValues(state string) ([]notifi
 	if err != nil || lines == "" {
 		return []notification.Notification{}, err
 	}
-	return parseNotificationLines(lines, defaultNotificationParser{}), nil
+
+	items := parseNotificationLines(lines, defaultNotificationParser{})
+	values := make([]notification.Notification, 0, len(items))
+	for i := range items {
+		values = append(values, notification.FromDomain(&items[i]))
+	}
+	return values, nil
 }
 
 func (s storageNotificationStore) DismissNotification(id string) error {
@@ -75,8 +82,8 @@ func (s storageNotificationStore) MarkNotificationUnread(id string) error {
 
 type defaultNotificationParser struct{}
 
-func (p defaultNotificationParser) Parse(line string) (notification.Notification, error) {
-	return notification.ParseNotification(line)
+func (p defaultNotificationParser) Parse(line string) (domain.Notification, error) {
+	return domain.ParseNotificationLine(line)
 }
 
 // DefaultInteractionController is the production controller implementation.
@@ -113,7 +120,7 @@ func (c *DefaultInteractionController) SetRuntimeCoordinator(runtimeCoordinator 
 }
 
 // LoadActiveNotifications loads all active notifications from persistent storage.
-func (c *DefaultInteractionController) LoadActiveNotifications() ([]notification.Notification, error) {
+func (c *DefaultInteractionController) LoadActiveNotifications() ([]domain.Notification, error) {
 	items, err := c.loadNotificationValues(true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load notifications: %w", err)
@@ -122,7 +129,7 @@ func (c *DefaultInteractionController) LoadActiveNotifications() ([]notification
 }
 
 // LoadAllNotifications loads all notifications (active and dismissed) from persistent storage.
-func (c *DefaultInteractionController) LoadAllNotifications() ([]notification.Notification, error) {
+func (c *DefaultInteractionController) LoadAllNotifications() ([]domain.Notification, error) {
 	items, err := c.loadNotificationValues(false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load notifications: %w", err)
@@ -130,11 +137,11 @@ func (c *DefaultInteractionController) LoadAllNotifications() ([]notification.No
 	return items, nil
 }
 
-func (c *DefaultInteractionController) loadNotificationValues(activeOnly bool) ([]notification.Notification, error) {
+func (c *DefaultInteractionController) loadNotificationValues(activeOnly bool) ([]domain.Notification, error) {
 	if typedStore, ok := c.store.(typedNotificationStore); ok {
 		items, err := listTypedNotifications(typedStore, activeOnly)
 		if err == nil {
-			return items, nil
+			return notificationPointersToValues(notification.ToDomainSliceUnsafe(items)), nil
 		}
 		if !errors.Is(err, errTypedNotificationListingUnsupported) {
 			return nil, err
@@ -143,7 +150,7 @@ func (c *DefaultInteractionController) loadNotificationValues(activeOnly bool) (
 
 	lines, err := listTextNotifications(c.store, activeOnly)
 	if err != nil || lines == "" {
-		return []notification.Notification{}, err
+		return []domain.Notification{}, err
 	}
 	return parseNotificationLines(lines, c.parser), nil
 }
@@ -162,8 +169,8 @@ func listTextNotifications(store notificationStore, activeOnly bool) (string, er
 	return store.ListAllNotifications()
 }
 
-func parseNotificationLines(lines string, parser notificationParser) []notification.Notification {
-	items := make([]notification.Notification, 0)
+func parseNotificationLines(lines string, parser notificationParser) []domain.Notification {
+	items := make([]domain.Notification, 0)
 	for _, line := range strings.Split(lines, "\n") {
 		if line == "" {
 			continue
@@ -173,6 +180,17 @@ func parseNotificationLines(lines string, parser notificationParser) []notificat
 			continue
 		}
 		items = append(items, notif)
+	}
+	return items
+}
+
+func notificationPointersToValues(notifs []*domain.Notification) []domain.Notification {
+	items := make([]domain.Notification, 0, len(notifs))
+	for _, notif := range notifs {
+		if notif == nil {
+			continue
+		}
+		items = append(items, *notif)
 	}
 	return items
 }
