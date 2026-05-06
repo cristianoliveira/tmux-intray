@@ -8,10 +8,10 @@ explicit dependency edges that are allowed and denied.
 ```mermaid
 graph TD
     CLI["CLI (cmd/)"]
-    Presentation["Presentation (internal/tui/, format, status)"]
-    Application["Application (internal/core, tmuxintray)"]
-    Domain["Domain (internal/domain, ports)"]
-    Infrastructure["Infrastructure (storage, tmux, config, hooks)"]
+    Presentation["Presentation (internal/tui/, format, formatter)"]
+    Application["Application (internal/app, core)"]
+    Domain["Domain (internal/domain, ports, search, notification, dedup)"]
+    Infrastructure["Infrastructure (storage, tmux, config, hooks, settings, colors, errors, logging, version, dedupconfig)"]
 
     CLI --> Presentation
     CLI --> Application
@@ -35,10 +35,10 @@ The target layering is defined by package groups (prefixes):
 2. `presentation`
    - `github.com/cristianoliveira/tmux-intray/internal/tui/*`
    - `github.com/cristianoliveira/tmux-intray/internal/format`
-   - `github.com/cristianoliveira/tmux-intray/internal/status`
+   - `github.com/cristianoliveira/tmux-intray/internal/formatter`
 3. `application`
+   - `github.com/cristianoliveira/tmux-intray/internal/app`
    - `github.com/cristianoliveira/tmux-intray/internal/core`
-   - `github.com/cristianoliveira/tmux-intray/internal/tmuxintray`
 4. `domain`
    - `github.com/cristianoliveira/tmux-intray/internal/domain`
    - `github.com/cristianoliveira/tmux-intray/internal/notification`

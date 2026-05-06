@@ -146,22 +146,18 @@ This interface defines all UI state operations, separating state management from
 
 Group dismissals in the TUI require explicit confirmation to prevent accidental bulk actions. When a user presses `D` on a group node, the UI enters confirmation mode and presents a dialog asking for confirmation. Pressing `y` or `Y` confirms and executes the action; pressing `Enter`, `Esc`, `Ctrl+C`, or `n`/`N` cancels the action.
 
-### 4. CommandService Interface
+### 4. InteractionController Interface
 
-The `CommandService` interface handles command parsing and execution:
+The `InteractionController` interface handles jump target resolution:
 
 ```go
-type CommandService interface {
-    ParseCommand(command string) (name string, args []string, err error)
-    ExecuteCommand(name string, args []string) (*CommandResult, error)
-    ValidateCommand(name string, args []string) error
-    GetAvailableCommands() []CommandInfo
-    GetCommandHelp(name string) string
-    GetCommandSuggestions(partial string) []string
+type InteractionController interface {
+    ResolveJumpTarget(notifications []domain.Notification, selectedIndex int) (jumpTarget, error)
+    ResolveGroupJumpTarget(notifications []domain.Notification, groupKey string) (jumpTarget, error)
 }
 ```
 
-This interface sketches a possible future extension point for richer in-TUI commands. The current public TUI does not expose a `:` command palette.
+Implemented in `internal/tui/controller/interaction_controller.go`.
 
 ### 5. RuntimeCoordinator Interface
 
@@ -191,12 +187,13 @@ This interface abstracts tmux operations, allowing the TUI to interact with tmux
 
 ### `internal/tui/model/` (Interface Contracts)
 
-The model package contains the five interface contracts that define the TUI architecture:
+The model package contains the six interface contracts that define the TUI architecture:
 - **`ui_state.go`**: Defines the UIState interface for view state management
 - **`repository.go`**: Defines the NotificationRepository interface for data access
 - **`tree_service.go`**: Defines the TreeService interface for tree operations
-- **`command_service.go`**: Defines the CommandService interface for command handling
+- **`notification_service.go`**: Defines the NotificationService interface for filter/search/group
 - **`runtime_coordinator.go`**: Defines the RuntimeCoordinator interface for tmux integration
+- **`controller.go`**: Defines the InteractionController interface for jump targets
 
 These interfaces establish clear contracts between TUI components, enabling:
 - Testable implementations with mocks
@@ -228,12 +225,19 @@ Rendering helpers:
 - Rendering decisions are deterministic and testable
 - Supports different view modes (detailed, grouped, search)
 
-### `internal/tui/follow` (planned)
+### `internal/tui/service/` (Service Implementations)
 
-Follow mode orchestration: Currently implemented in `cmd/tmux-intray/follow.go`. Planned migration to this package will:
-- Integrate follow behavior with the TUI via the RuntimeCoordinator interface
-- Avoid direct access to internal UI state where possible
-- Keep follow logic isolated from view rendering
+Concrete implementations of model interfaces:
+- **`notification_service.go`**: Notification filtering, search, and grouping
+- **`notification_service_per_session.go`**: Per-session notification logic
+- **`tree_service.go`**: Hierarchical tree build, navigation, pruning
+- **`tmux_coordinator.go`**: Tmux runtime integration (DefaultRuntimeCoordinator)
+- **`tree_service_nav.go`**, **`tree_service_stats.go`**: Tree helpers
+
+### `internal/tui/controller/` (Interaction Controller)
+
+Jump target resolution and navigation:
+- **`interaction_controller.go`**: Resolves jump targets from notifications or groups
 
 ## Design Principles
 
@@ -286,13 +290,15 @@ These standards align with the resilience principle listed in Design Principles 
 
 ### Migration Progress
 
-The architecture has evolved from the proposed package structure:
+The architecture has evolved from earlier monolithic designs:
 
-1. ✓ **Phase 1**: Interface contracts defined in `internal/tui/model/`
-2. ✓ **Phase 2**: State implementation with Model using settings.TUIState
-3. ✓ **Phase 3**: Rendering separated into `internal/tui/render/`
-4. ✓ **Phase 4**: Tree operations implemented
-5. ⏳ **Phase 5**: CommandService and RuntimeCoordinator implementations (partial)
+1. ✓ Interface contracts defined in `internal/tui/model/`
+2. ✓ State implementation with Model using settings.TUIState in `internal/tui/state/`
+3. ✓ Rendering separated into `internal/tui/render/`
+4. ✓ Tree operations implemented in `internal/tui/service/tree_service.go`
+5. ✓ Service layer separated into `internal/tui/service/`
+6. ✓ Interaction controller in `internal/tui/controller/`
+7. ✓ RuntimeCoordinator implemented in `internal/tui/service/tmux_coordinator.go`
 
 ## Implementation Notes
 
@@ -595,9 +601,10 @@ Key `teatest` functions:
 
 ## References
 
-- `cmd/tmux-intray/tui.go`
-- `cmd/tmux-intray/follow.go`
-- `internal/tui/model/*.go` - Interface contracts
-- `internal/tui/state/model.go` - UIState implementation
-- `internal/tui/render/render.go` - Rendering logic
-- `internal/tui/state/tree.go` - Tree operations
+- `cmd/tmux-intray/tui.go` — TUI command entry point
+- `internal/tui/model/*.go` — Interface contracts
+- `internal/tui/service/*.go` — Service implementations
+- `internal/tui/state/model.go` — Bubbletea Model
+- `internal/tui/render/render.go` — Rendering logic
+- `internal/tui/controller/interaction_controller.go` — Jump controller
+- [Go Package Structure](../go-package-structure.md)
