@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
@@ -28,17 +28,17 @@ type Node struct {
 	Display       string
 	Expanded      bool
 	Children      []*Node
-	Notification  *notification.Notification
+	Notification  *domain.Notification
 	Count         int
 	UnreadCount   int
-	LatestEvent   *notification.Notification
-	EarliestEvent *notification.Notification
+	LatestEvent   *domain.Notification
+	EarliestEvent *domain.Notification
 	LevelCounts   map[string]int
 	Sources       map[string]model.NotificationSource
 }
 
 // BuildTree groups notifications according to the configured groupBy depth.
-func BuildTree(notifications []notification.Notification, groupBy string) *Node {
+func BuildTree(notifications []domain.Notification, groupBy string) *Node {
 	resolvedGroupBy := resolveGroupBy(groupBy)
 
 	root := &Node{
@@ -129,7 +129,7 @@ func resolveGroupBy(groupBy string) string {
 }
 
 // FindNotificationPath locates the notification node and returns the path.
-func FindNotificationPath(root *Node, notif notification.Notification) ([]*Node, bool) {
+func FindNotificationPath(root *Node, notif domain.Notification) ([]*Node, bool) {
 	if root == nil {
 		return nil, false
 	}
@@ -142,7 +142,7 @@ func FindNotificationPath(root *Node, notif notification.Notification) ([]*Node,
 	return path, true
 }
 
-func findNotificationPath(node *Node, notif notification.Notification) ([]*Node, bool) {
+func findNotificationPath(node *Node, notif domain.Notification) ([]*Node, bool) {
 	if node == nil {
 		return nil, false
 	}
@@ -180,7 +180,7 @@ func getOrCreateGroupNode(parent *Node, cache map[string]*Node, kind NodeKind, k
 }
 
 // incrementGroupStats updates node statistics with notification data.
-func incrementGroupStats(node *Node, notif notification.Notification) {
+func incrementGroupStats(node *Node, notif domain.Notification) {
 	node.Count++
 	if !notif.IsRead() {
 		node.UnreadCount++
@@ -194,7 +194,7 @@ func incrementGroupStats(node *Node, notif notification.Notification) {
 	if node.LevelCounts == nil {
 		node.LevelCounts = make(map[string]int)
 	}
-	level := notif.Level
+	level := notif.Level.String()
 	if level == "" {
 		level = settings.LevelFilterInfo
 	}
@@ -254,7 +254,7 @@ func findChildByTitle(node *model.TreeNode, kind model.NodeKind, title string) *
 	return nil
 }
 
-func notificationNodeMatches(node *Node, notif notification.Notification) bool {
+func notificationNodeMatches(node *Node, notif domain.Notification) bool {
 	if node == nil || node.Kind != NodeKindNotification || node.Notification == nil {
 		return false
 	}

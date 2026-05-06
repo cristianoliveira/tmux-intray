@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
@@ -11,6 +12,12 @@ import (
 type fakeNotificationStore struct {
 	listOutput         string
 	listErr            error
+	typedActive        []notification.Notification
+	typedAll           []notification.Notification
+	typedErr           error
+	typedEnabled       bool
+	typedActiveCalls   int
+	typedAllCalls      int
 	dismissID          string
 	dismissFilter      [3]string
 	markReadID         string
@@ -27,6 +34,22 @@ func (f *fakeNotificationStore) ListActiveNotifications() (string, error) {
 
 func (f *fakeNotificationStore) ListAllNotifications() (string, error) {
 	return f.listOutput, f.listErr
+}
+
+func (f *fakeNotificationStore) ListActiveNotificationValues() ([]notification.Notification, error) {
+	if !f.typedEnabled {
+		return nil, errTypedNotificationListingUnsupported
+	}
+	f.typedActiveCalls++
+	return f.typedActive, f.typedErr
+}
+
+func (f *fakeNotificationStore) ListAllNotificationValues() ([]notification.Notification, error) {
+	if !f.typedEnabled {
+		return nil, errTypedNotificationListingUnsupported
+	}
+	f.typedAllCalls++
+	return f.typedAll, f.typedErr
 }
 
 func (f *fakeNotificationStore) DismissNotification(id string) error {
@@ -50,17 +73,17 @@ func (f *fakeNotificationStore) MarkNotificationUnread(id string) error {
 }
 
 type fakeNotificationParser struct {
-	parsed map[string]notification.Notification
+	parsed map[string]domain.Notification
 	errFor map[string]error
 }
 
-func (f *fakeNotificationParser) Parse(line string) (notification.Notification, error) {
+func (f *fakeNotificationParser) Parse(line string) (domain.Notification, error) {
 	if err, ok := f.errFor[line]; ok {
-		return notification.Notification{}, err
+		return domain.Notification{}, err
 	}
 	notif, ok := f.parsed[line]
 	if !ok {
-		return notification.Notification{}, errors.New("unexpected line")
+		return domain.Notification{}, errors.New("unexpected line")
 	}
 	return notif, nil
 }
@@ -125,7 +148,7 @@ func (t *trackingRuntimeCoordinator) JumpToWindow(sessionID, windowID string) bo
 func TestLoadActiveNotifications_UsesInjectedAdapters(t *testing.T) {
 	store := &fakeNotificationStore{listOutput: "line-1\nline-bad\nline-2\n"}
 	parser := &fakeNotificationParser{
-		parsed: map[string]notification.Notification{
+		parsed: map[string]domain.Notification{
 			"line-1": {ID: 1, Message: "one"},
 			"line-2": {ID: 2, Message: "two"},
 		},
@@ -146,9 +169,53 @@ func TestLoadActiveNotifications_UsesInjectedAdapters(t *testing.T) {
 	}
 }
 
+func TestLoadActiveNotifications_PrefersTypedNotificationsOverTextParsing(t *testing.T) {
+	store := &fakeNotificationStore{
+		listOutput:   "line that should not be parsed",
+		typedEnabled: true,
+		typedActive:  []notification.Notification{{ID: 10, Message: "typed"}},
+	}
+	parser := &fakeNotificationParser{parsed: map[string]domain.Notification{}}
+
+	controller := NewInteractionControllerWithAdapters(fakeRuntimeCoordinator{}, store, parser)
+
+	notifications, err := controller.LoadActiveNotifications()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if store.typedActiveCalls != 1 {
+		t.Fatalf("expected typed active list once, got %d", store.typedActiveCalls)
+	}
+	if len(notifications) != 1 || notifications[0].ID != 10 {
+		t.Fatalf("unexpected notifications returned: %#v", notifications)
+	}
+}
+
+func TestLoadAllNotifications_PrefersTypedNotificationsOverTextParsing(t *testing.T) {
+	store := &fakeNotificationStore{
+		listOutput:   "line that should not be parsed",
+		typedEnabled: true,
+		typedAll:     []notification.Notification{{ID: 11, Message: "typed all"}},
+	}
+	parser := &fakeNotificationParser{parsed: map[string]domain.Notification{}}
+
+	controller := NewInteractionControllerWithAdapters(fakeRuntimeCoordinator{}, store, parser)
+
+	notifications, err := controller.LoadAllNotifications()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if store.typedAllCalls != 1 {
+		t.Fatalf("expected typed all list once, got %d", store.typedAllCalls)
+	}
+	if len(notifications) != 1 || notifications[0].ID != 11 {
+		t.Fatalf("unexpected notifications returned: %#v", notifications)
+	}
+}
+
 func TestLoadActiveNotifications_ReturnsStoreErrors(t *testing.T) {
 	store := &fakeNotificationStore{listErr: errors.New("storage down")}
-	parser := &fakeNotificationParser{parsed: map[string]notification.Notification{}}
+	parser := &fakeNotificationParser{parsed: map[string]domain.Notification{}}
 
 	controller := NewInteractionControllerWithAdapters(fakeRuntimeCoordinator{}, store, parser)
 
@@ -160,7 +227,7 @@ func TestLoadActiveNotifications_ReturnsStoreErrors(t *testing.T) {
 
 func TestMutationMethods_DelegateToStore(t *testing.T) {
 	store := &fakeNotificationStore{}
-	parser := &fakeNotificationParser{parsed: map[string]notification.Notification{}}
+	parser := &fakeNotificationParser{parsed: map[string]domain.Notification{}}
 
 	controller := NewInteractionControllerWithAdapters(fakeRuntimeCoordinator{}, store, parser)
 
@@ -193,7 +260,7 @@ func TestMutationMethods_DelegateToStore(t *testing.T) {
 
 func TestLoadActiveNotifications_ReturnsEmptySliceForNoRows(t *testing.T) {
 	store := &fakeNotificationStore{listOutput: ""}
-	parser := &fakeNotificationParser{parsed: map[string]notification.Notification{}}
+	parser := &fakeNotificationParser{parsed: map[string]domain.Notification{}}
 
 	controller := NewInteractionControllerWithAdapters(fakeRuntimeCoordinator{}, store, parser)
 
@@ -242,7 +309,7 @@ func TestDefaultNotificationParser_ParseInvalidLine(t *testing.T) {
 }
 
 func TestRuntimeMethods_DelegateAndHandleNilCoordinator(t *testing.T) {
-	controller := NewInteractionControllerWithAdapters(nil, &fakeNotificationStore{}, &fakeNotificationParser{parsed: map[string]notification.Notification{}})
+	controller := NewInteractionControllerWithAdapters(nil, &fakeNotificationStore{}, &fakeNotificationParser{parsed: map[string]domain.Notification{}})
 
 	if controller.EnsureTmuxRunning() {
 		t.Fatal("expected EnsureTmuxRunning to be false with nil runtime coordinator")

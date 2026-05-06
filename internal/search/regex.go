@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"sync"
 
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 )
 
 // RegexProvider provides regex-based search.
@@ -25,7 +25,7 @@ func NewRegexProvider(opts ...Option) Provider {
 
 // Match returns true if any configured field matches the regex pattern.
 // If the query is not a valid regex, it returns false for all notifications.
-func (p *RegexProvider) Match(notif notification.Notification, query string) bool {
+func (p *RegexProvider) Match(notif domain.Notification, query string) bool {
 	if query == "" {
 		return true
 	}
@@ -50,9 +50,9 @@ func (p *RegexProvider) Match(notif notification.Notification, query string) boo
 		case "pane":
 			fieldValues = p.getFieldValuesWithNames(notif.Pane, p.opts.PaneNames)
 		case "level":
-			fieldValues = []string{notif.Level}
+			fieldValues = []string{notif.Level.String()}
 		case "state":
-			fieldValues = []string{notif.State}
+			fieldValues = []string{notif.State.String()}
 		}
 
 		// Check all field values (ID and name)

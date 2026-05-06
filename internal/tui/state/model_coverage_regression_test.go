@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	uimodel "github.com/cristianoliveira/tmux-intray/internal/tui/model"
 	"github.com/stretchr/testify/assert"
@@ -14,7 +14,7 @@ import (
 func TestTreeViewPublicWrappersAndTabCycle(t *testing.T) {
 	setupConfig(t, t.TempDir())
 
-	m := newTestModel(t, []notification.Notification{
+	m := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "$1", Window: "@1", Pane: "%1", Message: "one"},
 	})
 	m.uiState.SetWidth(80)
@@ -60,7 +60,7 @@ func TestHandleConfirmationRunesBranches(t *testing.T) {
 func TestHandleTabSwitchingKeysToRecents(t *testing.T) {
 	setupConfig(t, t.TempDir())
 
-	m := newTestModel(t, []notification.Notification{{ID: 1, Message: "one"}})
+	m := newTestModel(t, []domain.Notification{{ID: 1, Message: "one"}})
 	m.uiState.SetActiveTab(settings.TabAll)
 
 	next, cmd := m.handleTabSwitchingKeys("r")
@@ -70,7 +70,7 @@ func TestHandleTabSwitchingKeysToRecents(t *testing.T) {
 }
 
 func TestHandleBackspaceSearchModeBranches(t *testing.T) {
-	m := newTestModel(t, []notification.Notification{{ID: 1, Message: "hello"}})
+	m := newTestModel(t, []domain.Notification{{ID: 1, Message: "hello"}})
 	m.uiState.SetSearchMode(true)
 	m.uiState.SetSearchQuery("ab")
 	m.uiState.SetCursor(1)
@@ -87,7 +87,7 @@ func TestHandleBackspaceSearchModeBranches(t *testing.T) {
 }
 
 func TestSwitchActiveTabNoopWhenSameTab(t *testing.T) {
-	m := newTestModel(t, []notification.Notification{{ID: 1, Message: "one"}})
+	m := newTestModel(t, []domain.Notification{{ID: 1, Message: "one"}})
 	m.uiState.SetActiveTab(settings.TabRecents)
 	m.uiState.SetCursor(1)
 
@@ -100,7 +100,7 @@ func TestSwitchActiveTabNoopWhenSameTab(t *testing.T) {
 func TestSwitchToSessionsPreservesCurrentViewPreferences(t *testing.T) {
 	setupConfig(t, t.TempDir())
 
-	m := newTestModel(t, []notification.Notification{{ID: 1, Session: "$1", Message: "one"}})
+	m := newTestModel(t, []domain.Notification{{ID: 1, Session: "$1", Message: "one"}})
 	m.uiState.SetViewMode(uimodel.ViewModeDetailed)
 	m.uiState.SetGroupBy(settings.GroupByWindow)
 	m.uiState.SetActiveTab(settings.TabAll)

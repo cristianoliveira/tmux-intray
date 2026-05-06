@@ -1,7 +1,7 @@
 package search
 
 import (
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -11,14 +11,14 @@ type MockProvider struct {
 }
 
 // Match provides a mock function with given fields: notif, query.
-func (_m *MockProvider) Match(notif notification.Notification, query string) bool {
+func (_m *MockProvider) Match(notif domain.Notification, query string) bool {
 	_va := make([]interface{}, 2)
 	_va[0] = notif
 	_va[1] = query
 	ret := _m.Called(_va...)
 
 	var r0 bool
-	if rf, ok := ret.Get(0).(func(notification.Notification, string) bool); ok {
+	if rf, ok := ret.Get(0).(func(domain.Notification, string) bool); ok {
 		r0 = rf(notif, query)
 	} else {
 		r0 = ret.Get(0).(bool)

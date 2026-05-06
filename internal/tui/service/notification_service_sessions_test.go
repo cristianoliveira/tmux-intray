@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 )
 
@@ -17,37 +17,37 @@ func TestSelectDataset_SessionsTab_IncludesAllNotifications(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		notifications []notification.Notification
+		notifications []domain.Notification
 		wantLen       int
 		wantSessions  []string
 	}{
 		{
 			name: "includes dismissed notifications in session list",
-			notifications: []notification.Notification{
-				{ID: 1, Session: "dev", State: "active", Timestamp: now, Message: "active msg"},
-				{ID: 2, Session: "prod", State: "dismissed", Timestamp: earlier, Message: "dismissed msg"},
+			notifications: []domain.Notification{
+				{ID: 1, Session: "dev", State: domain.StateActive, Timestamp: now, Message: "active msg"},
+				{ID: 2, Session: "prod", State: domain.StateDismissed, Timestamp: earlier, Message: "dismissed msg"},
 			},
 			wantLen:      2,
 			wantSessions: []string{"dev", "prod"},
 		},
 		{
 			name: "includes read notifications in session list",
-			notifications: []notification.Notification{
-				{ID: 1, Session: "dev", State: "active", Timestamp: now, Message: "active msg", ReadTimestamp: now},
-				{ID: 2, Session: "prod", State: "active", Timestamp: earlier, Message: "read msg", ReadTimestamp: earlier},
+			notifications: []domain.Notification{
+				{ID: 1, Session: "dev", State: domain.StateActive, Timestamp: now, Message: "active msg", ReadTimestamp: now},
+				{ID: 2, Session: "prod", State: domain.StateActive, Timestamp: earlier, Message: "read msg", ReadTimestamp: earlier},
 			},
 			wantLen:      2,
 			wantSessions: []string{"dev", "prod"},
 		},
 		{
 			name: "mix of active, dismissed, and read shows all unique sessions",
-			notifications: []notification.Notification{
-				{ID: 1, Session: "dev", State: "active", Timestamp: now, Message: "dev active"},
-				{ID: 2, Session: "staging", State: "dismissed", Timestamp: earlier, Message: "staging dismissed"},
-				{ID: 3, Session: "prod", State: "active", Timestamp: earlier, Message: "prod read", ReadTimestamp: earlier},
+			notifications: []domain.Notification{
+				{ID: 1, Session: "dev", State: domain.StateActive, Timestamp: now, Message: "dev active"},
+				{ID: 2, Session: "staging", State: domain.StateDismissed, Timestamp: earlier, Message: "staging dismissed"},
+				{ID: 3, Session: "prod", State: domain.StateActive, Timestamp: earlier, Message: "prod read", ReadTimestamp: earlier},
 			},
 			wantLen:      3,
-			wantSessions: []string{"dev", "prod", "staging"},
+			wantSessions: []string{"dev", "staging", "prod"},
 		},
 	}
 
@@ -83,37 +83,37 @@ func TestSelectDataset_SessionsTab_EdgeCases(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		notifications []notification.Notification
+		notifications []domain.Notification
 		wantLen       int
 	}{
 		{
 			name:          "empty notifications returns empty",
-			notifications: []notification.Notification{},
+			notifications: []domain.Notification{},
 			wantLen:       0,
 		},
 		{
 			name: "skips notifications without session",
-			notifications: []notification.Notification{
-				{ID: 1, Session: "", State: "active", Timestamp: now, Message: "no session"},
-				{ID: 2, Session: "dev", State: "active", Timestamp: earlier, Message: "dev msg"},
+			notifications: []domain.Notification{
+				{ID: 1, Session: "", State: domain.StateActive, Timestamp: now, Message: "no session"},
+				{ID: 2, Session: "dev", State: domain.StateActive, Timestamp: earlier, Message: "dev msg"},
 			},
 			wantLen: 1,
 		},
 		{
 			name: "multiple notifications same session only shows one",
-			notifications: []notification.Notification{
-				{ID: 1, Session: "dev", State: "active", Timestamp: earlier, Message: "first"},
-				{ID: 2, Session: "dev", State: "active", Timestamp: now, Message: "second"},
-				{ID: 3, Session: "dev", State: "dismissed", Timestamp: earlier, Message: "third"},
+			notifications: []domain.Notification{
+				{ID: 1, Session: "dev", State: domain.StateActive, Timestamp: earlier, Message: "first"},
+				{ID: 2, Session: "dev", State: domain.StateActive, Timestamp: now, Message: "second"},
+				{ID: 3, Session: "dev", State: domain.StateDismissed, Timestamp: earlier, Message: "third"},
 			},
 			wantLen: 1,
 		},
 		{
 			name: "most recent notification wins when multiple per session",
-			notifications: []notification.Notification{
-				{ID: 1, Session: "dev", State: "active", Timestamp: earlier, Message: "older"},
-				{ID: 2, Session: "dev", State: "dismissed", Timestamp: now, Message: "newest dismissed"},
-				{ID: 3, Session: "dev", State: "active", Timestamp: earlier, Message: "old active"},
+			notifications: []domain.Notification{
+				{ID: 1, Session: "dev", State: domain.StateActive, Timestamp: earlier, Message: "older"},
+				{ID: 2, Session: "dev", State: domain.StateDismissed, Timestamp: now, Message: "newest dismissed"},
+				{ID: 3, Session: "dev", State: domain.StateActive, Timestamp: earlier, Message: "old active"},
 			},
 			wantLen: 1,
 		},
@@ -142,31 +142,31 @@ func TestSelectDataset_SessionsTab_NoTimeLimit(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		notifications []notification.Notification
+		notifications []domain.Notification
 		wantLen       int
 		wantSessions  []string
 	}{
 		{
 			name: "recent notification is included",
-			notifications: []notification.Notification{
-				{ID: 1, Session: "dev", State: "active", Timestamp: now, Message: "recent"},
+			notifications: []domain.Notification{
+				{ID: 1, Session: "dev", State: domain.StateActive, Timestamp: now, Message: "recent"},
 			},
 			wantLen:      1,
 			wantSessions: []string{"dev"},
 		},
 		{
 			name: "old notification from 1 year ago is still included (no time limit)",
-			notifications: []notification.Notification{
-				{ID: 1, Session: "old-session", State: "active", Timestamp: oneYearAgo, Message: "old"},
+			notifications: []domain.Notification{
+				{ID: 1, Session: "old-session", State: domain.StateActive, Timestamp: oneYearAgo, Message: "old"},
 			},
 			wantLen:      1,
 			wantSessions: []string{"old-session"},
 		},
 		{
 			name: "both recent and old sessions shown with no time limit",
-			notifications: []notification.Notification{
-				{ID: 1, Session: "dev", State: "active", Timestamp: now, Message: "recent"},
-				{ID: 2, Session: "archive", State: "active", Timestamp: oneYearAgo, Message: "old"},
+			notifications: []domain.Notification{
+				{ID: 1, Session: "dev", State: domain.StateActive, Timestamp: now, Message: "recent"},
+				{ID: 2, Session: "archive", State: domain.StateActive, Timestamp: oneYearAgo, Message: "old"},
 			},
 			wantLen:      2,
 			wantSessions: []string{"dev", "archive"},

@@ -9,7 +9,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/stretchr/testify/assert"
 )
@@ -97,7 +97,7 @@ func TestCalculateAge(t *testing.T) {
 
 func TestRowSessionAndPaneColumns(t *testing.T) {
 	row := Row(RowState{
-		Notification: notification.Notification{
+		Notification: domain.Notification{
 			ID:        1,
 			Session:   "$1",
 			Window:    "@2",

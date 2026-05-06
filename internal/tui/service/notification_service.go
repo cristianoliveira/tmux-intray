@@ -8,7 +8,6 @@ import (
 	appcore "github.com/cristianoliveira/tmux-intray/internal/app"
 	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
@@ -19,8 +18,8 @@ type DefaultNotificationService struct {
 	searchProvider search.Provider
 	nameResolver   model.NameResolver
 	settings       *settings.Settings
-	notifications  []notification.Notification
-	filtered       []notification.Notification
+	notifications  []domain.Notification
+	filtered       []domain.Notification
 	showStale      bool
 }
 
@@ -50,8 +49,8 @@ func NewNotificationService(provider search.Provider, resolver model.NameResolve
 		searchProvider: provider,
 		nameResolver:   resolver,
 		settings:       nil, // Will be set later
-		notifications:  []notification.Notification{},
-		filtered:       []notification.Notification{},
+		notifications:  []domain.Notification{},
+		filtered:       []domain.Notification{},
 	}
 }
 
@@ -61,48 +60,17 @@ func (s *DefaultNotificationService) SetShowStale(show bool) {
 }
 
 // SetSettings updates the settings used by the service.
-// This allows the service to apply configurable sorting based on user settings.
 func (s *DefaultNotificationService) SetSettings(setts *settings.Settings) {
 	s.settings = setts
 }
 
-// convertToDomain converts a slice of notification.Notification to domain.Notification values.
-func (s *DefaultNotificationService) convertToDomain(notifs []notification.Notification) []domain.Notification {
-	domainPtrs, err := notification.ToDomainSlice(notifs)
-	if err != nil {
-		// Should not happen with valid data; return empty slice
-		return []domain.Notification{}
-	}
-	result := make([]domain.Notification, 0, len(domainPtrs))
-	for _, n := range domainPtrs {
-		if n != nil {
-			result = append(result, *n)
-		}
-	}
-	return result
-}
-
-// convertFromDomain converts a slice of domain.Notification values to notification.Notification.
-func (s *DefaultNotificationService) convertFromDomain(notifs []domain.Notification) []notification.Notification {
-	ptrs := make([]*domain.Notification, len(notifs))
-	for i := range notifs {
-		ptrs[i] = &notifs[i]
-	}
-	return notification.FromDomainSlice(ptrs)
-}
-
-// convertFromDomainSingle converts a single domain.Notification to notification.Notification.
-func (s *DefaultNotificationService) convertFromDomainSingle(n domain.Notification) notification.Notification {
-	return notification.FromDomain(&n)
-}
-
 // FilterNotifications filters notifications based on a search query.
-func (s *DefaultNotificationService) FilterNotifications(notifications []notification.Notification, query string) []notification.Notification {
+func (s *DefaultNotificationService) FilterNotifications(notifications []domain.Notification, query string) []domain.Notification {
 	if query == "" {
 		return notifications
 	}
 
-	var filtered []notification.Notification
+	var filtered []domain.Notification
 	for _, n := range notifications {
 		if s.searchProvider != nil {
 			if s.searchProvider.Match(n, query) {
@@ -119,63 +87,51 @@ func (s *DefaultNotificationService) FilterNotifications(notifications []notific
 }
 
 // FilterByState filters notifications by state (active/dismissed).
-func (s *DefaultNotificationService) FilterByState(notifications []notification.Notification, state string) []notification.Notification {
+func (s *DefaultNotificationService) FilterByState(notifications []domain.Notification, state string) []domain.Notification {
 	if state == "" {
 		return notifications
 	}
-	domainNotifs := s.convertToDomain(notifications)
-	filtered := domain.FilterByState(domainNotifs, state)
-	return s.convertFromDomain(filtered)
+	return domain.FilterByState(notifications, state)
 }
 
 // FilterByLevel filters notifications by level (info/warning/error).
-func (s *DefaultNotificationService) FilterByLevel(notifications []notification.Notification, level string) []notification.Notification {
+func (s *DefaultNotificationService) FilterByLevel(notifications []domain.Notification, level string) []domain.Notification {
 	if level == "" {
 		return notifications
 	}
-	domainNotifs := s.convertToDomain(notifications)
-	filtered := domain.FilterByLevel(domainNotifs, level)
-	return s.convertFromDomain(filtered)
+	return domain.FilterByLevel(notifications, level)
 }
 
 // FilterBySession filters notifications by session ID.
-func (s *DefaultNotificationService) FilterBySession(notifications []notification.Notification, sessionID string) []notification.Notification {
+func (s *DefaultNotificationService) FilterBySession(notifications []domain.Notification, sessionID string) []domain.Notification {
 	if sessionID == "" {
 		return notifications
 	}
-	domainNotifs := s.convertToDomain(notifications)
-	filtered := domain.FilterBySession(domainNotifs, sessionID)
-	return s.convertFromDomain(filtered)
+	return domain.FilterBySession(notifications, sessionID)
 }
 
 // FilterByWindow filters notifications by window ID.
-func (s *DefaultNotificationService) FilterByWindow(notifications []notification.Notification, windowID string) []notification.Notification {
+func (s *DefaultNotificationService) FilterByWindow(notifications []domain.Notification, windowID string) []domain.Notification {
 	if windowID == "" {
 		return notifications
 	}
-	domainNotifs := s.convertToDomain(notifications)
-	filtered := domain.FilterByWindow(domainNotifs, windowID)
-	return s.convertFromDomain(filtered)
+	return domain.FilterByWindow(notifications, windowID)
 }
 
 // FilterByPane filters notifications by pane ID.
-func (s *DefaultNotificationService) FilterByPane(notifications []notification.Notification, paneID string) []notification.Notification {
+func (s *DefaultNotificationService) FilterByPane(notifications []domain.Notification, paneID string) []domain.Notification {
 	if paneID == "" {
 		return notifications
 	}
-	domainNotifs := s.convertToDomain(notifications)
-	filtered := domain.FilterByPane(domainNotifs, paneID)
-	return s.convertFromDomain(filtered)
+	return domain.FilterByPane(notifications, paneID)
 }
 
 // SortNotifications sorts notifications by the specified field and order.
-// Uses the service's settings to determine whether to apply unread-first grouping.
-func (s *DefaultNotificationService) SortNotifications(notifications []notification.Notification, sortBy, sortOrder string) []notification.Notification {
+func (s *DefaultNotificationService) SortNotifications(notifications []domain.Notification, sortBy, sortOrder string) []domain.Notification {
 	if len(notifications) == 0 {
 		return notifications
 	}
 
-	// Parse sort field and order with defaults
 	field, err := domain.ParseSortByField(sortBy)
 	if err != nil {
 		field = domain.SortByTimestampField
@@ -188,40 +144,29 @@ func (s *DefaultNotificationService) SortNotifications(notifications []notificat
 	opts := domain.SortOptions{
 		Field: field,
 		Order: order,
-		// CaseInsensitive: false (default)
 	}
 
-	domainNotifs := s.convertToDomain(notifications)
-	if len(domainNotifs) != len(notifications) {
-		result := make([]notification.Notification, len(notifications))
-		copy(result, notifications)
-		return result
-	}
-
-	// Apply sorting with or without unread-first based on settings
 	var sorted []domain.Notification
 	unreadFirst := s.shouldApplyUnreadFirst()
 	if unreadFirst {
-		sorted = domain.SortWithUnreadFirst(domainNotifs, opts)
+		sorted = domain.SortWithUnreadFirst(notifications, opts)
 	} else {
-		sorted = domain.SortNotifications(domainNotifs, opts)
+		sorted = domain.SortNotifications(notifications, opts)
 	}
 
-	return s.convertFromDomain(sorted)
+	return sorted
 }
 
 // shouldApplyUnreadFirst determines whether to apply unread-first grouping.
-// Returns true if settings are configured to use unread-first sorting.
 func (s *DefaultNotificationService) shouldApplyUnreadFirst() bool {
 	if s.settings == nil {
-		// Default to true for backward compatibility
 		return true
 	}
 	return s.settings.UnreadFirst
 }
 
 // GetUnreadCount returns the number of unread notifications.
-func (s *DefaultNotificationService) GetUnreadCount(notifications []notification.Notification) int {
+func (s *DefaultNotificationService) GetUnreadCount(notifications []domain.Notification) int {
 	count := 0
 	for _, n := range notifications {
 		if !n.IsRead() {
@@ -232,7 +177,7 @@ func (s *DefaultNotificationService) GetUnreadCount(notifications []notification
 }
 
 // GetReadCount returns the number of read notifications.
-func (s *DefaultNotificationService) GetReadCount(notifications []notification.Notification) int {
+func (s *DefaultNotificationService) GetReadCount(notifications []domain.Notification) int {
 	count := 0
 	for _, n := range notifications {
 		if n.IsRead() {
@@ -243,16 +188,16 @@ func (s *DefaultNotificationService) GetReadCount(notifications []notification.N
 }
 
 // GetCountsByLevel returns a map of notification counts by level.
-func (s *DefaultNotificationService) GetCountsByLevel(notifications []notification.Notification) map[string]int {
+func (s *DefaultNotificationService) GetCountsByLevel(notifications []domain.Notification) map[string]int {
 	counts := make(map[string]int)
 	for _, n := range notifications {
-		counts[n.Level]++
+		counts[n.Level.String()]++
 	}
 	return counts
 }
 
 // Search performs a full-text search on notifications.
-func (s *DefaultNotificationService) Search(notifications []notification.Notification, query string, caseSensitive bool) []notification.Notification {
+func (s *DefaultNotificationService) Search(notifications []domain.Notification, query string, caseSensitive bool) []domain.Notification {
 	if query == "" {
 		return notifications
 	}
@@ -262,13 +207,11 @@ func (s *DefaultNotificationService) Search(notifications []notification.Notific
 		searchQuery = strings.ToLower(query)
 	}
 
-	var results []notification.Notification
+	var results []domain.Notification
 	for _, n := range notifications {
-		var message string
+		message := n.Message
 		if !caseSensitive {
 			message = strings.ToLower(n.Message)
-		} else {
-			message = n.Message
 		}
 
 		if strings.Contains(message, searchQuery) {
@@ -279,37 +222,34 @@ func (s *DefaultNotificationService) Search(notifications []notification.Notific
 }
 
 // SetNotifications updates the underlying notification dataset.
-func (s *DefaultNotificationService) SetNotifications(notifications []notification.Notification) {
+func (s *DefaultNotificationService) SetNotifications(notifications []domain.Notification) {
 	s.notifications = notifications
-	// Initialize filtered to match notifications (no filters applied by default)
 	s.filtered = notifications
 }
 
 // GetNotifications returns all notifications currently tracked by the service.
-func (s *DefaultNotificationService) GetNotifications() []notification.Notification {
+func (s *DefaultNotificationService) GetNotifications() []domain.Notification {
 	return s.notifications
 }
 
 // GetFilteredNotifications returns the latest filtered notification view.
-func (s *DefaultNotificationService) GetFilteredNotifications() []notification.Notification {
+func (s *DefaultNotificationService) GetFilteredNotifications() []domain.Notification {
 	return s.filtered
 }
 
 // FilterByReadStatus filters notifications by read status.
-func (s *DefaultNotificationService) FilterByReadStatus(notifications []notification.Notification, readFilter string) []notification.Notification {
+func (s *DefaultNotificationService) FilterByReadStatus(notifications []domain.Notification, readFilter string) []domain.Notification {
 	if readFilter == "" {
 		return notifications
 	}
-	domainNotifs := s.convertToDomain(notifications)
-	filtered := domain.FilterByReadStatus(domainNotifs, readFilter)
-	return s.convertFromDomain(filtered)
+	return domain.FilterByReadStatus(notifications, readFilter)
 }
 
 // selectDataset filters active notifications and applies tab-specific logic.
-func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortBy, sortOrder string) []notification.Notification {
-	activeOnly := make([]notification.Notification, 0, len(s.notifications))
+func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortBy, sortOrder string) []domain.Notification {
+	activeOnly := make([]domain.Notification, 0, len(s.notifications))
 	for _, n := range s.notifications {
-		if n.State == "" || n.State == "active" {
+		if n.State == "" || n.State == domain.StateActive {
 			activeOnly = append(activeOnly, n)
 		}
 	}
@@ -319,28 +259,20 @@ func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortB
 		return activeOnly
 	}
 
-	// For Recents tab, apply configurable time window filter
 	if normalizedTab == settings.TabRecents {
-		domainNotifs := s.convertToDomain(activeOnly)
-		filtered := domain.FilterByTimeDuration(domainNotifs, getRecentsTimeWindow())
-		activeOnly = s.convertFromDomain(filtered)
+		filtered := domain.FilterByTimeDuration(activeOnly, getRecentsTimeWindow())
 
-		unreadOnly := make([]notification.Notification, 0, len(activeOnly))
-		for _, n := range activeOnly {
+		unreadOnly := make([]domain.Notification, 0, len(filtered))
+		for _, n := range filtered {
 			if !n.IsRead() {
 				unreadOnly = append(unreadOnly, n)
 			}
 		}
 
 		sorted := s.SortNotifications(unreadOnly, sortBy, sortOrder)
-
-		// Apply per-session smart selection for Recents tab
-		// This ensures max 1 notification per session with intelligent selection
 		return s.selectBestNotificationPerSession(sorted)
 	}
 
-	// For Sessions tab: get unique sessions from ALL notifications (including dismissed/read)
-	// This lists all sessions that have ever had notifications, not just active ones
 	if normalizedTab == settings.TabSessions {
 		return s.getMostRecentPerSession(s.notifications, sortBy, sortOrder)
 	}
@@ -349,37 +281,16 @@ func (s *DefaultNotificationService) selectDataset(activeTab settings.Tab, sortB
 }
 
 // FilterResolvableTmuxTargets hides notifications whose tmux session/window/pane no longer exists.
-func (s *DefaultNotificationService) FilterResolvableTmuxTargets(notifications []notification.Notification) []notification.Notification {
+func (s *DefaultNotificationService) FilterResolvableTmuxTargets(notifications []domain.Notification) []domain.Notification {
 	if s.nameResolver == nil {
 		return notifications
 	}
 
-	domainNotifs := notificationsToDomainValues(notifications)
-	filtered := appcore.KeepOnlyResolvableNotifications(domainNotifs, appcore.DisplayNames{
+	return appcore.KeepOnlyResolvableNotifications(notifications, appcore.DisplayNames{
 		Sessions: s.nameResolver.GetSessionNames(),
 		Windows:  s.nameResolver.GetWindowNames(),
 		Panes:    s.nameResolver.GetPaneNames(),
 	}, s.showStale)
-	return s.convertFromDomain(filtered)
-}
-
-func notificationsToDomainValues(notifs []notification.Notification) []domain.Notification {
-	values := make([]domain.Notification, 0, len(notifs))
-	for _, n := range notifs {
-		values = append(values, domain.Notification{
-			ID:            n.ID,
-			Timestamp:     n.Timestamp,
-			State:         domain.NotificationState(n.State),
-			Session:       n.Session,
-			Window:        n.Window,
-			Pane:          n.Pane,
-			Message:       n.Message,
-			PaneCreated:   n.PaneCreated,
-			Level:         domain.NotificationLevel(n.Level),
-			ReadTimestamp: n.ReadTimestamp,
-		})
-	}
-	return values
 }
 
 // ApplyFiltersAndSearch applies tab scope, then filters/search/sorting and stores filtered results.
@@ -391,45 +302,33 @@ func (s *DefaultNotificationService) ApplyFiltersAndSearch(tab settings.Tab, que
 	result := s.selectDataset(tab, sortBy, sortOrder)
 	result = s.FilterResolvableTmuxTargets(result)
 
-	// Check if this is a filtered view (drilling down into a specific session/window/pane)
 	isFilteredView := sessionID != "" || windowID != "" || paneID != ""
 
-	// If Recents tab with specific filters, show all notifications matching filters
-	// (not just the per-session smart selection). Re-fetch without per-session limiting.
-	// Apply 10-item limit for filtered views (Story 3).
 	if isFilteredView && settings.NormalizeTab(string(tab)) == settings.TabRecents {
 		result = s.getUnfilteredRecentsDataset(sortBy, sortOrder, filteredListLimit)
 	}
 
-	// Apply state filter
 	if state != "" {
 		result = s.FilterByState(result, state)
 	}
-	// Apply level filter
 	if level != "" {
 		result = s.FilterByLevel(result, level)
 	}
-	// Apply session filter
 	if sessionID != "" {
 		result = s.FilterBySession(result, sessionID)
 	}
-	// Apply window filter
 	if windowID != "" {
 		result = s.FilterByWindow(result, windowID)
 	}
-	// Apply pane filter
 	if paneID != "" {
 		result = s.FilterByPane(result, paneID)
 	}
-	// Apply read filter
 	if readFilter != "" {
 		result = s.FilterByReadStatus(result, readFilter)
 	}
-	// Apply search query filter
 	if query != "" {
 		result = s.FilterNotifications(result, query)
 	}
-	// Apply sorting
 	result = s.SortNotifications(result, sortBy, sortOrder)
 	s.filtered = result
 }

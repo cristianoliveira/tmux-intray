@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 	"github.com/stretchr/testify/assert"
@@ -13,7 +13,7 @@ import (
 // Test missing branches in model_keys_core.go
 
 func TestHandleKeyMsgWithUnknownKey(t *testing.T) {
-	m := newTestModel(t, []notification.Notification{{ID: 1, Message: "test"}})
+	m := newTestModel(t, []domain.Notification{{ID: 1, Message: "test"}})
 
 	// Test with unknown key binding
 	next, cmd := m.handleKeyMsg(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
@@ -69,7 +69,7 @@ func TestHandleKeyTypeCtrlLOutsideSearch(t *testing.T) {
 }
 
 func TestHandleNavigationKeysGInSearch(t *testing.T) {
-	m := newTestModel(t, []notification.Notification{{ID: 1, Message: "test"}})
+	m := newTestModel(t, []domain.Notification{{ID: 1, Message: "test"}})
 
 	// Test 'G' key in search context (should be no-op)
 	next, cmd := m.handleNavigationKeys("G", true)
@@ -78,7 +78,7 @@ func TestHandleNavigationKeysGInSearch(t *testing.T) {
 }
 
 func TestHandleNavigationKeysGInNormal(t *testing.T) {
-	m := newTestModel(t, []notification.Notification{{ID: 1, Message: "test"}})
+	m := newTestModel(t, []domain.Notification{{ID: 1, Message: "test"}})
 	m.uiState.SetCursor(5)
 
 	// Test 'G' key in normal context
@@ -89,7 +89,7 @@ func TestHandleNavigationKeysGInNormal(t *testing.T) {
 }
 
 func TestHandleTreeKeysZOutsideGroupedView(t *testing.T) {
-	m := newTestModel(t, []notification.Notification{{ID: 1, Message: "test"}})
+	m := newTestModel(t, []domain.Notification{{ID: 1, Message: "test"}})
 	// Ensure not in grouped view
 	m.uiState.SetViewMode(settings.ViewModeDetailed)
 
@@ -101,7 +101,7 @@ func TestHandleTreeKeysZOutsideGroupedView(t *testing.T) {
 }
 
 func TestHandlePendingKeyWithZAndNonZ(t *testing.T) {
-	m := newTestModel(t, []notification.Notification{{ID: 1, Message: "test"}})
+	m := newTestModel(t, []domain.Notification{{ID: 1, Message: "test"}})
 	m.uiState.SetGroupBy(settings.GroupBySession)
 	m.uiState.SetPendingKey("z")
 
@@ -141,7 +141,7 @@ func TestHandleSaveSettingsFailedMsg(t *testing.T) {
 }
 
 func TestSwitchActiveTabSameTab(t *testing.T) {
-	m := newTestModel(t, []notification.Notification{{ID: 1, Message: "test"}})
+	m := newTestModel(t, []domain.Notification{{ID: 1, Message: "test"}})
 	m.uiState.SetActiveTab(settings.TabRecents)
 	m.uiState.SetCursor(1)
 
@@ -189,7 +189,7 @@ func TestGetTreeLevelAllKinds(t *testing.T) {
 }
 
 func TestSelectedVisibleNodeOutsideGroupedView(t *testing.T) {
-	m := newTestModel(t, []notification.Notification{{ID: 1, Message: "test"}})
+	m := newTestModel(t, []domain.Notification{{ID: 1, Message: "test"}})
 	m.uiState.SetViewMode(settings.ViewModeDetailed)
 
 	node := m.selectedVisibleNode()
@@ -197,7 +197,7 @@ func TestSelectedVisibleNodeOutsideGroupedView(t *testing.T) {
 }
 
 func TestSelectedVisibleNodeWithInvalidCursor(t *testing.T) {
-	m := newTestModel(t, []notification.Notification{{ID: 1, Message: "test"}})
+	m := newTestModel(t, []domain.Notification{{ID: 1, Message: "test"}})
 	m.uiState.SetGroupBy(settings.GroupBySession)
 	m.applySearchFilter()
 	m.uiState.SetCursor(999) // Invalid cursor
@@ -207,7 +207,7 @@ func TestSelectedVisibleNodeWithInvalidCursor(t *testing.T) {
 }
 
 func TestToggleFoldOutsideGroupedView(t *testing.T) {
-	m := newTestModel(t, []notification.Notification{{ID: 1, Message: "test"}})
+	m := newTestModel(t, []domain.Notification{{ID: 1, Message: "test"}})
 	m.uiState.SetViewMode(settings.ViewModeDetailed)
 
 	m.toggleFold()
@@ -215,7 +215,7 @@ func TestToggleFoldOutsideGroupedView(t *testing.T) {
 }
 
 func TestToggleFoldWithNotificationNode(t *testing.T) {
-	m := newTestModel(t, []notification.Notification{{ID: 1, Message: "test"}})
+	m := newTestModel(t, []domain.Notification{{ID: 1, Message: "test"}})
 	m.uiState.SetGroupBy(settings.GroupBySession)
 	m.applySearchFilter()
 	// Point to a notification node (this will depend on tree structure)
@@ -239,7 +239,7 @@ func TestApplyDefaultExpansionWithNilTree(t *testing.T) {
 }
 
 func TestApplyDefaultExpansionWithOutOfBoundsCursor(t *testing.T) {
-	m := newTestModel(t, []notification.Notification{
+	m := newTestModel(t, []domain.Notification{
 		{ID: 1, Session: "s1", Window: "w1", Pane: "p1", Message: "test1"},
 		{ID: 2, Session: "s1", Window: "w2", Pane: "p1", Message: "test2"},
 	})
@@ -257,7 +257,7 @@ func TestApplyDefaultExpansionWithOutOfBoundsCursor(t *testing.T) {
 }
 
 func TestApplyDefaultExpansionWithNegativeCursor(t *testing.T) {
-	m := newTestModel(t, []notification.Notification{{ID: 1, Message: "test"}})
+	m := newTestModel(t, []domain.Notification{{ID: 1, Message: "test"}})
 	m.uiState.SetGroupBy(settings.GroupBySession)
 	m.applySearchFilter()
 	m.uiState.SetCursor(-1) // Negative cursor
@@ -268,7 +268,7 @@ func TestApplyDefaultExpansionWithNegativeCursor(t *testing.T) {
 }
 
 func TestAllGroupsCollapsedWithEmptyTree(t *testing.T) {
-	m := newTestModel(t, []notification.Notification{{ID: 1, Message: "test"}})
+	m := newTestModel(t, []domain.Notification{{ID: 1, Message: "test"}})
 	m.uiState.SetGroupBy(settings.GroupBySession)
 	m.applySearchFilter()
 	// Force tree to have no visible nodes

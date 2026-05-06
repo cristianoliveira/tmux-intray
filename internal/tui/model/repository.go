@@ -3,7 +3,7 @@
 package model
 
 import (
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 )
 
 // NotificationRepository defines the interface for notification data access operations.
@@ -11,12 +11,12 @@ import (
 type NotificationRepository interface {
 	// LoadNotifications loads all active notifications.
 	// Returns a slice of notifications or an error if loading fails.
-	LoadNotifications() ([]notification.Notification, error)
+	LoadNotifications() ([]domain.Notification, error)
 
 	// LoadFilteredNotifications loads notifications with optional filters.
 	// Supported filters: state, level, session, window, pane.
 	// Returns a slice of matching notifications or an error.
-	LoadFilteredNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter string) ([]notification.Notification, error)
+	LoadFilteredNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter string) ([]domain.Notification, error)
 
 	// DismissNotification marks a notification as dismissed by ID.
 	// Returns an error if the operation fails.
@@ -32,7 +32,7 @@ type NotificationRepository interface {
 
 	// GetByID retrieves a notification by its ID.
 	// Returns the notification or an error if not found.
-	GetByID(id string) (notification.Notification, error)
+	GetByID(id string) (domain.Notification, error)
 
 	// GetActiveCount returns the number of active (non-dismissed) notifications.
 	GetActiveCount() int

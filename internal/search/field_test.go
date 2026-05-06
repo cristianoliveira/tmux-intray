@@ -3,7 +3,7 @@ package search
 import (
 	"testing"
 
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -159,12 +159,12 @@ func TestTokenProviderReadUnreadOnly(t *testing.T) {
 	provider := NewTokenProvider()
 
 	// Create read and unread notifications
-	readNotif := notification.Notification{
+	readNotif := domain.Notification{
 		ID:            1,
 		Message:       "test message",
 		ReadTimestamp: "2024-01-01T12:00:00Z",
 	}
-	unreadNotif := notification.Notification{
+	unreadNotif := domain.Notification{
 		ID:            2,
 		Message:       "test message",
 		ReadTimestamp: "",
@@ -172,7 +172,7 @@ func TestTokenProviderReadUnreadOnly(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		notif    notification.Notification
+		notif    domain.Notification
 		query    string
 		expected bool
 	}{

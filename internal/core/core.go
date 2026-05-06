@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/version"
@@ -201,9 +202,35 @@ func (c *Core) ListNotifications(stateFilter, levelFilter, sessionFilter, window
 	return c.storage.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
 }
 
+// ListDomainNotifications lists notifications as domain values for typed internal flows.
+func (c *Core) ListDomainNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) ([]*domain.Notification, error) {
+	lines, err := c.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
+	if err != nil || lines == "" {
+		return nil, err
+	}
+
+	var notifications []*domain.Notification
+	for _, line := range strings.Split(lines, "\n") {
+		if line == "" {
+			continue
+		}
+		notif, err := notification.ParseNotification(line)
+		if err != nil {
+			continue
+		}
+		notifications = append(notifications, notification.ToDomainUnsafe(notif))
+	}
+	return notifications, nil
+}
+
 // ListNotifications lists notifications with filters using the default core instance.
 func ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error) {
 	return defaultCore.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
+}
+
+// ListDomainNotifications lists notifications as domain values using the default core instance.
+func ListDomainNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) ([]*domain.Notification, error) {
+	return defaultCore.ListDomainNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
 }
 
 // DismissNotification dismisses a single notification by ID.

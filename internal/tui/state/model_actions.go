@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
@@ -317,27 +317,27 @@ func jumpTargetFromLatestOrSource(node *model.TreeNode) (jumpTarget, bool) {
 }
 
 // selectedNotification returns the currently selected notification.
-func (m *Model) selectedNotification() (notification.Notification, bool) {
+func (m *Model) selectedNotification() (domain.Notification, bool) {
 	cursor := m.uiState.GetCursor()
 	if m.isGroupedView() {
 		return m.selectedGroupedNotification(cursor)
 	}
 
 	if cursor < 0 || cursor >= len(m.filtered) {
-		return notification.Notification{}, false
+		return domain.Notification{}, false
 	}
 	return m.filtered[cursor], true
 }
 
-func (m *Model) selectedGroupedNotification(cursor int) (notification.Notification, bool) {
+func (m *Model) selectedGroupedNotification(cursor int) (domain.Notification, bool) {
 	visibleNodes := m.treeService.GetVisibleNodes()
 	if cursor < 0 || cursor >= len(visibleNodes) {
-		return notification.Notification{}, false
+		return domain.Notification{}, false
 	}
 
 	node := visibleNodes[cursor]
 	if node == nil {
-		return notification.Notification{}, false
+		return domain.Notification{}, false
 	}
 
 	if node.Notification != nil {
@@ -345,11 +345,11 @@ func (m *Model) selectedGroupedNotification(cursor int) (notification.Notificati
 	}
 
 	if node.Kind != model.NodeKindMessage || string(m.uiState.GetGroupBy()) != settings.GroupByPaneMessage {
-		return notification.Notification{}, false
+		return domain.Notification{}, false
 	}
 
 	if node.LatestEvent == nil {
-		return notification.Notification{}, false
+		return domain.Notification{}, false
 	}
 
 	return *node.LatestEvent, true

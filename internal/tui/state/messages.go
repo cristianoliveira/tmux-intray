@@ -5,7 +5,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
 
@@ -28,12 +28,12 @@ type NodeCollapsedMsg struct {
 
 // NotificationsLoadedMsg is sent when notifications are loaded from storage.
 type NotificationsLoadedMsg struct {
-	Notifications []notification.Notification
+	Notifications []domain.Notification
 }
 
 // NotificationsFilteredMsg is sent when notifications are filtered (search, filters).
 type NotificationsFilteredMsg struct {
-	Filtered []notification.Notification
+	Filtered []domain.Notification
 	TreeRoot *model.TreeNode
 }
 

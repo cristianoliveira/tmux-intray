@@ -4,7 +4,7 @@
 package search
 
 import (
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 )
 
 // Provider defines the interface for search providers.
@@ -12,7 +12,7 @@ import (
 // to match notifications against search queries.
 type Provider interface {
 	// Match returns true if the notification matches the search query.
-	Match(notif notification.Notification, query string) bool
+	Match(notif domain.Notification, query string) bool
 
 	// Name returns the provider name for identification and debugging.
 	Name() string

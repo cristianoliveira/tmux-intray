@@ -4,6 +4,7 @@ package domain
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -211,4 +212,69 @@ func ParseNotificationState(state string) (NotificationState, error) {
 		return "", fmt.Errorf("invalid notification state: %s", state)
 	}
 	return ns, nil
+}
+
+// ParseNotificationLine parses a TSV line into a Notification.
+// Accepts either 9 fields (no read timestamp) or 10 fields.
+func ParseNotificationLine(line string) (Notification, error) {
+	fields := strings.Split(line, "\t")
+	switch len(fields) {
+	case 9:
+		fields = append(fields, "")
+	case 10:
+		// OK
+	default:
+		return Notification{}, fmt.Errorf("invalid notification field count: %d", len(fields))
+	}
+
+	id := 0
+	if fields[0] != "" {
+		_, _ = fmt.Sscanf(fields[0], "%d", &id)
+	}
+
+	return Notification{
+		ID:            id,
+		Timestamp:     fields[1],
+		State:         NotificationState(fields[2]),
+		Session:       fields[3],
+		Window:        fields[4],
+		Pane:          fields[5],
+		Message:       unescapeMessage(fields[6]),
+		PaneCreated:   fields[7],
+		Level:         NotificationLevel(fields[8]),
+		ReadTimestamp: fields[9],
+	}, nil
+}
+
+// FormatNotificationLine serializes the notification to a TSV line.
+func (n Notification) FormatNotificationLine() string {
+	return fmt.Sprintf(
+		"%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s",
+		n.ID,
+		n.Timestamp,
+		n.State.String(),
+		n.Session,
+		n.Window,
+		n.Pane,
+		escapeMessage(n.Message),
+		n.PaneCreated,
+		n.Level.String(),
+		n.ReadTimestamp,
+	)
+}
+
+// escapeMessage escapes special characters in a message for TSV storage.
+func escapeMessage(msg string) string {
+	msg = strings.ReplaceAll(msg, "\\", "\\\\")
+	msg = strings.ReplaceAll(msg, "\t", "\\t")
+	msg = strings.ReplaceAll(msg, "\n", "\\n")
+	return msg
+}
+
+// unescapeMessage reverses the escaping done by escapeMessage.
+func unescapeMessage(msg string) string {
+	msg = strings.ReplaceAll(msg, "\\n", "\n")
+	msg = strings.ReplaceAll(msg, "\\t", "\t")
+	msg = strings.ReplaceAll(msg, "\\\\", "\\")
+	return msg
 }

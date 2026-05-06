@@ -3,7 +3,7 @@ package search
 import (
 	"testing"
 
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -40,7 +40,7 @@ func TestTokenProviderEdgeCases(t *testing.T) {
 	provider := NewTokenProvider()
 
 	// Create notifications with specific characteristics
-	notifWithAllFields := notification.Notification{
+	notifWithAllFields := domain.Notification{
 		ID:        1,
 		Timestamp: "2024-01-01T12:00:00Z",
 		State:     "active",
@@ -122,7 +122,7 @@ func TestTokenProviderCaseInsensitive(t *testing.T) {
 
 // TestProviderWithEmptyNotification tests provider behavior with mostly empty notification.
 func TestProviderWithEmptyNotification(t *testing.T) {
-	emptyNotif := notification.Notification{
+	emptyNotif := domain.Notification{
 		ID:        1,
 		Timestamp: "2024-01-01T12:00:00Z",
 		Message:   "test",
@@ -229,7 +229,7 @@ func TestTokenProviderComplexQueries(t *testing.T) {
 	provider := NewTokenProvider()
 
 	// Create notification with multiple words in message
-	multiWordNotif := notification.Notification{
+	multiWordNotif := domain.Notification{
 		ID:            1,
 		Timestamp:     "2024-01-01T12:00:00Z",
 		State:         "active",

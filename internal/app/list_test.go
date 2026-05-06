@@ -24,9 +24,13 @@ func (f *fakeSearchProviderFactory) Build(regex bool) search.Provider {
 }
 
 type fakeListClient struct {
-	result string
-	err    error
-	calls  []struct {
+	result       string
+	err          error
+	typedResult  []*domain.Notification
+	typedErr     error
+	typedCalls   int
+	typedEnabled bool
+	calls        []struct {
 		state      string
 		level      string
 		session    string
@@ -36,6 +40,14 @@ type fakeListClient struct {
 		newerThan  string
 		readFilter string
 	}
+}
+
+func (f *fakeListClient) ListDomainNotifications(state, level, session, window, pane, olderThanCutoff, newerThanCutoff, readFilter string) ([]*domain.Notification, error) {
+	if !f.typedEnabled {
+		return nil, errTypedListUnsupported
+	}
+	f.typedCalls++
+	return f.typedResult, f.typedErr
 }
 
 func (f *fakeListClient) ListNotifications(state, level, session, window, pane, olderThanCutoff, newerThanCutoff, readFilter string) (string, error) {
@@ -80,13 +92,40 @@ func TestListUseCaseExecuteEmpty(t *testing.T) {
 }
 
 func TestListUseCaseExecuteClientError(t *testing.T) {
-	client := &fakeListClient{err: errors.New("storage error")}
+	client := &fakeListClient{typedErr: errors.New("storage error"), typedEnabled: true}
 	useCase := NewListUseCase(client, nil)
 
 	var buf bytes.Buffer
 	useCase.Execute(ListOptions{}, &buf)
 
 	assert.Contains(t, buf.String(), "list: failed to list notifications: storage error")
+}
+
+func TestListUseCaseExecuteUsesTypedNotificationsBeforeTextParsing(t *testing.T) {
+	client := &fakeListClient{
+		typedEnabled: true,
+		result:       "not valid tsv and should not be parsed",
+		typedResult: []*domain.Notification{{
+			ID:          42,
+			Timestamp:   "2025-01-01T10:00:00Z",
+			State:       domain.StateActive,
+			Session:     "sess1",
+			Window:      "win1",
+			Pane:        "pane1",
+			Message:     "typed message",
+			PaneCreated: "123",
+			Level:       domain.LevelInfo,
+		}},
+	}
+	useCase := NewListUseCase(client, nil)
+
+	var buf bytes.Buffer
+	useCase.Execute(ListOptions{Format: "simple"}, &buf)
+
+	assert.Equal(t, 1, client.typedCalls)
+	assert.Empty(t, client.calls)
+	assert.Contains(t, buf.String(), "42")
+	assert.Contains(t, buf.String(), "typed message")
 }
 
 func TestListUseCaseExecuteUnreadFirstOrdering(t *testing.T) {

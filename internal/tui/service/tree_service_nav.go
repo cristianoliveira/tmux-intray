@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
 
 // FindNotificationPath locates a notification in the tree and returns the path.
-func (s *DefaultTreeService) FindNotificationPath(root *model.TreeNode, notif notification.Notification) ([]*model.TreeNode, error) {
+func (s *DefaultTreeService) FindNotificationPath(root *model.TreeNode, notif domain.Notification) ([]*model.TreeNode, error) {
 	if root == nil {
 		return nil, fmt.Errorf("root node cannot be nil")
 	}
@@ -24,7 +24,7 @@ func (s *DefaultTreeService) FindNotificationPath(root *model.TreeNode, notif no
 }
 
 // findNotificationPathRecursive is a helper that recursively searches for a notification.
-func (s *DefaultTreeService) findNotificationPathRecursive(node *model.TreeNode, notif notification.Notification) ([]*model.TreeNode, bool) {
+func (s *DefaultTreeService) findNotificationPathRecursive(node *model.TreeNode, notif domain.Notification) ([]*model.TreeNode, bool) {
 	if node == nil {
 		return nil, false
 	}
