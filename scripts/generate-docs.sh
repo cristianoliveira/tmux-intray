@@ -11,7 +11,7 @@ DOCS_DIR="$PROJECT_ROOT/docs/cli"
 if [[ ! -f "$BIN_PATH" ]]; then
     (cd "$PROJECT_ROOT" && make go-build)
 fi
-VERSION="$("$BIN_PATH" version | awk '{print $NF}')"
+VERSION="$("$BIN_PATH" --version | awk '{print $NF}')"
 
 # Create directories
 mkdir -p "$MAN_DIR"
@@ -19,7 +19,7 @@ mkdir -p "$DOCS_DIR"
 
 # Function to extract subcommand list with descriptions from main help
 get_subcommands_with_descriptions() {
-    "$BIN_PATH" --help | sed -n '/^COMMANDS:/,/^OPTIONS:/p' | grep -E '^    [a-z]' | sed 's/^    //' | while IFS= read -r line; do
+    "$BIN_PATH" --help | sed -n '/^Available Commands:/,/^Flags:/p' | grep -E '^  [a-z]' | sed 's/^  //' | while IFS= read -r line; do
         # Split line into signature and description (separated by two or more spaces)
         # Use sed to replace first occurrence of two or more spaces with '|'
         local processed
@@ -40,8 +40,8 @@ get_subcommand_help() {
     local help_output
     # Try --help, then -h
     help_output="$("$BIN_PATH" "$cmd" --help 2>/dev/null || "$BIN_PATH" "$cmd" -h 2>/dev/null)"
-    # Filter out main help lines (those containing "tmux-intray v0.1.0" but not the command)
-    if echo "$help_output" | grep -q "tmux-intray v0.1.0" && ! echo "$help_output" | grep -q "tmux-intray $cmd"; then
+    # Filter out main help lines (those starting with the binary name but not the subcommand)
+    if echo "$help_output" | grep -q "^tmux-intray" && ! echo "$help_output" | grep -q "tmux-intray $cmd"; then
         # This is likely the main help, not subcommand help
         echo ""
         return
@@ -167,7 +167,7 @@ EOF
 \fI~/.local/state/tmux\-intray/\fR
 Notification storage directory (XDG Base Directory Specification)
 .TP
-\fI~/.config/tmux\-intray/config.sh\fR
+\fI~/.config/tmux\-intray/config.toml\fR
 Configuration file
 .TP
 \fI~/.config/tmux\-intray/hooks/\fR

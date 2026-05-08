@@ -41,7 +41,7 @@ Quick links to key sections:
 
 ### Quick Start
 - **Full Setup (Recommended)**: Install CLI + Tmux Plugin via [One-click installation](#one-click-installation)
-- **CLI Only**: Install via [npm](#npm) or [Go](#go) for tmux-integrated use
+- **CLI Only**: Install via [Go](#go) or [Nix](#nix-flakes) for tmux-integrated use
 - **Plugin Only**: Install via [Tmux Plugin Manager](#using-tmux-plugin-manager-recommended) if CLI already installed
 
 ## Basic Usage
@@ -141,6 +141,18 @@ git clone https://github.com/cristianoliveira/tmux-intray.git
 cd tmux-intray
 make install
 ```
+
+### Option 3: Tmux Plugin Only
+
+Install just the tmux plugin if you already have the CLI installed:
+
+#### Using Tmux Plugin Manager (Recommended)
+
+```bash
+set -g @plugin 'cristianoliveira/tmux-intray'
+```
+
+Add to your `.tmux.conf` and press `<prefix> + I` to install.
 
 #### Manual Plugin Installation
 
