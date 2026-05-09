@@ -303,6 +303,59 @@ func TestCleanupOldNotifications_WithStorage(t *testing.T) {
 	assert.Equal(t, 1, count)
 }
 
+func TestListNotificationValues_ReturnsDomainNotifications(t *testing.T) {
+	setupStorageTest(t)
+
+	require.NoError(t, Init())
+
+	_, err := AddNotification("hello world", "2025-01-01T12:00:00Z", "session1", "window0", "pane0", "123456", "info")
+	require.NoError(t, err)
+	_, err = AddNotification("test warning", "2025-01-01T12:01:00Z", "session2", "window1", "pane1", "123457", "warning")
+	require.NoError(t, err)
+
+	notifs, err := ListNotificationValues("", "", "", "", "", "", "", "")
+	require.NoError(t, err)
+	assert.Len(t, notifs, 2)
+
+	// Verify domain types are correct
+	assert.Greater(t, notifs[0].ID, 0)
+	assert.Equal(t, "hello world", notifs[0].Message)
+	assert.Equal(t, "info", notifs[0].Level.String())
+	assert.Equal(t, "session1", notifs[0].Session)
+
+	assert.Equal(t, "test warning", notifs[1].Message)
+	assert.Equal(t, "warning", notifs[1].Level.String())
+}
+
+func TestListNotificationValues_FiltersByState(t *testing.T) {
+	setupStorageTest(t)
+
+	require.NoError(t, Init())
+
+	_, err := AddNotification("active msg", "2025-01-01T12:00:00Z", "s1", "w0", "p0", "1", "info")
+	require.NoError(t, err)
+
+	// Add and dismiss a second notification
+	id2, err := AddNotification("dismissed msg", "2025-01-01T12:01:00Z", "s1", "w0", "p0", "2", "info")
+	require.NoError(t, err)
+	require.NoError(t, DismissNotification(id2))
+
+	notifs, err := ListNotificationValues("active", "", "", "", "", "", "", "")
+	require.NoError(t, err)
+	assert.Len(t, notifs, 1)
+	assert.Equal(t, "active msg", notifs[0].Message)
+}
+
+func TestListNotificationValues_EmptyResult(t *testing.T) {
+	setupStorageTest(t)
+
+	require.NoError(t, Init())
+
+	notifs, err := ListNotificationValues("", "", "", "", "", "", "", "")
+	require.NoError(t, err)
+	assert.Len(t, notifs, 0)
+}
+
 func TestGetActiveCount_ReturnsZeroOnStorageError(t *testing.T) {
 	Reset()
 	t.Cleanup(Reset)

@@ -1,10 +1,13 @@
 // Package ports defines application boundary interfaces used by core services.
 package ports
 
+import "github.com/cristianoliveira/tmux-intray/internal/domain"
+
 // NotificationRepository defines the storage operations used by core services.
 type NotificationRepository interface {
 	AddNotification(message, timestamp, session, window, pane, paneCreated, level string) (string, error)
 	ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error)
+	ListNotificationValues(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) ([]domain.Notification, error)
 	GetNotificationByID(id string) (string, error)
 	DismissNotification(id string) error
 	DismissAll() error

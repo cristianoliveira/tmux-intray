@@ -114,3 +114,64 @@ func (s *NotificationService) CleanupOld(daysThreshold int, dryRun bool) error {
 func (s *NotificationService) GetActiveCount() int {
 	return s.repo.GetActiveCount()
 }
+
+// QueryParams holds all parameters for querying notifications from storage.
+type QueryParams struct {
+	State       string
+	Level       string
+	Session     string
+	Window      string
+	Pane        string
+	OlderThan   string // RFC3339 cutoff
+	NewerThan   string // RFC3339 cutoff
+	ReadFilter  string
+	Search      string
+	SortBy      string
+	SortOrder   string
+	UnreadFirst bool
+}
+
+// QueryResult holds the result of a notification query.
+type QueryResult struct {
+	Notifications []Notification
+}
+
+// Query fetches notifications from storage and applies filters, search, and sorting.
+func (s *NotificationService) Query(params QueryParams) (*QueryResult, error) {
+	notifs, err := s.repo.List(
+		params.State,
+		params.Level,
+		params.Session,
+		params.Window,
+		params.Pane,
+		params.OlderThan,
+		params.NewerThan,
+		params.ReadFilter,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if params.Search != "" {
+		notifs = SearchNotifications(notifs, params.Search, true)
+	}
+
+	if params.SortBy != "" {
+		field, err := ParseSortByField(params.SortBy)
+		if err != nil {
+			field = SortByTimestampField
+		}
+		order, err := ParseSortOrder(params.SortOrder)
+		if err != nil {
+			order = SortOrderDesc
+		}
+		opts := SortOptions{Field: field, Order: order}
+		if params.UnreadFirst {
+			notifs = SortWithUnreadFirst(notifs, opts)
+		} else {
+			notifs = SortNotifications(notifs, opts)
+		}
+	}
+
+	return &QueryResult{Notifications: notifs}, nil
+}

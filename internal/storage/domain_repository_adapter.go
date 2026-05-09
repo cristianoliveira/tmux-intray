@@ -3,7 +3,6 @@ package storage
 import (
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/notification"
@@ -39,43 +38,14 @@ func (a *DomainRepositoryAdapter) Add(message, timestamp, session, window, pane,
 
 // List retrieves notifications matching the given filters.
 func (a *DomainRepositoryAdapter) List(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) ([]domain.Notification, error) {
-	tsvData, err := a.storage.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
+	notifs, err := a.storage.ListNotificationValues(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", domain.ErrStorageFailed, err)
 	}
-
-	if tsvData == "" {
+	if notifs == nil {
 		return []domain.Notification{}, nil
 	}
-
-	var oldNotifs []notification.Notification
-	lines := strings.Split(tsvData, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		oldNotif, err := notification.ParseNotification(line)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse notification line: %w", err)
-		}
-		oldNotifs = append(oldNotifs, oldNotif)
-	}
-
-	domainNotifs, err := notification.ToDomainSlice(oldNotifs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert to domain notifications: %w", err)
-	}
-
-	result := make([]domain.Notification, 0, len(domainNotifs))
-	for _, n := range domainNotifs {
-		if n != nil {
-			result = append(result, *n)
-		}
-	}
-
-	return result, nil
+	return notifs, nil
 }
 
 // GetByID retrieves a notification by its ID.

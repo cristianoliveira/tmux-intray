@@ -7,6 +7,7 @@ import (
 
 	appcore "github.com/cristianoliveira/tmux-intray/internal/app"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/ports"
 	"github.com/cristianoliveira/tmux-intray/internal/search"
 	"github.com/cristianoliveira/tmux-intray/internal/settings"
@@ -52,6 +53,10 @@ func (f *fakeStorage) CleanupOldNotifications(daysThreshold int, dryRun bool) er
 	return nil
 }
 
+func (f *fakeStorage) ListNotificationValues(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) ([]domain.Notification, error) {
+	return nil, nil
+}
+
 func (f *fakeStorage) GetActiveCount() int {
 	return 0
 }
@@ -68,6 +73,10 @@ func (f *fakeCore) AddTrayItem(item, session, window, pane, paneCreated string, 
 
 func (f *fakeCore) ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error) {
 	return "", nil
+}
+
+func (f *fakeCore) ListDomainNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) ([]*domain.Notification, error) {
+	return nil, nil
 }
 
 func (f *fakeCore) GetActiveCount() int {

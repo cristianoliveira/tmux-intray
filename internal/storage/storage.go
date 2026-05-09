@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/cristianoliveira/tmux-intray/internal/config"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 )
 
 var (
@@ -104,6 +105,15 @@ func CleanupOldNotifications(daysThreshold int, dryRun bool) error {
 		return fmt.Errorf("failed to get storage: %w", err)
 	}
 	return store.CleanupOldNotifications(daysThreshold, dryRun)
+}
+
+// ListNotificationValues returns domain notifications using the default storage backend.
+func ListNotificationValues(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) ([]domain.Notification, error) {
+	store, err := getDefaultStorage()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get storage: %w", err)
+	}
+	return store.ListNotificationValues(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
 }
 
 // GetActiveCount returns the count of active notifications using the default storage backend.

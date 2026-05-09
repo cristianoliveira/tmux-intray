@@ -204,23 +204,15 @@ func (c *Core) ListNotifications(stateFilter, levelFilter, sessionFilter, window
 
 // ListDomainNotifications lists notifications as domain values for typed internal flows.
 func (c *Core) ListDomainNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) ([]*domain.Notification, error) {
-	lines, err := c.ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
-	if err != nil || lines == "" {
+	notifs, err := c.storage.ListNotificationValues(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
+	if err != nil {
 		return nil, err
 	}
-
-	var notifications []*domain.Notification
-	for _, line := range strings.Split(lines, "\n") {
-		if line == "" {
-			continue
-		}
-		notif, err := notification.ParseNotification(line)
-		if err != nil {
-			continue
-		}
-		notifications = append(notifications, notification.ToDomainUnsafe(notif))
+	result := make([]*domain.Notification, len(notifs))
+	for i := range notifs {
+		result[i] = &notifs[i]
 	}
-	return notifications, nil
+	return result, nil
 }
 
 // ListNotifications lists notifications with filters using the default core instance.

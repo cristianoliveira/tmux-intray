@@ -7,6 +7,7 @@ import (
 	"github.com/cristianoliveira/tmux-intray/cmd"
 	appcore "github.com/cristianoliveira/tmux-intray/internal/app"
 	"github.com/cristianoliveira/tmux-intray/internal/colors"
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/config"
 	"github.com/cristianoliveira/tmux-intray/internal/core"
 	"github.com/cristianoliveira/tmux-intray/internal/formatter"
@@ -24,6 +25,7 @@ type cliCore interface {
 	EnsureTmuxRunning() bool
 	AddTrayItem(item, session, window, pane, paneCreated string, noAssociate bool, level string) (string, error)
 	ListNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) (string, error)
+	ListDomainNotifications(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) ([]*domain.Notification, error)
 	GetActiveCount() int
 	DismissNotification(id string) error
 	DismissAll() error

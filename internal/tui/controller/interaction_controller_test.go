@@ -5,19 +5,14 @@ import (
 	"testing"
 
 	"github.com/cristianoliveira/tmux-intray/internal/domain"
-	"github.com/cristianoliveira/tmux-intray/internal/notification"
 	"github.com/cristianoliveira/tmux-intray/internal/tui/model"
 )
 
 type fakeNotificationStore struct {
-	listOutput         string
-	listErr            error
-	typedActive        []notification.Notification
-	typedAll           []notification.Notification
-	typedErr           error
-	typedEnabled       bool
-	typedActiveCalls   int
-	typedAllCalls      int
+	activeNotifications []domain.Notification
+	allNotifications    []domain.Notification
+	listErr             error
+
 	dismissID          string
 	dismissFilter      [3]string
 	markReadID         string
@@ -28,28 +23,12 @@ type fakeNotificationStore struct {
 	markUnreadErr      error
 }
 
-func (f *fakeNotificationStore) ListActiveNotifications() (string, error) {
-	return f.listOutput, f.listErr
+func (f *fakeNotificationStore) ListActiveDomainNotifications() ([]domain.Notification, error) {
+	return f.activeNotifications, f.listErr
 }
 
-func (f *fakeNotificationStore) ListAllNotifications() (string, error) {
-	return f.listOutput, f.listErr
-}
-
-func (f *fakeNotificationStore) ListActiveNotificationValues() ([]notification.Notification, error) {
-	if !f.typedEnabled {
-		return nil, errTypedNotificationListingUnsupported
-	}
-	f.typedActiveCalls++
-	return f.typedActive, f.typedErr
-}
-
-func (f *fakeNotificationStore) ListAllNotificationValues() ([]notification.Notification, error) {
-	if !f.typedEnabled {
-		return nil, errTypedNotificationListingUnsupported
-	}
-	f.typedAllCalls++
-	return f.typedAll, f.typedErr
+func (f *fakeNotificationStore) ListAllDomainNotifications() ([]domain.Notification, error) {
+	return f.allNotifications, f.listErr
 }
 
 func (f *fakeNotificationStore) DismissNotification(id string) error {
@@ -70,22 +49,6 @@ func (f *fakeNotificationStore) MarkNotificationRead(id string) error {
 func (f *fakeNotificationStore) MarkNotificationUnread(id string) error {
 	f.markUnreadID = id
 	return f.markUnreadErr
-}
-
-type fakeNotificationParser struct {
-	parsed map[string]domain.Notification
-	errFor map[string]error
-}
-
-func (f *fakeNotificationParser) Parse(line string) (domain.Notification, error) {
-	if err, ok := f.errFor[line]; ok {
-		return domain.Notification{}, err
-	}
-	notif, ok := f.parsed[line]
-	if !ok {
-		return domain.Notification{}, errors.New("unexpected line")
-	}
-	return notif, nil
 }
 
 type fakeRuntimeCoordinator struct{}
@@ -145,17 +108,15 @@ func (t *trackingRuntimeCoordinator) JumpToWindow(sessionID, windowID string) bo
 	return t.jumpWindowResult
 }
 
-func TestLoadActiveNotifications_UsesInjectedAdapters(t *testing.T) {
-	store := &fakeNotificationStore{listOutput: "line-1\nline-bad\nline-2\n"}
-	parser := &fakeNotificationParser{
-		parsed: map[string]domain.Notification{
-			"line-1": {ID: 1, Message: "one"},
-			"line-2": {ID: 2, Message: "two"},
+func TestLoadActiveNotifications_ReturnsDomainNotifications(t *testing.T) {
+	store := &fakeNotificationStore{
+		activeNotifications: []domain.Notification{
+			{ID: 1, Message: "one"},
+			{ID: 2, Message: "two"},
 		},
-		errFor: map[string]error{"line-bad": errors.New("bad")},
 	}
 
-	controller := NewInteractionControllerWithAdapters(fakeRuntimeCoordinator{}, store, parser)
+	controller := NewInteractionControllerWithAdapters(fakeRuntimeCoordinator{}, store)
 
 	notifications, err := controller.LoadActiveNotifications()
 	if err != nil {
@@ -169,44 +130,18 @@ func TestLoadActiveNotifications_UsesInjectedAdapters(t *testing.T) {
 	}
 }
 
-func TestLoadActiveNotifications_PrefersTypedNotificationsOverTextParsing(t *testing.T) {
+func TestLoadAllNotifications_ReturnsDomainNotifications(t *testing.T) {
 	store := &fakeNotificationStore{
-		listOutput:   "line that should not be parsed",
-		typedEnabled: true,
-		typedActive:  []notification.Notification{{ID: 10, Message: "typed"}},
+		allNotifications: []domain.Notification{
+			{ID: 11, Message: "all"},
+		},
 	}
-	parser := &fakeNotificationParser{parsed: map[string]domain.Notification{}}
 
-	controller := NewInteractionControllerWithAdapters(fakeRuntimeCoordinator{}, store, parser)
-
-	notifications, err := controller.LoadActiveNotifications()
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if store.typedActiveCalls != 1 {
-		t.Fatalf("expected typed active list once, got %d", store.typedActiveCalls)
-	}
-	if len(notifications) != 1 || notifications[0].ID != 10 {
-		t.Fatalf("unexpected notifications returned: %#v", notifications)
-	}
-}
-
-func TestLoadAllNotifications_PrefersTypedNotificationsOverTextParsing(t *testing.T) {
-	store := &fakeNotificationStore{
-		listOutput:   "line that should not be parsed",
-		typedEnabled: true,
-		typedAll:     []notification.Notification{{ID: 11, Message: "typed all"}},
-	}
-	parser := &fakeNotificationParser{parsed: map[string]domain.Notification{}}
-
-	controller := NewInteractionControllerWithAdapters(fakeRuntimeCoordinator{}, store, parser)
+	controller := NewInteractionControllerWithAdapters(fakeRuntimeCoordinator{}, store)
 
 	notifications, err := controller.LoadAllNotifications()
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
-	}
-	if store.typedAllCalls != 1 {
-		t.Fatalf("expected typed all list once, got %d", store.typedAllCalls)
 	}
 	if len(notifications) != 1 || notifications[0].ID != 11 {
 		t.Fatalf("unexpected notifications returned: %#v", notifications)
@@ -215,9 +150,8 @@ func TestLoadAllNotifications_PrefersTypedNotificationsOverTextParsing(t *testin
 
 func TestLoadActiveNotifications_ReturnsStoreErrors(t *testing.T) {
 	store := &fakeNotificationStore{listErr: errors.New("storage down")}
-	parser := &fakeNotificationParser{parsed: map[string]domain.Notification{}}
 
-	controller := NewInteractionControllerWithAdapters(fakeRuntimeCoordinator{}, store, parser)
+	controller := NewInteractionControllerWithAdapters(fakeRuntimeCoordinator{}, store)
 
 	_, err := controller.LoadActiveNotifications()
 	if err == nil {
@@ -227,9 +161,8 @@ func TestLoadActiveNotifications_ReturnsStoreErrors(t *testing.T) {
 
 func TestMutationMethods_DelegateToStore(t *testing.T) {
 	store := &fakeNotificationStore{}
-	parser := &fakeNotificationParser{parsed: map[string]domain.Notification{}}
 
-	controller := NewInteractionControllerWithAdapters(fakeRuntimeCoordinator{}, store, parser)
+	controller := NewInteractionControllerWithAdapters(fakeRuntimeCoordinator{}, store)
 
 	if err := controller.DismissNotification("7"); err != nil {
 		t.Fatalf("dismiss failed: %v", err)
@@ -259,10 +192,11 @@ func TestMutationMethods_DelegateToStore(t *testing.T) {
 }
 
 func TestLoadActiveNotifications_ReturnsEmptySliceForNoRows(t *testing.T) {
-	store := &fakeNotificationStore{listOutput: ""}
-	parser := &fakeNotificationParser{parsed: map[string]domain.Notification{}}
+	store := &fakeNotificationStore{
+		activeNotifications: []domain.Notification{},
+	}
 
-	controller := NewInteractionControllerWithAdapters(fakeRuntimeCoordinator{}, store, parser)
+	controller := NewInteractionControllerWithAdapters(fakeRuntimeCoordinator{}, store)
 
 	notifications, err := controller.LoadActiveNotifications()
 	if err != nil {
@@ -282,13 +216,10 @@ func TestNewInteractionController_UsesDefaultAdapters(t *testing.T) {
 	if _, ok := impl.store.(storageNotificationStore); !ok {
 		t.Fatalf("expected storageNotificationStore, got %T", impl.store)
 	}
-	if _, ok := impl.parser.(defaultNotificationParser); !ok {
-		t.Fatalf("expected defaultNotificationParser, got %T", impl.parser)
-	}
 }
 
 func TestNewInteractionControllerWithAdapters_DefaultsNilAdapters(t *testing.T) {
-	controller := NewInteractionControllerWithAdapters(fakeRuntimeCoordinator{}, nil, nil)
+	controller := NewInteractionControllerWithAdapters(fakeRuntimeCoordinator{}, nil)
 	impl, ok := controller.(*DefaultInteractionController)
 	if !ok {
 		t.Fatalf("expected *DefaultInteractionController, got %T", controller)
@@ -296,20 +227,10 @@ func TestNewInteractionControllerWithAdapters_DefaultsNilAdapters(t *testing.T) 
 	if _, ok := impl.store.(storageNotificationStore); !ok {
 		t.Fatalf("expected default store when nil, got %T", impl.store)
 	}
-	if _, ok := impl.parser.(defaultNotificationParser); !ok {
-		t.Fatalf("expected default parser when nil, got %T", impl.parser)
-	}
-}
-
-func TestDefaultNotificationParser_ParseInvalidLine(t *testing.T) {
-	_, err := (defaultNotificationParser{}).Parse("not-a-valid-notification-line")
-	if err == nil {
-		t.Fatal("expected parser error for invalid notification line")
-	}
 }
 
 func TestRuntimeMethods_DelegateAndHandleNilCoordinator(t *testing.T) {
-	controller := NewInteractionControllerWithAdapters(nil, &fakeNotificationStore{}, &fakeNotificationParser{parsed: map[string]domain.Notification{}})
+	controller := NewInteractionControllerWithAdapters(nil, &fakeNotificationStore{})
 
 	if controller.EnsureTmuxRunning() {
 		t.Fatal("expected EnsureTmuxRunning to be false with nil runtime coordinator")

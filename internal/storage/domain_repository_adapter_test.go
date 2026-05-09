@@ -60,6 +60,14 @@ func (m *MockStorage) CleanupOldNotifications(daysThreshold int, dryRun bool) er
 	return args.Error(0)
 }
 
+func (m *MockStorage) ListNotificationValues(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) ([]domain.Notification, error) {
+	args := m.Called(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]domain.Notification), args.Error(1)
+}
+
 func (m *MockStorage) GetActiveCount() int {
 	args := m.Called()
 	return args.Int(0)
@@ -117,8 +125,8 @@ func TestDomainRepositoryAdapter_List(t *testing.T) {
 		mockStorage := new(MockStorage)
 		adapter := NewDomainRepositoryAdapter(mockStorage)
 
-		mockStorage.On("ListNotifications", "", "", "", "", "", "", "", "").
-			Return("", nil)
+		mockStorage.On("ListNotificationValues", "", "", "", "", "", "", "", "").
+			Return([]domain.Notification{}, nil)
 
 		notifs, err := adapter.List("", "", "", "", "", "", "", "")
 		require.NoError(t, err)
@@ -130,27 +138,21 @@ func TestDomainRepositoryAdapter_List(t *testing.T) {
 		mockStorage := new(MockStorage)
 		adapter := NewDomainRepositoryAdapter(mockStorage)
 
-		// Create valid TSV lines (ID, Timestamp, State, Session, Window, Pane, Message, PaneCreated, Level, ReadTimestamp)
-		tsvData := "1\t2025-01-01T12:00:00Z\tactive\tsess1\twin0\tpane0\ttest message\t123456789\tinfo\t\n" +
-			"2\t2025-01-01T12:30:00Z\tdismissed\tsess2\twin1\tpane1\tanother message\t987654321\twarning\t2025-01-01T13:00:00Z"
-		mockStorage.On("ListNotifications", "all", "", "", "", "", "", "", "").
-			Return(tsvData, nil)
+		mockStorage.On("ListNotificationValues", "all", "", "", "", "", "", "", "").
+			Return([]domain.Notification{
+				{ID: 1, Timestamp: "2025-01-01T12:00:00Z", State: domain.StateActive, Session: "sess1", Window: "win0", Pane: "pane0", Message: "test message", PaneCreated: "123456789", Level: domain.LevelInfo},
+				{ID: 2, Timestamp: "2025-01-01T12:30:00Z", State: domain.StateDismissed, Session: "sess2", Window: "win1", Pane: "pane1", Message: "another message", PaneCreated: "987654321", Level: domain.LevelWarning, ReadTimestamp: "2025-01-01T13:00:00Z"},
+			}, nil)
 
 		notifs, err := adapter.List("all", "", "", "", "", "", "", "")
 		require.NoError(t, err)
 		require.Len(t, notifs, 2)
-		// Check first notification
 		assert.Equal(t, 1, notifs[0].ID)
-		assert.Equal(t, "2025-01-01T12:00:00Z", notifs[0].Timestamp)
 		assert.Equal(t, domain.StateActive, notifs[0].State)
 		assert.Equal(t, "sess1", notifs[0].Session)
-		assert.Equal(t, "win0", notifs[0].Window)
-		assert.Equal(t, "pane0", notifs[0].Pane)
 		assert.Equal(t, "test message", notifs[0].Message)
-		assert.Equal(t, "123456789", notifs[0].PaneCreated)
 		assert.Equal(t, domain.LevelInfo, notifs[0].Level)
 		assert.Empty(t, notifs[0].ReadTimestamp)
-		// Check second notification
 		assert.Equal(t, 2, notifs[1].ID)
 		assert.Equal(t, domain.StateDismissed, notifs[1].State)
 		assert.Equal(t, domain.LevelWarning, notifs[1].Level)
@@ -163,8 +165,8 @@ func TestDomainRepositoryAdapter_List(t *testing.T) {
 		adapter := NewDomainRepositoryAdapter(mockStorage)
 
 		expectedErr := errors.New("storage failure")
-		mockStorage.On("ListNotifications", "active", "info", "", "", "", "", "", "").
-			Return("", expectedErr)
+		mockStorage.On("ListNotificationValues", "active", "info", "", "", "", "", "", "").
+			Return([]domain.Notification(nil), expectedErr)
 
 		notifs, err := adapter.List("active", "info", "", "", "", "", "", "")
 		require.Error(t, err)

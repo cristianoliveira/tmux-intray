@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cristianoliveira/tmux-intray/internal/domain"
 	"github.com/cristianoliveira/tmux-intray/internal/hooks"
 	"github.com/cristianoliveira/tmux-intray/internal/storage/sqlite/sqlcgen"
 	_ "modernc.org/sqlite"
@@ -176,6 +177,44 @@ func (s *SQLiteStorage) GetNotificationByID(id string) (string, error) {
 		row.Level,
 		row.ReadTimestamp,
 	), nil
+}
+
+// ListNotificationValues returns domain notifications matching all provided filters.
+func (s *SQLiteStorage) ListNotificationValues(stateFilter, levelFilter, sessionFilter, windowFilter, paneFilter, olderThanCutoff, newerThanCutoff, readFilter string) ([]domain.Notification, error) {
+	if err := validateListInputs(stateFilter, levelFilter, olderThanCutoff, newerThanCutoff); err != nil {
+		return nil, err
+	}
+
+	rows, err := s.queries.ListNotifications(context.Background(), sqlcgen.ListNotificationsParams{
+		StateFilter:     stateFilter,
+		LevelFilter:     levelFilter,
+		SessionFilter:   sessionFilter,
+		WindowFilter:    windowFilter,
+		PaneFilter:      paneFilter,
+		OlderThanCutoff: olderThanCutoff,
+		NewerThanCutoff: newerThanCutoff,
+		ReadFilter:      readFilter,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("sqlite storage: list notification values: %w", err)
+	}
+
+	notifs := make([]domain.Notification, 0, len(rows))
+	for _, row := range rows {
+		notifs = append(notifs, domain.Notification{
+			ID:            int(row.ID),
+			Timestamp:     row.Timestamp,
+			State:         domain.NotificationState(row.State),
+			Session:       row.Session,
+			Window:        row.Window,
+			Pane:          row.Pane,
+			Message:       row.Message,
+			PaneCreated:   row.PaneCreated,
+			Level:         domain.NotificationLevel(row.Level),
+			ReadTimestamp: row.ReadTimestamp,
+		})
+	}
+	return notifs, nil
 }
 
 // GetActiveCount returns the number of active notifications.
