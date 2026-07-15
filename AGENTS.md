@@ -1,24 +1,37 @@
-## Project Philosophy
+# Repository Guidance
 
-This project follows minimalist, Unix‑style principles focused on quiet notifications, persistent storage, and composable design. See [Project Philosophy](docs/philosophy.md) for the guiding principles that inform all design decisions.
+## Product compass
 
-## Development Guide
+Build a quiet, persistent, tmux-aware notification inbox. Prefer composable output, explicit behavior, minimal configuration, and one obvious path. See [docs/philosophy.md](docs/philosophy.md).
 
-Detailed development guidelines in [DEVELOPMENT.md](./DEVELOPMENT.md).
+## Global engineering rules
 
-### Code Placement Rules
+- Use test-driven development; cover happy and unhappy paths.
+- Keep Cobra commands as composition and transport code. Put reusable behavior under `internal/`.
+- Preserve dependency direction defined in [docs/design/import-layering-map.md](docs/design/import-layering-map.md).
+- Inject dependencies through interfaces or factories; composition roots own concrete wiring.
+- Use lowercase errors without trailing punctuation. Wrap causes with `%w`.
+- Use `snake_case` for TOML keys and sections.
+- Do not hand-edit generated code under `internal/storage/sqlite/sqlcgen/`.
 
-- `cmd/tmux-intray/` must stay pure entrypoints: command wiring, flags, validation, dependency injection, and calls into internal packages only.
-- Do not add business logic or helper modules under `cmd/tmux-intray/`; move reusable behavior to `internal/` and test it there.
+## Local guidance index
 
-### Essential Documentation
+Read nearest nested `AGENTS.md` before changing code:
 
-- **Package Structure**: See [Go Package Structure](./docs/design/go-package-structure.md)
-- **Configuration**: See [Configuration Guide](./docs/configuration.md)
-- **CLI Reference**: See [CLI Reference](./docs/cli/CLI_REFERENCE.md)
-- **Hooks System**: See [Hooks Documentation](./docs/hooks.md)
-- **Troubleshooting**: See [Troubleshooting Guide](./docs/troubleshooting.md)
-- **Code design**: See [design](./docs/design/)
+- [`cmd/tmux-intray/`](cmd/tmux-intray/AGENTS.md) — CLI composition and commands
+- [`internal/app/`](internal/app/AGENTS.md) — use-case orchestration
+- [`internal/core/`](internal/core/AGENTS.md) — notification and tmux business behavior
+- [`internal/domain/`](internal/domain/AGENTS.md) — pure domain model
+- [`internal/storage/`](internal/storage/AGENTS.md) — persistence boundary
+- [`internal/tmux/`](internal/tmux/AGENTS.md) — tmux process adapter
+- [`internal/config/`](internal/config/AGENTS.md) — TOML configuration
+- [`internal/hooks/`](internal/hooks/AGENTS.md) — hook execution
+- [`internal/settings/`](internal/settings/AGENTS.md) — persisted user settings
+- [`internal/tui/`](internal/tui/AGENTS.md) — interactive presentation
+- [`internal/format/`](internal/format/AGENTS.md) — CLI output
+- [`internal/search/`](internal/search/AGENTS.md) — search strategies
+
+Development commands and full package map live in [DEVELOPMENT.md](DEVELOPMENT.md).
 
 
 ## Landing the Plane (Session Completion)
