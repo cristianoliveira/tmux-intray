@@ -6,42 +6,50 @@ This project follows minimalist, Unix‑style principles focused on quiet notifi
 
 ```
 tmux-intray/
-├── cmd/                      # CLI command implementations (Cobra)
-│   └── tmux-intray/         # Main entry point and all commands
-│       ├── root.go           # Root command and CLI setup
-│       ├── add.go            # Add command
-│       ├── list.go           # List command
-│       ├── dismiss.go        # Dismiss command
-│       ├── clear.go          # Clear command
-│       ├── jump.go           # Jump command
-│       ├── status.go         # Status command
-│       ├── cleanup.go        # Cleanup command
-│       └── version.go       # Version command
+├── cmd/                      # CLI entry point (Cobra)
+│   ├── root.go               # Root command, global flags, initCLI wiring
+│   └── tmux-intray/          # Command definitions (thin wiring only)
+│       ├── main.go           # main() and run()
+│       ├── deps.go           # DI wiring: storage → core → tui factories
+│       ├── add.go, list.go, list_tabs.go, list_recents.go
+│       ├── dismiss.go, clear.go, jump.go, mark-read.go
+│       ├── follow.go, status.go, cleanup.go, settings.go
+│       ├── tui.go, env_helpers.go
+│       └── *_test.go         # One test file per command
 ├── internal/                 # Private application code
-│   ├── core/               # Core tmux interaction & tray management
-│   ├── storage/            # SQLite storage backend
+│   ├── app/                # Shared CLI use cases (thin orchestration)
+│   ├── core/               # Core tmux interaction & notification business logic
+│   ├── domain/             # Domain types (Notification, filters, sorting, grouping)
+│   ├── ports/              # Port interfaces (NotificationRepository)
+│   ├── storage/            # SQLite storage backend with sqlc-generated queries
+│   ├── tmux/               # Tmux client abstraction
+│   ├── config/             # Configuration management (TOML)
+│   ├── settings/           # Settings persistence & types
+│   ├── dedupconfig/        # Deduplication configuration
+│   ├── search/             # Search providers (substring, token, regex)
+│   ├── hooks/              # Hooks subsystem
 │   ├── colors/             # Color output utilities
-│   ├── config/             # Configuration management (TOML-only)
-│   ├── hooks/              # Hook subsystem for async operations
-│   └── tmuxintray/        # Library initialization and orchestration
-├── scripts/                  # Helper scripts
-│   ├── lib/                # Shell libraries for tmux integration scripts
-│   │   ├── common.sh       # Shared utilities
-│   │   ├── storage.sh      # TSV storage helpers (legacy, used by tmux scripts)
-│   │   └── colors.sh       # Color utilities (legacy, used by tmux scripts)
-│   ├── lint.sh             # ShellCheck linter
-│   ├── security-check.sh   # Security-focused ShellCheck
-│   └── generate-docs.sh    # Documentation generator
-├── tests/                    # Integration tests (Bats)
-│   ├── basic.bats          # Basic CLI tests
-│   ├── storage.bats        # Storage tests
-│   ├── tray.bats           # Tray management tests
-│   └── commands/          # Command-specific tests
-├── tmux-intray.tmux         # Tmux plugin entry point
+│   ├── errors/             # Error handling (CLI + TUI)
+│   ├── format/             # Output formatting (table, simple, compact, JSON)
+│   ├── formatter/          # Status presets & template variables
+│   ├── notification/       # Notification conversion helpers
+│   ├── logging/            # Structured logging
+│   ├── version/            # Version info
+│   └── tui/                # Terminal UI (Bubbletea)
+│       ├── app/            # TUI entry point & client
+│       ├── model/          # Interface contracts
+│       ├── service/        # Service implementations
+│       ├── state/          # Bubbletea Model (18 files)
+│       ├── render/         # Pure view rendering
+│       └── controller/     # Interaction controller
+├── scripts/                  # Helper scripts (import graph, linting)
+├── docs/                     # Documentation
 ├── Makefile                  # Build automation
 ├── go.mod                   # Go module definition
 └── flake.nix                # Nix flake for dev environment
 ```
+
+For detailed package descriptions and architecture layers, see [Go Package Structure](./docs/design/go-package-structure.md).
 
 ## Adding a New Command
 
@@ -96,235 +104,111 @@ tmux-intray/
 
 ## Architecture
 
-The CLI follows Go's standard project layout with Cobra framework:
+The CLI follows a layered architecture with Cobra framework and dependency injection:
 
-1. **Main entry point** (`cmd/tmux-intray/root.go`):
-   - Initializes all commands using Cobra
-   - Sets up global flags and configuration
-   - Handles command routing
+1. **Main entry point** (`cmd/root.go` + `cmd/tmux-intray/main.go`):
+   - `initCLI()` loads config, builds dependencies, registers commands
+   - `main()` / `run()` are thin: parse args, execute Cobra, handle exit codes
 
 2. **Commands** (`cmd/tmux-intray/*.go`):
-   - Each command is a Cobra command
-   - Commands delegate to internal packages for business logic
-   - Use `RunE` for commands that can error
+   - Thin wiring only — no business logic
+   - Each command receives dependencies via `cliDeps` struct
+   - Delegate to `internal/app/` for use cases
 
-3. **Internal packages** (`internal/*`):
-   - `core/` - Core tmux interaction (context detection, tray management)
-   - `storage/` - SQLite storage backend
-   - `colors/` - Terminal color output
-   - `config/` - Configuration loading (TOML-only)
-   - `hooks/` - Hook subsystem
-   - `tmuxintray/` - Library initialization
+3. **Shared use cases** (`internal/app/`):
+   - Orchestration layer between commands and core logic
+   - Testable without tmux or SQLite
 
-4. **Shell libraries** (`scripts/lib/*.sh`):
-    - Legacy libraries for tmux integration scripts only
-    - Color utilities (used by tmux scripts)
+4. **Internal packages** (`internal/*`):
+   - `domain/` — Pure types: Notification, filters, sorting, grouping (zero deps)
+   - `core/` — Business logic: add, dismiss, jump, tmux operations
+   - `storage/` — SQLite persistence with sqlc-generated queries
+   - `tmux/` — Tmux client abstraction
+   - `config/` — Configuration loading (TOML)
+   - `settings/` — Settings persistence (JSON)
+   - `hooks/` — Hook subsystem
+   - `search/` — Pluggable search providers
+   - `format/` — CLI output formatting (table, simple, compact, JSON)
+   - `formatter/` — Status presets and template variables
+   - `tui/` — Bubbletea TUI (model, service, state, render, controller)
+   - Support packages: `colors/`, `errors/`, `logging/`, `notification/`, `version/`, `dedupconfig/`
 
-5. **Tests** (`tests/**/*.bats`):
-   - Integration tests using Bats
-   - Test CLI behavior end-to-end
-   - Mock tmux environment
+See [Go Package Structure](./docs/design/go-package-structure.md) for the full tree.
 
 This structure makes the codebase:
 - ✅ Type-safe with Go
 - ✅ Easy to maintain (clear separation of concerns)
 - ✅ Easy to extend (add new commands without touching existing ones)
-- ✅ Easy to test (unit tests in Go, integration tests in Bats)
-- ✅ Well-organized (standard Go layout)
+- ✅ Easy to test (unit tests with mocked factories)
+- ✅ Well-organized (layered architecture)
 
 ### Example: Add Command Structure
 
-```
-cmd/tmux-intray/
-├── add.go          # Cobra command definition and business logic
-└── ...
-```
+The add command is split across three layers:
 
-**add.go** delegates to internal packages:
+**cmd/tmux-intray/add.go** — thin wiring:
 ```go
-package cmd
+func NewAddCmd(coreClient cliCore) *cobra.Command {
+    return &cobra.Command{
+        Use: "add [message]",
+        RunE: func(cmd *cobra.Command, args []string) error {
+            return app.Add(coreClient, args, flagNoAssociate, flagLevel)
+        },
+    }
+}
+```
 
-import (
-    "github.com/cristianoliveira/tmux-intray/internal/core"
-    "github.com/cristianoliveira/tmux-intray/internal/storage"
-)
+**internal/app/add.go** — use case orchestration:
+```go
+func Add(client CoreClient, args []string, noAssociate bool, level string) error {
+    // Validate, auto-detect context, delegate to core
+    id, err := client.AddTrayItem(message, session, window, pane, paneCreated, noAssociate, level)
+    // Handle errors, output
+}
+```
 
-var addCmd = &cobra.Command{
-    Use:   "add [message]",
-    Short: "Add a notification to the tray",
-    RunE: func(cmd *cobra.Command, args []string) error {
-        // Parse arguments
-        message := args[0]
-
-        // Get tmux context (auto-detection)
-        ctx := core.GetCurrentTmuxContext()
-
-        // Add to storage
-        id := storage.AddNotification(message, "", ctx.Session, ctx.Window, ctx.Pane, ctx.PaneCreated, "info")
-
-        // Output success
-        colors.Success("Added notification: " + id)
-        return nil
-    },
+**internal/core/core.go** — business logic:
+```go
+func (c *Core) AddTrayItem(...) (string, error) {
+    // Validate, create Notification, persist via storage
 }
 ```
 
 ## Key Patterns
 
 ### Storage Layer (internal/storage)
-- SQLite backend with sqlc-generated queries
-- Output format: TSV strings for CLI compatibility
-- State values: "active" or "dismissed"
-- Level values: "info", "warning", "error"
-- Field indices defined as package constants
+- SQLite backend with sqlc-generated queries in `internal/storage/sqlite/sqlcgen/`
+- Domain adapter (`domain_repository_adapter.go`) maps to `NotificationRepository` interface
+- State values: `domain.NotificationState` enum (active, dismissed, read)
+- Level values: `domain.NotificationLevel` enum (info, warning, error)
+- Factory pattern via `storage.NewFromConfig()` for DI
 
-### Tmux Interaction (internal/core)
-- Mock `tmuxRunner` for testing
-- Use `GetCurrentTmuxContext()` for auto context detection
-- Escape special characters in messages
+### Tmux Interaction (internal/tmux)
 
-#### Using the Tmux Abstraction Layer
+The `internal/tmux` package provides a clean client abstraction over tmux commands. The client is mockable for testing via interfaces in `internal/tmux/client.go`.
 
-The `internal/core` package provides a clean abstraction over tmux commands. **Never call `exec.Command("tmux", ...)` directly** from command implementations. Always use the core package functions.
-
-##### Core Functions Available
-
-**Tmux Context & Navigation:**
 ```go
-import "github.com/cristianoliveira/tmux-intray/internal/core"
+import "github.com/cristianoliveira/tmux-intray/internal/tmux"
+
+client := tmux.NewDefaultClient()
 
 // Check if tmux is running
-if !core.EnsureTmuxRunning() {
-    colors.Error("tmux not running")
-    return fmt.Errorf("tmux not available")
-}
+running := client.IsRunning()
 
-// Get current tmux context (auto-detection)
-ctx := core.GetCurrentTmuxContext()
-// ctx.SessionID   // e.g., "$3"
-// ctx.WindowID    // e.g., "@16"
-// ctx.PaneID      // e.g., "%21"
-// ctx.PaneCreated // e.g., "8443"
+// Get current tmux context
+ctx, _ := client.GetCurrentContext()
+// ctx.SessionID, ctx.WindowID, ctx.PaneID
 
-// Validate a pane exists
-if core.ValidatePaneExists(sessionID, windowID, paneID) {
-    // Pane exists
-}
+// List sessions/windows/panes with names
+sessions, _ := client.ListSessions()
+windows, _ := client.ListWindows()
+panes, _ := client.ListPanes()
 
-// Jump to a specific pane
-if core.JumpToPane(sessionID, windowID, paneID) {
-    colors.Success("Jumped to pane")
-} else {
-    colors.Error("Failed to jump to pane")
-}
+// Jump to a pane
+client.JumpToPane(sessionID, windowID, paneID)
 ```
 
-**Visibility Management:**
-```go
-// Get current visibility (returns "0" or "1")
-visible := core.GetVisibility()
-if visible == "1" {
-    // Tray is visible
-}
-
-// Set visibility
-if err := core.SetVisibility(true); err != nil {
-    colors.Error("Failed to set visibility: " + err.Error())
-}
-```
-
-**Tray Management:**
-```go
-// Get tray items
-items := core.GetTrayItems("active") // "active" or "dismissed"
-
-// Add a tray item with auto-context detection
-id, err := core.AddTrayItem("My notification", "", "", "", "", false, "info")
-if err != nil {
-    colors.Error("Failed to add: " + err.Error())
-}
-
-// Clear all active tray items
-if err := core.ClearTrayItems(); err != nil {
-    colors.Error("Failed to clear: " + err.Error())
-}
-```
-
-##### Example: Complete Command Using Core Abstraction
-
-```go
-package cmd
-
-import (
-    "fmt"
-    "github.com/spf13/cobra"
-    "github.com/cristianoliveira/tmux-intray/internal/core"
-    "github.com/cristianoliveira/tmux-intray/internal/colors"
-)
-
-var jumpCmd = &cobra.Command{
-    Use:   "jump <id>",
-    Short: "Jump to notification source pane",
-    RunE: func(cmd *cobra.Command, args []string) error {
-        // Validate tmux is running first
-        if !core.EnsureTmuxRunning() {
-            return fmt.Errorf("tmux not running")
-        }
-
-        // Get notification details from storage
-        id := args[0]
-        notif, err := storage.GetNotificationByID(id)
-        if err != nil {
-            return fmt.Errorf("notification not found: %w", err)
-        }
-
-        // Parse notification fields
-        fields := strings.Split(notif, "\t")
-        sessionID := fields[3] // session
-        windowID := fields[4]  // window
-        paneID := fields[5]    // pane
-
-        // Jump to the pane using core abstraction
-        if !core.JumpToPane(sessionID, windowID, paneID) {
-            return fmt.Errorf("failed to jump to pane")
-        }
-
-        colors.Success("Jumped to notification " + id)
-        return nil
-    },
-}
-```
-
-##### Testing with Tmux Abstraction
-
-The `tmuxRunner` variable in `internal/core/tmux.go` can be replaced for testing:
-
-```go
-func TestJumpToPane(t *testing.T) {
-    // Save original runner
-    origRunner := core.tmuxRunner
-    defer func() { core.tmuxRunner = origRunner }()
-
-    // Replace with mock
-    core.tmuxRunner = func(args ...string) (string, string, error) {
-        switch args[0] {
-        case "list-panes":
-            // Mock panes list
-            return "%21", "", nil
-        case "select-window":
-            return "", "", nil
-        case "select-pane":
-            return "", "", nil
-        default:
-            return "", "", fmt.Errorf("unexpected command: %v", args)
-        }
-    }
-
-    // Test the function
-    result := core.JumpToPane("$3", "@16", "%21")
-    require.True(t, result)
-}
-```
+The `internal/core` package wraps tmux operations with business logic (validation, error handling). Use `internal/tmux` directly for low-level tmux operations, and `internal/core` for notification-related tmux workflows.
 
 ### Colors Output (internal/colors)
 - `Error(msg)` - Output to stderr in red
@@ -399,13 +283,14 @@ make sqlc-check
 tmux-intray uses GitHub Actions for continuous integration and deployment. For detailed documentation on the CI/CD pipeline, see [CI/CD Documentation](docs/ci-cd.md).
 
 Key workflows:
-- **CI**: Runs Go tests, Bats tests, linting, security checks, format checks, and install verification on every push and pull request.
+- **CI**: Runs Go tests, linting, import graph validation, format checks on every push and pull request.
 - **Release**: Automates release creation and binary building when tags are pushed.
 
 ## Further Reading
 
 - [Go Package Structure](./docs/design/go-package-structure.md)
-- [Testing Strategy](./docs/testing/testing-strategy.md)
+- [Import Layering Map](./docs/design/import-layering-map.md)
+- [TUI Guidelines](./docs/design/tui/tui-guidelines.md)
 - [Configuration Guide](./docs/configuration.md)
 - [CLI Reference](./docs/cli/CLI_REFERENCE.md)
 - [Hooks Documentation](./docs/hooks.md)

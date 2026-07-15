@@ -15,7 +15,7 @@ set_tmux_bindings() {
 
 # Initialize the plugin
 initialize_intray() {
-    tmux set-environment -g TMUX_INTRAY_VERSION "0.1.0"
+    tmux set-environment -g TMUX_INTRAY_VERSION "1.0.0"
     tmux set-environment -g TMUX_INTRAY_DIR "$PLUGIN_DIR"
     tmux set-environment -g TMUX_INTRAY_BIN "$TMUX_INTRAY"
 }
