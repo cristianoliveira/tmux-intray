@@ -7,7 +7,6 @@ Send Pi agent lifecycle notifications to `tmux-intray`.
 The extension subscribes to Pi events and writes quiet tmux notifications:
 
 - `agent_end` → `tmux-intray add --level=info -- "Task completed"`
-- failed `tool_result` → `tmux-intray add --level=error -- "Tool error: <tool>"`
 - `session_shutdown` → `tmux-intray add --level=warning -- "Session shutdown"`
 
 It captures the current tmux session, window, and pane with:
