@@ -48,7 +48,7 @@ async function getTmuxContext(): Promise<{ session: string; window: string; pane
   return { session, window, pane };
 }
 
-async function notify(level: "info" | "warning", message: string): Promise<void> {
+async function notify(level: "info" | "error" | "warning", message: string): Promise<void> {
   try {
     const cmd = getTmuxIntrayCommand();
     const ctx = await getTmuxContext();
@@ -69,6 +69,11 @@ async function notify(level: "info" | "warning", message: string): Promise<void>
 export default function tmuxIntrayExtension(pi: ExtensionAPI) {
   pi.on("agent_end", async () => {
     await notify("info", "Task completed");
+  });
+
+  pi.on("tool_result", async (event) => {
+    if (!event.isError || event.toolName === "bash") return;
+    await notify("error", `Tool error: ${event.toolName}`);
   });
 
   pi.on("session_shutdown", async () => {
