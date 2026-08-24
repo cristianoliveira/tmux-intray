@@ -72,9 +72,8 @@ export default function tmuxIntrayExtension(pi: ExtensionAPI) {
   });
 
   pi.on("tool_result", async (event) => {
-    if (event.isError) {
-      await notify("error", `Tool error: ${event.toolName}`);
-    }
+    if (!event.isError || event.toolName === "bash") return;
+    await notify("error", `Tool error: ${event.toolName}`);
   });
 
   pi.on("session_shutdown", async () => {
